@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Engineering Manager MD Kit — 운영 매뉴얼</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--text:#1e2329;--muted:#667085;--line:#e5e7eb;--accent:#3559e0;--soft:#eef2ff;--danger:#b42318;--warn:#b54708;--good:#067647;--code:#101828}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI","Noto Sans KR",sans-serif;line-height:1.65}.layout{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}aside{position:sticky;top:0;height:100vh;overflow:auto;background:#111827;color:#e5e7eb;padding:28px 20px}aside h1{font-size:18px;line-height:1.35;margin:0 0 8px;color:#fff}aside .sub{font-size:12px;color:#9ca3af;margin-bottom:24px}aside a{display:block;color:#cbd5e1;text-decoration:none;padding:7px 9px;border-radius:7px;font-size:13px}aside a:hover{background:#1f2937;color:#fff}main{max-width:1120px;width:100%;padding:56px 64px 96px}.hero{background:linear-gradient(135deg,#111827,#253b80);color:#fff;padding:44px;border-radius:18px;margin-bottom:32px}.hero h2{font-size:34px;line-height:1.2;margin:0 0 14px}.hero p{color:#dbe4ff;max-width:780px;margin:0}h2{font-size:27px;margin:52px 0 16px;scroll-margin-top:20px}h3{font-size:19px;margin:30px 0 10px}p{margin:10px 0}code{font-family:"Cascadia Code","SFMono-Regular",Consolas,monospace}pre{background:var(--code);color:#e5e7eb;padding:18px;border-radius:12px;overflow:auto;line-height:1.45;font-size:13px}.card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:19px}.card h3{margin-top:0}.callout{border-left:4px solid var(--accent);background:var(--soft);padding:14px 18px;border-radius:8px;margin:18px 0}.callout.warn{border-left-color:var(--warn);background:#fff7ed}.callout.danger{border-left-color:var(--danger);background:#fff1f2}.callout.good{border-left-color:var(--good);background:#ecfdf3}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f8fafc;font-size:13px}td{font-size:14px}.badge{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--soft);color:#3046a5;font-size:12px;font-weight:700}.kpi{font-size:28px;font-weight:750}.muted{color:var(--muted)}.steps{counter-reset:step}.step{counter-increment:step;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 18px 18px 56px;margin:12px 0;position:relative}.step:before{content:counter(step);position:absolute;left:18px;top:17px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#111827;color:#fff;font-size:12px;font-weight:700}.file{font-family:monospace;color:#364152}footer{margin-top:70px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:20px}@media(max-width:900px){.layout{display:block}aside{position:relative;height:auto}main{padding:32px 20px}.card-grid{grid-template-columns:1fr}}@media print{aside{display:none}.layout{display:block}main{max-width:none;padding:0}.hero{background:#fff;color:#000;border:1px solid #ddd}.hero p{color:#444}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+<h1>AI Engineering Manager MD Kit</h1><div class="sub">Claude Code + Codex용 저장소 운영 매뉴얼</div>
+<a href="#overview">1. 개요</a><a href="#install">2. 설치</a><a href="#tree">3. 폴더 구조</a><a href="#loading">4. 토큰 로딩 전략</a><a href="#files">5. 파일별 역할</a><a href="#workflow">6. 개발 흐름</a><a href="#missions">7. Mission Pack / Worker</a><a href="#git">8. Git 충돌 방지</a><a href="#build">9. Compile / Build</a><a href="#ux">10. UX / Visual Gate</a><a href="#repo">11. 개인 vs CLO/Marvelous</a><a href="#review">12. 적대적 검증</a><a href="#learning">13. Manager 성장/이식</a><a href="#report">14. 포멀 보고</a><a href="#start">15. 첫 프로젝트 시작</a><a href="#sources">16. 공식 문서 기준</a>
+</aside>
+<main>
+<section class="hero" id="overview"><div class="badge">Repository Overlay</div><h2>아이디어를 검증된 결과로 만드는<br>AI Engineering Manager 운영체계</h2><p>이 패키지는 별도의 오케스트레이터 프로그램을 만드는 것이 아니라, 저장소의 Markdown 지침을 통해 Claude Code와 Codex의 메인 세션이 Manager가 되고 필요한 Worker/Reviewer를 조직하도록 설계되어 있습니다.</p></section>
+<div class="card-grid">
+<div class="card"><div class="kpi">동적</div><b>Worker 수</b><p class="muted">고정 3명이 아니라 Mission Pack 독립성·충돌 위험·토큰 비용을 보고 Manager가 결정합니다.</p></div>
+<div class="card"><div class="kpi">중앙화</div><b>Git Integration</b><p class="muted">Worker끼리 merge하지 않습니다. Manager가 충돌 맵과 통합 순서를 관리합니다.</p></div>
+<div class="card"><div class="kpi">조기</div><b>Compile / Build</b><p class="muted">마지막 빌드에서 누락을 발견하지 않도록 Mission Pack과 Integration Wave마다 검증합니다.</p></div>
+<div class="card"><div class="kpi">실행</div><b>UX Verification</b><p class="muted">UI는 컴파일 성공으로 끝내지 않고 가능한 경우 실제 실행 화면과 UX Contract를 비교합니다.</p></div>
+</div>
+<h2 id="install">2. 설치</h2>
+<div class="steps"><div class="step"><b>ZIP을 프로젝트 저장소 루트에 풉니다.</b><br>기존 소스 폴더와 같은 레벨에 <span class="file">CLAUDE.md</span>, <span class="file">AGENTS.md</span>, <span class="file">.ai/</span>가 있어야 합니다.</div><div class="step"><b>정책 파일을 먼저 Git에 commit합니다.</b><br>새 Worktree/Agent가 정책 파일을 상속하려면 정책 파일이 base commit에 존재하는 것이 중요합니다.</div><div class="step"><b>Claude Code 또는 Codex를 저장소 루트에서 시작합니다.</b><br>처음에는 평소처럼 자연어로 목표를 전달하면 됩니다.</div></div>
+<div class="callout danger"><b>중요:</b> ZIP을 풀기만 하고 commit하지 않은 상태에서 병렬 Worktree를 먼저 만들면 새 Worktree가 정책 파일을 갖지 못할 수 있습니다. <b>정책 파일 commit → 개발 시작</b> 순서를 지키십시오.</div>
+<h2 id="tree">3. 폴더 구조</h2>
+<pre>ai-engineering-manager-md-kit/
+├─ README.md
+├─ CLAUDE.md
+├─ AGENTS.md
+├─ AI_DEVELOPMENT_MANUAL.html
+└─ .ai/
+   ├─ CORE.md
+   ├─ MANAGER.md
+   ├─ EXECUTION.md
+   ├─ REVIEW.md
+   ├─ UX.md
+   ├─ REPOSITORY.md
+   ├─ REPORTING.md
+   ├─ PROJECT_CONTEXT.md
+   ├─ memory/
+   │  ├─ MANAGER_PLAYBOOK.md
+   │  └─ PROJECT_LESSONS.md
+   └─ reports/
+      └─ .gitkeep</pre>
+<h2 id="loading">4. 토큰 로딩 전략</h2>
+<p>문서 전체를 모든 세션이 읽는 구조가 아닙니다. 메인 Manager만 필요한 핵심 문서를 읽고, Worker는 Manager가 만든 작은 Mission Packet만 받습니다.</p>
+<table><thead><tr><th>세션</th><th>기본 Context</th><th>원칙</th></tr></thead><tbody><tr><td>Claude Manager</td><td><code>CLAUDE.md + CORE + MANAGER + PROJECT_CONTEXT</code></td><td>추가 정책은 필요할 때만</td></tr><tr><td>Codex Manager</td><td><code>AGENTS.md + CORE + MANAGER + PROJECT_CONTEXT</code></td><td>추가 정책은 필요할 때만</td></tr><tr><td>Worker</td><td>Mission Packet + 관련 코드</td><td>전체 <code>.ai</code> 재독 금지</td></tr><tr><td>Reviewer</td><td>요구사항 + diff + tests + review rule</td><td>Implementer reasoning 미전달</td></tr></tbody></table>
+<div class="card-grid" style="margin-top:14px"><div class="card"><b>Claude Manager 기본 정책 텍스트</b><div class="kpi">≈ 2,235</div><span class="muted">rough tokens · 8,940 chars</span></div><div class="card"><b>전체 Markdown을 모두 읽는 경우</b><div class="kpi">≈ 6,157</div><span class="muted">rough tokens · 24,628 chars</span></div></div>
+<p class="muted">토큰 값은 영문 텍스트의 문자 수를 4로 나눈 거친 추정치이며 모델별 tokenizer에 따라 달라집니다. 중요한 것은 전체 문서를 Worker마다 반복 로드하지 않는 구조입니다.</p>
+<h2 id="files">5. 파일별 역할</h2>
+<table><thead><tr><th>파일</th><th>읽는 주체</th><th>역할</th></tr></thead><tbody>
+<tr><td><code>CLAUDE.md</code></td><td>Claude Code</td><td>진입점. Manager 역할과 선택적 정책 로딩 지시.</td></tr><tr><td><code>AGENTS.md</code></td><td>Codex</td><td>Codex 진입점. 동일한 공통 정책으로 연결.</td></tr><tr><td><code>CORE.md</code></td><td>Manager</td><td>바꾸지 않는 품질·자율성·토큰·Windows 빌드 헌법.</td></tr><tr><td><code>MANAGER.md</code></td><td>Manager</td><td>아이디어 → Mission Pack → 통합 → 검증 → 메타평가.</td></tr><tr><td><code>EXECUTION.md</code></td><td>병렬 작업 시</td><td>Worker/Session/Worktree/Mission Packet/Build Ladder.</td></tr><tr><td><code>REVIEW.md</code></td><td>리뷰 시</td><td>적대적 검토, 위험도, Claude ↔ Codex 교차검증.</td></tr><tr><td><code>UX.md</code></td><td>UI 작업 시</td><td>Tooltip, Briefing, Runtime/Visual Gate.</td></tr><tr><td><code>REPOSITORY.md</code></td><td>merge 전</td><td>개인 프로젝트 자동 merge, CLO/Marvelous 보호.</td></tr><tr><td><code>REPORTING.md</code></td><td>Run 종료 시</td><td>사용자에게 보여주는 포멀 Development Report.</td></tr><tr><td><code>PROJECT_CONTEXT.md</code></td><td>Manager</td><td>저장소의 작은 Architecture/Build routing map.</td></tr><tr><td><code>MANAGER_PLAYBOOK.md</code></td><td>선택적</td><td>프로젝트 사이에 이식 가능한 일반화된 Manager 경험.</td></tr><tr><td><code>PROJECT_LESSONS.md</code></td><td>관련 작업 시</td><td>해당 저장소의 conflict/build/UX 위험 기억.</td></tr></tbody></table>
+<h2 id="workflow">6. 개발 흐름</h2>
+<pre>User Idea
+   ↓
+Primary Engineering Manager
+   ↓
+Intent / Acceptance / UX Contract
+   ↓
+Adversarial Idea Check
+   ↓
+Minimal Repository Investigation
+   ↓
+Conflict Map
+   ↓
+Atomic Tasks → Mission Packs
+   ↓
+Dynamic Workers
+   ↓
+Compile / Test
+   ↓
+Central Integration Wave
+   ↓
+Windows Target Build
+   ↓
+Runtime / Visual Gate (UI)
+   ↓
+Risk-based Adversarial Review
+   ↓
+Automatic Fix
+   ↓
+Repository Policy
+   ↓
+Merge or Protected Integration Branch
+   ↓
+Formal Development Report
+   ↓
+Project Lessons / Strategy Learning</pre>
+<h2 id="missions">7. Mission Pack과 Worker</h2>
+<p>Task 하나마다 Session을 만드는 방식은 피합니다. Manager는 context cohesion이 높은 Task를 하나의 Mission Pack으로 묶습니다.</p>
+<pre>MISSION: Camera Delete Core
+
+GOAL
+Non-main imported cameras must be reliably deletable.
+
+OWNERSHIP
+- CameraManager.*
+- CameraItem.*
+
+TASKS
+1. Fix deletion guard.
+2. Fix stale main-camera state.
+3. Add regression coverage.
+
+POLICY
+- autonomous
+- smallest safe diff
+- Windows only
+- no merge
+- self-review/self-fix
+
+VERIFY
+- affected compile
+- relevant tests</pre>
+<div class="callout good"><b>핵심:</b> Worker 수는 3명으로 고정하지 않습니다. 일반적으로 1–6 범위에서 독립 Mission Pack, critical path, 충돌 위험, context bootstrap 비용을 보고 Manager가 결정합니다.</div>
+<h2 id="git">8. Git 충돌을 가장 먼저 줄이는 구조</h2>
+<p>이 시스템은 conflict 해결 능력보다 <b>conflict 예방</b>을 우선합니다.</p><ul><li>병렬 실행 전 파일·symbol 단위 Conflict Map 작성</li><li>동일 write ownership 금지</li><li>shared header / hotspot 변경은 serialize 또는 한 Mission Pack으로 통합</li><li>Worker는 서로 merge하지 않음</li><li>Manager가 중앙 Integration Queue 관리</li><li>hotspot 작업은 오래 쌓지 않고 early integration</li><li>반복 conflict는 <code>PROJECT_LESSONS.md</code>에 기록</li></ul>
+<h2 id="build">9. Compile / Build를 마지막까지 미루지 않기</h2>
+<pre>Edit
+ ↓
+Static / Lint / Type Check
+
+Atomic Task
+ ↓
+Targeted Verification
+
+Mission Pack
+ ↓
+Affected Compile
+
+Integration Wave
+ ↓
+Affected Windows Target Build
+
+Run
+ ↓
+Final Windows Verification / Build</pre>
+<div class="callout warn">Full Build를 매 수정마다 실행하는 것도 비효율적입니다. 목표는 <b>가장 싼 검증을 가능한 이른 시점에</b> 수행하는 것입니다.</div>
+<h2 id="ux">10. 빌드 후 예상치 못한 모습 방지</h2>
+<p>의미 있는 UI 변경은 구현 전에 작은 UX Contract를 만듭니다.</p>
+<pre>ENTRY
+Scene Graph context menu
+
+ACTION
+Delete
+
+MAIN CAMERA
+Delete disabled
+
+TOOLTIP
+Main Camera cannot be deleted.
+
+SUCCESS
+Camera disappears immediately.
+
+ERROR
+Reason is visibly explained.</pre>
+<p>그 후 가능하면 <b>Build → Launch → 실제 화면/상태 확인 → UX Contract 비교</b>까지 수행합니다. 컴파일과 테스트가 모두 PASS여도 실제 화면이 의도와 다르면 완료가 아닙니다.</p>
+<h2 id="repo">11. 개인 프로젝트와 CLO/Marvelous</h2>
+<table><thead><tr><th></th><th>Personal</th><th>CLO/Marvelous Protected</th></tr></thead><tbody><tr><td>자동 구현</td><td>허용</td><td>허용</td></tr><tr><td>자동 commit</td><td>허용</td><td>허용</td></tr><tr><td>Worktree/branch</td><td>허용</td><td>허용</td></tr><tr><td>중앙 integration</td><td>허용</td><td>허용</td></tr><tr><td>Base 자동 merge</td><td><b>Gate 통과 후 허용</b></td><td><b>금지</b></td></tr><tr><td>macOS build</td><td colspan="2">명시적 요청 시에만</td></tr></tbody></table>
+<p><code>PROJECT_CONTEXT.md</code>의 <code>repository_mode</code>는 기본 <code>auto</code>입니다. 저장소 이름/remote가 CLO/Marvelous를 명확히 나타내면 Protected로 취급합니다.</p>
+<h2 id="review">12. 적대적 검증</h2>
+<table><thead><tr><th>Risk</th><th>기본 전략</th></tr></thead><tbody><tr><td>LOW</td><td>Self Review + deterministic check</td></tr><tr><td>MEDIUM</td><td>Cohesive batch 또는 fresh adversarial review</td></tr><tr><td>HIGH</td><td>구현 전 challenge + 구현 후 fresh review. 가능하면 Claude ↔ Codex 교차 검증</td></tr></tbody></table>
+<p>반대 계열 agent를 직접 호출할 수 없는 환경이라면 fresh same-family reviewer로 대체하고 최종 보고서에 <code>FALLBACK REVIEW</code>로 명시합니다.</p>
+<h2 id="learning">13. Manager 경험을 다음 프로젝트에 이식</h2>
+<p>Manager의 전체 대화 history를 복제하지 않습니다. <code>MANAGER_PLAYBOOK.md</code>에 일반화된 전략만 축적합니다.</p>
+<pre>Project A
+  ↓
+Telemetry / Lessons
+  ↓
+PROJECT_LESSONS.md
+  ↓
+Generalizable?
+  ↓
+MANAGER_PLAYBOOK.md (candidate)
+  ↓
+Comparable projects confirm
+  ↓
+verified
+  ↓
+Copy latest MANAGER_PLAYBOOK.md to Project B</pre>
+<p>한 프로젝트의 특수한 경로·workaround는 <code>PROJECT_LESSONS.md</code>에만 남깁니다. 이렇게 해야 Negative Transfer를 줄일 수 있습니다.</p>
+<div class="callout"><b>권장 운영:</b> 여러 프로젝트를 시작할수록 최신 <code>MANAGER_PLAYBOOK.md</code>를 개인 템플릿 저장소에 반영해 새 프로젝트의 초기 전략 비용을 줄이십시오.</div>
+<h2 id="report">14. 사용자에게 포멀하게 보고</h2>
+<pre>DEVELOPMENT REPORT
+
+Status: COMPLETED
+Repository Mode: PERSONAL
+Integration: MERGED
+
+Executive Summary
+...
+
+Delivered
+- ...
+
+Verification
+- Compile: PASS
+- Tests: 18/18 PASS
+- Windows Build: PASS
+- Runtime/Visual: PASS
+- Cross-Agent Review: PASS
+- Git Conflicts: 0
+
+Problems Found & Automatically Fixed
+- Major — stale state → fixed
+
+Remaining Risks
+- Low — ...
+
+Efficiency / Meta Evaluation
+- Mission Packs: 3
+- Workers: 3
+- Rework: low
+- Token/time: measured values only when available
+
+Recommended Next Actions
+1. ...
+2. ...
+3. ...</pre>
+<p>Manager는 Worker 로그를 그대로 사용자에게 던지지 않습니다. 자동으로 할 수 있었던 일을 “다음 액션”으로 미루지도 않습니다.</p>
+<h2 id="start">15. 첫 프로젝트 시작 방법</h2>
+<h3>기존 프로젝트</h3>
+<pre>1. ZIP을 repository root에 풉니다.
+2. 정책 파일을 commit합니다.
+3. Claude Code 또는 Codex를 엽니다.
+4. 평소처럼 목표를 말합니다.
+
+예:
+"카메라 삭제 버그를 조사하고 수정해. UX와 회귀까지 확인해."</pre>
+<p>Manager는 <code>PROJECT_CONTEXT.md</code>가 비어 있으면 현재 작업에 필요한 범위에서만 repository를 조사하고 stable fact를 채우도록 지시되어 있습니다.</p>
+<h3>새 프로젝트</h3><p>프로젝트 목적을 자연어로 전달하면 됩니다. 처음부터 모든 Architecture 문서를 직접 작성할 필요는 없습니다.</p>
+<pre>"이 저장소에서 새로운 Web/PWA 프로젝트를 시작한다.
+목표는 ...
+첫 usable version까지 자율적으로 개발해."</pre>
+<h2 id="sources">16. 공식 동작 기준</h2>
+<p>이 구조는 현재 공식 문서의 다음 기능을 전제로 설계되었습니다.</p><ul><li>Anthropic Claude Code: 프로젝트의 지속 지침에 <code>CLAUDE.md</code> 사용</li><li>OpenAI Codex: 작업 전 <code>AGENTS.md</code> 지침 사용</li><li>Codex: bounded subagent workflows 및 worktree 기반 병렬 작업 지원</li></ul>
+<p>참고:</p><ul><li><code>https://docs.anthropic.com/en/docs/claude-code/memory</code></li><li><code>https://developers.openai.com/codex/agent-configuration/agents-md</code></li><li><code>https://developers.openai.com/codex/agent-configuration/subagents</code></li><li><code>https://developers.openai.com/codex/environments/git-worktrees</code></li></ul>
+<footer>AI Engineering Manager MD Kit · Repository-ready package.<br>Design principle: minimum repeated context, maximum early evidence, centralized integration, formal reporting.</footer>
+</main></div></body></html>
