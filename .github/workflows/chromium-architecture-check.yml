@@ -70,22 +70,34 @@ jobs:
             "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version?format=JSON" \
             > /dev/null
 
-      - name: Check branding patch against pinned upstream source
+      - name: Check complete patch stack against pinned upstream source
         shell: bash
         run: |
           revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
           version="${revision#refs/tags/}"
           worktree="$(mktemp -d)"
           trap 'rm -rf "$worktree"' EXIT
-          mkdir -p "$worktree/chrome/app/theme/chromium"
-          curl --fail --silent --show-error --location \
-            "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/chrome/app/theme/chromium/BRANDING?format=TEXT" \
-            | base64 --decode > "$worktree/chrome/app/theme/chromium/BRANDING"
+          upstream_files=(
+            "chrome/app/theme/chromium/BRANDING"
+            "chrome/browser/resources/new_tab_page/app.html"
+            "chrome/browser/resources/new_tab_page/app.css"
+          )
+          for source_path in "${upstream_files[@]}"; do
+            mkdir -p "$worktree/$(dirname "$source_path")"
+            curl --fail --silent --show-error --location \
+              "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/$source_path?format=TEXT" \
+              | base64 --decode > "$worktree/$source_path"
+          done
           git -C "$worktree" init --quiet
-          git -C "$worktree" add chrome/app/theme/chromium/BRANDING
+          git -C "$worktree" add .
           git -C "$worktree" \
             -c user.name=architecture-check \
             -c user.email=architecture-check@localhost \
-            commit --quiet -m upstream-branding
-          git -C "$worktree" apply --check \
-            "$GITHUB_WORKSPACE/downstream/patches/0001-sunshine-branding.patch"
+            commit --quiet -m upstream-inputs
+          while IFS= read -r patch || [[ -n "$patch" ]]; do
+            [[ -z "$patch" || "$patch" == \#* ]] && continue
+            git -C "$worktree" apply --check \
+              "$GITHUB_WORKSPACE/downstream/patches/$patch"
+            git -C "$worktree" apply \
+              "$GITHUB_WORKSPACE/downstream/patches/$patch"
+          done < "$GITHUB_WORKSPACE/downstream/patches/series"

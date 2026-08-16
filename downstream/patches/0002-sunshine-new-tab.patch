@@ -1,0 +1,43 @@
+diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/resources/new_tab_page/app.css
+index dc7ebed..af5276f 100644
+--- a/chrome/browser/resources/new_tab_page/app.css
++++ b/chrome/browser/resources/new_tab_page/app.css
+@@ -180,6 +180,18 @@ cr-most-visited {
+   z-index: unset;
+ }
+ 
++#sunshineWordmark {
++  color: var(--color-new-tab-page-primary-foreground);
++  font-size: clamp(2rem, 6vw, 3.5rem);
++  font-weight: 650;
++  letter-spacing: 0.18em;
++  line-height: 1;
++  margin-bottom: 38px;
++  padding-inline-start: 0.18em;
++  text-shadow: var(--ntp-theme-text-shadow);
++  user-select: none;
++}
++
+ #logo {
+   margin-bottom: var(--ntp-logo-margin-bottom, 38px);
+ }
+diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/resources/new_tab_page/app.html
+index c4ce4e5..f4f5c51 100644
+--- a/chrome/browser/resources/new_tab_page/app.html
++++ b/chrome/browser/resources/new_tab_page/app.html
+@@ -28,13 +28,8 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+         </ntp-iframe>
+         `
+     ) : ''}
+-  <!-- TODO(crbug.com/40743294): Instead of ?hidden="\${!this.logoEnabled_}" it would
+-       be nicer to use Lit's conditional rendering. However, that breaks
+-       StartupBrowserCreatorPickerNoParamsTest.ShowPickerWhenAlreadyLaunched on
+-       the msan builder. See crbug.com/40743659. -->
+-  <ntp-logo id="logo" ?single-colored="${this.singleColoredLogo_}"
+-      .theme="${this.theme_}" ?hidden="${!this.logoEnabled_}">
+-  </ntp-logo>
++  <div id="sunshineWordmark" role="heading" aria-level="1"
++      aria-label="Sunshine OS">SUNSHINE</div>
+   ${this.ntpRealboxNextEnabled_ ? html`
+     <div id="scrim"
+         @click="${this.onScrimClick_}"

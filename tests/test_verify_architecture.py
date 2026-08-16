@@ -57,10 +57,20 @@ class ArchitectureVerifierTests(unittest.TestCase):
             "# Updated only through upstream-roll review.\n"
             "CHROMIUM_REVISION=refs/tags/148.0.7741.0\n",
         )
-        self._write("downstream/patches/series", "0001-sunshine-branding.patch\n")
+        self._write(
+            "downstream/patches/series",
+            "0001-sunshine-branding.patch\n"
+            "0002-sunshine-new-tab.patch\n",
+        )
         self._write(
             "downstream/patches/0001-sunshine-branding.patch",
             "Subject: [PATCH] Add Sunshine branding\n",
+        )
+        self._write(
+            "downstream/patches/0002-sunshine-new-tab.patch",
+            "chrome/browser/resources/new_tab_page/app.html\n"
+            "chrome/browser/resources/new_tab_page/app.css\n"
+            '<div id="sunshineWordmark" aria-label="Sunshine OS">SUNSHINE</div>\n'
         )
         self._write("src/browser_main.cc", "int main() { return 0; }\n")
 
@@ -110,6 +120,18 @@ class ArchitectureVerifierTests(unittest.TestCase):
         self.assertEqual(1, result)
         self.assertIn("Google", stderr)
         self.assertIn("src/startup.cc", stderr)
+
+    def test_new_tab_patch_must_preserve_browser_first_markers(self) -> None:
+        patch = self.root / "downstream/patches/0002-sunshine-new-tab.patch"
+        patch.write_text(
+            '<div id="sunshineWordmark">SUNSHINE</div>\n',
+            encoding="utf-8",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("New Tab patch missing required marker", stderr)
 
     def test_series_entry_must_reference_an_existing_patch(self) -> None:
         (self.root / "downstream/patches/0001-sunshine-branding.patch").unlink()
