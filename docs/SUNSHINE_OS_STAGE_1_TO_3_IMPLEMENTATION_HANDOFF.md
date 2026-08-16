@@ -483,11 +483,11 @@ Sunshine has at least three personal advantages compelling enough that the user 
 
 1. Command palette and tab search foundation.
 2. Workspaces and clear information model.
-3. Vertical tabs and advanced tab actions.
+3. Advanced tab actions using Chromium's horizontal tab strip.
 4. Split view.
 5. Side panel.
 6. Profile isolation UX and installed web app flows.
-7. Sleeping tabs and duplicate detection after measurement validates need.
+7. Duplicate detection after measurement validates need.
 
 ### 7.3 Workspace contract
 
@@ -507,9 +507,7 @@ Each stores its own tab membership/order, pinned tabs, optional home URL, and op
 
 ### 7.4 Advanced tabs
 
-Required: pin/unpin, groups, vertical tabs, tab search, recently closed, duplicate detection. Sleeping tabs must be opt-in or carefully conservative until memory/performance telemetry proves benefit.
-
-Vertical tabs are a Stage 3 default candidate, not a forced irreversible layout. Users must be able to choose horizontal tabs.
+Required: pin/unpin, native tab groups, tab search, recently closed, and duplicate detection. The initial Sunshine scope keeps Chromium's horizontal tab strip.
 
 ### 7.5 Split View
 
@@ -543,7 +541,6 @@ Demonstrate at least three durable advantages through real dogfooding. Candidate
 - mouse gestures used repeatedly without accidental activation;
 - workspaces used to separate Development, Research, and Personal contexts;
 - split view used for research/implementation without tab thrash;
-- vertical tabs useful at high tab counts;
 - command palette faster than menus for frequent operations;
 - personally designed appearance remains readable and consistent.
 
@@ -649,7 +646,6 @@ These decisions should be answered before or at the named gate; they are not imp
 | P0 | Is partial extension compatibility acceptable for v1? | Stage 1 architecture gate |
 | P0 | What is the default profile/data deletion and backup policy? | before persistence release |
 | P0 | What behavior is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | Stage 1 download release |
-| P1 | Is vertical tab layout the Stage 3 default or opt-in? | Stage 3 UX implementation |
 | P1 | Can a workspace span multiple windows in v1? | Stage 3 workspace design |
 | P1 | Which threat provider and commercial licensing model applies? | Stage 2 security release |
 | P1 | Should installed web apps open in dedicated windows, tabs, or both? | Stage 3 web app release |
