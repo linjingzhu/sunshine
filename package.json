@@ -2,6 +2,7 @@
   "name": "sunshine-os",
   "version": "0.2.0",
   "private": true,
+  "author": "Sunshine OS contributors",
   "description": "Sunshine OS — browser-first Chromium desktop shell",
   "main": "dist/main/bootstrap/index.js",
   "scripts": {
@@ -10,11 +11,11 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.main.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "package:mac": "npm run build && electron-builder --mac dmg zip --universal --publish never",
     "start": "electron ."
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",
-    "electron": "38.2.2",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "vite": "7.1.9"
@@ -25,8 +26,30 @@
     "@types/react-dom": "19.1.9",
     "concurrently": "9.2.1",
     "cross-env": "10.1.0",
+    "electron": "38.2.2",
+    "electron-builder": "26.15.3",
     "typescript": "5.9.3",
     "vitest": "3.2.4",
     "wait-on": "8.0.4"
+  },
+  "build": {
+    "appId": "com.sunshine.browser",
+    "productName": "Sunshine OS",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "artifactName": "Sunshine-OS-${version}-${os}-${arch}.${ext}"
   }
 }
