@@ -1,0 +1,91 @@
+name: Chromium Architecture Guard (no full checkout/build)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [stable]
+  push:
+    branches: [stable]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chromium-architecture-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Chromium checkout and compilation require substantial storage and runner time.
+# This intentionally fast guard validates only Sunshine's downstream architecture
+# and bootstrap tooling. Platform builds belong in a separate, explicitly funded
+# workflow once the native Chromium patch stack is ready for packaging.
+jobs:
+  architecture-guard:
+    name: Reject Electron and validate Python tooling
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out Sunshine source only
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reject excluded wrapper runtimes
+        run: python scripts/verify_architecture.py
+
+      - name: Compile-check repository Python tools
+        shell: bash
+        run: |
+          mapfile -d '' python_files < <(find scripts -type f -name '*.py' -print0)
+          if (( ${#python_files[@]} == 0 )); then
+            echo "No Python tools found under scripts/." >&2
+            exit 1
+          fi
+          python -m py_compile "${python_files[@]}"
+
+      - name: Run architecture guard regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate pinned Chromium inputs without downloading Chromium
+        shell: bash
+        run: |
+          grep -Eq '^CHROMIUM_REVISION=[^[:space:]]+$' config/chromium.version
+          while IFS= read -r patch || [[ -n "$patch" ]]; do
+            [[ -z "$patch" || "$patch" == \#* ]] && continue
+            test -f "downstream/patches/$patch" || {
+              echo "Missing downstream patch: $patch" >&2
+              exit 1
+            }
+          done < downstream/patches/series
+
+      - name: Verify pinned Chromium tag exists upstream
+        shell: bash
+        run: |
+          revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
+          version="${revision#refs/tags/}"
+          curl --fail --silent --show-error --location \
+            "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version?format=JSON" \
+            > /dev/null
+
+      - name: Check branding patch against pinned upstream source
+        shell: bash
+        run: |
+          revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
+          version="${revision#refs/tags/}"
+          worktree="$(mktemp -d)"
+          trap 'rm -rf "$worktree"' EXIT
+          mkdir -p "$worktree/chrome/app/theme/chromium"
+          curl --fail --silent --show-error --location \
+            "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/chrome/app/theme/chromium/BRANDING?format=TEXT" \
+            | base64 --decode > "$worktree/chrome/app/theme/chromium/BRANDING"
+          git -C "$worktree" init --quiet
+          git -C "$worktree" add chrome/app/theme/chromium/BRANDING
+          git -C "$worktree" \
+            -c user.name=architecture-check \
+            -c user.email=architecture-check@localhost \
+            commit --quiet -m upstream-branding
+          git -C "$worktree" apply --check \
+            "$GITHUB_WORKSPACE/downstream/patches/0001-sunshine-branding.patch"

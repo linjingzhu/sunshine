@@ -1,26 +1,31 @@
 # Sunshine OS Project Context
 
-## Product
+## Authoritative product constraints
 
-- Desktop browser shell built with Electron, React, TypeScript, and Vite.
-- Primary supported platform: Windows. Development verification currently runs in Linux CI/container environments.
+- Sunshine OS is a browser first. Unrestricted ordinary web browsing is the primary product surface.
+- The runtime is a native downstream of the open-source Chromium browser.
+- Electron, CEF, Qt WebEngine, Tauri, and OS WebView wrappers are excluded.
+- Chromium owns tabs, omnibox, navigation, history, downloads, renderer isolation, and permissions.
+- Sunshine features are downstream Chromium changes kept as a small, reviewable patch stack.
 - Default integration branch: `stable`.
 
 ## Current architecture
 
-- Trusted browser chrome: sandboxed `BrowserWindow` renderer with a minimal typed preload API.
-- Remote web content: separate sandboxed `WebContentsView`; Node.js is disabled and permissions/new windows are denied by default.
-- Main-process commands: explicit allow-list with trusted-sender validation.
-- Navigation policy: HTTPS by default; HTTP is accepted only for localhost development targets.
+- Upstream: pinned Chromium revision declared in `config/chromium.version`.
+- Downstream: ordered patches in `downstream/patches/series`.
+- Bootstrap: `scripts/bootstrap_chromium.py` checks out Chromium and applies the patch stack.
+- Build: GN generates Ninja files; Ninja builds the native `chrome` target.
+- Start surface: Chromium's native New Tab Page. Sunshine never hardcodes Google as the startup URL.
 
-## Delivered waves
+## Current development slice
 
-- Wave 0: deterministic runtime shell, design tokens, command contract, tests, and documentation baseline.
-- Wave 1: one-window/one-tab browser slice with omnibox, search, back, forward, reload/stop, title/loading state, and error feedback.
-- Wave 2: reproducible unsigned Universal macOS DMG/ZIP test builds through GitHub Actions.
+- Remove the accidental Electron runtime.
+- Reuse Chromium's native browser fundamentals and security model.
+- Apply Sunshine OS metadata without Google Chrome proprietary assets or services.
+- Establish deterministic macOS and Windows build instructions.
 
 ## Next product slice
 
-- Multi-tab lifecycle and tab recovery.
-- Downloads UX and explicit permission prompts.
-- Apple Developer ID signing/notarization and Windows-native packaging.
+- Sunshine New Tab surface hosted as a native Chromium WebUI.
+- Local-first dashboard data model.
+- Explicit permission UX and download review.
