@@ -33,46 +33,44 @@ layout metadata around those native objects.
 5. A tab may occupy zero or one split pane. It cannot be rendered live in both
    panes.
 6. Closing one split pane returns the survivor to the normal active view.
-7. Closing a workspace requires an explicit destination or archive operation.
+7. Closing a workspace requires an explicit destination workspace and atomic
+   transfer of all tabs. Archive is undefined and excluded from the MVP.
    Tabs are never silently discarded.
 8. Invalid or stale persisted references fail closed: the normal active tab is
    shown and damaged split metadata is ignored.
 
 ## 3. Minimum persisted metadata
 
+Chromium's session service is the only authority for tab order, pinned state,
+navigation, group membership, and restoration. Sunshine does not keep a shadow
+tab/session database. The profile catalog persists only workspace definitions:
+
 ```json
 {
   "schema_version": 1,
-  "active_workspace_id": "workspace-development",
   "workspaces": [
     {
       "id": "workspace-development",
       "profile_id": "profile-default",
       "name": "Development",
       "color": "blue",
-      "tab_ids": ["tab-1", "tab-2"],
-      "pinned_tab_ids": ["tab-1"],
-      "last_active_tab_id": "tab-2"
+      "order": 0
     }
-  ],
-  "split": {
-    "orientation": "vertical",
-    "primary_tab_id": "tab-2",
-    "secondary_tab_id": "tab-3",
-    "ratio": 0.5
-  }
+  ]
 }
 ```
 
 Rules:
 
 - `schema_version` is mandatory; unknown future versions are not rewritten.
-- IDs are opaque stable identifiers, never array indexes.
-- `ratio` is finite and clamped to `0.25..0.75` before rendering.
-- Both split tab IDs must exist, be distinct, and belong to the active
-  workspace.
-- `pinned_tab_ids` is an ordered subset of `tab_ids`.
-- `last_active_tab_id` is either a member of `tab_ids` or omitted.
+- Workspace IDs are opaque UUIDs, never array indexes.
+- Durable tab UUID and workspace UUID travel with Chromium `SessionTab`
+  `extra_data`; they are not joined later by URL, title, position, SessionID,
+  WebContents pointer, or native group ID.
+- Active workspace is window-local session extra-data.
+- Unknown future schemas are preserved without rewrite.
+- Missing/invalid membership recovers the native tab into Default; no tab is
+  discarded.
 
 ## 4. Commands
 
@@ -85,7 +83,7 @@ All UI entry points invoke the same command implementation.
 | `workspace.create` | Creates an empty same-profile context with a New Tab |
 | `workspace.switch` | Projects the selected workspace and restores its last active tab |
 | `workspace.tab.move` | Transfers membership while retaining native tab state |
-| `workspace.close` | Requires destination/archive choice |
+| `workspace.close` | Requires destination choice; moves all tabs atomically |
 | `view.split.open` | Places two distinct active-workspace tabs in two panes |
 | `view.split.swap` | Swaps pane positions without navigation or reload |
 | `view.split.close` | Returns the survivor to normal view |
@@ -106,7 +104,8 @@ All UI entry points invoke the same command implementation.
 ## 6. Implementation sequence
 
 1. Verify native Chromium tab-group create/rename/color/collapse/restore behavior.
-2. Add profile-scoped workspace metadata and switching projection.
+2. Add profile-scoped catalog metadata; keep active workspace in window session
+   extra-data and tab membership in tab session extra-data.
 3. Add move-tab and close-workspace transactions with rollback on failure.
 4. Add two-pane split metadata and focus routing.
 5. Add restart recovery and corruption fallback tests.
