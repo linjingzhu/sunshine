@@ -39,7 +39,10 @@ jobs:
       - name: Validate exclusive patch ownership
         run: python scripts/patch_manifest.py
 
-      - name: Validate first-party module registry\n        run: python scripts/validate_first_party_modules.py\n\n      - name: Compile-check repository Python tools
+      - name: Validate first-party module registry
+        run: python scripts/validate_first_party_modules.py
+
+      - name: Compile-check repository Python tools
         shell: bash
         run: |
           mapfile -d '' python_files < <(find scripts -type f -name '*.py' -print0)
