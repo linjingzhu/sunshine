@@ -1,0 +1,37 @@
+name: Native Chromium Windows Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-chromium-windows
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Sunshine Chromium on Windows x64
+    runs-on: [self-hosted, Windows, X64, sunshine-chromium]
+    timeout-minutes: 720
+
+    steps:
+      - name: Check out Sunshine downstream
+        uses: actions/checkout@v4
+
+      - name: Build pinned native Chromium
+        shell: pwsh
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: ./scripts/build_chromium_windows.ps1
+
+      - name: Upload unsigned internal test installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-chromium-windows-x64-unsigned
+          path: |
+            artifacts/windows-x64/sunshine-installer-windows-x64.exe
+            artifacts/windows-x64/size-report.json
+          if-no-files-found: error
+          retention-days: 14
