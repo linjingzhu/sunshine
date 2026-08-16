@@ -24,6 +24,19 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.text)
 
+    def test_workspace_does_not_shadow_chromium_session_state(self) -> None:
+        self.assertIn("does not keep a shadow", self.text)
+        self.assertNotIn('"tab_ids"', self.text)
+        self.assertNotIn('"pinned_tab_ids"', self.text)
+        self.assertNotIn('"last_active_tab_id"', self.text)
+
+    def test_ci_checks_tab_and_window_extra_data_separately(self) -> None:
+        workflow = (
+            ROOT / ".github" / "workflows" / "chromium-architecture-check.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("struct SESSIONS_EXPORT SessionTab {", workflow)
+        self.assertIn("struct SESSIONS_EXPORT SessionWindow {", workflow)
+
     def test_data_loss_and_identity_boundaries_are_explicit(self) -> None:
         for marker in (
             "exactly one native owner",
