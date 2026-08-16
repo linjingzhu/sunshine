@@ -24,8 +24,16 @@
 - Keep Stage 1 New Tab intentionally minimal and browser-first.
 - Validate every downstream patch against the pinned Chromium sources.
 
-## Next product slice
+## Active product slice
 
-- Produce and smoke-test a native Chromium build on Windows.
-- Continue Stage 1 fundamentals only after the New Tab patch is build-verified.
+- Preserve the pending Windows native-build gate; do not claim unverified patches as shipped.
+- Begin the compile-free A-grade productivity foundation with Chromium-owned tab groups.
+- Define Sunshine workspace membership and two-pane split state around native tabs without replacing `TabStripModel`, profiles, or session restore.
+- Runtime implementation order: tab-group verification → workspace metadata/switching → split view.
 - Defer local-first Life Dashboard data, AI, notes, and apps to Stage 4+.
+
+## Permanently excluded product scope
+
+The previously evaluated feature list is capped at items 1–19. Items 20 and
+later are not backlog candidates and must not be reintroduced through roadmap,
+dashboard, or speculative implementation work.
