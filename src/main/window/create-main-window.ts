@@ -1,7 +1,10 @@
-import { BrowserWindow, shell } from "electron";
+import { BrowserWindow } from "electron";
 import path from "node:path";
+import { BrowserSurface } from "../browser/browser-surface";
 
-export function createMainWindow(): BrowserWindow {
+export interface SunshineWindow { window: BrowserWindow; browser: BrowserSurface }
+
+export function createMainWindow(): SunshineWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -18,10 +21,7 @@ export function createMainWindow(): BrowserWindow {
     },
   });
 
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     const allowed = process.env.VITE_DEV_SERVER_URL
       ? url.startsWith(process.env.VITE_DEV_SERVER_URL)
@@ -32,6 +32,8 @@ export function createMainWindow(): BrowserWindow {
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) void window.loadURL(devServerUrl);
-  else void window.loadFile(path.join(__dirname, "../../../renderer/index.html"));
-  return window;
+  else void window.loadFile(path.join(__dirname, "../../renderer/index.html"));
+  const browser = new BrowserSurface(window);
+  void browser.start();
+  return { window, browser };
 }
