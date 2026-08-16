@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "sunshine.example",
+  "display_name": "Example Module",
+  "owner": "sunshine",
+  "kind": "surface",
+  "lifecycle": "profile",
+  "status": "planned",
+  "entrypoints": [{"type": "chromium_webui", "target": "chrome://sunshine-example"}],
+  "capabilities": [],
+  "data": [],
+  "security": {
+    "remote_content": false,
+    "network_access": false,
+    "profile_modes": ["regular"],
+    "requires_user_activation": true
+  },
+  "verification": {"native_build": "pending", "runtime": "pending", "visual": "pending"}
+}

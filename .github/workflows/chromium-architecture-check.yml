@@ -39,6 +39,9 @@ jobs:
       - name: Validate exclusive patch ownership
         run: python scripts/patch_manifest.py
 
+      - name: Validate first-party module registry
+        run: python scripts/validate_first_party_modules.py
+
       - name: Compile-check repository Python tools
         shell: bash
         run: |

@@ -16,6 +16,8 @@
 - Bootstrap: `scripts/bootstrap_chromium.py` checks out Chromium and applies the patch stack.
 - Build: GN generates Ninja files; Ninja builds the native `chrome` target.
 - Start surface: Chromium's native New Tab Page. Sunshine never hardcodes Google as the startup URL.
+- First-party platform: declarative module registry under `first_party/`; modules are compiled Sunshine capabilities, not extensions or remotely loaded plug-ins.
+- Module boundary: Chromium remains owner of browser fundamentals; modules use explicit WebUI, command, profile-service, or integration contribution points.
 
 ## Current development slice
 
@@ -27,6 +29,8 @@
 ## Active product slice
 
 - Preserve the pending Windows native-build gate; do not claim unverified patches as shipped.
+- Establish the compile-free first-party module manifest, lifecycle, security, and CI validation foundation.
+- Defer runtime module adapters until the native Chromium build gate can verify them.
 - Begin the compile-free A-grade productivity foundation with Chromium-owned tab groups.
 - Define Sunshine workspace membership and two-pane split state around native tabs without replacing `TabStripModel`, profiles, or session restore.
 - Runtime implementation order: tab-group verification → workspace metadata/switching → split view.
