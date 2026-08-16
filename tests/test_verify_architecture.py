@@ -6,6 +6,7 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -13,12 +14,22 @@ from unittest import mock
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 VERIFY_SCRIPT = REPOSITORY_ROOT / "scripts" / "verify_architecture.py"
+BOOTSTRAP_SCRIPT = REPOSITORY_ROOT / "scripts" / "bootstrap_chromium.py"
 
 
 def load_verifier():
     spec = importlib.util.spec_from_file_location("verify_architecture", VERIFY_SCRIPT)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to load architecture verifier: {VERIFY_SCRIPT}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_bootstrap():
+    spec = importlib.util.spec_from_file_location("bootstrap_chromium", BOOTSTRAP_SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load Chromium bootstrap: {BOOTSTRAP_SCRIPT}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -123,6 +134,69 @@ class ArchitectureVerifierTests(unittest.TestCase):
                 result, _, stderr = self._run()
                 self.assertEqual(1, result)
                 self.assertIn("CHROMIUM_REVISION", stderr)
+
+
+class ChromiumBootstrapTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.bootstrap = load_bootstrap()
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary_directory.name)
+        self.source = self.root / "src"
+        self.source.mkdir()
+        subprocess.run(("git", "init", "--quiet"), cwd=self.source, check=True)
+        branding = self.source / "chrome/app/theme/chromium/BRANDING"
+        branding.parent.mkdir(parents=True)
+        branding.write_text("PRODUCT_FULLNAME=Chromium\n", encoding="utf-8")
+        subprocess.run(("git", "add", "."), cwd=self.source, check=True)
+        subprocess.run(
+            (
+                "git",
+                "-c",
+                "user.name=test",
+                "-c",
+                "user.email=test@localhost",
+                "commit",
+                "--quiet",
+                "-m",
+                "base",
+            ),
+            cwd=self.source,
+            check=True,
+        )
+        patches = self.root / "downstream/patches"
+        patches.mkdir(parents=True)
+        (patches / "branding.patch").write_text(
+            "diff --git a/chrome/app/theme/chromium/BRANDING "
+            "b/chrome/app/theme/chromium/BRANDING\n"
+            "--- a/chrome/app/theme/chromium/BRANDING\n"
+            "+++ b/chrome/app/theme/chromium/BRANDING\n"
+            "@@ -1 +1 @@\n"
+            "-PRODUCT_FULLNAME=Chromium\n"
+            "+PRODUCT_FULLNAME=Sunshine OS\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self.temporary_directory.cleanup()
+
+    def test_applied_patch_stack_is_recognized_for_idempotent_rerun(self) -> None:
+        patch = self.root / "downstream/patches/branding.patch"
+        subprocess.run(("git", "apply", str(patch)), cwd=self.source, check=True)
+
+        with mock.patch.object(self.bootstrap, "ROOT", self.root):
+            self.assertTrue(
+                self.bootstrap.patch_stack_is_applied(self.source, ["branding.patch"])
+            )
+
+    def test_unrelated_dirty_file_is_not_accepted_as_patch_stack(self) -> None:
+        patch = self.root / "downstream/patches/branding.patch"
+        subprocess.run(("git", "apply", str(patch)), cwd=self.source, check=True)
+        (self.source / "unrelated.txt").write_text("do not overwrite\n", encoding="utf-8")
+
+        with mock.patch.object(self.bootstrap, "ROOT", self.root):
+            self.assertFalse(
+                self.bootstrap.patch_stack_is_applied(self.source, ["branding.patch"])
+            )
 
 
 if __name__ == "__main__":
