@@ -81,7 +81,7 @@ Chromium runtime APIs
 | Browser chrome UI | React |
 | Styling | CSS variables + Sunshine tokens; Material 3 principles |
 | State | Service-owned domain state; renderer state is projection only |
-| Persistence | Local relational metadata DB via repository interfaces |
+| Persistence | Chromium profile/session services; Sunshine stores only feature-owned metadata |
 | Secrets | OS-backed secure storage adapter |
 | Tests | Unit + integration + E2E + compatibility dogfood checklist |
 
@@ -148,9 +148,9 @@ Invocation sources include toolbar, keyboard, context menu, mouse gesture, comma
 | Domain | Authoritative service | Renderer responsibility |
 |---|---|---|
 | Windows | `WindowManager` | render window state |
-| Tabs and active tab | `TabManager` | render tab projection |
+| Tabs and active tab | Chromium `TabStripModel` | render/extend native tab UI |
 | Navigation | `NavigationService` | submit intent / render state |
-| Session recovery | `SessionManager` | restore UI / consent dialog |
+| Session recovery | Chromium `SessionService` / `TabRestoreService` | extend native recovery UX |
 | Bookmarks | `BookmarkService` | list/edit UX |
 | History | `HistoryService` | search/list UX |
 | Downloads | `DownloadService` | progress/status UX |
@@ -265,7 +265,7 @@ Do not use these terms interchangeably in code or UI.
 | Category | Owner | Examples |
 |---|---|---|
 | Chromium-managed | Chromium profile partition | cookies, cache, localStorage, IndexedDB, service workers |
-| Sunshine-managed | Sunshine metadata DB | bookmarks, history, workspaces, settings, session metadata |
+| Sunshine-managed | Sunshine metadata store | workspace catalog and Sunshine settings only; never shadow Chromium tab/session data |
 | Secure | OS credential vault | OAuth refresh token, API keys, NAS credentials |
 
 Never store secrets in the metadata DB or renderer local storage.
@@ -404,7 +404,10 @@ Settings: enabled, sensitivity, trail visibility, per-binding enablement.
 
 ### 6.3 Session restore
 
-Persist window/tab order, active tab, pinned state, current URL, and lightweight UI state using debounced writes plus clean-shutdown marker.
+Chromium `SessionService` remains authoritative for window/tab order, active tab,
+pinned state, current URL, navigation, and clean-shutdown recovery. Sunshine must
+not persist a parallel session record. Feature-owned tab/window metadata must
+round-trip through Chromium session extra-data channels.
 
 Recovery behavior:
 
@@ -502,7 +505,7 @@ Each stores its own tab membership/order, pinned tabs, optional home URL, and op
 | Create workspace | create empty context with a New Tab |
 | Switch workspace | hide inactive workspace tabs; restore last active tab |
 | Move tab | transfer tab membership; retain its web contents/session |
-| Close workspace | require destination/archive decision; never silently lose tabs |
+| Close workspace | require a destination workspace and move all tabs atomically; never silently lose tabs |
 | Restart | restore last workspace and preserve all workspace metadata |
 
 ### 7.4 Advanced tabs
