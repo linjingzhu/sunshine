@@ -13,6 +13,14 @@ EXCLUDED_TEXT = ("from \"electron\"", "require(\"electron\")", "electron-builder
 GOOGLE_STARTUP_URL = "https://www.google.com"
 IGNORED_PARTS = {".git", "chromium", "node_modules", "dist", "release", "docs", ".ai", "upload"}
 PINNED_REVISION = re.compile(r"^refs/tags/\d+\.\d+\.\d+\.\d+$")
+REQUIRED_NEW_TAB_MARKERS = (
+    "chrome/browser/resources/new_tab_page/app.html",
+    "chrome/browser/resources/new_tab_page/app.css",
+    'id="sunshineWordmark"',
+    'aria-label="Sunshine OS"',
+)
+FORBIDDEN_NEW_TAB_MARKERS = ("Life Dashboard", "Three.js", "AI assistant")
+FORBIDDEN_NEW_TAB_REMOVALS = ("-    <ntp-searchbox", "-      <cr-most-visited")
 
 
 def validate_revision(failures: list[str]) -> None:
@@ -45,10 +53,28 @@ def validate_patch_series(failures: list[str]) -> None:
             failures.append(f"missing downstream patch: {patch_name}")
 
 
+def validate_new_tab_patch(failures: list[str]) -> None:
+    patch_path = ROOT / "downstream/patches/0002-sunshine-new-tab.patch"
+    if not patch_path.is_file():
+        failures.append("Sunshine New Tab patch missing")
+        return
+    text = patch_path.read_text()
+    for marker in REQUIRED_NEW_TAB_MARKERS:
+        if marker not in text:
+            failures.append(f"Sunshine New Tab patch missing required marker: {marker}")
+    for marker in FORBIDDEN_NEW_TAB_MARKERS:
+        if marker in text:
+            failures.append(f"Stage 1 New Tab contains deferred feature marker: {marker}")
+    for marker in FORBIDDEN_NEW_TAB_REMOVALS:
+        if marker in text:
+            failures.append(f"Stage 1 New Tab removes Chromium browser primitive: {marker[1:].strip()}")
+
+
 def main() -> int:
     failures: list[str] = []
     validate_revision(failures)
     validate_patch_series(failures)
+    validate_new_tab_patch(failures)
     for path in ROOT.rglob("*"):
         if not path.is_file() or any(part in IGNORED_PARTS for part in path.relative_to(ROOT).parts):
             continue

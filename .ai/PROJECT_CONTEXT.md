@@ -19,13 +19,13 @@
 
 ## Current development slice
 
-- Remove the accidental Electron runtime.
-- Reuse Chromium's native browser fundamentals and security model.
-- Apply Sunshine OS metadata without Google Chrome proprietary assets or services.
-- Establish deterministic macOS and Windows build instructions.
+- Brand Chromium's native New Tab WebUI as Sunshine.
+- Preserve Chromium-owned search/URL handling and Most Visited data.
+- Keep Stage 1 New Tab intentionally minimal and browser-first.
+- Validate every downstream patch against the pinned Chromium sources.
 
 ## Next product slice
 
-- Sunshine New Tab surface hosted as a native Chromium WebUI.
-- Local-first dashboard data model.
-- Explicit permission UX and download review.
+- Produce and smoke-test a native Chromium build on Windows.
+- Continue Stage 1 fundamentals only after the New Tab patch is build-verified.
+- Defer local-first Life Dashboard data, AI, notes, and apps to Stage 4+.
