@@ -1,62 +1,25 @@
-# Project Context
-
-Keep this file compact. It is a routing map, not full documentation.
-
-## Repository
-
-repository_mode: auto
-base_branch: auto-detect
-primary_platform: Windows
+# Sunshine OS Project Context
 
 ## Product
 
-Purpose:
-- TBD — Manager should infer from repository/user request and update only when evidence is clear.
+- Desktop browser shell built with Electron, React, TypeScript, and Vite.
+- Primary supported platform: Windows. Development verification currently runs in Linux CI/container environments.
+- Default integration branch: `stable`.
 
-Primary user value:
-- TBD
+## Current architecture
 
-## Architecture Map
+- Trusted browser chrome: sandboxed `BrowserWindow` renderer with a minimal typed preload API.
+- Remote web content: separate sandboxed `WebContentsView`; Node.js is disabled and permissions/new windows are denied by default.
+- Main-process commands: explicit allow-list with trusted-sender validation.
+- Navigation policy: HTTPS by default; HTTP is accepted only for localhost development targets.
 
-Core:
-- TBD
+## Delivered waves
 
-UI:
-- TBD
+- Wave 0: deterministic runtime shell, design tokens, command contract, tests, and documentation baseline.
+- Wave 1: one-window/one-tab browser slice with omnibox, search, back, forward, reload/stop, title/loading state, and error feedback.
 
-Persistence/Data:
-- TBD
+## Next product slice
 
-Tests:
-- TBD
-
-Build:
-- TBD
-
-## Verified Commands
-
-Windows configure:
-- TBD
-
-Windows targeted build:
-- TBD
-
-Windows full build:
-- TBD
-
-Targeted tests:
-- TBD
-
-## Important Paths / Symbols
-
-- TBD
-
-## Known Integration Hotspots
-
-- See `.ai/memory/PROJECT_LESSONS.md`.
-
-## Context maintenance rule
-
-Update this file only with stable, evidence-backed facts that reduce future rediscovery.
-
-Do not turn it into a long architecture document.
+- Multi-tab lifecycle and tab recovery.
+- Downloads UX and explicit permission prompts.
+- Windows-native packaging and signed installer validation.

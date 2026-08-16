@@ -1,6 +1,6 @@
 {
   "name": "sunshine-os",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Sunshine OS — browser-first Chromium desktop shell",
   "main": "dist/main/bootstrap/index.js",
@@ -13,20 +13,20 @@
     "start": "electron ."
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "electron": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "vite": "latest"
+    "@vitejs/plugin-react": "5.0.4",
+    "electron": "38.2.2",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "vite": "7.1.9"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "concurrently": "latest",
-    "cross-env": "latest",
-    "typescript": "latest",
-    "vitest": "latest",
-    "wait-on": "latest"
+    "@types/node": "24.7.2",
+    "@types/react": "19.1.16",
+    "@types/react-dom": "19.1.9",
+    "concurrently": "9.2.1",
+    "cross-env": "10.1.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4",
+    "wait-on": "8.0.4"
   }
 }

@@ -1,12 +1,30 @@
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; min-height: 100%; }
-body { background: var(--sun-color-surface); color: var(--sun-color-on-surface); font-family: Inter, Pretendard, system-ui, sans-serif; }
-.shell { min-height: 100vh; display: grid; place-items: center; padding: var(--sun-space-8); }
-.welcome { width: min(680px, 100%); padding: 56px; border: 1px solid color-mix(in srgb, var(--sun-color-outline) 26%, transparent); border-radius: var(--sun-radius-lg); background: var(--sun-color-surface-container); box-shadow: 0 24px 80px rgb(0 0 0 / 8%); }
-.mark { font-size: 40px; color: var(--sun-color-primary); }
-.eyebrow { margin: var(--sun-space-6) 0 var(--sun-space-2); color: var(--sun-color-primary); font-size: 12px; font-weight: 800; letter-spacing: .16em; }
-h1 { margin: 0; font-size: clamp(32px, 5vw, 48px); line-height: 1.12; letter-spacing: -.04em; }
-.description { max-width: 560px; margin: var(--sun-space-6) 0; color: var(--sun-color-on-surface-variant); font-size: 17px; line-height: 1.65; }
-.status { display: inline-flex; align-items: center; gap: var(--sun-space-2); margin: 0; font-size: 13px; font-weight: 700; }
-.status span { width: 8px; height: 8px; border-radius: 50%; background: #31a35c; box-shadow: 0 0 0 4px rgb(49 163 92 / 14%); }
-@media (max-width: 640px) { .shell { padding: var(--sun-space-4); } .welcome { padding: 32px 24px; } }
+html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body { background: #fff; color: var(--sun-color-on-surface); font-family: Inter, Pretendard, system-ui, sans-serif; }
+button, input { font: inherit; }
+button { color: inherit; }
+.browser-chrome { position: relative; height: 116px; background: #f2f2ed; border-bottom: 1px solid #d9d9d1; user-select: none; }
+.tab-strip { height: 42px; display: flex; align-items: end; gap: 6px; padding: 7px 12px 0; background: #deded6; }
+.brand { width: 34px; height: 34px; display: grid; place-items: center; color: #8a5b00; font-size: 20px; }
+.tab { width: min(280px, 34vw); height: 35px; display: flex; align-items: center; gap: 9px; padding: 0 10px 0 13px; border-radius: 11px 11px 0 0; background: #f2f2ed; font-size: 13px; }
+.tab-spinner { color: #b17a0c; font-size: 17px; }
+.tab-spinner.spinning { animation: spin 1s linear infinite; }
+.tab-title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tab-close, .new-tab { border: 0; background: transparent; }
+.tab-close { width: 22px; height: 22px; border-radius: 50%; }
+.new-tab { align-self: center; width: 30px; height: 30px; border-radius: 50%; font-size: 20px; }
+.window-drag-space { flex: 1; height: 100%; -webkit-app-region: drag; }
+.toolbar { height: 74px; display: flex; align-items: center; gap: 7px; padding: 11px 13px 17px; background: #f2f2ed; }
+.icon-button { width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; font-size: 21px; cursor: default; }
+.icon-button:not(:disabled):hover { background: #deded6; }
+.icon-button:focus-visible, .new-tab:focus-visible, .omnibox:focus-within { outline: 2px solid #b57900; outline-offset: 2px; }
+button:disabled { opacity: .36; }
+.omnibox { height: 42px; flex: 1; display: flex; align-items: center; gap: 10px; min-width: 180px; padding: 0 16px; border: 1px solid #d1d1ca; border-radius: 22px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
+.security-indicator { color: #27834b; font-size: 11px; }
+.omnibox input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #252521; font-size: 14px; user-select: text; }
+.omnibox input::placeholder { color: #77776f; }
+.menu { font-size: 24px; }
+.error-toast { position: absolute; z-index: 2; top: 107px; left: 50%; max-width: min(680px, calc(100vw - 32px)); transform: translateX(-50%); padding: 10px 14px; border-radius: 8px; background: #842323; color: white; box-shadow: 0 8px 30px rgb(0 0 0 / 22%); font-size: 13px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tab-spinner.spinning { animation: none; } }
