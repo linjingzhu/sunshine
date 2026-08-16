@@ -1,0 +1,2 @@
+# Update only through a reviewed upstream-roll PR.
+CHROMIUM_REVISION=refs/tags/148.0.7741.0
