@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted for the first implementation spike.
+Superseded by ADR 0002. This decision contradicted the explicit instruction to remove Electron and must not be used as an implementation precedent.
 
 ## Decision
 
-Use Electron as the initial Windows-first Chromium shell, with every runtime call kept behind main-process services and a narrow typed preload API.
+The first implementation spike used Electron as a Windows-first Chromium wrapper. All code produced by that spike has been removed from the active architecture.
 
 ## Reasons
 
@@ -14,6 +14,8 @@ Use Electron as the initial Windows-first Chromium shell, with every runtime cal
 - React browser chrome and TypeScript contracts can remain independent of the embedding layer.
 - Electron is a starting runtime decision, not a promise of Chrome Web Store parity.
 
-## Required safeguards
+## Historical safeguards
 
 Remote content must use sandboxing, context isolation, disabled Node integration, sender/payload validation, default-deny permissions, and an explicit window-open/navigation policy.
+
+These safeguards remain useful history, but native Chromium now supplies the browser process model and renderer sandbox.
