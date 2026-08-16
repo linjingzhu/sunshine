@@ -17,9 +17,10 @@
 
 - Wave 0: deterministic runtime shell, design tokens, command contract, tests, and documentation baseline.
 - Wave 1: one-window/one-tab browser slice with omnibox, search, back, forward, reload/stop, title/loading state, and error feedback.
+- Wave 2: reproducible unsigned Universal macOS DMG/ZIP test builds through GitHub Actions.
 
 ## Next product slice
 
 - Multi-tab lifecycle and tab recovery.
 - Downloads UX and explicit permission prompts.
-- Windows-native packaging and signed installer validation.
+- Apple Developer ID signing/notarization and Windows-native packaging.
