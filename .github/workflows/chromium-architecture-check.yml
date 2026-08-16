@@ -73,6 +73,36 @@ jobs:
             "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version?format=JSON" \
             > /dev/null
 
+      - name: Verify workspace native integration seams
+        shell: bash
+        run: |
+          revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
+          version="${revision#refs/tags/}"
+          worktree="$(mktemp -d)"
+          trap 'rm -rf "$worktree"' EXIT
+          paths=(
+            chrome/browser/ui/tabs/tab_strip_model.h
+            chrome/browser/ui/tabs/tab_group_model.h
+            chrome/browser/ui/tabs/tab_strip_model_observer.h
+            components/sessions/core/session_types.h
+            components/sessions/core/session_service_commands.cc
+          )
+          for source_path in "${paths[@]}"; do
+            target="$worktree/$(basename "$source_path")"
+            curl --fail --silent --show-error --location \
+              "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/$source_path?format=TEXT" \
+              | base64 --decode > "$target"
+          done
+          grep -q 'class TabStripModel' "$worktree/tab_strip_model.h"
+          grep -q 'class TabGroupModel' "$worktree/tab_group_model.h"
+          grep -q 'OnTabStripModelChanged' "$worktree/tab_strip_model_observer.h"
+          sed -n '/struct SESSIONS_EXPORT SessionTab {/,/^};/p' \
+            "$worktree/session_types.h" | grep -q 'extra_data'
+          sed -n '/struct SESSIONS_EXPORT SessionWindow {/,/^};/p' \
+            "$worktree/session_types.h" | grep -q 'extra_data'
+          grep -q 'CreateAddTabExtraDataCommand' "$worktree/session_service_commands.cc"
+          grep -q 'CreateAddWindowExtraDataCommand' "$worktree/session_service_commands.cc"
+
       - name: Check complete patch stack against pinned upstream source
         shell: bash
         run: |
@@ -104,4 +134,3 @@ jobs:
             git -C "$worktree" apply \
               "$GITHUB_WORKSPACE/downstream/patches/$patch"
           done < "$GITHUB_WORKSPACE/downstream/patches/series"
-
