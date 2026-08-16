@@ -36,6 +36,9 @@ jobs:
       - name: Reject excluded wrapper runtimes
         run: python scripts/verify_architecture.py
 
+      - name: Validate exclusive patch ownership
+        run: python scripts/patch_manifest.py
+
       - name: Compile-check repository Python tools
         shell: bash
         run: |
@@ -77,11 +80,11 @@ jobs:
           version="${revision#refs/tags/}"
           worktree="$(mktemp -d)"
           trap 'rm -rf "$worktree"' EXIT
-          upstream_files=(
-            "chrome/app/theme/chromium/BRANDING"
-            "chrome/browser/resources/new_tab_page/app.html"
-            "chrome/browser/resources/new_tab_page/app.css"
-          )
+          mapfile -t upstream_files < <(python scripts/patch_manifest.py --paths)
+          if (( ${#upstream_files[@]} == 0 )); then
+            echo "Patch manifest returned no upstream targets." >&2
+            exit 1
+          fi
           for source_path in "${upstream_files[@]}"; do
             mkdir -p "$worktree/$(dirname "$source_path")"
             curl --fail --silent --show-error --location \
@@ -101,3 +104,4 @@ jobs:
             git -C "$worktree" apply \
               "$GITHUB_WORKSPACE/downstream/patches/$patch"
           done < "$GITHUB_WORKSPACE/downstream/patches/series"
+
