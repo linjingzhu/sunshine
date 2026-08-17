@@ -57,6 +57,14 @@ jobs:
           SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}
         run: ./scripts/build_chromium_windows.ps1
 
+      # The first check in this project that reads the output rather than the
+      # source: artifacts, the configuration the build actually used, and what
+      # Windows believes about URL schemes.
+      - name: Verify the built browser matches the contracts
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: python scripts/verify_installed_build.py
+
       # Where the installer is, rather than a copy of it. The build script has
       # already written it to the runner's own disk.
       - name: Report the installer location

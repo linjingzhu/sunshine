@@ -190,15 +190,20 @@ class SelfHostedGuardTests(unittest.TestCase):
                     f"{workflow.name} depends on an action download",
                 )
 
-    def test_the_guard_runs_every_check_the_repository_has(self) -> None:
-        """A guard script that CI never invokes is a check nobody runs.
+    def test_some_workflow_runs_every_check_the_repository_has(self) -> None:
+        """A guard script that no workflow invokes is a check nobody runs.
 
         Enumerated from disk rather than listed here, so adding
         `scripts/verify_something.py` without wiring it in fails immediately
         instead of passing silently for as long as nobody notices.
+
+        Both workflows count. `verify_installed_build.py` reads the build
+        output, so it belongs to the build job rather than the guard job --
+        running it where no browser exists would report NOT AVAILABLE for
+        everything it is for.
         """
 
-        commands = " ".join(self._commands(self.GUARD))
+        commands = " ".join(self._commands(self.GUARD) + self._commands(WORKFLOW))
         for script in sorted((ROOT / "scripts").glob("*.py")):
             name = script.name
             if not (name.startswith(self.GUARD_PREFIXES) or name in self.GUARD_NAMES):

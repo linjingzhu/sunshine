@@ -93,3 +93,35 @@ class InvariantTracingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FourLetterFamilyTests(unittest.TestCase):
+    """SECA-n could not be parsed at all, and nothing reported the gap.
+
+    The pattern was `[A-Z]{1,3}`, so a four-letter family matched nothing. Two
+    acceptance criteria read as enforced in their contract and as unclaimed by
+    the tracer, and because an unparsed token is simply absent rather than
+    rejected, the disagreement was invisible from both ends.
+    """
+
+    def test_a_four_letter_family_identifier_is_parsed(self) -> None:
+        self.assertEqual(["SECA-11"], [m.group(1) for m in tracer.INVARIANT.finditer("see SECA-11 here")])
+
+    def test_the_shorter_forms_still_parse(self) -> None:
+        text = "SEC-13, PO-A1, AT-9, SPA-9, S12 and BH-2"
+        found = [m.group(1) for m in tracer.INVARIANT.finditer(text)]
+        for token in ("SEC-13", "PO-A1", "AT-9", "SPA-9", "S12", "BH-2"):
+            with self.subTest(token=token):
+                self.assertIn(token, found)
+
+    def test_every_declared_family_is_parseable_by_the_pattern(self) -> None:
+        """A family nobody can parse is a family nobody enforces."""
+
+        for family in tracer.FAMILIES:
+            with self.subTest(family=family):
+                sample = f"{family}-1"
+                self.assertEqual(
+                    [sample],
+                    [m.group(1) for m in tracer.INVARIANT.finditer(sample)],
+                    f"{family} is in FAMILIES but the pattern cannot parse {sample}",
+                )

@@ -259,9 +259,16 @@ Attack scenarios, each stated as an expected denial. Class as in section 2.
 10. **SECA-10.** No Sunshine-authored file names a URL scheme outside
     Chromium's own set, and no patch calls a scheme-registration API or writes
     the Windows `URL Protocol` registry value. (SEC-13) — **O, enforced**
+11. **SECA-11.** The built browser matches what the contracts claim: the
+    artifacts exist, the configuration GN actually used carries ADR 0004's
+    codec arguments and no sandbox- or isolation-disabling switch, and Windows
+    registers no Sunshine URL protocol. (SEC-1, SEC-2, SEC-13, ADR 0004) —
+    **O on the build machine, enforced**
 
-SECA-7 through SECA-10 are the ones a check can decide today, and all four run
-in CI. The rest are stated so the suite that eventually runs them has a definition
+SECA-7 through SECA-11 are the ones a check can decide today, and all five run
+in CI. SECA-11 runs in the build job rather than the guard job, because it is
+the only one that reads the build output; `docs/RUNTIME_VERIFICATION.md` carries
+the gates that still need a person and a running browser. The rest are stated so the suite that eventually runs them has a definition
 to run.
 
 ## 8. Chromium security updates

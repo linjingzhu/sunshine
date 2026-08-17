@@ -31,7 +31,12 @@ BASELINE = ROOT / "config/invariant_coverage.txt"
 # `OS-3`, `AT-11`, `SC-8`, `OT-2`, `D4`, and the compound form `PO-A1`, where
 # the family is followed by a lettered series. The letter is optional, so both
 # shapes match and the family is whatever precedes the hyphen.
-INVARIANT = re.compile(r"\b([A-Z]{1,3}-?[A-Z]?\d{1,2})\b")
+# `{1,4}` and not `{1,3}`: SECA-n is a four-letter family, and the earlier
+# pattern could not parse it at all. That failed silently -- the claims in
+# verify_web_asset_security.py and verify_first_party_surfaces.py were simply
+# not seen, so two acceptance criteria read as enforced in the contract and as
+# unclaimed here, with nothing reporting the disagreement.
+INVARIANT = re.compile(r"\b([A-Z]{1,4}-?[A-Z]?\d{1,2})\b")
 
 # Families a contract actually uses. Without this the pattern also matches
 # version numbers, Chromium symbols and ordinary prose like "P1".
