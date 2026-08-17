@@ -414,9 +414,13 @@ Applying it:
   behind a browser-process boundary. Three independent failures, each of which is
   a product and security decision rather than an implementation detail. Deferred.
 - **Apps panel** — fails E1 (an app inventory is a new authoritative store) and
-  usually E2. It also collides with §7.7, which distinguishes installed web apps
-  from future `sunshine://` native apps; a panel cannot ship before that
-  distinction is decided. Deferred.
+  usually E2. It also collides with §7.7 of the handoff, which distinguishes
+  installed web apps from future Sunshine native apps. That distinction is now
+  less decided than it looks: the handoff drew it by URL scheme, and
+  `docs/decisions/0003-internal-scheme.md` settles that Sunshine registers no
+  scheme, so future native apps have no address of their own and the panel has
+  no field to sort its two categories by. A panel cannot ship before the
+  distinction is re-drawn on something that exists. Deferred.
 
 Extension-provided panels are Chromium's, not Sunshine's. They are governed by
 `docs/EXTENSION_COMPATIBILITY_GATE.md`; Sunshine neither suppresses nor

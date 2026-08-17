@@ -3,9 +3,33 @@
 ## Status and scope
 
 This contract applies to Sunshine OS on the pinned Chromium revision
-`152.0.7977.42`. It defines the `sunshine://security` surface and the
+`152.0.7977.42`. It defines the `chrome://sunshine-security` surface and the
 threat-protection provider abstraction referenced in section 6.7 of the Stage
 1–3 implementation handoff.
+
+**Route.** Earlier drafts of this contract, and section 6.7 of the handoff,
+placed the centre on a Sunshine-owned URL scheme.
+`docs/decisions/0003-internal-scheme.md` settles that Sunshine registers no URL
+scheme at all — not internally and not with any operating system. First-party
+surfaces are internal pages under Chromium's existing internal scheme,
+contributed as WebUI configs through
+[`content/public/browser/webui_config_map.h`](https://github.com/chromium/chromium/blob/152.0.7977.42/content/public/browser/webui_config_map.h),
+and the Security Center is reached at `chrome://sunshine-security`. This is a
+route change, not a privilege change: every invariant below stands as written,
+and SC-8 in particular is strengthened rather than relaxed, because the boundary
+that withholds the scheme from web renderers is now upstream's to maintain
+rather than Sunshine's to re-create. The Security Center therefore needs a host,
+a WebUI config, and a module manifest — no scheme work, no shared-component
+patch, and no new trust boundary.
+
+A bare `security` host is rejected:
+[`chrome/common/webui_url_constants.h`](https://github.com/chromium/chromium/blob/152.0.7977.42/chrome/common/webui_url_constants.h)
+already spends that word on a settings sub-page (`kSecuritySubPage`), and two
+security surfaces a user cannot tell apart is the failure mode this page can
+least afford. At the pinned revision that header contains no `sunshine` host, so
+`sunshine-security` collides with nothing there today **[read]**. The absence is
+a fact about one revision, not a property of the name: the implementing wave
+re-checks it at every upstream roll, per acceptance criterion 13.
 
 This wave is intentionally **documentation-only**. It adds no downstream patch,
 no WebUI resource, and no provider implementation. Nothing here has been
@@ -71,7 +95,7 @@ checklist can cite it.
 | SC-5 | Third-party provider details must not leak into navigation logic or browser-core UI. Only the closed verdict vocabulary in this document crosses the boundary. Provider status codes, error strings, response bodies, headers, endpoints, and category names must not be rendered raw, must not reach Chromium's interstitials, omnibox, security chip, tab strip, or download UI, and must not appear in any navigation decision. |
 | SC-6 | The stable profile identifier is an in-process routing parameter only. It must never be transmitted. A stable per-user identifier attached to per-URL checks converts threat protection into a browsing-history feed, which is exactly what this contract forbids. |
 | SC-7 | Provider network access is off by default, requires a host allowlist and a user-visible purpose, and requires an explicit user opt-in per profile. Turning it off must fully stop the outbound traffic, not merely hide the UI. |
-| SC-8 | `sunshine://security` is a privileged WebUI. It must not load, embed, frame, or execute remote content, and it must not render provider-supplied markup, scripts, images, or links. Provider identity is shown as a locally held, locally localised name mapped from a configured provider identifier. |
+| SC-8 | `chrome://sunshine-security` is a privileged WebUI. It must not load, embed, frame, or execute remote content, and it must not render provider-supplied markup, scripts, images, or links. Provider identity is shown as a locally held, locally localised name mapped from a configured provider identifier. **Restated, not withdrawn:** this invariant named the surface under a Sunshine-owned scheme until `docs/decisions/0003-internal-scheme.md`. Only the route changed. The privileged-WebUI framing the invariant depends on is unaffected — it comes from the page being registered through the content-layer WebUI config map and from renderers hosting web content being denied the scheme by [`content/public/browser/child_process_security_policy.h`](https://github.com/chromium/chromium/blob/152.0.7977.42/content/public/browser/child_process_security_policy.h), neither of which was ever a consequence of the string `sunshine`. The untrusted internal scheme, which is likewise available without a new scheme registration, is not a route to relax this invariant: a Security Center that renders provider-supplied markup in an untrusted frame is prohibited here exactly as it was before. |
 | SC-9 | The centre performs no security-relevant mutation of its own. Enabling, disabling, granting, revoking, keeping, discarding, or proceeding is executed by the Chromium flow that owns it. The page routes the user there. |
 | SC-10 | A provider `block` verdict may only produce the strongest treatment that a recorded product policy permits, and today that is an attributed advisory beside the Chromium rows. Sunshine must not introduce a browser-wide blocklist, a second interstitial, or a silent navigation cancellation as a side effect of adopting a provider. |
 | SC-11 | The centre must never claim protection it cannot demonstrate. If Safe Browsing is absent from the build or disabled by the user, the page says so; it does not present a provider as its replacement. |
@@ -270,6 +294,16 @@ reputation service, a real provider endpoint, or a public website.
     order to `refs/tags/152.0.7977.42`, native compilation succeeds, and the
     relevant unit, browser, and view tests pass. The privileged WebUI is
     confirmed to load no remote resource.
+13. **Route, host, and the absence of a scheme.** The centre is reachable at
+    `chrome://sunshine-security` and nowhere else. Assert that the build
+    registers no Sunshine URL scheme — the standard, secure, savable, referrer,
+    CORS-enabled, service-worker, empty-document and handled-protocol
+    registrations carry no `sunshine` entry — that the installer registers no
+    Sunshine protocol with the operating system on any platform, and that the
+    host does not collide with any host in the compiled internal-page list at
+    the revision under test. Re-run the collision half at every upstream roll,
+    since it is a fact about a revision rather than about the name.
+    (`docs/decisions/0003-internal-scheme.md`, `docs/OMNIBOX_CONTRACT.md` OS-3)
 
 ## Unresolved product decisions
 
@@ -289,8 +323,14 @@ an implementer.
 Nothing in this document has been executed. Specifically:
 
 - No native Chromium build was produced or run.
-- No `sunshine://security` surface exists; no WebUI resource, C++ interface, or
-  provider implementation has been written.
+- No `chrome://sunshine-security` surface exists; no WebUI resource, WebUI
+  config registration, C++ interface, or provider implementation has been
+  written. The host is specified here and is registered nowhere.
+- The two upstream facts this document reads at the pinned tag — that
+  `chrome/common/webui_url_constants.h` defines `kSecuritySubPage` as `security`
+  and contains no `sunshine` host — were read from the source at
+  `refs/tags/152.0.7977.42` over HTTPS. They were not observed in a running
+  binary, and no build was produced in which to observe them: `NOT AVAILABLE`.
 - No provider was contacted, stubbed, or measured. No egress capture was taken.
 - No visual, accessibility, keyboard-navigation, localisation, or screen-reader
   verification was performed.

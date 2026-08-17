@@ -191,10 +191,14 @@ as managed policy, not as a Sunshine product choice.
 The consequence must be stated plainly, because it constrains design rather
 than code:
 
-- **Sunshine-owned WebUI surfaces are inspectable.** The New Tab surface, any
-  `sunshine://` page, and the workspace and split chrome that Chromium renders
-  as WebUI can be opened in DevTools by the user, exactly as `chrome://`
-  surfaces can. Sunshine will not patch DevTools to hide them.
+- **Sunshine-owned WebUI surfaces are inspectable.** The New Tab surface, every
+  first-party internal page — `chrome://sunshine-security` and any host that
+  follows it, since `docs/decisions/0003-internal-scheme.md` settles that
+  Sunshine registers no scheme of its own and hosts these pages under
+  Chromium's existing internal scheme — and the workspace and split chrome that
+  Chromium renders as WebUI can all be opened in DevTools by the user. There is
+  no Sunshine category of surface that is exempt, and Sunshine will not patch
+  DevTools to hide one.
 - **Therefore no Sunshine surface may hold a secret.** No API key, service
   credential, signed token, or internal endpoint may exist in first-party WebUI
   source, bundled assets, generated markup, or client-side storage. Anything a

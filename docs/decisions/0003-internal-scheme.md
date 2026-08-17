@@ -137,12 +137,15 @@ Chromium's existing internal scheme.**
 - Internal pages remain privileged. Arriving at one grants nothing: every privileged
   action goes through a registered command with a browser-side availability check,
   per OS-7 and OS-8 and `first_party/commands.json`.
-- OS-1 needs a factual correction in its own document. It requires the scheme be
-  registered with "the same properties Chromium gives its own internal scheme: not
-  web-safe, not a savable scheme". Those two clauses disagree: `content/common/url_schemes.cc`
-  lists the internal scheme among the default savable schemes. The intent — withhold
-  it from web renderers — is right; the savable clause is not a property of the
-  scheme it cites.
+- OS-1 needed a factual correction in its own document, and has it. It required
+  the scheme be registered with "the same properties Chromium gives its own
+  internal scheme: not web-safe, not a savable scheme". Those two clauses
+  disagree: `content/common/url_schemes.cc` lists the internal scheme among the
+  default savable schemes. The intent — withhold it from web renderers — was
+  right; the savable clause was not a property of the scheme it cited. `.ai`-side
+  note for anyone re-reading this ADR: the correction is already in
+  `docs/OMNIBOX_CONTRACT.md`, which now states the properties as read and keeps
+  the withdrawn clause visible. No further action.
 - Reversal is possible but expensive by design. It requires a superseding ADR, the
   shared-component patches enumerated above, and evidence for OS-1 through OS-9 on a
   native build. Reversal for branding alone is refused in advance.

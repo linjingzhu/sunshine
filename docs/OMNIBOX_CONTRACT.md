@@ -39,10 +39,13 @@ attacked text-parsing surface. Every heuristic below took Chromium a decade of
 adversarial hardening, and each one is the reason a specific class of spoof does
 not work.
 
-Two future changes are foreseeable and are *not* authorised by this document:
-registering an internal `sunshine` scheme (section 6) and surfacing commands
-through the omnibox (section 11). Each requires a separate reviewed change, and
-each is constrained by invariants stated here in advance.
+Two future changes were foreseeable when this contract was written and neither
+is authorised by it: registering an internal `sunshine` scheme (section 6) and
+surfacing commands through the omnibox (section 11). The first has since been
+refused outright — `docs/decisions/0003-internal-scheme.md` settles that
+Sunshine registers no URL scheme, and section 6's invariants now bind a reversal
+rather than a plan. The second still requires a separate reviewed change,
+constrained by invariants stated here in advance.
 
 ## 1. What "no second parser" means, precisely
 
@@ -87,8 +90,9 @@ Sunshine must not stand at any arrow. Concretely, first-party code must never:
 3. re-order, re-score, filter, or inject matches so that the default match
    changes;
 4. call a navigation API with a raw user string, bypassing the pipeline
-   entirely — this is the failure mode that looks like "we just handle
-   `sunshine://` ourselves" and it is prohibited by section 6;
+   entirely — this is the failure mode that looks like "we just recognise our
+   own internal routes ourselves before the classifier sees them" and it is
+   prohibited by section 6;
 5. hold the input while an asynchronous check runs. A blocking classifier is a
    navigation-latency regression and, per `docs/SECURITY_CENTER_CONTRACT.md`
    SC-2, a prohibited critical-path dependency.
@@ -145,7 +149,8 @@ available and offer the accidental-search correction".
 | `https://github.com` | `URL` | Explicit scheme | "Navigate unchanged" is false as written: the URL is canonicalised (empty path becomes `/`, host lower-cased, IDN converted, escapes normalised). The correct requirement is *no host, port, path, or query substitution* — not byte identity. |
 | `localhost:3000` | `URL` | `has_known_tld \|\| DomainIs("localhost") \|\| has_port()` | Not a "development-safe rule" that Sunshine adds. It is inherited, and it is far broader than localhost: **any** host with a port classifies as `URL`. See section 5. |
 | `intranet-host:8080` | `URL` | Same clause — the port alone decides | Missing from the handoff. It is the same rule as the previous row and it is the one with security consequences. |
-| `sunshine://settings` | `UNKNOWN` today, therefore a **search** | Unknown scheme → `GetInputTypeForScheme` → not a handled protocol → external-protocol block state → no registered handler → falls through to `UNKNOWN` | The handoff's "internal route request" describes a browser that does not exist at Stage 1. Registering the scheme is what makes the row true, and section 1.2 of the handoff excludes the `sunshine://` App SDK from Stage 1–3. See section 6. |
+| `nosuchscheme://settings` (any unregistered scheme) | `UNKNOWN`, therefore a **search** | Unknown scheme → `GetInputTypeForScheme` → not a handled protocol → external-protocol block state → no registered handler → falls through to `UNKNOWN` | This row previously carried a Sunshine-scheme spelling of an internal route and read "`UNKNOWN` **today**". The word "today" is withdrawn: `docs/decisions/0003-internal-scheme.md` settles that Sunshine registers no scheme, so no build ever makes the handoff's "internal route request" reading true, and the input is a search permanently rather than pending a registration. The leak the row describes is the reason the ADR gives for not shipping the spelling at all: the search query sent to the provider is the internal route name. See section 6. |
+| `chrome://sunshine-security` | `URL` | Same clause as `chrome://settings` — `chrome` is in the handled-protocol set; the host is decided after classification, by the WebUI config map | The route the Security Center actually uses under ADR 0003. Classification is upstream's and identical to any other internal page: Sunshine contributes a host, not a rule. Because the scheme is handled, the type is `URL` and never a search, which is the substance of OS-5; what an unregistered host on it renders is Chromium's own behaviour and is unmeasured here **[measure]**. |
 | `material design` | `QUERY` | Space in the host → invalid hostname → `QUERY` | Correct, but "search with configured provider" is only guaranteed for `QUERY`. It is *not* guaranteed for every plain-looking phrase; see the next two rows. |
 | `wiki` | `UNKNOWN` | No scheme, no port, no username, no known registry | The handoff's table implies single words search. They search *by default*, but a navigation match stays available and history/shortcut learning can promote it. The table is not a universal truth; it is the cold-profile behaviour. |
 | `who.int` | `URL` | Known registry | The "valid URL and plausible search term" case the handoff never states. Type is `URL`; whether Enter navigates still depends on scoring. See section 7. |
@@ -223,37 +228,65 @@ data this product does not collect.
 
 ## 6. The `sunshine` internal scheme
 
-### 6.1 Stage 1 truth
+### 6.1 Settled: there is no such scheme
 
-No `sunshine` scheme exists in the pinned revision. Typing `sunshine://settings`
-today produces an `UNKNOWN` input and therefore a **search** — and, worse, a
-search whose query string is the internal route name, sent to the configured
-search provider. The handoff's table row is aspirational, the Stage 1 acceptance
-suite would fail it as written, and no surface named "settings" is planned for
-Stage 1 in any case.
+No `sunshine` scheme exists in the pinned revision, and none will be added.
+`docs/decisions/0003-internal-scheme.md` settles the P0 in section 15: Sunshine
+registers no URL scheme, internally or with any operating system, and
+first-party surfaces are internal pages under Chromium's existing internal
+scheme. The Security Center is `chrome://sunshine-security`.
 
-Stage 1's correct behaviour is the search. This document does not authorise
-registering the scheme.
+This section previously read as a Stage 1 gap — "the scheme is not registered
+*yet*" — and that framing is withdrawn. The consequence it described is
+permanent and is now the reason for the decision rather than an argument for
+closing it: any unregistered scheme typed into the address bar classifies as
+`UNKNOWN` and searches, so the text after it — an internal route name — is sent
+to the configured search provider as a query string. Sunshine must not add a
+rule to suppress that, because a Sunshine rule on the classification path is
+what this whole contract forbids. The defence is that no first-party surface has
+a spelling in an unregistered scheme for a user to type.
 
-### 6.2 Two different things called `sunshine://`
+The section is kept, with its invariants and their identifiers, because it is
+the record of what any reversal would have to satisfy. It is not a plan.
 
-Section 1.2 of the handoff excludes the "`sunshine://` production App SDK" from
-Stage 1–3, while section 6.7 requires `sunshine://security` in Stage 2 and
-`docs/SECURITY_CENTER_CONTRACT.md` already specifies it. These are not in
+### 6.2 Two different things the handoff addressed by scheme
+
+Section 1.2 of the handoff excluded a production App SDK addressed by a Sunshine
+scheme from Stage 1–3, while section 6.7 required the Security Center in Stage 2
+and `docs/SECURITY_CENTER_CONTRACT.md` already specifies it. These are not in
 conflict once separated:
 
 - **Internal surfaces** — a small, closed, compile-time set of first-party WebUI
   pages, enumerated in source, shipped with the binary. In scope from Stage 2.
-- **App routes** — third-party or dynamically installed Sunshine Apps addressed
-  by scheme. Excluded from Stage 1–3, and excluded by this contract as well.
+- **App routes** — third-party or dynamically installed Sunshine Apps. The
+  handoff addressed them by a Sunshine scheme; under ADR 0003 no such scheme
+  exists, so they have no address of any kind today. Excluded from Stage 1–3,
+  and excluded by this contract as well. If they are ever built, they are
+  ordinary web origins or a separately decided mechanism — never a namespace
+  shared with privileged first-party pages.
 
-A registration that admits a route not present in the compiled set is an App SDK
-in disguise and is out of scope.
+Under ADR 0003 the separation stops being a promise about how a Sunshine-owned
+host table is maintained and becomes an upstream CHECK: the WebUI config map
+admits `chrome://` and `chrome-untrusted://` configs only, so a route that is
+not compiled in cannot be added by a module. That is the argument the ADR uses
+to refuse a Sunshine scheme, and it is why this section no longer needs a rule
+against an App SDK in disguise.
 
 ### 6.3 Invariants for any future registration
 
 A scheme is a trust boundary. The following bind the change that registers one;
 a registration that cannot satisfy all of them must not land.
+
+**Status after ADR 0003.** No such change is planned, so OS-1, OS-2, OS-5, and
+OS-6 govern a scheme Sunshine will not create; the guarantees they demand are
+obtained instead from Chromium's existing internal scheme, maintained upstream.
+They stay here, at their existing identifiers, as the preconditions on any
+reversal. Five of the ten are not conditional on a registration and are in force
+today: OS-3 and OS-4 prohibit an OS-level or custom-handler registration
+unconditionally and on every platform; OS-7 and OS-8 bind every first-party
+internal page as it is actually built, whatever scheme hosts it; OS-9 was never
+about the scheme at all. OS-10 has changed status rather than content — it reads
+as a fallback, and it is now the chosen state.
 
 | ID | Invariant |
 |---|---|
@@ -469,16 +502,34 @@ build; that is the point — they test that Sunshine has *not* interposed itself
 14. Text dragged from a web page onto the address bar never commits without an
     explicit user action.
 
-**Internal scheme**
+**Internal surfaces**
 
-15. On a build without the scheme registered, `sunshine://security` searches —
-    and this is recorded as the expected Stage 1 result, not a defect.
-16. On any build where the scheme is registered: a page link, a script
-    navigation, a redirect, a subframe, a `fetch`, and `window.open` to the
-    scheme all fail (OS-2); the installer has registered no OS-level handler for
-    it (OS-3); an unknown host yields a local error page and no network request
-    to the search provider (OS-5); completion offers only compiled surfaces
-    (OS-6).
+15. Text in an unregistered scheme — including any Sunshine-scheme spelling a
+    reader of a superseded draft might try — classifies as `UNKNOWN` and
+    searches. This is the expected result on every build, not a defect and not a
+    Stage 1 gap, and no Sunshine rule suppresses it (ADR 0003).
+16. **Unreachable, not passing.** This criterion read: "On any build where the
+    scheme is registered: a page link, a script navigation, a redirect, a
+    subframe, a `fetch`, and `window.open` to the scheme all fail (OS-2); the
+    installer has registered no OS-level handler for it (OS-3); an unknown host
+    yields a local error page and no network request to the search provider
+    (OS-5); completion offers only compiled surfaces (OS-6)." ADR 0003 settles
+    that no such build exists, so the criterion has nothing to run against and
+    must never be recorded as passed. Its content is not lost: OS-2 and OS-5 are
+    upstream's behaviour for its own internal scheme rather than Sunshine's to
+    demonstrate, and OS-6 is satisfied by the built-in completion provider
+    enumerating the compiled host list. Restore this criterion only under a
+    superseding ADR. Two checks carry the part of it that was never contingent
+    on a registration, and both run on the same build as the rest of this suite:
+
+    - no Sunshine URL protocol is registered with the operating system by any
+      platform's installer output, and no first-party source adds one to a
+      custom-handler allowlist or obtains one through `registerProtocolHandler()`
+      (OS-3, OS-4);
+    - `chrome://sunshine-security`, and every other first-party internal host,
+      resolves to its compiled surface, appears in built-in completion, and is
+      reached only by browser-initiated navigation from web content's point of
+      view (OS-6, OS-7).
 
 **Tabs and workspaces**
 
@@ -503,8 +554,13 @@ build; that is the point — they test that Sunshine has *not* interposed itself
 
 22. At each upstream roll the paths in section 2 still exist or their
     replacements are identified — this surface has already moved once — and
-    criteria 1–21 are re-run. A changed upstream classification blocks the roll
-    for review; it is never corrected by adding a Sunshine rule.
+    criteria 1–15 and 17–21 are re-run, together with the two checks folded into
+    criterion 16; criterion 16 itself is unreachable and is never re-run while
+    ADR 0003 stands. The roll additionally re-checks that no first-party
+    internal host has collided with a host upstream added, per
+    `docs/SECURITY_CENTER_CONTRACT.md` acceptance criterion 13. A changed
+    upstream classification blocks the roll for review; it is never corrected by
+    adding a Sunshine rule.
 
 ## 14. Evidence and what was not verified
 
@@ -546,7 +602,9 @@ native build exists and criteria 1–22 have been run and recorded.
 ## 16. Completion gate
 
 This contract is complete when reviewed. Section 5.3 of the handoff is complete
-when the corpus fixture exists, criteria 1–21 have passed on a native pinned
-build, and the roll gate in criterion 22 has run at least once. No part of it is
+when the corpus fixture exists, criteria 1–15 and 17–21 have passed on a native
+pinned build together with the two checks folded into criterion 16 — criterion
+16 itself cannot pass, because ADR 0003 leaves it no build to run on — and the
+roll gate in criterion 22 has run at least once. No part of it is
 complete by virtue of Sunshine having written code, because the correct amount
 of Sunshine code on this path is none.
