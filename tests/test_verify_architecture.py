@@ -294,6 +294,35 @@ class ChromiumBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "gclient"):
                 self.bootstrap.run("gclient", "sync")
 
+    def test_sync_concurrency_is_bounded(self) -> None:
+        """gclient defaults to one job per core, which googlesource rejects.
+
+        A 24-thread runner opened 24 anonymous clones and the server answered
+        HTTP 429 `shared/shared_anonymous` after 53 minutes of syncing.
+        """
+
+        source = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("DEFAULT_SYNC_JOBS = 8", source)
+        self.assertIn('jobs = f"-j{args.jobs}"', source)
+        self.assertIn('run("gclient", "sync", "--nohooks", jobs, cwd=workspace)', source)
+        self.assertIn('run("gclient", "sync", jobs, cwd=workspace)', source)
+
+        result = subprocess.run(
+            (sys.executable, str(BOOTSTRAP_SCRIPT), "--help"),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertIn("--jobs", result.stdout)
+
+    def test_fetch_is_replaced_by_the_two_steps_it_performs(self) -> None:
+        """`fetch chromium` cannot bound concurrency, so it is expanded inline."""
+
+        source = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('run("gclient", "config", "--spec", CHROMIUM_SPEC, cwd=workspace)', source)
+        self.assertIn("https://chromium.googlesource.com/chromium/src.git", source)
+        self.assertNotIn('run("fetch"', source)
+
     def test_reset_exists_and_is_opt_in(self) -> None:
         """Bootstrapping a human's workspace must still refuse to discard work."""
 

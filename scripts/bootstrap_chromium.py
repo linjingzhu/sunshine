@@ -12,6 +12,29 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+# `fetch chromium` is exactly `gclient config` followed by `gclient sync
+# --nohooks`, and it exposes no way to bound concurrency. gclient defaults to one
+# job per core, so a 24-thread runner opens 24 anonymous clones against
+# chromium.googlesource.com and the server answers HTTP 429:
+#
+#   RESOURCE_EXHAUSTED  subject: "shared/shared_anonymous"
+#   "Short term server-time rate limit exceeded"
+#
+# Running the two steps directly lets the job count be bounded. Authenticating to
+# googlesource leaves the shared anonymous quota pool entirely and is the better
+# fix; see docs/WINDOWS_CHROMIUM_BUILD.md.
+CHROMIUM_SPEC = (
+    'solutions = [\n'
+    '  {\n'
+    '    "name": "src",\n'
+    '    "url": "https://chromium.googlesource.com/chromium/src.git",\n'
+    '    "custom_deps": {},\n'
+    '    "custom_vars": {},\n'
+    '  },\n'
+    ']\n'
+)
+DEFAULT_SYNC_JOBS = 8
+
 
 def executable(name: str) -> str:
     """Resolve a tool to a full path before launching it.
@@ -103,17 +126,30 @@ def main() -> int:
             "Untracked build output such as out/ is never touched."
         ),
     )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=DEFAULT_SYNC_JOBS,
+        help=(
+            "parallel gclient jobs. gclient otherwise uses one per core, which "
+            "an anonymous client cannot sustain against googlesource."
+        ),
+    )
     args = parser.parse_args()
 
-    if not shutil.which("fetch") or not shutil.which("gclient"):
+    if args.jobs < 1:
+        raise SystemExit("--jobs must be at least 1")
+    if not shutil.which("gclient"):
         raise SystemExit("depot_tools is required and must be on PATH")
 
     workspace = args.workspace.resolve()
     src = workspace / "src"
+    jobs = f"-j{args.jobs}"
     if not args.skip_fetch:
         workspace.mkdir(parents=True, exist_ok=True)
         if not src.exists():
-            run("fetch", "--nohooks", "chromium", cwd=workspace)
+            run("gclient", "config", "--spec", CHROMIUM_SPEC, cwd=workspace)
+            run("gclient", "sync", "--nohooks", jobs, cwd=workspace)
 
     if not (src / ".git").exists():
         raise SystemExit(f"Chromium checkout not found: {src}")
@@ -147,7 +183,7 @@ def main() -> int:
     if args.reset:
         checkout.append("--force")
     run(*checkout, "FETCH_HEAD", cwd=src)
-    run("gclient", "sync", cwd=workspace)
+    run("gclient", "sync", jobs, cwd=workspace)
 
     for patch_name in patch_names:
         patch_path = ROOT / "downstream/patches" / patch_name
