@@ -88,9 +88,11 @@ needs the built browser. Class **D** is deferred with its subject.
 | SEC-10 | A destructive action requires an impact preview and an explicit confirmation, and leaves an audit record. | D |
 | SEC-11 | An AI layer proposes actions; it never executes a privileged one. Web content is data, never instruction. | D |
 | SEC-12 | The audit log records what happened, never a password, token, cookie, secret, or private key. | D |
+| SEC-13 | Sunshine registers no URL scheme — not internally, and not with the operating system. Its surfaces live under Chromium's own schemes. | O |
+| SEC-14 | A Sunshine-authored web asset constructs no code at runtime and loads no remote resource. | O |
 
-SEC-1, SEC-2 and SEC-4 through SEC-8 are enforced today. SEC-3 and SEC-9 are
-stated and unenforced, which is the honest position: neither can be decided
+SEC-1, SEC-2, SEC-4 through SEC-8, SEC-13 and SEC-14 are enforced today.
+SEC-3 and SEC-9 are stated and unenforced, which is the honest position: neither can be decided
 without the built browser. SEC-10 through SEC-12 are deferred with their
 subjects and are recorded so that the subject arrives with its boundary already
 specified.
@@ -119,6 +121,23 @@ boundaries: `sandbox/`,
 and the render-process host. A patch reaching one of them is not automatically
 wrong, but it is never routine, and the patch stack exists to stay small and
 reviewable.
+
+### 2.2 SEC-13 and SEC-14 came from a rejected proposal
+
+Both were settled or implied and neither was checked, which a later module
+architecture proposal demonstrated by violating one of them without anything
+objecting: it made `sunshine-module://<module-id>/` the default execution origin
+for every module. `docs/decisions/0003-internal-scheme.md` had already settled
+that Sunshine registers no scheme at all. A settled decision that nothing
+enforces is a decision the next document does not know was taken.
+
+SEC-14 is the same class of gap in the other direction: nothing had ever been
+written down about what a Sunshine-authored web asset may do, even though those
+assets are patched into WebUI and run at a privilege no website has. Being
+first-party is what makes a mistake there expensive, not what makes it safe.
+
+`scripts/verify_first_party_surfaces.py` enforces SEC-13;
+`scripts/verify_web_asset_security.py` enforces SEC-14.
 
 ## 3. What the renderer may never reach
 
@@ -233,9 +252,16 @@ Attack scenarios, each stated as an expected denial. Class as in section 2.
 8. **SECA-8.** No build argument, configuration file, or patch in the
    repository disables a sandbox or weakens site isolation, in any of the
    spellings upstream defines. (SEC-1, SEC-2) — **O, enforced**
+9. **SECA-9.** No Sunshine-authored web asset contains `eval`, `new Function`,
+   a string timer body, an `innerHTML` or `outerHTML` assignment, a
+   `document.write`, or a remote resource URL outside a comment. (SEC-14) —
+   **O, enforced**
+10. **SECA-10.** No Sunshine-authored file names a URL scheme outside
+    Chromium's own set, and no patch calls a scheme-registration API or writes
+    the Windows `URL Protocol` registry value. (SEC-13) — **O, enforced**
 
-SECA-7 and SECA-8 are the two that a check can decide today, and both are run by
-CI. The rest are stated so the suite that eventually runs them has a definition
+SECA-7 through SECA-10 are the ones a check can decide today, and all four run
+in CI. The rest are stated so the suite that eventually runs them has a definition
 to run.
 
 ## 8. Chromium security updates

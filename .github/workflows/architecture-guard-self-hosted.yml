@@ -88,6 +88,9 @@ jobs:
       - name: Verify Sunshine-authored CSS against the design system
         run: python scripts/verify_design_tokens.py
 
+      - name: Verify Sunshine-authored web assets execute and load nothing remote
+        run: python scripts/verify_web_asset_security.py
+
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py
 

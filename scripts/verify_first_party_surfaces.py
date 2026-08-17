@@ -11,7 +11,7 @@ model duplicating `SplitTabCollection` because nobody checked.
 The host-collision check needs the pinned sources and lives in its own function
 so the tests can stub it and the suite stays offline.
 
-Enforces: SPA-9, CPA-9, SCA-13.
+Enforces: SPA-9, CPA-9, SCA-13, SEC-13, SECA-10.
 
 Three of the four are now citable. They were ordinals in renumbering lists when
 this file was written -- `SIDE_PANEL_CONTRACT` §12.9, `COMMAND_PALETTE_CONTRACT`
@@ -53,6 +53,30 @@ CHROMIUM_OWNED_PANELS = ("bookmark", "history")
 # Matched as definitions, not bare names. Checking for the name alone passed
 # when the class was deleted, because the identifier survived in the type
 # annotations of functions that returned it.
+# ADR 0003 settled that Sunshine registers no URL scheme -- not internally, and
+# not with any operating system. It was settled and unenforced: nothing stopped
+# a later design from introducing `sunshine://` or `sunshine-module://` as a
+# module origin, which is exactly what one later proposal did.
+#
+# Chromium's own schemes are not Sunshine registering anything, and neither is
+# an ordinary network or inline URL.
+ALLOWED_SCHEMES = frozenset({
+    "http", "https", "file", "data", "blob", "about", "ws", "wss",
+    "chrome", "chrome-untrusted", "chrome-error", "chrome-extension",
+    "chrome-search", "devtools", "isolated-app", "filesystem",
+})
+SCHEME_LITERAL = re.compile(r"\b([a-z][a-z0-9+.-]*)://")
+# The Chromium calls that make a scheme real, and the Windows registry value
+# that makes one real to the operating system.
+SCHEME_REGISTRATION = (
+    "AddStandardScheme",
+    "AddLocalScheme",
+    "AddNoAccessScheme",
+    "AddCorsEnabledScheme",
+    "RegisterCustomScheme",
+    "URL Protocol",
+)
+
 LAST_ACTIVE_TAB_API = (
     "class WindowWorkspaceState",
     "def resolve_switch_target",
@@ -135,6 +159,55 @@ def check_last_active_tab_owner(root: Path, failures: list[str]) -> None:
             )
 
 
+def sunshine_authored(root: Path) -> list[tuple[str, str]]:
+    """Sunshine-authored text, patches reduced to their added lines.
+
+    A patch's context lines are upstream's and routinely contain schemes
+    Sunshine does not register; counting them would make this fire on every
+    patch that touches a WebUI file.
+    """
+
+    sources: list[tuple[str, str]] = []
+    for directory in ("first_party", "downstream", "config"):
+        base = root / directory
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            label = path.relative_to(root).as_posix()
+            if path.suffix == ".patch":
+                text = "\n".join(
+                    line[1:] for line in text.splitlines()
+                    if line.startswith("+") and not line.startswith("+++")
+                )
+            sources.append((label, text))
+    return sources
+
+
+def check_no_scheme_registration(root: Path, failures: list[str]) -> None:
+    """SEC-13: Sunshine registers no URL scheme (ADR 0003)."""
+
+    for label, text in sunshine_authored(root):
+        for number, line in enumerate(text.splitlines(), start=1):
+            for scheme in SCHEME_LITERAL.findall(line):
+                if scheme not in ALLOWED_SCHEMES:
+                    failures.append(
+                        f"{label}:{number}: {scheme}:// is a URL scheme Sunshine does not "
+                        "register; ADR 0003 settled that it registers none (SEC-13)"
+                    )
+            for call in SCHEME_REGISTRATION:
+                if call in line:
+                    failures.append(
+                        f"{label}:{number}: {call} registers a URL scheme, which ADR 0003 "
+                        "forbids (SEC-13)"
+                    )
+
+
 def check_host_collisions(root: Path, failures: list[str], version: str) -> None:
     """SECURITY_CENTER SCA-13, collision half.
 
@@ -156,6 +229,7 @@ def validate(root: Path = ROOT, *, offline: bool = False) -> list[str]:
     check_panels(root, failures)
     check_reason_tokens(root, failures)
     check_last_active_tab_owner(root, failures)
+    check_no_scheme_registration(root, failures)
     if not offline:
         check_host_collisions(root, failures, pinned_version(root))
     return failures

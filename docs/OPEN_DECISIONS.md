@@ -28,6 +28,7 @@ direction sees the same thing.
 | What behaviour is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | handoff §11, `docs/DOWNLOAD_SAFETY.md` | download release |
 | What is the default profile and data deletion and backup policy? | handoff §11 | persistence release |
 | Is partial extension compatibility acceptable for v1? | handoff §11 | Stage 1 architecture gate |
+| Is a Sunshine module a compiled capability, or a local web-app bundle run by a module runtime? The second requires amending ADR 0003 and `.ai/PROJECT_CONTEXT.md`, rescoping `verify_architecture.py`, and re-opening the Stage 4 gate. The first makes every product feature cost a Chromium build. | `docs/decisions/0006-module-execution-model.md` | all first-party product work |
 | What is the Chromium roll cadence? A roll costs a patch-stack rebase, re-verification of 204 cited paths, and a 6 h 31 min build on the project's only machine, which is also its only CI. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §8 | security update posture |
 | When, if ever, is Sunshine distributed? The answer gates code signing and auto-update, and re-opens ADR 0004 (codec licensing) and ADR 0005 (no Safe Browsing) together. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §9 | distribution |
 
