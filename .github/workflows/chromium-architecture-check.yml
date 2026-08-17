@@ -48,6 +48,9 @@ jobs:
       - name: Validate policy document metadata and references
         run: python scripts/validate_doc_metadata.py
 
+      - name: Verify the build cannot acquire an account identity
+        run: python scripts/verify_account_freedom.py
+
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py
 

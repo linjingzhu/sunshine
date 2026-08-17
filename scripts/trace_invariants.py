@@ -28,13 +28,14 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "config/invariant_coverage.txt"
 
-# `OS-3`, `AT-11`, `SC-8`, `OT-2`, `R1`, `D4`. Two or three capitals and a
-# number, or a single capital and a number for the shorter families.
-INVARIANT = re.compile(r"\b([A-Z]{1,3}-?\d{1,2})\b")
+# `OS-3`, `AT-11`, `SC-8`, `OT-2`, `D4`, and the compound form `PO-A1`, where
+# the family is followed by a lettered series. The letter is optional, so both
+# shapes match and the family is whatever precedes the hyphen.
+INVARIANT = re.compile(r"\b([A-Z]{1,3}-?[A-Z]?\d{1,2})\b")
 
 # Families a contract actually uses. Without this the pattern also matches
 # version numbers, Chromium symbols and ordinary prose like "P1".
-FAMILIES = ("AT", "OS", "SC", "OT", "OC", "OP", "D", "R", "E", "SP")
+FAMILIES = ("AT", "OS", "SC", "OT", "OC", "OP", "PO", "D", "R", "E", "SP")
 
 
 def _identifiers(text: str) -> set[str]:
@@ -60,12 +61,17 @@ def claimed(root: Path = ROOT) -> dict[str, set[str]]:
     """Invariants a test or tool claims to enforce, keyed by identifier."""
 
     result: dict[str, set[str]] = {}
+    # This tool and its own tests are excluded. The tests write fixture
+    # documents containing `Enforces:` lines to prove the check works, and
+    # counting those as real claims made the tool report invariants that no
+    # file in the repository actually enforces.
+    excluded = {Path(__file__).name, "test_invariant_tracing.py"}
     for directory in ("tests", "scripts"):
         for path in sorted((root / directory).rglob("*.py")):
-            if path.name == Path(__file__).name:
+            if path.name in excluded:
                 continue
             text = path.read_text(encoding="utf-8")
-            for match in re.finditer(r"Enforces:\s*([A-Z0-9,\-\s]+)", text):
+            for match in re.finditer(r"Enforces:[ \t]*([A-Z0-9,\- \t]+)", text):
                 for identifier in _identifiers(match.group(1)):
                     result.setdefault(identifier, set()).add(path.name)
     return result

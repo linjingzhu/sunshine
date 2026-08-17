@@ -14,3 +14,7 @@
 #
 # The number that matters for planning is in the run report: how much of this
 # contract set is unverifiable until the native build exists.
+
+PO-A1
+PO-A2
+PO-A3
