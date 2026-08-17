@@ -94,9 +94,9 @@ class PatchStructureTests(unittest.TestCase):
             "the margin token is no longer proven by upstream context",
         )
 
-        workflow = (ROOT / ".github/workflows/chromium-architecture-check.yml").read_text(encoding="utf-8")
+        checker = (ROOT / "scripts/verify_pinned_upstream.py").read_text(encoding="utf-8")
         self.assertIn("--ntp-theme-text-shadow", patch)
-        self.assertIn("--ntp-theme-text-shadow:", workflow)
+        self.assertIn("--ntp-theme-text-shadow:", checker)
         self.assertIn("--color-new-tab-page-primary-foreground", patch)
 
     def test_the_colour_token_is_checked_where_it_is_defined(self) -> None:
@@ -112,9 +112,9 @@ class PatchStructureTests(unittest.TestCase):
         on a token that exists.
         """
 
-        workflow = (ROOT / ".github/workflows/chromium-architecture-check.yml").read_text(encoding="utf-8")
-        self.assertIn("chrome/browser/ui/color/chrome_color_id.h", workflow)
-        self.assertIn("kColorNewTabPagePrimaryForeground", workflow)
+        checker = (ROOT / "scripts/verify_pinned_upstream.py").read_text(encoding="utf-8")
+        self.assertIn("chrome/browser/ui/color/chrome_color_id.h", checker)
+        self.assertIn("kColorNewTabPagePrimaryForeground", checker)
 
     def test_the_wordmark_leaves_no_reference_to_the_element_it_replaced(self) -> None:
         """Replacing `ntp-logo` is not finished when the template changes.

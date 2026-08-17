@@ -31,11 +31,21 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         self.assertNotIn('"last_active_tab_id"', self.text)
 
     def test_ci_checks_tab_and_window_extra_data_separately(self) -> None:
+        """Both structs carry workspace state, so both must be checked.
+
+        The assertion moved out of the workflow and into
+        scripts/verify_pinned_upstream.py, which searches each struct body
+        rather than the whole file.
+        """
+
+        checker = (ROOT / "scripts" / "verify_pinned_upstream.py").read_text(encoding="utf-8")
+        self.assertIn("struct SESSIONS_EXPORT SessionTab {", checker)
+        self.assertIn("struct SESSIONS_EXPORT SessionWindow {", checker)
+
         workflow = (
             ROOT / ".github" / "workflows" / "chromium-architecture-check.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("struct SESSIONS_EXPORT SessionTab {", workflow)
-        self.assertIn("struct SESSIONS_EXPORT SessionWindow {", workflow)
+        self.assertIn("scripts/verify_pinned_upstream.py", workflow)
 
     def test_data_loss_and_identity_boundaries_are_explicit(self) -> None:
         for marker in (

@@ -141,6 +141,77 @@ reaches it, delete the guard and assert the behavior that is actually
 guaranteed.
 Confidence: medium.
 
+### 2026-08-17 — Replacing an upstream element means sweeping every reference to it
+Area: downstream patch stack.
+Evidence: `0002-sunshine-new-tab.patch` replaced `<ntp-logo id="logo">` in the
+template and changed nothing else. `app.ts` referenced the logo in four places.
+One was fatal (`lit-element-invalid-interface` failed the first build that ever
+reached compilation); the other three were silent -- an unused type import, an
+inert allowlist that would have removed the wordmark from the accessibility tree
+whenever the composebox opened, and a click metric that would have stopped
+recording.
+Impact: the visible failure was the least damaging of the four. Fixing only what
+CI names would have shipped the other three.
+Recommended future behavior: when a patch removes or renames an upstream DOM id,
+element or symbol, grep the whole owning component for the old name and decide
+each hit explicitly -- carry it over, or drop it on purpose. Verify against the
+pinned sources, not from memory.
+Confidence: high.
+
+### 2026-08-17 — Check a token against the file that defines it, not one that uses it
+Area: verification design.
+Evidence: a CI step was added asserting `--color-new-tab-page-primary-foreground`
+appears in `app.css`. It does not, at any revision: Chromium emits
+`--color-new-tab-page-*` from the colour IDs in `chrome_color_id.h` and serves
+them through `chrome://theme`. `kColorNewTabPagePrimaryForeground` exists at
+152.0.7977.42, so the check would have failed the build on a valid token.
+Impact: a guard that is wrong about its evidence is worse than no guard; it
+spends the team's trust and pushes toward "fixing" correct code.
+Recommended future behavior: before asserting a dependency exists, establish
+where that kind of dependency is *defined*. Absence from a consumer is not
+absence. Prove the check fails for the right reason before relying on it.
+Confidence: high.
+
+### 2026-08-17 — A build tool's summary line is not its diagnostic
+Area: build pipeline.
+Evidence: the first build to reach compilation ran 17.5 minutes, completed
+11,820 of 66,739 steps, and reported the failure in full as `1 steps failed:
+exit=1`. siso writes the failing command and compiler output to
+`out/Sunshine/siso_output`, which stays on the runner. The cause was
+undiagnosable from CI's only artefact until the failure path was changed to dump
+that file; the very next run named the target, the file and the error.
+Impact: one wasted cycle per failure, and a standing temptation to guess.
+Recommended future behavior: when adopting a build tool, find out where it puts
+failure detail and surface it from the failure path before the first real
+failure. Treat "the log does not say why" as a defect in the pipeline.
+Confidence: high.
+
+### 2026-08-17 — Verify an environment's reach per host, not once
+Area: execution environment.
+Evidence: `chromium.googlesource.com` is refused by egress policy (proxy
+`connect_rejected`, 403 to CONNECT), which was correctly reported as blocking.
+The conclusion "this session cannot read pinned upstream sources" did not follow:
+`raw.githubusercontent.com` serves the same revision and is reachable. That
+single fact turned an open question into a resolved one and let every
+network-dependent CI check run locally while hosted runners were unavailable.
+Impact: an over-broad capability claim stalls work that is actually possible.
+Recommended future behavior: state blocked *hosts*, not blocked *capabilities*,
+and look for another host serving the same artefact before recording a blocker.
+Confidence: high.
+
+### 2026-08-17 — Distinguish "the job failed" from "the job never ran"
+Area: CI triage.
+Evidence: four architecture-guard runs failed in 2-3 seconds with `runner_id: 0`,
+no steps, 0 ms billable and no downloadable log, across two commits and a manual
+re-run, while the self-hosted build ran normally on the same commits. That
+signature is runner allocation, not a test result.
+Impact: treating it as a code failure invites speculative fixes to code that was
+never executed; treating it as flake invites endless re-runs.
+Recommended future behavior: before diagnosing a red check, confirm it executed --
+duration, assigned runner, recorded steps, billable time. Zero on all four means
+the answer is outside the repository.
+Confidence: high.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:
