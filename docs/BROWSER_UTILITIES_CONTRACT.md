@@ -9,9 +9,10 @@ browser utilities required by section 6.6 of
 and zoom reset, print, save page, view source, inspect, and the link and image
 context-menu actions.
 
-This wave is **documentation-only**. It adds no downstream patch, no first-party
-module, and no registered command. Nothing here has been verified against a
-native build; see *Not verified* below.
+This wave was **documentation-only**: it added no downstream patch and no
+first-party module. Eleven of these utilities have since been registered as
+commands -- see *Command registration* below. Nothing here has been verified
+against a native build; see *Not verified* below.
 
 Sunshine OS is a native downstream of open-source Chromium. There is no wrapper
 runtime, no embedded browser engine, and no JavaScript shim layer through which
@@ -376,10 +377,15 @@ Nothing in this document has been executed. Specifically, this wave includes:
 - no visual, accessibility, localisation, or keyboard verification of the find
   bar, print preview, save picker, view-source output, DevTools, or context
   menus;
-- no confirmation that the cited source paths exist at
-  `refs/tags/152.0.7977.42`; they are stated from the documented architecture of
-  the pinned line and must be checked when a checkout is first available;
-- no downstream patch, no first-party module, and no command-registry change.
+- no downstream patch and no first-party module.
+
+The one item that used to sit in this list -- that the cited source paths were
+unconfirmed at `refs/tags/152.0.7977.42` and awaited a checkout -- has been
+retired. A checkout was never required: the paths are readable at the pinned
+tag directly, and `scripts/verify_pinned_upstream.py` now checks every upstream
+path cited by any contract in `docs/` on every CI run. All of them resolve. The
+disclaimer was more cautious than the evidence demanded, and a disclaimer that
+outlives its cause teaches readers to discount the ones that are still true.
 
 Any claim that these utilities work in Sunshine is unsupported until a native
 build exists and criteria 1–22 have been run and recorded.

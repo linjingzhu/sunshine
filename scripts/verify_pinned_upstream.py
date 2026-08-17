@@ -2,11 +2,12 @@
 """Check that the pinned Chromium revision still supports the patch stack.
 
 Everything here needs the upstream sources, so it cannot run from the patch
-files alone. Three questions are asked of the pinned revision:
+files alone. Four questions are asked of the pinned revision:
 
 1. the ordered patch stack applies to it,
 2. the native integration seams the workspace design depends on still exist,
-3. the New Tab tokens the wordmark consumes without a fallback still exist.
+3. the New Tab tokens the wordmark consumes without a fallback still exist,
+4. every upstream source path the contracts cite is really there.
 
 Each token is checked against the source that defines it. `--ntp-theme-text-shadow`
 is a plain custom property declared in `app.css`. `--color-new-tab-page-*` tokens
@@ -25,7 +26,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -92,6 +95,15 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 )
 
 
+# A backticked path under a Chromium top-level directory, with a source-file
+# suffix. Narrow on purpose: prose says `app.css` and `scripts/foo.py` too, and
+# neither is an upstream citation.
+CITATION = re.compile(
+    r"`((?:base|chrome|components|content|net|services|third_party|ui)"
+    r"/[A-Za-z0-9_./]+\.(?:h|cc|mojom|css|ts|html|py))`"
+)
+
+
 class UpstreamCheckError(RuntimeError):
     pass
 
@@ -124,6 +136,61 @@ def section(text: str, opening: str) -> str:
         return ""
     end = text.find("\n};", start)
     return text[start : end if end != -1 else len(text)]
+
+
+def cited_paths(root: Path) -> dict[str, set[str]]:
+    """Upstream source paths the contracts cite, mapped to the docs citing them."""
+
+    citations: dict[str, set[str]] = {}
+    for document in sorted((root / "docs").rglob("*.md")):
+        for path in CITATION.findall(document.read_text(encoding="utf-8")):
+            citations.setdefault(path, set()).add(document.name)
+    return citations
+
+
+def exists(source: str, version: str, path: str) -> bool:
+    template, encoded = SOURCES[source]
+    url = template.format(version=version, path=path)
+    if encoded:
+        # googlesource has no HEAD for this route; the smallest existence probe
+        # is the ordinary page rather than the base64 payload.
+        url = url.removesuffix("?format=TEXT")
+    request = urllib.request.Request(url, method="GET" if encoded else "HEAD")
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.status == 200
+    except urllib.error.HTTPError:
+        return False
+    except urllib.error.URLError as error:
+        raise UpstreamCheckError(f"could not probe {path}: {error}") from error
+
+
+def check_citations(source: str, version: str, root: Path, report: list[str]) -> bool:
+    """Every upstream path a contract cites must exist at the pinned revision.
+
+    Contracts are only as good as the sources they name, and this surface moves:
+    the omnibox edit model and view left components/omnibox/browser/ for
+    chrome/browser/ui/omnibox/, and the child-process security policy is a
+    public header rather than the impl one that is usually quoted. A path cited
+    from memory reads as evidence while pointing at nothing.
+    """
+
+    citations = cited_paths(root)
+    if not citations:
+        report.append("  OK   no upstream paths cited by the contracts")
+        return True
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        found = dict(zip(citations, pool.map(
+            lambda path: exists(source, version, path), citations)))
+
+    dead = sorted(path for path, present in found.items() if not present)
+    for path in dead:
+        report.append(f"  FAIL cited path absent at {version}: {path}")
+        report.append(f"       cited by {', '.join(sorted(citations[path]))}")
+    if not dead:
+        report.append(f"  OK   {len(citations)} cited upstream paths all exist")
+    return not dead
 
 
 def check_patch_stack(source: str, version: str, root: Path, report: list[str]) -> bool:
@@ -200,6 +267,7 @@ def verify(source: str = "googlesource", root: Path = ROOT) -> tuple[bool, list[
             report.append(f"       checked for {needle!r} in {path}")
             healthy = False
 
+    healthy = check_citations(source, version, root, report) and healthy
     healthy = check_patch_stack(source, version, root, report) and healthy
     return healthy, report
 

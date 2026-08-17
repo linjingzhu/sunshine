@@ -123,5 +123,23 @@ class CommandRegistryTests(unittest.TestCase):
                 self.assertIn(command_id, self.commands)
 
 
+    def test_an_error_is_not_excluded_by_its_own_availability(self) -> None:
+        """An error a command can never reach is not a contract, it is decoration.
+
+        `tab.group.create` declared availability "At least one tab is selected in
+        one window." alongside the error `selection_spans_windows`. The
+        availability made the error unreachable: if the predicate is enforced,
+        the failure it names cannot occur. Availability says when the command is
+        offered; errors say how an offered command fails.
+        """
+
+        registry = json.loads((ROOT / "first_party/commands.json").read_text(encoding="utf-8"))
+        commands = {entry["id"]: entry for entry in registry["commands"]}
+
+        create = commands["tab.group.create"]
+        self.assertIn("selection_spans_windows", create["errors"])
+        self.assertNotIn("in one window", create["availability"])
+
+
 if __name__ == "__main__":
     unittest.main()

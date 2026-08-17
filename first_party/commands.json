@@ -159,7 +159,7 @@
       "id": "tab.group.create",
       "summary": "Group the selected tabs using Chromium's native tab groups.",
       "owner": "chromium",
-      "availability": "At least one tab is selected in one window.",
+      "availability": "At least one tab is selected.",
       "guard": null,
       "telemetry": "Sunshine.Command.TabGroupCreate",
       "errors": ["selection_spans_windows"]

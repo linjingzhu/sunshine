@@ -7,8 +7,10 @@ fails for the right reason and passes for the right reason, without touching the
 network.
 """
 
+import contextlib
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -45,9 +47,17 @@ def fake_fetch(overrides: dict[str, str] | None = None):
 
 
 class PinnedUpstreamTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.enterExitStack = contextlib.ExitStack()
+        self.addCleanup(self.enterExitStack.close)
+
     def run_verify(self, overrides=None):
+        # Patch application and citation probing each need the network; they
+        # have their own offline tests below. Stubbing them here keeps these
+        # cases about seams and tokens, and keeps the suite runnable offline.
         with mock.patch.object(checker, "fetch", fake_fetch(overrides)), \
-             mock.patch.object(checker, "check_patch_stack", return_value=True):
+             mock.patch.object(checker, "check_patch_stack", return_value=True), \
+             mock.patch.object(checker, "check_citations", return_value=True):
             return checker.verify()
 
     def test_it_passes_when_upstream_still_provides_everything(self) -> None:
@@ -105,6 +115,62 @@ class PinnedUpstreamTests(unittest.TestCase):
             }
         )
         self.assertFalse(healthy)
+
+    def test_a_cited_path_that_moved_upstream_fails_and_names_the_document(self) -> None:
+        """A contract is only as good as the sources it names.
+
+        This surface moves: the omnibox edit model and view left
+        components/omnibox/browser/ for chrome/browser/ui/omnibox/. A path cited
+        from memory reads as evidence while pointing at nothing, so the failure
+        must say which document to fix.
+        """
+
+        root = Path(self.enterExitStack.enter_context(tempfile.TemporaryDirectory()))
+        (root / "docs").mkdir()
+        (root / "docs" / "SOME_CONTRACT.md").write_text(
+            "Navigation is owned by `components/omnibox/browser/omnibox_edit_model.h`.\n",
+            encoding="utf-8",
+        )
+
+        report: list[str] = []
+        with mock.patch.object(checker, "exists", lambda source, version, path: False):
+            healthy = checker.check_citations("github", "152.0.7977.42", root, report)
+
+        self.assertFalse(healthy)
+        joined = "\n".join(report)
+        self.assertIn("components/omnibox/browser/omnibox_edit_model.h", joined)
+        self.assertIn("SOME_CONTRACT.md", joined)
+
+    def test_ordinary_prose_is_not_mistaken_for_an_upstream_citation(self) -> None:
+        """`app.css` and repository paths appear constantly in these documents."""
+
+        root = Path(self.enterExitStack.enter_context(tempfile.TemporaryDirectory()))
+        (root / "docs").mkdir()
+        (root / "docs" / "PROSE.md").write_text(
+            "The wordmark lives in `app.css`, validated by `scripts/foo.py`,\n"
+            "and the seam is `chrome/browser/ui/tabs/tab_strip_model.h`.\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(
+            {"chrome/browser/ui/tabs/tab_strip_model.h"},
+            set(checker.cited_paths(root)),
+        )
+
+    def test_the_repository_cites_only_paths_that_exist(self) -> None:
+        """Guards the real documents, not a fixture -- but offline-safe.
+
+        The network form of this runs in CI; here we only assert the citations
+        are extractable and non-empty, so a regex that silently stops matching
+        cannot turn this check into a no-op that always passes.
+        """
+
+        citations = checker.cited_paths(REPOSITORY_ROOT)
+        self.assertGreater(len(citations), 20)
+        for path in citations:
+            with self.subTest(path=path):
+                self.assertRegex(path, r"^[a-z_]+/")
+                self.assertNotIn("`", path)
 
     def test_section_stops_at_the_closing_brace(self) -> None:
         text = "struct A {\n  wanted;\n};\nstruct B {\n  unwanted;\n};"
