@@ -98,3 +98,22 @@ After installation, verify:
 - light and dark themes;
 - narrow window and 200% page zoom;
 - no overlap, clipped focus ring, or unreadable foreground.
+
+## Media codecs
+
+`scripts/build_chromium_windows.ps1` sets `proprietary_codecs=false` and
+`ffmpeg_branding="Chromium"`. That is Chromium's open-source default and it is
+deliberate, but it has a product consequence that was recorded nowhere until
+`docs/ACCEPTANCE_SUITES.md` traced an acceptance item back to it:
+
+**The resulting build cannot play H.264 or AAC.** Most video on the web is
+H.264, so a large share of the Stage 1 acceptance corpus will fail to play in a
+build produced by this pipeline. Nothing is broken; the codecs are absent.
+
+The alternative is `proprietary_codecs=true` with `ffmpeg_branding="Chrome"`,
+which requires the licensing position that Google holds for Chrome and Sunshine
+does not automatically inherit. That is a licence judgment, not an engineering
+one, and it is recorded as an owner decision rather than taken here.
+
+Until it is taken, read a media failure in this build as configuration, not as a
+regression, and do not "fix" it by flipping the flags without the decision.

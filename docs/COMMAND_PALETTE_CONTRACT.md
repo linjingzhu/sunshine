@@ -884,9 +884,14 @@ Nothing in this document has been executed. Specifically:
 - The claim that `Ctrl+K` cannot be consumed by web content on the pinned
   revision is stated from the documented accelerator model and has **not** been
   checked against source.
-- The reason-token sets that section 4 requires do not exist for any of the 27
-  registered commands, and for the 21 Chromium-owned commands their enumeration
-  is a claim about upstream behaviour this wave did not check.
+- The reason-token sets that section 4 requires now exist as a schema field
+  (`unavailable_reasons`, schema version 2), populated for the four
+  Sunshine-owned commands and empty for the Chromium-owned ones, whose
+  enumeration is a claim about upstream behaviour this wave did not check.
+  Counts here read 27 registered and 21 Chromium-owned when this contract was
+  written; the registry holds **24 (20 Chromium-owned, 4 `sunshine.workspace`)**
+  since the three `view.split.*` commands were retired to Chromium's native
+  split tabs.
 - `scripts/validate_commands.py` was read, not modified. The registry, the module
   registry, the patch stack, and the localisation resources are unchanged by this
   wave.

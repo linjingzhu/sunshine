@@ -99,8 +99,8 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 # suffix. Narrow on purpose: prose says `app.css` and `scripts/foo.py` too, and
 # neither is an upstream citation.
 CITATION = re.compile(
-    r"`((?:base|chrome|components|content|net|services|third_party|ui)"
-    r"/[A-Za-z0-9_./]+\.(?:h|cc|mojom|css|ts|html|py))`"
+    r"`((?:base|build|chrome|components|content|net|services|third_party|tools|ui)"
+    r"/[A-Za-z0-9_./]+\.(?:h|cc|mojom|css|ts|html|py|csv|json|gn|gni|xml))`"
 )
 
 
