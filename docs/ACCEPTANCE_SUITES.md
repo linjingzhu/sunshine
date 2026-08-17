@@ -625,9 +625,9 @@ implementation.
 |---|---|---|
 | P0 | Is `proprietary_codecs=false` an intended product decision? It determines A1.4 before any dogfooding starts, and it is recorded in no document. | Stage 1 dogfood |
 | P0 | Are §5.7 and §6.8 gates or reports? Handoff §10 forbids starting a wave while a gate knowingly fails, but two Stage 1 items and three Stage 2 items have no criterion, so the gate cannot currently be evaluated either way. | Stage 1 exit |
-| P0 | Who owns profile onboarding and the §5.6.6 OAuth separation? No contract does. | Stage 1 security |
-| P0 | What is the telemetry and crash sink? Five §6.8 items and four §7.9 candidates have no evidence path without one, and `docs/PERFORMANCE_BUDGET.md` §9 asks the same question from the measurement side. Answer it once. | Stage 2 exit |
-| P0 | Does §5.6.1's policy handler survive `PERMISSION_POLICY`'s zero-patch decision, or is §5.6.1 withdrawn in place as §5.3's row was? Same question for §5.6.3. | Stage 1 security |
+| ~~P0~~ | ~~Who owns profile onboarding and the §5.6.6 OAuth separation?~~ **Answered** by `docs/PROFILE_ONBOARDING_CONTRACT.md`: a keyless build has no Dice, no browser sign-in and no first-run experience, so local-only is what the build produces rather than a mode it implements. | settled |
+| ~~P0~~ | ~~What is the telemetry and crash sink?~~ **Answered** by `docs/TELEMETRY_CONTRACT.md`: Sunshine records and does not report. Three upstream gates are already closed in a non-branded build, so the numbers the suites need never leave the machine. This also closes `docs/PERFORMANCE_BUDGET.md` §9's version of the question and `SIDE_PANEL_CONTRACT` D1's assumption. | settled |
+| ~~P0~~ | ~~Does §5.6.1's policy handler survive `PERMISSION_POLICY`?~~ **Settled: both §5.6.1 and §5.6.3 are withdrawn in place**, as §5.3's row was. Chromium already blocks popups without a user gesture, and default-deny denies before the user is asked — which removes the very decision the clause says they should have. | settled |
 | P1 | Is there an **absolute** acceptability threshold for CPU and memory, and a long-session memory-growth observation? `docs/PERFORMANCE_BUDGET.md` answers §9.2 with deltas and scopes both out by design, leaving A1.9 uncovered and A2.3 partial. | Stage 1 exit |
 | P1 | Which three of the five §7.9 candidates are the claim, and what makes an advantage "durable"? | Stage 3 exit |
 | P1 | May a live-web dogfood observation be cited as evidence for a contract criterion that forbids live sites, and vice versa? See §1.3 and C8. | all stages |

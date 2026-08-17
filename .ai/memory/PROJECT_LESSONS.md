@@ -255,6 +255,60 @@ anything wrong in the repository content it reads, and treat that channel as the
 review the process otherwise lacks.
 Confidence: medium.
 
+### 2026-08-17 — A guard that cannot fail is not a guard
+Area: verification design.
+Evidence: three tools built today each caught something on their first run only
+because they were written with injected-violation tests. The design-system check
+found `font-weight: 650` outside the allowed set and a fluid band the
+declaration never stated. The invariant tracer caught two identifiers invented
+by the Manager, and separately was found to be counting its own test fixtures as
+real enforcement. The surface check was found to pass when the class it guards
+was deleted, because the identifier survived in type annotations.
+Impact: every one of those would have shipped as a green check asserting nothing.
+Recommended future behavior: for each rule, write the input that must make it
+fail before trusting the input that makes it pass. Assert definitions, not names.
+Confidence: high.
+
+### 2026-08-17 — Count what is enforced, not what is declared
+Area: contract hygiene.
+Evidence: twenty-nine contracts declared 142 numbered invariants against zero
+enforced. Nothing was wrong with any individual document; the ratio simply
+compounded, because a wave that writes a contract is faster than one that writes
+a check. Ten criteria the contracts had themselves marked offline-decidable sat
+unimplemented until someone measured the gap.
+Impact: a declared invariant reads like a guarantee, and a set of them reads like
+a verified system.
+Recommended future behavior: keep the enforced count visible and ratcheted. When
+a contract declares a criterion it calls offline-decidable, implementing it is
+the next wave's work, not a later one's.
+Confidence: high.
+
+### 2026-08-17 — An identifier a tool cannot cite cannot be counted
+Area: contract hygiene.
+Evidence: criteria numbered as bare ordinals -- `12.9`, `13`, `14.9` -- have real
+checks that cannot be tracked, and `PERFORMANCE_BUDGET`'s budgets P1..P6 collide
+with the P0/P1/P2 priority labels every contract uses, so admitting that family
+would turn every priority label into an invariant.
+Impact: enforcement exists and is invisible, which is indistinguishable from
+absence when planning.
+Recommended future behavior: give every numbered list a stable prefix at the
+moment it is created, distinct from the priority vocabulary. Renumbering later
+means sweeping every cross-reference.
+Confidence: high.
+
+### 2026-08-17 — Answering a question in one document does not close it in the others
+Area: process.
+Evidence: three P0 decisions were answered by new contracts -- the telemetry
+sink, profile onboarding ownership, the popup and permission clauses -- and all
+three stayed open in `ACCEPTANCE_SUITES` and elsewhere, reading as blocking work
+that was not blocked.
+Impact: a stale open question costs more than an unrecorded one, because it is
+planned around.
+Recommended future behavior: settling a decision is two edits -- the answer, and
+a strike-through in every document that asked. `docs/OPEN_DECISIONS.md` is the
+index that makes the second edit findable.
+Confidence: high.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:
