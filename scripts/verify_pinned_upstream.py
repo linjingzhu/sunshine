@@ -31,6 +31,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 import tempfile
 import urllib.error
 import urllib.request
@@ -115,13 +116,52 @@ def pinned_version(root: Path = ROOT) -> str:
     raise UpstreamCheckError("config/chromium.version has no CHROMIUM_REVISION")
 
 
+# Codes that mean "the file is not there". Everything else -- 429, 5xx, a
+# timeout -- means the answer is unknown, which is a different thing and must
+# never be reported as an absent path. See `exists`.
+ABSENT_STATUS = frozenset({404, 410})
+RETRIES = 4
+BACKOFF_SECONDS = 3
+
+
+def _open(request: urllib.request.Request | str, path: str, version: str):
+    """Open a URL, retrying the answers that mean "not now" rather than "no".
+
+    GitHub rate-limits this account: an ordinary run of this checker probes two
+    hundred paths, and raw.githubusercontent.com starts returning 429 partway
+    through. Without the retry the checker reported eleven contract citations as
+    missing upstream paths in a run whose previous run had passed, and every one
+    of them existed.
+    """
+
+    last: Exception | None = None
+    for attempt in range(RETRIES):
+        try:
+            return urllib.request.urlopen(request, timeout=60)
+        except urllib.error.HTTPError as error:
+            if error.code in ABSENT_STATUS:
+                raise
+            last = error
+            delay = error.headers.get("Retry-After") if error.headers else None
+            wait = int(delay) if delay and delay.isdigit() else BACKOFF_SECONDS * (2**attempt)
+        except urllib.error.URLError as error:
+            last = error
+            wait = BACKOFF_SECONDS * (2**attempt)
+        except TimeoutError as error:
+            last = error
+            wait = BACKOFF_SECONDS * (2**attempt)
+        if attempt < RETRIES - 1:
+            time.sleep(min(wait, 60))
+    raise UpstreamCheckError(f"could not reach {path} at {version} after {RETRIES} attempts: {last}")
+
+
 def fetch(source: str, version: str, path: str) -> str:
     template, encoded = SOURCES[source]
     url = template.format(version=version, path=path)
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:
+        with _open(url, path, version) as response:
             payload = response.read()
-    except urllib.error.URLError as error:
+    except urllib.error.HTTPError as error:
         raise UpstreamCheckError(f"could not read {path} at {version}: {error}") from error
     if encoded:
         payload = base64.b64decode(payload)
@@ -157,11 +197,14 @@ def exists(source: str, version: str, path: str) -> bool:
         url = url.removesuffix("?format=TEXT")
     request = urllib.request.Request(url, method="GET" if encoded else "HEAD")
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with _open(request, path, version) as response:
             return response.status == 200
-    except urllib.error.HTTPError:
-        return False
-    except urllib.error.URLError as error:
+    except urllib.error.HTTPError as error:
+        # Only 404 and 410 reach here; `_open` retries everything else and then
+        # raises UpstreamCheckError, so a throttled probe stops the run with an
+        # honest reason instead of accusing a contract of citing a dead path.
+        if error.code in ABSENT_STATUS:
+            return False
         raise UpstreamCheckError(f"could not probe {path}: {error}") from error
 
 
@@ -180,7 +223,12 @@ def check_citations(source: str, version: str, root: Path, report: list[str]) ->
         report.append("  OK   no upstream paths cited by the contracts")
         return True
 
-    with ThreadPoolExecutor(max_workers=12) as pool:
+    # Four, not twelve. Two hundred citations at twelve concurrent probes is
+    # enough to make the host rate-limit this account partway through the run,
+    # so the parallelism that made the check fast was also what made it fail.
+    # The retry in `_open` handles throttling that happens anyway; this stops
+    # provoking it.
+    with ThreadPoolExecutor(max_workers=4) as pool:
         found = dict(zip(citations, pool.map(
             lambda path: exists(source, version, path), citations)))
 

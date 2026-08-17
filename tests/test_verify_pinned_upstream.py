@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+import urllib.error
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
@@ -191,6 +192,54 @@ class PinnedUpstreamTests(unittest.TestCase):
 
     def test_the_pinned_version_is_read_without_the_ref_prefix(self) -> None:
         self.assertEqual("152.0.7977.42", checker.pinned_version(REPOSITORY_ROOT))
+
+
+class ThrottlingIsNotAbsenceTests(unittest.TestCase):
+    """A throttled probe must never be reported as a missing upstream path.
+
+    It was. GitHub rate-limits this account, and a run that probes two hundred
+    paths starts collecting 429s partway through; `exists` caught every
+    HTTPError and returned False, so the checker accused eleven contracts of
+    citing paths that had been there minutes earlier. A guard that fails for a
+    reason unrelated to what it checks is worse than no guard, because the next
+    real failure reads as more of the same.
+    """
+
+    def _error(self, code: int) -> urllib.error.HTTPError:
+        return urllib.error.HTTPError("https://example.invalid", code, "", None, None)
+
+    def test_a_rate_limited_probe_raises_instead_of_reporting_absence(self) -> None:
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(429)
+        ) as urlopen:
+            with self.assertRaises(checker.UpstreamCheckError):
+                checker.exists("github", "152.0.7977.42", "base/check.h")
+        self.assertEqual(checker.RETRIES, urlopen.call_count)
+
+    def test_a_server_error_raises_instead_of_reporting_absence(self) -> None:
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(503)
+        ):
+            with self.assertRaises(checker.UpstreamCheckError):
+                checker.exists("github", "152.0.7977.42", "base/check.h")
+
+    def test_a_missing_path_is_still_reported_as_missing(self) -> None:
+        """The retry must not turn a real 404 into a stalled run."""
+
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(404)
+        ) as urlopen:
+            self.assertFalse(checker.exists("github", "152.0.7977.42", "base/gone.h"))
+        self.assertEqual(1, urlopen.call_count, "a 404 must not be retried")
+
+    def test_a_probe_that_recovers_on_retry_succeeds(self) -> None:
+        response = mock.MagicMock()
+        response.status = 200
+        response.__enter__.return_value = response
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=[self._error(429), response]
+        ):
+            self.assertTrue(checker.exists("github", "152.0.7977.42", "base/check.h"))
 
 
 if __name__ == "__main__":

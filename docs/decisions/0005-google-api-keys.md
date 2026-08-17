@@ -75,10 +75,19 @@ alone and needs the built browser.
 verdicts layered beside Chromium's own blocking path. That path is weaker than
 the document assumes while no key is configured.
 
-## Open: should the owner configure `GOOGLE_API_KEY`?
+## Decided: no API key is configured
 
-This is the product owner's decision, and the distinction that makes it
-answerable is precise.
+The owner's decision, taken with the consequence stated: **do not set
+`GOOGLE_API_KEY`.** Sunshine runs without Safe Browsing.
+
+That is a real reduction in protection, not a formality, and it is recorded here
+rather than softened. It is also consistent with what the rest of this
+repository already enforces — a build that reaches no Google service for
+identity, and now reaches none for reputation either. Reversing it needs no code
+change: setting the variable on the machine is enough, and the distinction below
+is what makes that safe to do later.
+
+The distinction that made the decision answerable:
 
 | Variable | Restores | Enables sign-in? |
 | --- | --- | --- |
@@ -90,11 +99,33 @@ predicates. Only the OAuth client feeds `CanEnableDiceForBuild()`, so setting
 the API key alone restores the keyed services while leaving the account-free
 guarantee exactly as it is. Setting the client id or secret would not.
 
-If it is set, it must be **machine-local** — an environment variable on the
+If it is ever set, it must be **machine-local** — an environment variable on the
 build or run machine, never a file in this repository, so PO-A1 continues to
 hold as written. Upstream states environment overrides are ignored for official
 Google Chrome builds; Sunshine is not branded, so they should apply here, which
 is **NOT VERIFIED** until tried.
 
-Recorded as open in `docs/OPEN_DECISIONS.md`. Until it is taken, Sunshine runs
-without Safe Browsing, and that fact lives here rather than in an infobar.
+## What this obliges
+
+Two things follow, and neither is optional now that the answer is no.
+
+**`docs/SECURITY_CENTER_CONTRACT.md` already anticipated this, and now owns it
+permanently.** SC-11 requires the centre to say so when Safe Browsing is absent
+from the build, and never to present a provider as its replacement; SCA-8 is the
+acceptance criterion for exactly that state; its ownership table already reads
+"where the pinned build enables it", and its NOT VERIFIED list already records
+that Safe Browsing's presence in a Sunshine build was never established.
+
+What changes is that the absent branch is no longer a contingency the contract
+covered defensively — it is the shipping configuration. The Security Center is
+not an additional layer over a baseline; for malware and phishing it is the only
+layer there is, and SC-11's honesty requirement is doing more work than its
+author expected.
+
+**A distribution decision inherits this one.** ADR 0004 already requires
+revisiting before any build reaches a second person. This is the second item on
+that list: shipping a browser with no Safe Browsing to someone who did not
+choose it is a different act from running one yourself.
+
+The fact lives here, in the contract set, rather than in an infobar the user
+cannot act on.
