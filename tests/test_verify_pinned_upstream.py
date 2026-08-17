@@ -11,6 +11,7 @@ import contextlib
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -350,12 +351,33 @@ class CitationCoverageTests(unittest.TestCase):
         self.assertIn("google_apis/google_api_keys.h", unchecked)
 
     def test_the_repository_directories_are_all_accounted_for(self) -> None:
-        """`OWN_PREFIXES` is the one list still kept by hand, so it is checked
-        against what is actually on disk. A new top-level directory here would
-        otherwise have its paths probed against Chromium, where they are not."""
+        """`OWN_PREFIXES` is the one list still kept by hand, so it is checked.
 
-        on_disk = {path.name for path in REPOSITORY_ROOT.iterdir() if path.is_dir()}
-        self.assertEqual(set(), on_disk - set(checker.OWN_PREFIXES))
+        Read from what git tracks, not from what is on the disk. The first
+        version listed the directory and failed on the build runner, where
+        `artifacts/` exists because a build had run there and does not exist in
+        a fresh clone. A rule that depends on whether the machine has built
+        something is not checking the repository, and it fails for a reason
+        unrelated to what it is for -- which is how a test gets deleted.
+
+        A new *tracked* top-level directory is the real risk: its paths would
+        be probed against Chromium, where they are not.
+        """
+
+        try:
+            listed = subprocess.run(
+                ("git", "ls-files", "-z"),
+                cwd=REPOSITORY_ROOT, check=True, capture_output=True, text=True,
+            ).stdout
+        except (OSError, subprocess.CalledProcessError) as error:
+            self.skipTest(f"git is needed to read the tracked tree: {error}")
+
+        tracked = {
+            entry.split("/", 1)[0] for entry in listed.split("\0")
+            if entry and "/" in entry
+        }
+        self.assertGreaterEqual(len(tracked), 5, tracked)
+        self.assertEqual(set(), tracked - set(checker.OWN_PREFIXES))
 
     def test_the_newly_covered_prefixes_and_suffixes_are_matched(self) -> None:
         """The five shapes the old alternation could not express."""

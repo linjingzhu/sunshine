@@ -122,6 +122,14 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 OWN_PREFIXES = frozenset({
     ".ai", ".git", ".github", "config", "docs", "downstream", "first_party",
     "scripts", "tests",
+    # Ours, but present only after a build, so absent from a fresh clone and
+    # from this list until the first CI run on the build machine failed for
+    # exactly that reason. `artifacts/` holds the installer and size report the
+    # build script writes; `chromium/` and `depot_tools/` are the checkout a
+    # developer may keep in-tree. All are gitignored, which is why the test
+    # that keeps this list honest reads what git tracks rather than what
+    # happens to be on the disk of the machine running it.
+    "artifacts", "chromium", "depot_tools",
     "out", "src",
 })
 
