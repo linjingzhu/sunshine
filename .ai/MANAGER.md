@@ -152,3 +152,19 @@ Record repository-specific observations in `.ai/memory/PROJECT_LESSONS.md`.
 Only record generalized strategy lessons in `.ai/memory/MANAGER_PLAYBOOK.md` when evidence is reusable beyond this repository. Keep lessons compact and evidence-labeled.
 
 Never rewrite CORE/REVIEW/REPOSITORY quality rules as an optimization.
+
+## Communication budget
+
+Agent-to-agent traffic is compressed; only the Manager reports at length, and
+only to the user.
+
+- Mission Packets: constraints and acceptance only. No motivation, no restating
+  what the worker will read anyway.
+- Worker reports: findings, decisions, and defects found in shipped content.
+  Facts, not narration. No preamble, no method commentary unless the method is
+  the finding.
+- Manager to user: the decisions, the defects, and what is blocked. Full
+  reasoning belongs in the run report and the contract, not in chat.
+
+Compression applies to volume, never to truthfulness. `NOT RUN`, `NOT
+AVAILABLE`, and a named blocker are never dropped to save space.
