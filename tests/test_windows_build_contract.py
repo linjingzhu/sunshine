@@ -24,7 +24,9 @@ class WindowsBuildContractTests(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("runs-on: [self-hosted, Windows, X64, sunshine-chromium]", text)
         self.assertNotIn("windows-latest", text)
-        self.assertIn("timeout-minutes: 720", text)
+        # Source acquisition shares this budget with the build, so it must stay
+        # well above the compile time alone.
+        self.assertIn("timeout-minutes: 1440", text)
 
     def test_workflow_is_explicitly_dispatched(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")

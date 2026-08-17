@@ -14,7 +14,10 @@ jobs:
   build:
     name: Build Sunshine Chromium on Windows x64
     runs-on: [self-hosted, Windows, X64, sunshine-chromium]
-    timeout-minutes: 720
+    # The pinned fetch and gclient sync run inside this job, so the budget must
+    # cover source acquisition as well as the optimised build and its LTO link.
+    # A self-hosted runner has no upper job limit; an early finish costs nothing.
+    timeout-minutes: 1440
 
     steps:
       - name: Check out Sunshine downstream
