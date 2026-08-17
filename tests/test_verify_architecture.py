@@ -294,6 +294,23 @@ class ChromiumBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "gclient"):
                 self.bootstrap.run("gclient", "sync")
 
+    def test_a_build_workspace_always_reaches_the_sync(self) -> None:
+        """The early return must not hide a changed gclient spec.
+
+        Two builds failed identically on a missing PGO profile: the workspace
+        looked ready, the bootstrap returned before syncing, and the spec that
+        requests those profiles was never read.
+        """
+
+        source = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("if dirty_paths(src) and not args.reset:", source)
+
+        early_return = source.index("checkout already ready")
+        sync_call = source.index('sync = ["gclient", "sync", jobs]')
+        guard = source.index("if dirty_paths(src) and not args.reset:")
+        self.assertLess(guard, early_return)
+        self.assertLess(early_return, sync_call)
+
     def test_sync_concurrency_is_bounded(self) -> None:
         """gclient defaults to one job per core, which googlesource rejects.
 
