@@ -8,6 +8,7 @@ from scripts.workspace_model import (
     NativeTab,
     UnknownSchemaError,
     WorkspaceModelError,
+    close_workspace_atomic,
     default_catalog,
     move_tabs_atomic,
     parse_catalog,
@@ -104,6 +105,72 @@ class WorkspaceModelTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(WorkspaceModelError, "explicit_choice"):
             move_tabs_atomic(tabs, ["one"], self.DESTINATION, catalog)
+
+
+class CloseWorkspaceTransactionTests(unittest.TestCase):
+    ONE = "11111111-1111-4111-8111-111111111111"
+    TWO = "22222222-2222-4222-8222-222222222222"
+    DESTINATION = "33333333-3333-4333-8333-333333333333"
+
+    def catalog(self) -> object:
+        return parse_catalog(
+            {"schema_version": 1, "workspaces": [
+                {"id": DEFAULT_WORKSPACE_ID, "name": "Default", "order": 0},
+                {"id": self.DESTINATION, "name": "Destination", "order": 1},
+            ]}
+        )
+
+    def test_close_transfers_every_tab_and_discards_none(self) -> None:
+        tabs = (
+            NativeTab("one", self.ONE, DEFAULT_WORKSPACE_ID),
+            NativeTab("two", self.TWO, self.DESTINATION),
+        )
+        catalog, moved = close_workspace_atomic(self.catalog(), tabs, DEFAULT_WORKSPACE_ID, self.DESTINATION)
+        self.assertEqual(len(tabs), len(moved))
+        self.assertEqual((self.DESTINATION, self.DESTINATION), tuple(tab.workspace_id for tab in moved))
+        self.assertEqual((self.ONE, self.TWO), tuple(tab.sunshine_tab_uuid for tab in moved))
+        self.assertEqual((self.DESTINATION,), tuple(workspace.id for workspace in catalog.workspaces))
+
+    def test_close_requires_a_distinct_existing_destination(self) -> None:
+        tabs = (NativeTab("one", self.ONE, DEFAULT_WORKSPACE_ID),)
+        with self.assertRaisesRegex(WorkspaceModelError, "must both exist"):
+            close_workspace_atomic(self.catalog(), tabs, DEFAULT_WORKSPACE_ID, self.ONE)
+        with self.assertRaisesRegex(WorkspaceModelError, "explicit_destination_atomic_transfer"):
+            close_workspace_atomic(self.catalog(), tabs, DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_ID)
+
+    def test_the_last_workspace_cannot_be_closed(self) -> None:
+        """A sole workspace has no distinct destination, so close is always rejected."""
+
+        catalog = default_catalog()
+        tabs = (NativeTab("one", self.ONE, DEFAULT_WORKSPACE_ID),)
+        self.assertEqual(1, len(catalog.workspaces))
+        with self.assertRaisesRegex(WorkspaceModelError, "explicit_destination_atomic_transfer"):
+            close_workspace_atomic(catalog, tabs, DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_ID)
+        with self.assertRaisesRegex(WorkspaceModelError, "must both exist"):
+            close_workspace_atomic(catalog, tabs, DEFAULT_WORKSPACE_ID, self.DESTINATION)
+
+    def test_close_failure_rolls_back_exact_state(self) -> None:
+        catalog = self.catalog()
+        tabs = (NativeTab("one", self.ONE, DEFAULT_WORKSPACE_ID),)
+        rolled_back = close_workspace_atomic(
+            catalog, tabs, DEFAULT_WORKSPACE_ID, self.DESTINATION, fail_before_commit=True
+        )
+        self.assertIs(catalog, rolled_back[0])
+        self.assertIs(tabs, rolled_back[1])
+
+    def test_close_rejects_a_group_straddling_two_workspaces(self) -> None:
+        tabs = (
+            NativeTab("one", self.ONE, DEFAULT_WORKSPACE_ID, group_id="group"),
+            NativeTab("two", self.TWO, self.DESTINATION, group_id="group"),
+        )
+        with self.assertRaisesRegex(WorkspaceModelError, "explicit_choice"):
+            close_workspace_atomic(self.catalog(), tabs, DEFAULT_WORKSPACE_ID, self.DESTINATION)
+
+    def test_closing_an_empty_workspace_is_allowed(self) -> None:
+        tabs = (NativeTab("two", self.TWO, self.DESTINATION),)
+        catalog, kept = close_workspace_atomic(self.catalog(), tabs, DEFAULT_WORKSPACE_ID, self.DESTINATION)
+        self.assertEqual(tabs, kept)
+        self.assertEqual((self.DESTINATION,), tuple(workspace.id for workspace in catalog.workspaces))
 
 
 if __name__ == "__main__":
