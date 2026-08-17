@@ -177,16 +177,20 @@ def main() -> int:
         (executable("git"), "rev-parse", "FETCH_HEAD"), cwd=src, check=True, capture_output=True, text=True
     ).stdout.strip()
 
-    if dirty_paths(src):
+    # Returning early here is for a person re-running the bootstrap over their
+    # own checkout. A build-owned workspace must always reach the sync below:
+    # gclient reads .gclient there, so skipping it means a changed spec never
+    # takes effect. Requesting PGO profiles looked applied for two runs while
+    # this path quietly returned first, and the build failed the same way twice.
+    if dirty_paths(src) and not args.reset:
         if current_head == fetched_head and patch_stack_is_applied(src, patch_names):
             print(f"Sunshine Chromium checkout already ready at {src}")
             return 0
-        if not args.reset:
-            raise SystemExit(
-                "Chromium checkout has uncommitted changes that are not exactly the current "
-                "Sunshine patch stack. Preserve or remove those changes before bootstrapping, "
-                "or pass --reset in a build-owned workspace."
-            )
+        raise SystemExit(
+            "Chromium checkout has uncommitted changes that are not exactly the current "
+            "Sunshine patch stack. Preserve or remove those changes before bootstrapping, "
+            "or pass --reset in a build-owned workspace."
+        )
 
     # A build workspace holds the previous wave's patch stack, so every patch
     # change would otherwise stop the next build for manual cleanup. --force
