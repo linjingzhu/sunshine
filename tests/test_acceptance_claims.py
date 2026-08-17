@@ -15,6 +15,7 @@ as an identifier family; the document name and section numbers are invented.
 """
 
 from pathlib import Path
+import re
 import shutil
 import sys
 import tempfile
@@ -23,6 +24,7 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
+import trace_invariants as tracer  # noqa: E402
 import verify_acceptance_claims as guard  # noqa: E402
 
 CONTRACT = """# Sample contract
@@ -209,6 +211,132 @@ class IdentifierTests(GuardTestCase):
         self.assertEqual(2, len(found), found)
 
 
+class SubLetteredIdentifierTests(GuardTestCase):
+    """The defect this module's own copy of the identifier shape caused.
+
+    `PERFORMANCE_BUDGET` splits one budget into PB-2a, PB-2b and PB-2c. The
+    tracer's pattern could not parse those at all, so they vanished; this
+    module's copy was *unanchored*, so instead of vanishing they truncated --
+    `PB-2a` was read as `PB-2`, an identifier that also exists, and the row
+    passed on the strength of a citation it does not make.
+
+    Truncation is the worse of the two failures. A vanished token moves a
+    count and can be noticed; a truncated one substitutes a different real
+    answer and reports success. Every case here would pass under the old copy
+    while checking the wrong thing, which is why they are written against a
+    fixture that declares one form and not the other.
+    """
+
+    def declare(self, *extra: str) -> None:
+        """Rewrite the fixture contract to declare exactly these criteria."""
+
+        rows = "\n".join(
+            f"| {identifier} | a rule |" for identifier in ("SPA-1", "SPA-2", "SPA-3") + extra
+        )
+        self.write(
+            "docs/SAMPLE_CONTRACT.md",
+            f"# Sample contract\n\n## 3. Acceptance criteria\n\n{rows}\n",
+        )
+
+    def test_a_sub_lettered_citation_is_not_truncated_to_a_declared_one(self) -> None:
+        """The regression itself: the document declares PB-2, the row cites
+        PB-2a, and the guard must object rather than quietly read PB-2."""
+
+        self.declare("PB-2")
+        found = self.failures(evidence="`SAMPLE_CONTRACT` PB-2a")
+        self.assertTrue(any("cites PB-2a," in failure for failure in found), found)
+        self.assertFalse(any("cites PB-2," in failure for failure in found), found)
+
+    def test_a_declared_sub_lettered_citation_passes(self) -> None:
+        self.declare("PB-2a")
+        self.assertEqual([], self.failures(evidence="`SAMPLE_CONTRACT` PB-2a"))
+
+    def test_the_base_identifier_is_not_accepted_for_the_sub_lettered_one(self) -> None:
+        """The mirror image, and the reason the first test is not enough on its
+        own: PB-2 and PB-2a are different rules, so declaring one must not
+        discharge a citation of the other in either direction."""
+
+        self.declare("PB-2a")
+        found = self.failures(evidence="`SAMPLE_CONTRACT` PB-2")
+        self.assertTrue(any("cites PB-2," in failure for failure in found), found)
+
+    def test_a_range_across_a_letter_is_not_expanded_but_both_ends_are_checked(self) -> None:
+        """`PB-2a-PB-2c` spans an axis the document has never counted over.
+
+        Refusing to expand it is checking less, which is safe; inventing PB-2b
+        as a member would be checking something the row never claimed.
+        """
+
+        self.declare("PB-2a")
+        found = self.failures(evidence="`SAMPLE_CONTRACT` PB-2a–PB-2c")
+        self.assertTrue(any("cites PB-2c," in failure for failure in found), found)
+        self.assertFalse(any("PB-2b" in failure for failure in found), found)
+
+    def test_a_range_whose_second_end_drops_its_family_is_not_expanded(self) -> None:
+        """`SPA-1-9` is not a form the document uses -- every range it writes
+        repeats the prefix. Refusing the shorthand is stricter than the copy
+        this replaces, which guessed the missing family; the lone endpoint is
+        still checked."""
+
+        self.declare()
+        self.assertEqual([], self.failures(evidence="`SAMPLE_CONTRACT` SPA-1–9"))
+        found = self.failures(evidence="`SAMPLE_CONTRACT` SPA-1–SPA-9")
+        self.assertTrue(any("cites SPA-9," in failure for failure in found), found)
+
+
+class DerivedShapeTests(unittest.TestCase):
+    """The identifier shape has one home, and it is not this module.
+
+    Two kinds of assertion are made here, and they are not interchangeable.
+    The identity and containment tests assert the *mechanism* -- that the
+    pattern is spliced in from `trace_invariants` rather than written out --
+    and they are the ones that stop the copy coming back, because a restated
+    literal fails them the moment the original is widened again.
+
+    The corpus test asserts *behaviour* over shapes that are actually in use.
+    On its own it would be the weaker choice: a fresh hand-copy of today's
+    shape passes it, and would go on passing until the next widening, which is
+    precisely the history that produced this file. It is kept as the backstop
+    for a copy that is merely close rather than identical.
+    """
+
+    def test_the_identifier_shape_is_the_tracers_own_pattern(self) -> None:
+        self.assertEqual(tracer.INVARIANT.pattern, guard.IDENTIFIER)
+
+    def test_both_users_of_the_shape_embed_it_rather_than_restating_it(self) -> None:
+        self.assertIn(guard.IDENTIFIER, guard.TOKEN.pattern)
+        self.assertIn(guard.IDENTIFIER, guard.RANGE.pattern)
+
+    def test_the_shape_contributes_exactly_one_capture_group(self) -> None:
+        """`TOKEN` reads the identifier out of group 2 and `RANGE` reads its
+        endpoints out of groups 1 and 2. Both numberings assume the spliced
+        pattern brings exactly one group with it, so that assumption is
+        asserted rather than left to hold by luck."""
+
+        self.assertEqual(1, re.compile(guard.IDENTIFIER).groups)
+        self.assertEqual(2, guard.TOKEN.groups)
+        self.assertEqual(2, guard.RANGE.groups)
+
+    def test_the_two_modules_read_the_same_token_out_of_every_shape_in_use(self) -> None:
+        for token in ("PB-2a", "PB-2c", "SECA-11", "PO-A15", "S12", "D4", "OMA-20", "BH-A7"):
+            with self.subTest(token=token):
+                match = guard.TOKEN.search(token)
+                self.assertIsNotNone(match, token)
+                self.assertEqual(token, match.group(2))
+                self.assertEqual({token}, tracer._identifiers(token))
+
+    def test_every_declared_family_round_trips(self) -> None:
+        """Generated from the tracer's own family list, so a family added there
+        is covered here without this file being edited."""
+
+        for family in tracer.FAMILIES:
+            with self.subTest(family=family):
+                token = f"{family}-1"
+                match = guard.TOKEN.search(token)
+                self.assertIsNotNone(match, token)
+                self.assertEqual(token, match.group(2))
+
+
 class VerdictTests(GuardTestCase):
     """Rule 3 and the verdict vocabulary."""
 
@@ -346,17 +474,15 @@ class NotAnIdentifierTests(GuardTestCase):
 class RepositoryStateTests(unittest.TestCase):
     """What the guard says about the repository as it stands.
 
-    Rules 1 to 4 hold: every artifact the index names exists, every identifier
-    it cites is declared by the document it names, every Covered row rests on
-    something, and the vocabularies and tallies agree with the tables.
+    All five rules hold today: every artifact the index names exists, every
+    identifier it cites is declared by the document it names, every Covered row
+    rests on something, the vocabularies and tallies agree with the tables, and
+    the section 8 Status column agrees with what `scripts/trace_invariants.py`
+    records as enforced.
 
-    Rule 5 does not, in seven rows. Section 8 grades ten offline-decidable
-    criteria as "not implemented" and the paragraph directly beneath the table
-    says "All ten are now implemented"; seven of the ten are in fact claimed by
-    a check today, so the table is the half that is stale. This test records
-    that finding rather than tolerating it -- correcting the document is what
-    changes this list, and the check that reports the drift stays strict in the
-    meantime.
+    That last one was false in seven rows when this guard was written, and the
+    document was corrected rather than the rule relaxed. The empty expected set
+    below is what that correction looks like from here.
     """
 
     # The seven rows this guard first reported -- §8 rows 1, 4, 5, 6, 7, 8 and
@@ -393,6 +519,37 @@ class RepositoryStateTests(unittest.TestCase):
 
     def test_the_guard_reports_a_row_and_claim_count(self) -> None:
         self.assertRegex(self.report[0], r"Checked \d+ rows .* and \d+ claims")
+
+    def test_every_sub_lettered_citation_in_the_index_is_read_whole(self) -> None:
+        """The fixture cases proved on real data.
+
+        Written as a sweep rather than against row A2.3 by name, so that it
+        keeps testing the property while citations move around it. Today the
+        index carries exactly one sub-lettered citation -- `PERFORMANCE_BUDGET`
+        PB-2a -- which the old copy of the pattern read as PB-2, a different
+        budget that happens to be declared in the same document. The row passed
+        on a citation it does not make.
+        """
+
+        text = (REPOSITORY_ROOT / guard.INDEX).read_text(encoding="utf-8")
+        rows = "\n".join(line for line in text.splitlines() if line.startswith("|"))
+        cited = {
+            token
+            for token in tracer.CANDIDATE.findall(rows)
+            if token[-1].islower() and tracer._family(token) in tracer.FAMILIES
+        }
+        parsed = {
+            claim.value
+            for table in guard.parse_tables(text)
+            for cells in table.rows
+            for cell in cells
+            for claim in guard.claims(cell)
+            if claim.kind == "identifier"
+        }
+        self.assertTrue(cited, "no sub-lettered citation left in the index to test")
+        for token in sorted(cited):
+            with self.subTest(token=token):
+                self.assertIn(token, parsed)
 
 
 class IndexStructureTests(unittest.TestCase):

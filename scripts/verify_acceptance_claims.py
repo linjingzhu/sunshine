@@ -54,11 +54,29 @@ INDEX = "docs/ACCEPTANCE_SUITES.md"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import trace_invariants as tracer  # noqa: E402
 
+# The identifier shape, taken from the module that owns it rather than restated.
+#
+# This file used to carry two private copies of it, and they drifted the first
+# time the original changed -- exactly as the docstring above warned. The copies
+# were also unanchored, which made the drift worse than the original's: where an
+# unanchored `\d{1,2}` meets `PB-2a` it matches `PB-2` and hands on a *different*
+# identifier that happens to exist, so the row passed for the wrong reason.
+# A vanished token at least moves a count. A truncated one corrupts the answer
+# and reports success.
+#
+# `tracer.INVARIANT.pattern` is spliced in whole, anchors included. The `\b` at
+# each end is not an inconvenience to be stripped, it is the part that makes
+# truncation impossible: with it, either the entire identifier matches or none
+# of it does. Both uses below therefore need no anchoring difference, so there
+# is none to justify.
+IDENTIFIER = tracer.INVARIANT.pattern
+
 # A backticked token or a bare identifier, matched in one pass so that document
-# references and the identifiers that follow them stay in reading order. The
-# identifier alternative is `trace_invariants.INVARIANT` without its anchors --
-# whether a match is really an identifier is decided by that module, not here.
-TOKEN = re.compile(r"`([^`]+)`|([A-Z]{1,4}-?[A-Z]?\d{1,2})")
+# references and the identifiers that follow them stay in reading order. Group 1
+# is the backticked text, group 2 the identifier -- `INVARIANT` contributes
+# exactly one group, so the numbering is stable as long as that stays true, and
+# a test asserts it does.
+TOKEN = re.compile(r"`([^`]+)`|" + IDENTIFIER)
 
 # A section reference counts as belonging to a document only when it directly
 # follows it: "`TAB_LIFECYCLE_CONTRACT` §10.2" is a reference into that
@@ -76,10 +94,30 @@ HEADING = re.compile(r"^#{1,6}\s+(\d+(?:\.\d+)*)\.?\s")
 # document also writes in backticks, from being read as missing documents.
 DOCUMENT_NAME = re.compile(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")
 
-# `BH-A1-BH-A7`, `SPA-1...SPA-26`, `S2-S12`. Written with an en dash or an
-# ellipsis; an ASCII hyphen is deliberately not a range separator, because it
-# is already the separator inside every identifier.
-RANGE = re.compile(r"([A-Z]{1,4}-?[A-Z]?)(\d{1,2})\s*[–—…]\s*([A-Z]{1,4}-?[A-Z]?)?(\d{1,2})")
+# `BH-A1-BH-A7`, `SPA-1...SPA-26`, `S2-S12`: two whole identifiers with a dash
+# or an ellipsis between them. Built from the same derived shape, so a range
+# endpoint and a lone citation can never be read by different rules. An ASCII
+# hyphen is deliberately not a separator here, because it is already the
+# separator inside every identifier.
+#
+# Requiring a *whole* identifier at both ends is stricter than the copy it
+# replaces, which allowed the second endpoint to drop its family (`GA-1-16`).
+# No range in the document is written that way -- every one repeats the prefix
+# -- and a form nothing uses is better refused than guessed at.
+RANGE = re.compile(IDENTIFIER + r"\s*[–—…]\s*" + IDENTIFIER)
+
+# An identifier already matched by `IDENTIFIER`, split into the parts a range
+# counts over: whatever precedes the trailing digit run, the digits, and any
+# letter after them. This decomposes a token the derived pattern has *already*
+# accepted, so it deliberately states no bound of its own -- `\d+` rather than
+# `\d{1,2}`, because the moment a bound is written here it is a third copy of
+# the shape, waiting to be left behind like the first two. How many digits an
+# identifier may have is settled upstream, and `RANGE` requires both endpoints
+# to satisfy it, so the span this can produce is bounded there too.
+#
+# The trailing letter is separated out because it is a different axis from the
+# number: `PB-2a` and `PB-2c` are parts of one budget, not a numeric span.
+ENDPOINT = re.compile(r"^(.*?)(\d+)([a-z]*)$")
 
 # `**Stage 1: 2 covered, 5 partial, 2 uncovered.**` under each stage table.
 TALLY = re.compile(r"^\*\*Stage \d+:\s*(.+?)\.\*\*\s*$")
@@ -154,12 +192,26 @@ def expand_ranges(text: str) -> str:
     A range is a claim about all of its members, not just its endpoints: a row
     citing TLA-1-TLA-25 is wrong if TLA-13 does not exist, and checking only
     the ends would never see it.
+
+    Anything that is not plainly a numeric span is left as written, and both
+    endpoints are then checked individually by the ordinary token scan. That is
+    the safe direction: a range this declines to expand is checked less, never
+    checked wrongly.
     """
 
     def expand(match: re.Match[str]) -> str:
-        prefix, first, second_prefix, last = match.groups()
-        if second_prefix and second_prefix != prefix:
+        start, end = ENDPOINT.match(match.group(1)), ENDPOINT.match(match.group(2))
+        if not start or not end:
+            return match.group(0)
+        prefix, first, first_suffix = start.groups()
+        second_prefix, last, last_suffix = end.groups()
+        if second_prefix != prefix:
             return match.group(0)  # not a range, two unrelated identifiers
+        # `PB-2a-PB-2c` spans a letter, not a number. Both ends are real
+        # identifiers and both are checked; what is not invented here is a
+        # membership rule for an axis the document has never counted over.
+        if first_suffix or last_suffix:
+            return match.group(0)
         low, high = int(first), int(last)
         if high < low or not _is_identifier(f"{prefix}{low}"):
             return match.group(0)
