@@ -465,10 +465,22 @@ visible page and no way to reason about what is focused.
 
 | How the tab was created | Workspace it joins |
 |---|---|
-| Restored by the session service or the restore service | The workspace UUID in its tab session extra-data; Default when missing or unknown, per the existing recovery policy |
+| Restored by the **session** service | The workspace UUID in its tab session extra-data; Default when missing or unknown, per the existing recovery policy |
+| Restored by the **restore** service (reopen closed tab) | **Default, always** — see the note below. This row previously read the same as the one above, which is unimplementable at the pinned revision |
 | Opened from another tab (link, `window.open`, a native "open in new tab" action) | The **opener's** workspace, even when the opener is hidden — the tab belongs with the work it came from |
 | Duplicated | The source tab's workspace, with a new UUID (section 3) |
 | Created with no opener: new-tab affordance, omnibox in a new tab, the empty-workspace rule of 7.4 | The window's active workspace |
+
+`BrowserLiveTabContext::GetExtraDataForTab` populates assistant keys only; it
+never copies `SessionTab::extra_data`, and `browser_tabrestore.cc` hands the
+restored map to two named consumers. So a tab reopened through the restore
+service carries no workspace UUID at the pinned revision, and "the UUID in its
+extra-data, Default when missing" resolves to Default every time. Stating the
+intended rule here would have described behaviour no build produces.
+
+Whether to accept that or to patch the two seam points is an open decision;
+`docs/ADVANCED_TABS_CONTRACT.md` sets out both options. Until it is taken, a
+reopened tab lands in Default and the user moves it.
 
 A tab created from a hidden opener does not steal activation. If Chromium
 activates it anyway, invariant 2 applies and the window follows.

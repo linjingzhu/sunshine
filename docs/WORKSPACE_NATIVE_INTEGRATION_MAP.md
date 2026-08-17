@@ -77,4 +77,9 @@ Blocked until a native Windows build can be compiled and exercised:
 
 The first runtime experiment is one regular profile and one browser window.
 Incognito and Guest are memory-only. Cross-window adoption is rejected in this
-wave. Split view and vertical tabs remain out of scope.
+wave. Split view and vertical tabs are **not** out of scope by inaction, which is what
+this sentence used to assume. Both ship at the pinned revision: splits are
+tab-strip state (see `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md`), and
+`kVerticalTabsLaunch` is enabled by default on every non-ChromeOS platform, so a
+Sunshine build inherits vertical tabs unless it disables an upstream default.
+Excluding either is now a decision with a cost, not a no-op.
