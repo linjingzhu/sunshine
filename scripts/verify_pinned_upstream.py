@@ -20,6 +20,11 @@ exists. That is why this lives in one tested place instead of two untested ones.
 `--source github` reads the same revision from the GitHub mirror. It is a
 convenience for environments whose egress policy blocks the authoritative host,
 not a second source of truth: CI runs the default.
+
+Both hosts meter anonymous clients by request count, and this checker asks a lot
+of questions -- so how many it asks is part of what it is. Existence is settled
+per directory rather than per path wherever the source can list one; see
+`directory_entries`.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from __future__ import annotations
 import argparse
 import base64
 from concurrent.futures import ThreadPoolExecutor
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -96,12 +102,50 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 )
 
 
-# A backticked path under a Chromium top-level directory, with a source-file
-# suffix. Narrow on purpose: prose says `app.css` and `scripts/foo.py` too, and
-# neither is an upstream citation.
+# Sunshine's own top-level directories, plus the two tree roots that belong to
+# neither repository. Everything else that has the shape of a file path is
+# treated as an upstream citation and probed.
+#
+# This list is the inversion that matters. The previous rule named the Chromium
+# top-level directories it would accept, and that list was already wrong:
+# `media/` twice and `sandbox/` once had never been checked by anything, because
+# an unmatched citation is absent, not rejected -- no probe, no failure, no
+# mention. Naming *our own* directories instead fails the other way. A new
+# Chromium top-level directory is covered the moment it is cited, and the only
+# way this list can go stale is a new directory in this repository, which
+# tests/test_verify_pinned_upstream.py compares against what is on disk.
+#
+# `src/` and `out/` are the exceptions that are neither. `src/third_party/...`
+# is an upstream path written from one level above the checkout root, and
+# `out/Sunshine` is build output that exists only after a build; probing either
+# upstream asks for a path that was never meant to be there.
+OWN_PREFIXES = frozenset({
+    ".ai", ".git", ".github", "config", "docs", "downstream", "first_party",
+    "scripts", "tests",
+    "out", "src",
+})
+
+# A backticked path naming one concrete file: at least two segments, ordinary
+# path characters throughout, and a suffix that starts with a letter.
+#
+# Every clause is doing work that the survey of docs/ asked for. The backticks
+# anchor both ends, so a token is matched whole or not at all -- `chrome://…`
+# cannot contribute a `chrome` prefix. Segments must begin with a letter, digit
+# or underscore, which rejects the directory-with-trailing-slash citations
+# (`components/sessions/`, `google_apis/`) and the ellipsis ones (`tools/...`).
+# The character class excludes the space, brace, star and angle bracket that
+# mark the citations that stand for more than one file (`tab_strip_model.{h,cc}`,
+# `session_restore.*`, `metadata/<area>/histograms.xml`) as well as the prose
+# that merely contains a slash (`max / min = 1.75`, `text/plain`). Requiring the
+# suffix to start with a letter is what separates a file from a version or a
+# ratio: `refs/tags/152.0.7977.42` and `13.5/7.25` are neither files nor
+# upstream.
+#
+# What this cannot express is an upstream file with no extension -- `chrome/
+# VERSION` would go unchecked. None is cited today, and admitting extensionless
+# tokens would sweep in every directory reference in the contract set.
 CITATION = re.compile(
-    r"`((?:base|build|chrome|components|content|net|services|third_party|tools|ui)"
-    r"/[A-Za-z0-9_./]+\.(?:h|cc|mojom|css|ts|html|py|csv|json|gn|gni|xml))`"
+    r"`([A-Za-z0-9_][A-Za-z0-9_.+-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.+-]*)+\.[A-Za-z][A-Za-z0-9]{0,7})`"
 )
 
 
@@ -184,8 +228,79 @@ def cited_paths(root: Path) -> dict[str, set[str]]:
     citations: dict[str, set[str]] = {}
     for document in sorted((root / "docs").rglob("*.md")):
         for path in CITATION.findall(document.read_text(encoding="utf-8")):
+            if path.split("/", 1)[0] in OWN_PREFIXES:
+                continue
             citations.setdefault(path, set()).add(document.name)
     return citations
+
+
+# Whether a path exists is a question about a directory, not about a file, and
+# a directory answers it once for everything in it. The citation check asks it
+# of ~215 paths that sit in ~99 directories, so asking the directory is less
+# than half the requests, and the ratio improves every time a contract cites
+# another file beside one already cited.
+#
+# This is not a speed optimisation. The guard failed CI at 900d747 with
+# `HTTP Error 429` from googlesource -- not the mirror, which was the throttled
+# one before. The quota is on request count from one anonymous client, so
+# backoff cannot help: `scripts/bootstrap_chromium.py` documents the same host
+# answering RESOURCE_EXHAUSTED for `shared/shared_anonymous` and bounds
+# gclient's job count for the same reason. Fewer questions is the only fix.
+#
+# googlesource only. raw.githubusercontent.com serves file bytes and has no
+# listing route; the GitHub API that does is a different host with a 60-request
+# anonymous hourly quota, which is worse than what it would replace. The mirror
+# keeps the per-path probe, so the saving lands on the source CI actually uses
+# rather than on the fallback one.
+LISTING = {
+    "googlesource":
+        "https://chromium.googlesource.com/chromium/src/+/refs/tags/{version}/{path}?format=JSON",
+}
+
+# Gitiles prefixes its JSON with an XSSI guard that is deliberately not valid
+# JSON, so it has to come off before parsing.
+XSSI_PREFIX = ")]}'"
+
+
+def directory_entries(source: str, version: str, directory: str) -> set[str] | None:
+    """The names in one upstream directory, or None if it could not be listed.
+
+    None means "ask another way". It never means "not there". A listing that
+    404s, that comes back as HTML because the route moved, or that parses to
+    something with no entries in it sends the caller back to probing each path
+    on its own -- which costs requests only when something is already wrong,
+    and is the only reading that is safe: treating an unreadable listing as an
+    empty directory would accuse every contract citing it of naming a dead path,
+    which is the false accusation this checker has already made once.
+
+    A throttled listing is deliberately not caught. `_open` retries and then
+    raises, and that must stop the run: falling back to individual probes while
+    the host is refusing requests would turn one refusal into as many requests
+    as the directory has citations.
+    """
+
+    template = LISTING.get(source)
+    if template is None:
+        return None
+    url = template.format(version=version, path=directory)
+    try:
+        with _open(url, directory, version) as response:
+            payload = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as error:
+        if error.code in ABSENT_STATUS:
+            return None
+        raise UpstreamCheckError(f"could not list {directory} at {version}: {error}") from error
+
+    if payload.startswith(XSSI_PREFIX):
+        payload = payload[len(XSSI_PREFIX):]
+    try:
+        entries = json.loads(payload)["entries"]
+        names = {entry["name"] for entry in entries}
+    except (ValueError, KeyError, TypeError):
+        return None
+    # An empty directory does not exist in git, so an empty listing is a
+    # malformed answer rather than a directory with nothing in it.
+    return names or None
 
 
 def exists(source: str, version: str, path: str) -> bool:
@@ -223,21 +338,50 @@ def check_citations(source: str, version: str, root: Path, report: list[str]) ->
         report.append("  OK   no upstream paths cited by the contracts")
         return True
 
-    # Four, not twelve. Two hundred citations at twelve concurrent probes is
+    directories: dict[str, list[str]] = {}
+    for path in citations:
+        directories.setdefault(path.rsplit("/", 1)[0], []).append(path)
+    ordered = sorted(directories)
+
+    # Four, not twelve. Two hundred probes at twelve concurrent requests was
     # enough to make the host rate-limit this account partway through the run,
     # so the parallelism that made the check fast was also what made it fail.
-    # The retry in `_open` handles throttling that happens anyway; this stops
-    # provoking it.
+    # The bound stays where it is: it is now applied to far fewer requests.
     with ThreadPoolExecutor(max_workers=4) as pool:
-        found = dict(zip(citations, pool.map(
-            lambda path: exists(source, version, path), citations)))
+        listings = dict(zip(ordered, pool.map(
+            lambda directory: directory_entries(source, version, directory), ordered)))
+
+    found: dict[str, bool] = {}
+    unlisted: list[str] = []
+    listed = 0
+    for directory in ordered:
+        names = listings[directory]
+        if names is None:
+            unlisted.extend(directories[directory])
+            continue
+        listed += 1
+        for path in directories[directory]:
+            found[path] = path.rsplit("/", 1)[1] in names
+
+    if unlisted:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            found.update(zip(unlisted, pool.map(
+                lambda path: exists(source, version, path), unlisted)))
 
     dead = sorted(path for path, present in found.items() if not present)
     for path in dead:
         report.append(f"  FAIL cited path absent at {version}: {path}")
         report.append(f"       cited by {', '.join(sorted(citations[path]))}")
     if not dead:
-        report.append(f"  OK   {len(citations)} cited upstream paths all exist")
+        # The request count is reported because it is the thing that broke CI.
+        # A run that says "0 directory listings, 215 individual probes" has
+        # fallen back for every directory and is one quota away from failing
+        # again, and that has to be visible in the log rather than inferred
+        # from how long the step took.
+        report.append(
+            f"  OK   {len(citations)} cited upstream paths all exist "
+            f"({listed} directory listing(s), {len(unlisted)} individual probe(s))"
+        )
     return not dead
 
 
@@ -299,8 +443,13 @@ def verify(source: str = "googlesource", root: Path = ROOT) -> tuple[bool, list[
                 report.append(f"  FAIL seam absent upstream: {description} ({needle})")
                 healthy = False
 
+    # Both section seams live in the same header, and fetching it once per
+    # expectation asked upstream the same question twice. Cheap, but this
+    # checker is now failing CI on request count, so a free request is worth
+    # not spending.
+    bodies = {path: fetch(source, version, path) for path in sorted({s[0] for s in SECTION_SEAMS})}
     for path, description, opening, needle in SECTION_SEAMS:
-        body = section(fetch(source, version, path), opening)
+        body = section(bodies[path], opening)
         if needle in body:
             report.append(f"  OK   seam: {description}")
         else:

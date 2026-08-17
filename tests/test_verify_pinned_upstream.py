@@ -9,6 +9,8 @@ network.
 
 import contextlib
 from pathlib import Path
+import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -240,6 +242,324 @@ class ThrottlingIsNotAbsenceTests(unittest.TestCase):
             checker.urllib.request, "urlopen", side_effect=[self._error(429), response]
         ):
             self.assertTrue(checker.exists("github", "152.0.7977.42", "base/check.h"))
+
+
+class CitationCoverageTests(unittest.TestCase):
+    """No upstream citation may be added to the contracts without being checked.
+
+    The rule this replaces named the Chromium top-level directories it would
+    accept, and the list was already short: `media/` twice and `sandbox/` once
+    had never been probed by anything, along with `google_apis/` and the
+    `.asciipb` and `.md` suffixes. Nothing said so, because an unmatched
+    citation is absent rather than rejected -- there is no probe, so there is no
+    failure, so there is nothing to read.
+
+    Widening the list would have fixed those five and left the sixth to the same
+    silence. What is asserted instead is the property: every backticked token in
+    docs/ that names a file inside a directory is either checked, or excluded
+    for a reason written down here.
+    """
+
+    # A token that names a file inside a directory: it has a slash, and its
+    # last segment carries a dot. Deliberately far looser than CITATION -- it
+    # is the net, not the rule, and everything it catches has to be accounted
+    # for one way or the other.
+    CANDIDATE = re.compile(r"`([^`\n]*/[^`\n]*\.[^`\n]*)`")
+
+    # Characters that mean the token is not one concrete path. `:` is a scheme
+    # (`chrome://`, `https://`, `data:text/html`), `*{}<>…` stand for more than
+    # one file (`session_restore.*`, `tab_strip_model.{h,cc}`,
+    # `metadata/<area>/histograms.xml`, `tools/perf/…`), and `()"=,` appear only
+    # where the backticks are quoting code or arithmetic rather than a path.
+    NOT_A_SINGLE_PATH = set(':*{}<>…()"=,')
+
+    def reason_it_is_not_an_upstream_citation(self, token: str) -> str | None:
+        """Why a candidate is legitimately unchecked, or None if it should be.
+
+        These are the boundary. Each corresponds to a family of tokens the
+        contracts really contain -- a survey of docs/ produced every one of
+        them -- and a candidate matching none of them is an upstream path that
+        nothing is verifying.
+        """
+
+        if token.split("/", 1)[0] in checker.OWN_PREFIXES:
+            return "ours, or the build tree"
+        if any(character.isspace() for character in token):
+            return "prose: contains whitespace"
+        if set(token) & self.NOT_A_SINGLE_PATH:
+            return "not one concrete path: scheme, glob or placeholder"
+        if token.endswith("/"):
+            return "a directory, not a file"
+        if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.+-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.+-]*)*", token):
+            return "not a plain path"
+        if not re.search(r"\.[A-Za-z][A-Za-z0-9]{0,7}$", token):
+            return "no file suffix: a version, a ratio or a directory"
+        return None
+
+    def candidates(self) -> list[tuple[str, str]]:
+        found = []
+        for document in sorted((REPOSITORY_ROOT / "docs").rglob("*.md")):
+            for token in self.CANDIDATE.findall(document.read_text(encoding="utf-8")):
+                found.append((document.name, token.strip()))
+        return found
+
+    def test_every_upstream_looking_citation_in_the_contracts_is_checked(self) -> None:
+        cited = set(checker.cited_paths(REPOSITORY_ROOT))
+        unchecked = sorted({
+            f"{document}: {token}"
+            for document, token in self.candidates()
+            if token not in cited and self.reason_it_is_not_an_upstream_citation(token) is None
+        })
+        self.assertEqual(
+            [],
+            unchecked,
+            "a contract cites an upstream path that nothing probes; widen CITATION, "
+            "or add the reason it is not a citation to this test",
+        )
+
+    def test_the_net_is_wide_enough_to_be_worth_casting(self) -> None:
+        """A candidate pattern that caught only what CITATION already matches
+        would make the property above circular."""
+
+        tokens = {token for _, token in self.candidates()}
+        self.assertGreater(len(tokens), len(checker.cited_paths(REPOSITORY_ROOT)))
+        for prose in ("refs/tags/152.0.7977.42", "13.5/7.25", "max / min = 1.75",
+                      "chrome/browser/ui/tabs/tab_strip_model.{h,cc}"):
+            with self.subTest(token=prose):
+                self.assertIn(prose, tokens)
+                self.assertIsNotNone(self.reason_it_is_not_an_upstream_citation(prose))
+
+    def test_the_property_catches_the_defect_it_was_written_for(self) -> None:
+        """Run against the hand-kept alternation, this fails and names the
+        citations that had never been probed."""
+
+        previous = re.compile(
+            r"`((?:base|build|chrome|components|content|net|services|third_party|tools|ui)"
+            r"/[A-Za-z0-9_./]+\.(?:h|cc|mojom|css|ts|html|py|csv|json|gn|gni|xml))`"
+        )
+        cited = set()
+        for document in sorted((REPOSITORY_ROOT / "docs").rglob("*.md")):
+            cited |= set(previous.findall(document.read_text(encoding="utf-8")))
+        unchecked = {
+            token
+            for _, token in self.candidates()
+            if token not in cited and self.reason_it_is_not_an_upstream_citation(token) is None
+        }
+        self.assertIn("media/mojo/services/media_foundation_service.h", unchecked)
+        self.assertIn("sandbox/policy/switches.cc", unchecked)
+        self.assertIn("google_apis/google_api_keys.h", unchecked)
+
+    def test_the_repository_directories_are_all_accounted_for(self) -> None:
+        """`OWN_PREFIXES` is the one list still kept by hand, so it is checked
+        against what is actually on disk. A new top-level directory here would
+        otherwise have its paths probed against Chromium, where they are not."""
+
+        on_disk = {path.name for path in REPOSITORY_ROOT.iterdir() if path.is_dir()}
+        self.assertEqual(set(), on_disk - set(checker.OWN_PREFIXES))
+
+    def test_the_newly_covered_prefixes_and_suffixes_are_matched(self) -> None:
+        """The five shapes the old alternation could not express."""
+
+        for path in (
+            "media/mojo/services/media_foundation_service.h",
+            "sandbox/policy/switches.cc",
+            "google_apis/google_api_keys.h",
+            "components/safe_browsing/content/resources/download_file_types.asciipb",
+            "tools/metrics/histograms/README.md",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual([path], checker.CITATION.findall(f"see `{path}` upstream"))
+
+    def test_our_own_paths_are_still_not_upstream_citations(self) -> None:
+        """The temp-tree contract: this must not depend on what is on disk, or
+        pointing the checker at a fixture would change which paths are ours."""
+
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "docs").mkdir()
+        (root / "docs" / "P.md").write_text(
+            "`scripts/foo.py`, `docs/OPEN_DECISIONS.md`, `first_party/commands.json`,\n"
+            "`config/chromium.version`, `downstream/patches/series`, `tests/test_x.py`,\n"
+            "`out/Sunshine/chrome.exe`, `src/third_party/icu/BUILD.gn`, and `app.css`,\n"
+            "but `sandbox/policy/switches.cc` is upstream.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual({"sandbox/policy/switches.cc"}, set(checker.cited_paths(root)))
+
+    def test_prose_that_merely_contains_a_slash_is_not_a_path(self) -> None:
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "docs").mkdir()
+        (root / "docs" / "P.md").write_text(
+            "`text/plain`, `application/octet-stream`, `max / min = 1.75`, `13.5/7.25`,\n"
+            "`refs/tags/152.0.7977.42`, `chrome://sunshine-security`, `https://github.com/`,\n"
+            "`components/sessions/`, `tools/...`, `chrome/browser/sessions/session_restore.*`,\n"
+            "`chrome/browser/ui/tabs/tab_strip_model.{h,cc}`, `chrome/browser/ui/startup/first_run`.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual({}, checker.cited_paths(root))
+
+
+def fake_response(payload: bytes, status: int = 200):
+    response = mock.MagicMock()
+    response.status = status
+    response.read.return_value = payload
+    response.__enter__.return_value = response
+    return response
+
+
+class DirectoryListingTests(unittest.TestCase):
+    """Existence answered per directory instead of per path.
+
+    The guard failed CI at 900d747 with a 429 from googlesource -- the
+    authoritative host, not the mirror that was throttled before. The quota is
+    on how many requests one anonymous client makes, so the retry that handles a
+    burst cannot help; the only fix is to ask fewer questions. ~215 cited paths
+    sit in ~99 directories.
+    """
+
+    LISTING = (
+        b")]}'\n{\"id\": \"abc\", \"entries\": ["
+        b"{\"mode\": 33188, \"type\": \"blob\", \"name\": \"switches.cc\"},"
+        b"{\"mode\": 33188, \"type\": \"blob\", \"name\": \"switches.h\"}]}"
+    )
+
+    def test_a_gitiles_listing_is_parsed_past_its_xssi_guard(self) -> None:
+        """Gitiles prefixes JSON with `)]}'`, which is not valid JSON and is
+        there precisely so that a naive parser does not eat it."""
+
+        with mock.patch.object(checker, "_open", return_value=fake_response(self.LISTING)):
+            names = checker.directory_entries("googlesource", "152.0.7977.42", "sandbox/policy")
+        self.assertEqual({"switches.cc", "switches.h"}, names)
+
+    def test_the_mirror_cannot_list_and_says_so_without_asking(self) -> None:
+        """raw.githubusercontent.com has no listing route. Returning None is
+        what keeps the per-path probe as the mirror's fallback."""
+
+        with mock.patch.object(checker, "_open", side_effect=AssertionError("no request")):
+            self.assertIsNone(checker.directory_entries("github", "152.0.7977.42", "base"))
+
+    def test_an_unparseable_listing_falls_back_rather_than_reporting_absence(self) -> None:
+        """If the route changes and returns HTML, every path under it must be
+        probed individually -- not reported missing. Reading an unreadable
+        listing as an empty directory would accuse every contract citing it."""
+
+        for payload in (b"<!doctype html><title>gitiles</title>", b")]}'\n{\"id\": \"abc\"}",
+                        b")]}'\n{\"entries\": []}", b"not json at all"):
+            with self.subTest(payload=payload[:20]):
+                with mock.patch.object(checker, "_open", return_value=fake_response(payload)):
+                    self.assertIsNone(
+                        checker.directory_entries("googlesource", "152.0.7977.42", "base")
+                    )
+
+    def test_a_missing_directory_falls_back_instead_of_condemning_its_paths(self) -> None:
+        error = urllib.error.HTTPError("https://example.invalid", 404, "", None, None)
+        with mock.patch.object(checker, "_open", side_effect=error):
+            self.assertIsNone(checker.directory_entries("googlesource", "152.0.7977.42", "gone"))
+
+    def test_a_throttled_listing_stops_the_run(self) -> None:
+        """The rule that must not be weakened, restated for the new request.
+
+        A 429 must never become absence, and it must not become a fallback
+        either: probing each path in a directory the host just refused turns one
+        refusal into as many requests as the directory holds.
+        """
+
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen",
+            side_effect=urllib.error.HTTPError("https://example.invalid", 429, "", None, None),
+        ):
+            with self.assertRaises(checker.UpstreamCheckError):
+                checker.directory_entries("googlesource", "152.0.7977.42", "base")
+
+
+class CitationRequestCountTests(unittest.TestCase):
+    """The deliverable is the request count, so it is asserted."""
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, True)
+        (self.root / "docs").mkdir()
+        (self.root / "docs" / "C.md").write_text(
+            "`chrome/browser/ui/tabs/tab_strip_model.h`, `chrome/browser/ui/tabs/tab_group_model.h`,\n"
+            "`chrome/browser/ui/tabs/split_tab_util.h`, `base/check.h`, `base/logging.h`.\n",
+            encoding="utf-8",
+        )
+        self.listed: list[str] = []
+        self.probed: list[str] = []
+
+    def listing(self, names: dict[str, set[str]]):
+        def entries(source: str, version: str, directory: str):
+            self.listed.append(directory)
+            return names.get(directory)
+        return entries
+
+    def probe(self, present: bool = True):
+        def exists(source: str, version: str, path: str) -> bool:
+            self.probed.append(path)
+            return present
+        return exists
+
+    def test_five_paths_in_two_directories_cost_two_requests(self) -> None:
+        names = {
+            "chrome/browser/ui/tabs": {"tab_strip_model.h", "tab_group_model.h", "split_tab_util.h"},
+            "base": {"check.h", "logging.h"},
+        }
+        report: list[str] = []
+        with mock.patch.object(checker, "directory_entries", self.listing(names)), \
+             mock.patch.object(checker, "exists", self.probe()):
+            healthy = checker.check_citations("googlesource", "152.0.7977.42", self.root, report)
+
+        self.assertTrue(healthy, "\n".join(report))
+        self.assertEqual(2, len(self.listed))
+        self.assertEqual([], self.probed, "a listed directory must not also be probed")
+        self.assertIn("2 directory listing(s), 0 individual probe(s)", "\n".join(report))
+
+    def test_a_path_absent_from_its_directory_listing_is_reported(self) -> None:
+        """The listing has to be able to fail the check, or it is decoration."""
+
+        names = {
+            "chrome/browser/ui/tabs": {"tab_strip_model.h", "tab_group_model.h"},
+            "base": {"check.h", "logging.h"},
+        }
+        report: list[str] = []
+        with mock.patch.object(checker, "directory_entries", self.listing(names)), \
+             mock.patch.object(checker, "exists", self.probe()):
+            healthy = checker.check_citations("googlesource", "152.0.7977.42", self.root, report)
+
+        self.assertFalse(healthy)
+        joined = "\n".join(report)
+        self.assertIn("chrome/browser/ui/tabs/split_tab_util.h", joined)
+        self.assertIn("C.md", joined)
+
+    def test_a_directory_that_cannot_be_listed_is_probed_path_by_path(self) -> None:
+        names = {"base": {"check.h", "logging.h"}}  # the tabs directory lists as None
+        report: list[str] = []
+        with mock.patch.object(checker, "directory_entries", self.listing(names)), \
+             mock.patch.object(checker, "exists", self.probe()):
+            healthy = checker.check_citations("googlesource", "152.0.7977.42", self.root, report)
+
+        self.assertTrue(healthy, "\n".join(report))
+        self.assertEqual(3, len(self.probed))
+        self.assertIn("1 directory listing(s), 3 individual probe(s)", "\n".join(report))
+
+    def test_the_mirror_still_works_entirely_by_probe(self) -> None:
+        """`--source github` cannot list, and must keep checking the same
+        paths rather than checking none of them."""
+
+        report: list[str] = []
+        with mock.patch.object(checker, "exists", self.probe()):
+            healthy = checker.check_citations("github", "152.0.7977.42", self.root, report)
+        self.assertTrue(healthy, "\n".join(report))
+        self.assertEqual(5, len(self.probed))
+
+    def test_the_real_contracts_group_into_far_fewer_directories(self) -> None:
+        """The saving is a property of the corpus, so it is measured on it."""
+
+        citations = checker.cited_paths(REPOSITORY_ROOT)
+        directories = {path.rsplit("/", 1)[0] for path in citations}
+        self.assertGreater(len(citations), 200)
+        self.assertLess(len(directories), len(citations) / 2)
 
 
 if __name__ == "__main__":
