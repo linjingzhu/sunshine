@@ -96,11 +96,29 @@ module is `PASS`. `scripts/validate_first_party_modules.py` already refuses
 `status: runtime_verified` unless `native_build` and `runtime` are both
 `passed`, so the manifest cannot claim more than the evidence supports.
 
-## 5. NOT VERIFIED
+## 5. What has been run
+
+**Section 1 has.** Build #16 (run `32045348048`, commit `900d747`) is the first
+run of `scripts/verify_installed_build.py` against real output, and it exited 0
+on the build machine. Every check in section 1 therefore passed on the artifact,
+including the two that cannot be answered anywhere else: the configuration GN
+actually used carries ADR 0004's codec arguments and no sandbox- or
+isolation-disabling switch, and Windows registers no Sunshine URL protocol.
+SECA-11 is the first class-B acceptance criterion in this contract set to be
+decided against a real build rather than specified.
+
+**No manifest verification state is advanced by that**, and the distinction
+matters. `verification.native_build` is a claim about a *module*, not about the
+build: `sunshine-new-tab` has a patch in the stack and `sunshine-workspace` has
+none, so a single build result cannot discharge both. Advancing either field
+needs a decision about what `native_build` asserts for a module with no native
+code yet, which is a product question rather than an evidence question.
+
+## 6. NOT VERIFIED
 
 - **Nothing in section 2 or 3 has been run.** Build #12 produced an installer
-  that nobody executed; build #15 was still compiling when this document was
-  written.
+  that nobody executed; builds #15 and #16 succeeded and nobody has launched
+  either.
 - The gates are specified against Chromium's internal pages at the pinned
   revision. `chrome://sandbox` and `chrome://process-internals` are debugging
   surfaces whose output format upstream may change without notice; a gate that
