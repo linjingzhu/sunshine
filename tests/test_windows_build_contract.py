@@ -82,6 +82,23 @@ class WindowsBuildContractTests(unittest.TestCase):
 
         self.assertIn("bootstrap_chromium.py\") --workspace $workspacePath --reset", SCRIPT.read_text(encoding="utf-8"))
 
+    def test_the_pwsh_requirement_is_documented_and_checked(self) -> None:
+        """`shell: pwsh` needs PowerShell 7, which stock Windows does not have.
+
+        GitHub-hosted images ship it, so the dependency stayed invisible until
+        the pipeline first ran on a real machine and failed in a minute with
+        `pwsh: command not found`.
+        """
+
+        self.assertIn("shell: pwsh", WORKFLOW.read_text(encoding="utf-8"))
+
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("$PSVersionTable.PSVersion.Major -lt 7", script)
+        self.assertIn("winget install Microsoft.PowerShell", script)
+
+        doc = (ROOT / "docs/WINDOWS_CHROMIUM_BUILD.md").read_text(encoding="utf-8")
+        self.assertIn("PowerShell 7 or newer", doc)
+
     def test_compile_parallelism_is_capped_when_asked(self) -> None:
         """The runner is also the owner's workstation, so it must stay usable."""
 

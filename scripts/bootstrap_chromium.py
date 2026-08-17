@@ -13,8 +13,24 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+def executable(name: str) -> str:
+    """Resolve a tool to a full path before launching it.
+
+    depot_tools ships `fetch`, `gclient`, and `gn` as `.bat` shims. Windows
+    `CreateProcess`, which `subprocess` uses, does not apply `PATHEXT`, so a bare
+    name raises `FileNotFoundError` even though the shim is on `PATH` and a shell
+    resolves it fine. `shutil.which` applies `PATHEXT` and returns the shim
+    itself, which `subprocess` can then launch.
+    """
+
+    resolved = shutil.which(name)
+    if resolved is None:
+        raise SystemExit(f"required command is not on PATH: {name}")
+    return resolved
+
+
 def run(*args: str, cwd: pathlib.Path | None = None) -> None:
-    subprocess.run(args, cwd=cwd, check=True)
+    subprocess.run((executable(args[0]), *args[1:]), cwd=cwd, check=True)
 
 
 def read_revision() -> str:
@@ -41,7 +57,7 @@ def patch_paths(patch_path: pathlib.Path) -> set[str]:
 
 def dirty_paths(src: pathlib.Path) -> set[str]:
     output = subprocess.run(
-        ("git", "status", "--porcelain=v1", "-z"),
+        (executable("git"), "status", "--porcelain=v1", "-z"),
         cwd=src,
         check=True,
         capture_output=True,
@@ -64,7 +80,7 @@ def patch_stack_is_applied(src: pathlib.Path, patch_names: list[str]) -> bool:
         patch_path = ROOT / "downstream/patches" / patch_name
         expected_paths.update(patch_paths(patch_path))
         result = subprocess.run(
-            ("git", "apply", "--reverse", "--check", str(patch_path)),
+            (executable("git"), "apply", "--reverse", "--check", str(patch_path)),
             cwd=src,
             check=False,
             stdout=subprocess.DEVNULL,
@@ -106,10 +122,10 @@ def main() -> int:
     patch_names = read_series()
     run("git", "fetch", "origin", revision, "--depth=1", cwd=src)
     current_head = subprocess.run(
-        ("git", "rev-parse", "HEAD"), cwd=src, check=True, capture_output=True, text=True
+        (executable("git"), "rev-parse", "HEAD"), cwd=src, check=True, capture_output=True, text=True
     ).stdout.strip()
     fetched_head = subprocess.run(
-        ("git", "rev-parse", "FETCH_HEAD"), cwd=src, check=True, capture_output=True, text=True
+        (executable("git"), "rev-parse", "FETCH_HEAD"), cwd=src, check=True, capture_output=True, text=True
     ).stdout.strip()
 
     if dirty_paths(src):

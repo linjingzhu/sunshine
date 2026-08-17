@@ -272,6 +272,28 @@ class ChromiumBootstrapTests(unittest.TestCase):
                 self.bootstrap.patch_stack_is_applied(self.source, ["branding.patch"])
             )
 
+    def test_tools_are_launched_by_resolved_path(self) -> None:
+        """depot_tools ships .bat shims and Windows CreateProcess ignores PATHEXT.
+
+        Passing a bare name raised `FileNotFoundError: [WinError 2]` on the first
+        real Windows build, even though the shim was on PATH and the PowerShell
+        preflight found it with Get-Command.
+        """
+
+        shim = r"F:\depot_tools\fetch.bat"
+        with (
+            mock.patch.object(self.bootstrap.shutil, "which", return_value=shim),
+            mock.patch.object(self.bootstrap.subprocess, "run") as launched,
+        ):
+            self.bootstrap.run("fetch", "--nohooks", "chromium")
+
+        self.assertEqual((shim, "--nohooks", "chromium"), launched.call_args[0][0])
+
+    def test_a_missing_tool_names_itself(self) -> None:
+        with mock.patch.object(self.bootstrap.shutil, "which", return_value=None):
+            with self.assertRaisesRegex(SystemExit, "gclient"):
+                self.bootstrap.run("gclient", "sync")
+
     def test_reset_exists_and_is_opt_in(self) -> None:
         """Bootstrapping a human's workspace must still refuse to discard work."""
 
