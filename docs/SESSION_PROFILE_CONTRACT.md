@@ -131,6 +131,10 @@ may reveal secrets.
 Native builds must pass the following tests before session restore or profile
 isolation is marked complete.
 
+`SRA-` is the prefix for these tests, and the ordinals are unchanged: test 9 is
+`SRA-9`. The numbering runs continuously across the five groups, as it did
+before, so a citation written before this revision still resolves.
+
 ### Clean lifecycle
 
 1. **SRA-1.** With startup set to New Tab, open two windows and multiple tabs,

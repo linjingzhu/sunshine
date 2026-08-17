@@ -568,6 +568,10 @@ or `docs/COMMAND_PALETTE_CONTRACT.md` is contradicted by this document.
 
 Each item is falsifiable at runtime once a native build exists.
 
+`ATA-` is the prefix for this evidence list, and the ordinals are unchanged:
+item 9 is `ATA-9`, so a citation written before this revision still resolves.
+`AT-` remains the prefix for the §4 invariants; the two do not overlap.
+
 1. **ATA-1.** Pinning a tab moves it into the pinned region and unpinning
    returns it to the unpinned region, with no Sunshine record written in either
    direction.

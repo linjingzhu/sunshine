@@ -90,17 +90,23 @@ is still required on top, and is class H throughout.
 
 ### 1.4 Citation form
 
-Contract criteria are cited as *document, section, number* — for example
-`docs/GESTURE_CONTRACT.md` §9.7. Where a contract gives its rules a stable
-identifier family (AT-, SC-, OC-, OT-, OS-, OP-, D, E, S, R) the identifier is
-used instead, because those are the ones `scripts/trace_invariants.py` can
-already follow.
+Contract criteria are cited by their stable identifier — `GA-7`, `AT-11`,
+`SC-8`, `SPA-9` — because those are the ones `scripts/trace_invariants.py` can
+follow. A section reference is added where it helps a reader find the text, but
+the identifier is what the citation is *for*.
 
-**The numbered acceptance criteria have no identifiers.** `docs/OMNIBOX_CONTRACT.md`
-criterion 14 is addressable only as an ordinal in a list that renumbers whenever
-a criterion is inserted — and one has already been retired in place (criterion
-16) precisely to avoid that. This is a real defect in the contract set and it
-limits what any tool can do with this index. See section 9, Q8.
+**The numbered acceptance criteria now have identifiers.** They did not when
+this index was written: `docs/OMNIBOX_CONTRACT.md` criterion 14 was addressable
+only as an ordinal in a list that renumbers whenever a criterion is inserted —
+and one had already been retired in place (criterion 16) precisely to avoid
+that. Each such list has since been given a per-document prefix, listed in
+section 2, with **the ordinals unchanged**: criterion 14 of that document is
+`OMA-14`, so every citation written against the old ordinal still resolves. The
+gain is a handle that survives an insertion and that a test can name in an
+`Enforces:` line. The one defect this does not repair is
+`TAB_WORKSPACE_SPLIT_CONTRACT` §10, whose acceptance bullets carry no ordinal at
+all; there is nothing there to prefix, and numbering them would be inventing an
+order no citation currently uses.
 
 ---
 
@@ -108,29 +114,42 @@ limits what any tool can do with this index. See section 9, Q8.
 
 | Document | Criteria | Identifier scheme |
 |---|---|---|
-| `docs/ADVANCED_TABS_CONTRACT.md` | §11, 12 items; invariants AT-1…AT-14 | AT- for invariants; §11 ordinals |
-| `docs/OMNIBOX_CONTRACT.md` | §13, 22 criteria; rules OC-1…OC-4, OT-1…OT-6, OP-1…OP-6, OS-1…OS-10 | prefixed rules; §13 ordinals |
-| `docs/TAB_LIFECYCLE_CONTRACT.md` | §13, 25 criteria; invariants 1–3 | §13 ordinals |
-| `docs/COMMAND_PALETTE_CONTRACT.md` | §14, 33 criteria | §14 ordinals |
-| `docs/SIDE_PANEL_CONTRACT.md` | §12, 26 criteria; detections D1…D7; eligibility E1…E8 | D/E; §12 ordinals |
-| `docs/SECURITY_CENTER_CONTRACT.md` | 13 criteria; invariants SC-1…SC-12 | SC-; ordinals |
-| `docs/GESTURE_CONTRACT.md` | §9, 18 criteria | §9 ordinals |
-| `docs/BROWSER_UTILITIES_CONTRACT.md` | 22 criteria | ordinals |
+| `docs/ADVANCED_TABS_CONTRACT.md` | §11, 12 items ATA-1…ATA-12; invariants AT-1…AT-14 | ATA- for §11; AT- for invariants |
+| `docs/OMNIBOX_CONTRACT.md` | §13, 22 criteria OMA-1…OMA-22; rules OC-1…OC-4, OT-1…OT-6, OP-1…OP-6, OS-1…OS-10 | OMA- for §13; prefixed rules |
+| `docs/TAB_LIFECYCLE_CONTRACT.md` | §13, 25 criteria TLA-1…TLA-25; invariants 1–3 | TLA- for §13; invariants still ordinals |
+| `docs/COMMAND_PALETTE_CONTRACT.md` | §14, 33 criteria CPA-1…CPA-33 | CPA- |
+| `docs/SIDE_PANEL_CONTRACT.md` | §12, 26 criteria SPA-1…SPA-26; detections D1…D7; eligibility E1…E8 | SPA-; D/E |
+| `docs/SECURITY_CENTER_CONTRACT.md` | 13 criteria SCA-1…SCA-13; invariants SC-1…SC-12 | SCA-; SC- |
+| `docs/GESTURE_CONTRACT.md` | §9, 18 criteria GA-1…GA-18 | GA- |
+| `docs/BROWSER_UTILITIES_CONTRACT.md` | 22 criteria BUA-1…BUA-22 | BUA- |
 | `docs/DESIGN_SYSTEM_CONTRACT.md` | §9.1 S1…S12 source checks; §9.2 R1…R14 runtime checks | S/R |
 | `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` | §10, 9 **unnumbered** bullets; invariants 1–12 | invariant numbers only |
-| `docs/SESSION_PROFILE_CONTRACT.md` | 14 criteria in 5 groups | continuous ordinals |
-| `docs/DOWNLOAD_SAFETY.md` | 8 criteria | ordinals |
-| `docs/BOOKMARKS_HISTORY_CONTRACT.md` | 5 groups, each **restarting at 1** | group name + ordinal |
+| `docs/SESSION_PROFILE_CONTRACT.md` | 14 tests SRA-1…SRA-14 in 5 groups | SRA-, numbered continuously |
+| `docs/DOWNLOAD_SAFETY.md` | 8 tests DSA-1…DSA-8 | DSA- |
+| `docs/BOOKMARKS_HISTORY_CONTRACT.md` | 5 groups, each **restarting at 1**: BH-A1…BH-A7, BH-B1…BH-B7, BH-C1…BH-C5, BH-D1…BH-D4, BH-E1…BH-E5 | BH- plus a group letter |
 | `docs/PERMISSION_POLICY.md` | **none** — a defaults table, a roll gate, a deferred list | — |
 | `docs/EXTENSION_COMPATIBILITY_GATE.md` | 12 matrix rows, 7 fixtures, GO/NO-GO conditions | row name |
-| `docs/PERFORMANCE_BUDGET.md` | 6 budgets P1…P6, each with zero-tolerance conditions and a deferred statistical tolerance | P-number |
+| `docs/EXTENSION_MIME_CONTRACT.md` | 9 invariants XM-1…XM-9; 13 criteria XM-C1…XM-C13 | XM- |
+| `docs/PERFORMANCE_BUDGET.md` | 6 budgets PB-1…PB-6, each with zero-tolerance conditions and a deferred statistical tolerance | PB-, formerly P1…P6 |
 
 Two entries deserve attention before any of the tables below are read.
 `docs/PERMISSION_POLICY.md` is the only Stage 1 contract with no acceptance
 criteria at all — its roll gate verifies seven upstream default values and then
 asks for a manual smoke test. And `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` §10
 gives nine acceptance bullets with no numbers, so nothing in this document or
-any other can cite one of them individually.
+any other can cite one of them individually; it is the only list in the table
+above that could not be given a prefix, because a prefix needs an ordinal to
+attach to.
+
+Every prefix in the right-hand column is distinct from every other, and from the
+families `scripts/trace_invariants.py` already knows. The ordinals inside each
+list were not touched by the renaming: `SIDE_PANEL_CONTRACT` §12.9 is `SPA-9`,
+`COMMAND_PALETTE_CONTRACT` §14.9 is `CPA-9`, and a reference written against
+either spelling reaches the same criterion. `PERFORMANCE_BUDGET` is the one
+document where the old spelling is withdrawn rather than kept alongside: its
+budgets read `P1`…`P6`, which no tool could distinguish from the P0/P1/P2
+decision priority every contract uses, so they are `PB-1`…`PB-6` now and a bare
+`P` number in that document is always a priority.
 
 ---
 
@@ -141,15 +160,15 @@ Nine acceptance lines, plus the corpus line that governs all of them.
 | ID | §5.7 item | Established by | Class | Verdict |
 |---|---|---|---|---|
 | A1.0 | one-day dogfood over the named site corpus | nothing; every contract suite forbids live sites (§1.3) | H | see §1.3 |
-| A1.1 | login persistence | `SESSION_PROFILE_CONTRACT` 9, 11, 13; `BOOKMARKS_HISTORY_CONTRACT` Privacy 1–2 | B + H | **Partial** |
-| A1.2 | tab and navigation stability | `TAB_LIFECYCLE_CONTRACT` §13.1–25; `OMNIBOX_CONTRACT` §13.1–14, 17–19; `BOOKMARKS_HISTORY_CONTRACT` Back/forward 1–5 | B | **Covered** |
-| A1.3 | file upload / download | download: `DOWNLOAD_SAFETY` 1–8, `BROWSER_UTILITIES_CONTRACT` 21, `SIDE_PANEL_CONTRACT` 11–12. **upload: nothing** | B | **Partial** |
+| A1.1 | login persistence | `SESSION_PROFILE_CONTRACT` SRA-9, SRA-11, SRA-13; `BOOKMARKS_HISTORY_CONTRACT` BH-D1–BH-D2 | B + H | **Partial** |
+| A1.2 | tab and navigation stability | `TAB_LIFECYCLE_CONTRACT` TLA-1–TLA-25; `OMNIBOX_CONTRACT` OMA-1–OMA-14, OMA-17–OMA-19; `BOOKMARKS_HISTORY_CONTRACT` BH-C1–BH-C5 | B | **Covered** |
+| A1.3 | file upload / download | download: `DOWNLOAD_SAFETY` DSA-1–DSA-8, `BROWSER_UTILITIES_CONTRACT` BUA-21, `SIDE_PANEL_CONTRACT` SPA-11–SPA-12. **upload: nothing** | B | **Partial** |
 | A1.4 | media playback | **nothing** | B + H | **Uncovered** |
 | A1.5 | popup flows | default only: `PERMISSION_POLICY` POPUPS row and roll gate; membership of an opened tab: `TAB_LIFECYCLE_CONTRACT` §10.2 | B | **Partial** |
-| A1.6 | bookmark / history persistence | `BOOKMARKS_HISTORY_CONTRACT` Bookmark CRUD 1–7, Global history 1–7, Storage 1–5 | B | **Covered** |
-| A1.7 | no critical crash | recovery only: `SESSION_PROFILE_CONTRACT` 4–8; `TAB_LIFECYCLE_CONTRACT` §13.7, 21, 22 | B + H | **Partial** |
+| A1.6 | bookmark / history persistence | `BOOKMARKS_HISTORY_CONTRACT` BH-A1–BH-A7, BH-B1–BH-B7, BH-E1–BH-E5 | B | **Covered** |
+| A1.7 | no critical crash | recovery only: `SESSION_PROFILE_CONTRACT` SRA-4–SRA-8; `TAB_LIFECYCLE_CONTRACT` TLA-7, TLA-21, TLA-22 | B + H | **Partial** |
 | A1.8 | no material security regression | see §3.2 — four of the six §5.6 requirements have an owning criterion | B | **Partial** |
-| A1.9 | acceptable CPU/memory during ordinary use | `PERFORMANCE_BUDGET` P2, P4, P5 measure the Sunshine *delta*; nothing measures the absolute experience this line names | B + H | **Uncovered** |
+| A1.9 | acceptable CPU/memory during ordinary use | `PERFORMANCE_BUDGET` PB-2, PB-4, PB-5 measure the Sunshine *delta*; nothing measures the absolute experience this line names | B + H | **Uncovered** |
 
 **Stage 1: 2 covered, 5 partial, 2 uncovered.**
 
@@ -168,7 +187,7 @@ checks it anyway.
 
 **A1.3 — file upload.** No document in `docs/` mentions file upload, a file
 picker for upload, or drag-and-drop of a file into page content. The only nearby
-text is `GESTURE_CONTRACT` §9.11, which treats a file drag as a gesture
+text is `GESTURE_CONTRACT` GA-11, which treats a file drag as a gesture
 *cancellation* case. Upload is the half of this acceptance line with no owner at
 all, and it is the half that Gmail, Google Drive and the shopping sites in the
 corpus exercise on the first day.
@@ -211,10 +230,10 @@ question no document answers. See finding U5.
 | §5.6 | Requirement | Owning criterion | Verdict |
 |---|---|---|---|
 | 1 | deny arbitrary window-open; route approved requests through a policy handler | `PERMISSION_POLICY` POPUPS row — the default, not a handler | **Partial**, and contradicted; see C1 |
-| 2 | validate navigation schemes; only supported internal schemes get privileged handling | `OMNIBOX_CONTRACT` §13.8, §13.15, and the two checks folded into §13.16 (OS-3, OS-4, OS-6, OS-7); `SECURITY_CENTER_CONTRACT` 13 | **Covered** |
+| 2 | validate navigation schemes; only supported internal schemes get privileged handling | `OMNIBOX_CONTRACT` OMA-8, OMA-15, and the two checks folded into OMA-16 (OS-3, OS-4, OS-6, OS-7); `SECURITY_CENTER_CONTRACT` SCA-13 | **Covered** |
 | 3 | permission handler with default-deny until a per-origin decision | `PERMISSION_POLICY` defaults table and roll gate | **Partial**, and contradicted; see C2 |
-| 4 | warn before executable or script-like downloads; flag extension/MIME mismatch | `DOWNLOAD_SAFETY` 2, 5; **mismatch flagging: nothing** | **Partial** |
-| 5 | log security-relevant download decisions with provenance and user action | `DOWNLOAD_SAFETY` 4, 6 | **Covered** |
+| 4 | warn before executable or script-like downloads; flag extension/MIME mismatch | `DOWNLOAD_SAFETY` DSA-2, DSA-5; **mismatch flagging: nothing** | **Partial** |
+| 5 | log security-relevant download decisions with provenance and user action | `DOWNLOAD_SAFETY` DSA-4, DSA-6 | **Covered** |
 | 6 | separate Sunshine profile OAuth from Google login in a normal tab | **nothing** | **Uncovered** |
 
 §5.6.6 is the sharpest hole in Stage 1. No contract owns profile onboarding at
@@ -234,12 +253,12 @@ not any individual gap, is the finding for Stage 2.
 
 | ID | §6.8 item | Established by | Class | Verdict |
 |---|---|---|---|---|
-| A2.1 | crash and renderer-process recovery rate | behaviour: `SESSION_PROFILE_CONTRACT` 4–8; `TAB_LIFECYCLE_CONTRACT` §13.7, 21, 22. **rate: nothing** | B + H | **Partial** |
+| A2.1 | crash and renderer-process recovery rate | behaviour: `SESSION_PROFILE_CONTRACT` SRA-4–SRA-8; `TAB_LIFECYCLE_CONTRACT` TLA-7, TLA-21, TLA-22. **rate: nothing** | B + H | **Partial** |
 | A2.2 | broken-site and login failures | **nothing** — no contract owns site compatibility | H | **Uncovered** |
-| A2.3 | memory growth and background CPU | background CPU: `PERFORMANCE_BUDGET` P5 (zero-tolerance). memory: P2a, P4, `SIDE_PANEL_CONTRACT` D4, §12.8. **growth over a session: nothing** | O + B | **Partial** |
-| A2.4 | gesture activation, cancellation, false-positive, reversal rate | events: `GESTURE_CONTRACT` §7 and §9.17. behaviour: `GESTURE_CONTRACT` §9.1–16. **thresholds: nothing** | B + H | **Partial** |
+| A2.3 | memory growth and background CPU | background CPU: `PERFORMANCE_BUDGET` PB-5 (zero-tolerance). memory: PB-2a, PB-4, `SIDE_PANEL_CONTRACT` D4, SPA-8. **growth over a session: nothing** | O + B | **Partial** |
+| A2.4 | gesture activation, cancellation, false-positive, reversal rate | events: `GESTURE_CONTRACT` §7 and GA-17. behaviour: `GESTURE_CONTRACT` GA-1–GA-16. **thresholds: nothing** | B + H | **Partial** |
 | A2.5 | permission friction | **nothing** — `PERMISSION_POLICY` has no criteria of any kind | H | **Uncovered** |
-| A2.6 | download failure and security override rate | events: `DOWNLOAD_SAFETY` 6. **rate: nothing** | B + H | **Partial** |
+| A2.6 | download failure and security override rate | events: `DOWNLOAD_SAFETY` DSA-6. **rate: nothing** | B + H | **Partial** |
 | A2.7 | session restore failure rate | behaviour: `SESSION_PROFILE_CONTRACT` 1–8, 14. **rate: nothing** | B + H | **Partial** |
 
 **Stage 2: 0 covered, 5 partial, 2 uncovered.**
@@ -248,7 +267,7 @@ Notes on four rows.
 
 **A2.3** improved between the drafting of this index and its completion, which
 is worth recording as a method note: `docs/PERFORMANCE_BUDGET.md` landed and
-took background CPU from uncovered to a zero-tolerance rule — P5 holds that
+took background CPU from uncovered to a zero-tolerance rule — PB-5 holds that
 Sunshine's legitimate idle cost is zero, so *the existence* of a repeating
 Sunshine task is the regression, not its size. That is stronger than a
 threshold and it is partly class O (see §8). Memory is covered as a paired
@@ -299,27 +318,27 @@ this section is longer than the others.
 | ID | §7.9 candidate | Mechanism established by | Class | Verdict |
 |---|---|---|---|---|
 | A3.0 | at least three durable advantages | **nothing** — "durable" is undefined, and no document selects the three | H | **Unrunnable** |
-| A3.1 | gestures used repeatedly without accidental activation | `GESTURE_CONTRACT` §9.1–17, §7 | B + H | **Partial** |
-| A3.2 | workspaces separating Development / Research / Personal | `TAB_WORKSPACE_SPLIT_CONTRACT` §10 (bullets 2–4, 7), invariants 1–4, 7; `TAB_LIFECYCLE_CONTRACT` §13.11, 22; `ADVANCED_TABS_CONTRACT` §11.3, 5, 6 | B + H | **Covered** |
-| A3.3 | split view for research/implementation without tab thrash | `TAB_WORKSPACE_SPLIT_CONTRACT` §10 (split bullets 5–8), invariants 5, 6, 9–12; `TAB_LIFECYCLE_CONTRACT` §13.19–21; `SIDE_PANEL_CONTRACT` §12.15–16 | B + H | **Partial** |
-| A3.4 | command palette faster than menus for frequent operations | `COMMAND_PALETTE_CONTRACT` §14.12, 14 (determinism), §14.8 (frame budget). **speed: nothing** | B + H | **Uncovered** |
+| A3.1 | gestures used repeatedly without accidental activation | `GESTURE_CONTRACT` GA-1–GA-17, §7 | B + H | **Partial** |
+| A3.2 | workspaces separating Development / Research / Personal | `TAB_WORKSPACE_SPLIT_CONTRACT` §10 (bullets 2–4, 7), invariants 1–4, 7; `TAB_LIFECYCLE_CONTRACT` TLA-11, TLA-22; `ADVANCED_TABS_CONTRACT` ATA-3, ATA-5, ATA-6 | B + H | **Covered** |
+| A3.3 | split view for research/implementation without tab thrash | `TAB_WORKSPACE_SPLIT_CONTRACT` §10 (split bullets 5–8), invariants 5, 6, 9–12; `TAB_LIFECYCLE_CONTRACT` TLA-19–TLA-21; `SIDE_PANEL_CONTRACT` SPA-15–SPA-16 | B + H | **Partial** |
+| A3.4 | command palette faster than menus for frequent operations | `COMMAND_PALETTE_CONTRACT` CPA-12, CPA-14 (determinism), CPA-8 (frame budget). **speed: nothing** | B + H | **Uncovered** |
 | A3.5 | personally designed appearance readable and consistent | `DESIGN_SYSTEM_CONTRACT` R1–R14, S1–S12; `docs/SUNSHINE_NEW_TAB_SPEC.md` verification gate; `docs/WINDOWS_CHROMIUM_BUILD.md` visual gate | O + B + H | **Covered** |
 
 **Stage 3: 2 covered, 2 partial, 1 uncovered, 1 unrunnable.**
 
 **A3.4 is uncovered and is the interesting one.** `COMMAND_PALETTE_CONTRACT`
-establishes that the palette is *deterministic* — §14.12 requires a
+establishes that the palette is *deterministic* — CPA-12 requires a
 byte-identical result list for a given query across restarts and contexts,
-§14.14 requires the same command after a fixed prefix on a hundred trials. That
+CPA-14 requires the same command after a fixed prefix on a hundred trials. That
 is a precondition for being fast, since a list that reorders cannot build muscle
 memory, and the contract says so. It is not speed. No criterion measures
 time-to-execute, and no document establishes the menu baseline the comparison
 needs.
 
 There is also a direct conflict with the evidence §7.9 would require.
-`COMMAND_PALETTE_CONTRACT` §14.20 requires that a byte inspection of the stored
+`COMMAND_PALETTE_CONTRACT` CPA-20 requires that a byte inspection of the stored
 recents value find "no timestamp, count, selection handle, or query text", and
-§14.22 requires the list to be emptied by any history clear. Frequency-of-use
+CPA-22 requires the list to be emptied by any history clear. Frequency-of-use
 data therefore cannot come from the recents store — deliberately, and correctly.
 It must come from the `Sunshine.Command.*` telemetry events declared for all
 twenty-four registered commands in `first_party/commands.json`. No telemetry
@@ -516,10 +535,10 @@ checkout. S1 is reachable today by the same mechanism. The same applies to the
 host-collision half of `SECURITY_CENTER_CONTRACT` 13.
 
 **C7 — two acceptance criteria depend on an open product decision.**
-`ADVANCED_TABS_CONTRACT` §11.9 reads "produces the workspace outcome chosen in
-Q3", and Q3 is unanswered; `TAB_LIFECYCLE_CONTRACT` §13.8 offers two acceptable
+`ADVANCED_TABS_CONTRACT` ATA-9 reads "produces the workspace outcome chosen in
+Q3", and Q3 is unanswered; `TAB_LIFECYCLE_CONTRACT` TLA-8 offers two acceptable
 outcomes for the same question. Both are **Unrunnable** until Q3 is settled, in
-the same sense as `OMNIBOX_CONTRACT` §13.16 — which is permanently unreachable
+the same sense as `OMNIBOX_CONTRACT` OMA-16 — which is permanently unreachable
 by design under ADR 0003 and correctly says so. The contract set has three
 criteria that can never pass in their current state; only one of them says so.
 
@@ -562,16 +581,16 @@ wired to a test. In rough order of cost:
 
 | Criterion | Why it is offline-decidable | Status |
 |---|---|---|
-| `OMNIBOX_CONTRACT` §13.20 | a source search of first-party sources for a URL parser, TLD list, scheme table or host validator | not implemented |
-| `TAB_LIFECYCLE_CONTRACT` §13.2 | a source search for a stored per-tab lifecycle flag | not implemented |
-| `ADVANCED_TABS_CONTRACT` §11.10, source half | no pinned flag, recently-closed entry, duplicate set or canonical-URL table in any Sunshine-owned file | not implemented |
-| `SIDE_PANEL_CONTRACT` §12.9 | no Sunshine entry registered for the bookmarks or history panel ids — decidable against `first_party/registry.json` | not implemented |
-| `COMMAND_PALETTE_CONTRACT` §14.9, declared half | the reason-token sets exist or do not; every entry in `first_party/commands.json` currently declares `unavailable_reasons: []` | not implemented; currently empty for all 24 |
+| `OMNIBOX_CONTRACT` OMA-20 | a source search of first-party sources for a URL parser, TLD list, scheme table or host validator | not implemented |
+| `TAB_LIFECYCLE_CONTRACT` TLA-2 | a source search for a stored per-tab lifecycle flag | not implemented |
+| `ADVANCED_TABS_CONTRACT` ATA-10, source half | no pinned flag, recently-closed entry, duplicate set or canonical-URL table in any Sunshine-owned file | not implemented |
+| `SIDE_PANEL_CONTRACT` SPA-9 | no Sunshine entry registered for the bookmarks or history panel ids — decidable against `first_party/registry.json` | not implemented |
+| `COMMAND_PALETTE_CONTRACT` CPA-9, declared half | the reason-token sets exist or do not; every entry in `first_party/commands.json` currently declares `unavailable_reasons: []` | not implemented; currently empty for all 24 |
 | `DESIGN_SYSTEM_CONTRACT` S2–S12 | pattern checks over Sunshine-authored CSS in the patch stack | not implemented; S8 recorded as failing |
 | `DESIGN_SYSTEM_CONTRACT` S1 | token existence against pinned sources, by the mechanism `verify_pinned_upstream` already uses | not implemented; see C6 |
-| `SECURITY_CENTER_CONTRACT` 13, collision half | no first-party internal host collides with a compiled upstream host at the pinned revision | not implemented; see C6 |
+| `SECURITY_CENTER_CONTRACT` SCA-13, collision half | no first-party internal host collides with a compiled upstream host at the pinned revision | not implemented; see C6 |
 | `TAB_LIFECYCLE_CONTRACT` §15 storage decision | the per-workspace last-active-tab decision is absent from `scripts/workspace_model.py` | **implemented and checked** — `WindowWorkspaceState` stores it in window session extra-data as a pointer into Chromium's tabs, memory-only off the record |
-| `PERFORMANCE_BUDGET` P5, cheap form | a source assertion that no Sunshine-owned repeating timer or idle task exists; the contract states it needs no baseline and no build | not implemented |
+| `PERFORMANCE_BUDGET` PB-5, cheap form | a source assertion that no Sunshine-owned repeating timer or idle task exists; the contract states it needs no baseline and no build | not implemented |
 
 Ten cheap gates, all of them non-interposition checks — the class of criterion
 that fails when Sunshine has built something Chromium already owns, which is
@@ -585,24 +604,30 @@ defects on its first run — `font-weight: 650` outside the allowed set with no
 R10 result recorded, and a fluid band the declaration never stated — and both
 are fixed.
 
-Two groups are enforced but uncounted, because they have no stable identifier:
-the ordinal criteria above, and `PERFORMANCE_BUDGET`'s P1..P6, which collide
-with the P0/P1/P2 priority labels every contract uses. §9's proposal to give
-those lists stable prefixes is what would close the gap.
+Two groups used to be enforced but uncounted, because they had no stable
+identifier: the ordinal criteria above, and `PERFORMANCE_BUDGET`'s P1..P6, which
+collided with the P0/P1/P2 priority labels every contract uses. Both now have
+prefixes — §2 lists them, and the budgets are `PB-1`…`PB-6` — so a check of one
+of them has something durable to claim. Declaring an identifier does not enforce
+it: the claim still has to be written into the check that performs the work, and
+`scripts/verify_first_party_surfaces.py` is where the four checks named above
+wait for one.
 
 Everything else divides as follows. Class **B** — the great majority: every
 criterion in `TAB_LIFECYCLE_CONTRACT` §13, `OMNIBOX_CONTRACT` §13,
 `BROWSER_UTILITIES_CONTRACT`, `SESSION_PROFILE_CONTRACT`,
 `BOOKMARKS_HISTORY_CONTRACT`, `DOWNLOAD_SAFETY`, `SECURITY_CENTER_CONTRACT`,
-`GESTURE_CONTRACT` §9.1–14 and 16–17, `SIDE_PANEL_CONTRACT` §12.1–18,
-`COMMAND_PALETTE_CONTRACT` §14.1–26 and 32–33, and the `TAB_WORKSPACE_SPLIT`
+`GESTURE_CONTRACT` GA-1–GA-14 and GA-16–GA-17, `SIDE_PANEL_CONTRACT`
+SPA-1–SPA-18, `COMMAND_PALETTE_CONTRACT` CPA-1–CPA-26 and CPA-32–CPA-33, and
+the `TAB_WORKSPACE_SPLIT`
 and `ADVANCED_TABS` evidence bullets.
 
 Class **H** — needs a person at a screen: `DESIGN_SYSTEM_CONTRACT` R1–R14; the
 `docs/SUNSHINE_NEW_TAB_SPEC.md` verification gate; the visual gate in
-`docs/WINDOWS_CHROMIUM_BUILD.md`; `DOWNLOAD_SAFETY` 7;
-`COMMAND_PALETTE_CONTRACT` §14.18 and 27–31; `SIDE_PANEL_CONTRACT` §12.19–23;
-`GESTURE_CONTRACT` §9.15 and 18; the `PERMISSION_POLICY` roll-gate smoke test;
+`docs/WINDOWS_CHROMIUM_BUILD.md`; `DOWNLOAD_SAFETY` DSA-7;
+`COMMAND_PALETTE_CONTRACT` CPA-18 and CPA-27–CPA-31; `SIDE_PANEL_CONTRACT`
+SPA-19–SPA-23; `GESTURE_CONTRACT` GA-15 and GA-18; the `PERMISSION_POLICY`
+roll-gate smoke test;
 and the UI-surfaces row of the extension matrix.
 
 A qualification on that class: several are stated as human observations but are
@@ -632,7 +657,7 @@ implementation.
 | P1 | Which three of the five §7.9 candidates are the claim, and what makes an advantage "durable"? | Stage 3 exit |
 | P1 | May a live-web dogfood observation be cited as evidence for a contract criterion that forbids live sites, and vice versa? See §1.3 and C8. | all stages |
 | P1 | Who owns site compatibility, and where is a broken site filed? | Stage 2 |
-| P2 | Should the numbered acceptance criteria be given stable identifier prefixes, so `scripts/trace_invariants.py` can follow them as it follows AT-, SC- and OS-? Today they are addressable only as ordinals in renumbering lists. | tooling |
+| ~~P2~~ | ~~Should the numbered acceptance criteria be given stable identifier prefixes?~~ **Taken.** Every ordinal list in §2 carries a per-document prefix, with the ordinals unchanged so existing citations still resolve, and `PERFORMANCE_BUDGET`'s budgets are `PB-1`…`PB-6` rather than `P1`…`P6`. `TAB_WORKSPACE_SPLIT_CONTRACT` §10's unnumbered bullets are the one list left without a handle. | settled |
 
 Two questions already open elsewhere are load-bearing here and are not restated
 as new: `ADVANCED_TABS_CONTRACT` Q3, which leaves two acceptance criteria

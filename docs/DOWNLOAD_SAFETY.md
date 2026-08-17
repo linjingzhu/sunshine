@@ -105,6 +105,9 @@ build plus UI tests can run.
 Use Chromium test fixtures or a local test server; tests must not depend on a
 live reputation service or public website.
 
+`DSA-` is the prefix for these tests, and the ordinals are unchanged: test 6 is
+`DSA-6`, so a citation written before this revision still resolves.
+
 1. **DSA-1. Normal file regression**
    - Given a `NOT_DANGEROUS` download, the standard row and standard actions are
      unchanged.

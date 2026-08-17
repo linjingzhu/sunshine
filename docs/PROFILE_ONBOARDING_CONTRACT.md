@@ -420,7 +420,7 @@ deletion into a remote one.
 
 **PO-R19 — deleting a profile must never delete or damage another.** Including
 the case where the deleted profile is the last one, where upstream creates a
-replacement. `docs/SESSION_PROFILE_CONTRACT.md` criterion 12 already tests the
+replacement. `docs/SESSION_PROFILE_CONTRACT.md` SRA-12 already tests the
 neighbouring-profile half; §10 adds the last-profile half.
 
 ---
@@ -503,7 +503,7 @@ Every criterion below is **NOT RUN**, and every one that is not class O is
 | PO-A6 | In a build produced by this repository's pipeline, the profile's account-consistency method is *disabled* and the profile has no primary account at either consent level, on first launch and after a restart. | B |
 | PO-A7 | Sign in to a Google property in an ordinary tab, restart, and assert the browser still has no primary account at either consent level, that no refresh token exists in the profile's token storage, and that no identity is shown in any browser surface. | B |
 | PO-A8 | Assert the sync service reports no primary account and is not active, in both transport and feature senses, with no user action having been taken to disable it. | B |
-| PO-A9 | Create a second profile through the picker without an account. Assert it is usable, isolated per `docs/SESSION_PROFILE_CONTRACT.md` criterion 9, and that its creation issued no network request. | B |
+| PO-A9 | Create a second profile through the picker without an account. Assert it is usable, isolated per `docs/SESSION_PROFILE_CONTRACT.md` SRA-9, and that its creation issued no network request. | B |
 | PO-A10 | Delete a profile that has fixture bookmarks, history, cookies, a saved password, a workspace, and a downloaded file. Assert: the surviving profile is untouched; every Sunshine metadata record keyed to the deleted profile is gone; the profile is absent from the picker and the last-active list; and after the next restart its directory is absent from disk. | B |
 | PO-A11 | Delete the last remaining profile. Assert a usable replacement profile exists, the browser remains launchable, and no data from the deleted profile appears in it. | B |
 | PO-A12 | Interrupt a deletion by terminating the browser between marking and disk deletion. Assert the next startup completes the deletion and that the partially deleted profile is not offered as usable. | B |

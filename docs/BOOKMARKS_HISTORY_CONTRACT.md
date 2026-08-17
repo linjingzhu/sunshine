@@ -151,6 +151,11 @@ rendering, never become a recovery source, and never cross profile boundaries.
 All tests use a temporary Chromium profile and local test-server URLs. They must
 not depend on live websites or synchronization services.
 
+`BH-` is the prefix for these tests. Each group restarts at 1, so the group
+carries a letter and the ordinal is unchanged: test 3 of *Back, forward, and
+recently closed* is `BH-C3`. The letters run `A` to `E` in the order the groups
+appear below.
+
 ### Bookmark CRUD and search
 
 1. **BH-A1.** Create two folders and bookmarks with duplicate titles but

@@ -36,13 +36,23 @@ INVARIANT = re.compile(r"\b([A-Z]{1,3}-?[A-Z]?\d{1,2})\b")
 # Families a contract actually uses. Without this the pattern also matches
 # version numbers, Chromium symbols and ordinary prose like "P1".
 #
-# "P" is deliberately absent even though PERFORMANCE_BUDGET numbers its budgets
-# P1..P6. Every contract also uses P0/P1/P2 for decision priority, and those are
-# far more common -- 23 occurrences in that document alone -- so admitting the
-# family would turn a priority label into an invariant everywhere. The budgets
-# need a distinct prefix before they can be counted; until then their checks are
-# real and uncounted, like the ordinal criteria.
-FAMILIES = ("AT", "OS", "SC", "OT", "OC", "OP", "PO", "S", "D", "R", "E", "SP")
+# Bare "P" is still absent, and now for a narrower reason than before. Every
+# contract uses P0/P1/P2 for decision priority -- 23 occurrences in
+# PERFORMANCE_BUDGET alone -- so admitting "P" would turn a priority label into
+# an invariant everywhere. The budgets that used to need it were renamed to
+# PB-1..PB-6, so they are counted under their own family and the priority
+# labels stay prose. PERFORMANCE_BUDGET section 4 states the resulting rule: a
+# bare P number in that document is always a priority.
+#
+# The acceptance families carry a trailing "A" (ATA, OMA, CPA, ...) so that a
+# document's acceptance criteria cannot be confused with the invariant family
+# declared in the same document -- SP-n invariants and SPA-n criteria coexist.
+FAMILIES = (
+    "AT", "OS", "SC", "OT", "OC", "OP", "PO", "S", "D", "R", "E", "SP", "XM",
+    # Acceptance criteria and budgets, one prefix per owning document.
+    "ATA", "OMA", "TLA", "CPA", "SPA", "SCA", "GA", "BUA", "SRA", "DSA", "BH",
+    "TA", "PB",
+)
 
 
 def _identifiers(text: str) -> set[str]:

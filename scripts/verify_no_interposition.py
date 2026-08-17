@@ -6,11 +6,11 @@ Four contract criteria say the same thing in four places: the defect is the
 decidable against this repository today, with no build and no baseline, which
 `docs/ACCEPTANCE_SUITES.md` section 8 lists them as and nothing implemented.
 
-    docs/OMNIBOX_CONTRACT.md      section 13.20  no second URL parser
+    docs/OMNIBOX_CONTRACT.md      OMA-20         no second URL parser
     docs/TAB_LIFECYCLE_CONTRACT.md section 13.2  no stored per-tab lifecycle flag
     docs/ADVANCED_TABS_CONTRACT.md section 11.10 no pinned/recently-closed/
                                                  duplicate/canonical-URL store
-    docs/PERFORMANCE_BUDGET.md    P5, cheap form no repeating timer or idle task
+    docs/PERFORMANCE_BUDGET.md    PB-5, cheap form no repeating timer or idle task
 
 Two design rules make the difference between a usable check and one the next
 person deletes.
@@ -34,12 +34,13 @@ module- and class-level declarations and dict literals, conservative patterns
 for added patch lines) and only those names are tested. Function locals are not
 declared data and are not collected.
 
-Enforces: OS-9, AT-1, AT-9, AT-12, P5.
+Enforces: OS-9, AT-1, AT-9, AT-12, PB-5, OMA-20.
 
-The two remaining criteria have no identifier to claim. `OMNIBOX_CONTRACT`
-13.20 is an ordinal in a renumbering list, and `TAB_LIFECYCLE_CONTRACT` calls
-its rule "invariant 1" with no prefix; `docs/ACCEPTANCE_SUITES.md` section 9
-already records that as a defect in the contract set.
+One criterion still has no identifier to claim: `TAB_LIFECYCLE_CONTRACT` calls
+its rule "invariant 1" with no prefix. The acceptance lists were given stable
+prefixes -- which is how `OMNIBOX_CONTRACT` 13.20 became `OMA-20` and became
+claimable -- but the bare-ordinal *invariant* lists were left alone, and
+`docs/ACCEPTANCE_SUITES.md` section 9 still records that as a defect.
 """
 
 from __future__ import annotations
@@ -286,10 +287,10 @@ def _omnibox_field(_name: str, segments: tuple[str, ...]) -> str | None:
 
 
 def _repeating_field(_name: str, segments: tuple[str, ...]) -> str | None:
-    """PERFORMANCE_BUDGET P5: Sunshine's legitimate idle cost is zero."""
+    """PERFORMANCE_BUDGET PB-5: Sunshine's legitimate idle cost is zero."""
 
     if {"timer", "timers", "interval", "poll", "polling", "heartbeat"} & set(segments):
-        return "a repeating timer or poll (P5)"
+        return "a repeating timer or poll (PB-5)"
     return None
 
 
@@ -327,7 +328,7 @@ PARSER_SYMBOLS = (
 NAVIGATION_SYMBOLS = ("LoadURLWithParams", "OpenURLFromTab", "OpenURLParams", "NavigateParams",
                       "location.assign(", "location.replace(", "location.href =", "window.open(")
 
-# P5. `setTimeout` is absent on purpose: one-shot is legitimate and a
+# PB-5. `setTimeout` is absent on purpose: one-shot is legitimate and a
 # self-rearming one is not distinguishable from it by any pattern worth
 # defending. The repeating and idle-triggered forms are unambiguous.
 REPEATING_SYMBOLS = ("setInterval(", "requestIdleCallback(", "base::RepeatingTimer",
@@ -363,7 +364,7 @@ def check_declared_fields(root: Path, failures: list[str]) -> None:
 
 
 def check_no_second_parser(root: Path, failures: list[str]) -> None:
-    """OMNIBOX_CONTRACT 13.20 and OS-9."""
+    """OMNIBOX_CONTRACT OMA-20 and OS-9."""
 
     for label, text in sunshine_sources(root):
         for description, symbols in PARSER_SYMBOLS:
@@ -382,12 +383,12 @@ def check_no_second_parser(root: Path, failures: list[str]) -> None:
 
 
 def check_no_repeating_task(root: Path, failures: list[str]) -> None:
-    """PERFORMANCE_BUDGET P5, cheap form."""
+    """PERFORMANCE_BUDGET PB-5, cheap form."""
 
     for label, text in sunshine_sources(root):
         for symbol in REPEATING_SYMBOLS:
             if symbol in text:
-                failures.append(f"{label}: {symbol!r} is a Sunshine-owned repeating or idle task (P5)")
+                failures.append(f"{label}: {symbol!r} is a Sunshine-owned repeating or idle task (PB-5)")
 
 
 def check_no_per_tab_sunshine_store(root: Path, failures: list[str]) -> None:

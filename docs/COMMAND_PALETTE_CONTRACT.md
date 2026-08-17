@@ -589,7 +589,7 @@ an interpreter of user intent.**
 - `Ctrl+K` opens the palette. It is registered as a browser accelerator handled
   in the browser process, so that a web page cannot consume it. Whether the
   pinned revision delivers this chord to the renderer first in any circumstance
-  is `NOT VERIFIED` and is acceptance criterion 15.
+  is `NOT VERIFIED` and is acceptance criterion CPA-15.
 - The palette is per-window. Opening it does not change which tab is active, does
   not change which pane of a split is focused, and does not navigate.
 - Opening captures a **focus token** for the element that had focus.
@@ -772,6 +772,10 @@ Further requirements:
 
 Runnable once a native build and a palette exist. All are `NOT RUN`.
 
+`CPA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `CPA-9`, so a citation written before this revision still
+resolves.
+
 **Dispatch and equivalence**
 
 1. **CPA-1.** A command invoked from the palette and the same command invoked
@@ -921,7 +925,7 @@ Section 7.8 is complete when, in order:
 3. every registered command has a localised title, enforced by a build check;
 4. a first-party module owns the palette surface and its opening command;
 5. the palette dispatches through the single command service; and
-6. criteria 1–33 have passed on a native build of the pinned revision on the
+6. CPA-1 to CPA-33 have passed on a native build of the pinned revision on the
    supported desktop platforms.
 
 Items 1 and 2 are blocking dependencies on the command registry, not palette

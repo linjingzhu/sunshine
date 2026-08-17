@@ -181,6 +181,14 @@ below:
 Six budgets. Each states what is measured, at what boundary, against what
 baseline, and what counts as a regression.
 
+`PB-` is the prefix for this document's budgets, and the ordinals are unchanged:
+the budget written `P1` through `P6` before this revision is `PB-1` through
+`PB-6` now, and the sub-budgets of `PB-2` keep their letters. The rename exists
+because a bare `P` number cannot be told apart from the P0/P1/P2 decision
+priority every contract uses — including §9 of this document — so a budget could
+not be cited durably or counted by `scripts/trace_invariants.py`. **A `P` number
+in this document is always a decision priority; a budget is always `PB-`.**
+
 Handoff §9.2 names six measurements. They are covered here as follows, so that
 none is left implied:
 
@@ -196,8 +204,8 @@ none is left implied:
 ### PB-1 — Side panel registration and mount
 
 **Already budgeted.** `docs/SIDE_PANEL_CONTRACT.md` §4.6 defines detections
-D1–D7 and §12 criteria 1–8; those are the panel performance contract and are not
-restated, renumbered, or amended here.
+D1–D7 and §12 criteria SPA-1 to SPA-8; those are the panel performance
+contract and are not restated, renumbered, or amended here.
 
 What this document adds is only what §4.6 defers to §9.2:
 
@@ -227,7 +235,7 @@ be one, in two opposite directions.
 |---|---|
 | Measured | The count of tabs a window reports visible; and resident memory over a fixture of 30 tabs distributed across three workspaces, versus the same 30 tabs in one workspace |
 | Boundary | Visibility as Chromium reads it for lifecycle purposes (`components/performance_manager/public/decorators/tab_page_decorator.h`, `chrome/browser/performance_manager/policies/discard_eligibility_policy.h`); memory via `chrome/browser/metrics/process_memory_metrics_emitter.h` |
-| Baseline | Zero-tolerance on the count: exactly one visible tab, or exactly two while a split is open. This is `docs/TAB_LIFECYCLE_CONTRACT.md` criterion 19 and `docs/ADVANCED_TABS_CONTRACT.md` criterion 7 stated as a budget. For memory, the paired Sunshine-disabled build with the same 30 tabs |
+| Baseline | Zero-tolerance on the count: exactly one visible tab, or exactly two while a split is open. This is `docs/TAB_LIFECYCLE_CONTRACT.md` TLA-19 and `docs/ADVANCED_TABS_CONTRACT.md` ATA-7 stated as a budget. For memory, the paired Sunshine-disabled build with the same 30 tabs |
 | Regression | Any visible count other than 1 or 2. Any implementation that keeps hidden tabs marked visible to make a switch feel faster — that is trading the memory benefit of hiding for latency, and it is the failure §7.6-style "keep it warm" reasoning always produces |
 
 The user-visible consequence is accepted and already stated in
@@ -240,7 +248,7 @@ may reload tabs. That is native behaviour and is not a Sunshine regression.
 |---|---|
 | Measured | The rate of a timer and of an animation in the **unfocused** pane, and the absence of any freeze or discard transition for a tab in an open split |
 | Boundary | Blink's throttling of a hidden or occluded contents, and Chromium's discard eligibility for the same |
-| Baseline | Zero-tolerance. The unfocused pane runs at the same rate as the focused one. This is `docs/TAB_LIFECYCLE_CONTRACT.md` criterion 19 and §9's row stating that a frozen or discarded paned tab "must not happen while the split is open" |
+| Baseline | Zero-tolerance. The unfocused pane runs at the same rate as the focused one. This is `docs/TAB_LIFECYCLE_CONTRACT.md` TLA-19 and §9's row stating that a frozen or discarded paned tab "must not happen while the split is open" |
 | Regression | Any throttling of the unfocused pane, any freeze or discard of a paned tab, any handling of such an event by dissolving the split instead of fixing the visibility |
 
 This budget exists because the failure is user-visible in the worst way: a pane
@@ -288,7 +296,7 @@ correctness invariant elsewhere and a latency defect here:
    a session that switches workspaces repeatedly to perform zero moves.
 3. **No reload caused by the switch.** Switching away and back must not reload a
    crashed tab or a tab Chromium did not discard
-   (`docs/TAB_LIFECYCLE_CONTRACT.md` criterion 22).
+   (`docs/TAB_LIFECYCLE_CONTRACT.md` TLA-22).
 4. **Exactly one activation change** per switch, observable once.
 
 ### PB-4 — Startup and session restore
@@ -399,13 +407,15 @@ Silence here would be read as oversight by a later wave. It is not.
 
 Two classes of gate, and they behave differently:
 
-- **Pass/fail invariants** — PB-1's D1 mount counter at zero, PB-2a's visible-tab
-  count, PB-2b's unfocused-pane rate, PB-3's zero writes and zero moves, PB-4's
-  file-read and scaling rules, PB-5's absence of a repeating task. These need no
-  baseline, fail CI outright, and are implementable as browser tests as soon as
-  the code exists. They are the majority of this document on purpose.
-- **Statistical deltas** — PB-1's D4, PB-2a's and PB-2c's counts, PB-3's latency, PB-4's
-  startup and restore times. These require B1 and the provenance of §2.3.
+- **Pass/fail invariants** — PB-1's D1 mount counter at zero, PB-2a's
+  visible-tab count, PB-2b's unfocused-pane rate, PB-3's zero writes and zero
+  moves, PB-4's file-read and scaling rules, PB-5's absence of a repeating task.
+  These need no baseline, fail CI outright, and are implementable as browser
+  tests as soon as the code exists. They are the majority of this document on
+  purpose.
+- **Statistical deltas** — PB-1's D4, PB-2a's and PB-2c's counts, PB-3's
+  latency, PB-4's startup and restore times. These require B1 and the provenance
+  of §2.3.
 
 At an upstream roll, **baselines are re-taken, not carried**. A roll moves the
 absolute number for reasons that are upstream's; the Sunshine *delta* is the
@@ -420,7 +430,7 @@ compensating downstream creates a second owner of upstream behaviour.
 
 | Document | Finding |
 |---|---|
-| `docs/SIDE_PANEL_CONTRACT.md` §4.6 D4 and §12 criterion 8 | Both defer their baseline to "§9.2", which says only "set initial budgets during implementation and refine after baseline profiling" — a pointer to an instruction, not to a place. This document is the place. When that contract is next revised, the pointer should read `docs/PERFORMANCE_BUDGET.md`. No behaviour changes; only the reference resolves |
+| `docs/SIDE_PANEL_CONTRACT.md` §4.6 D4 and SPA-8 | Both defer their baseline to "§9.2", which says only "set initial budgets during implementation and refine after baseline profiling" — a pointer to an instruction, not to a place. This document is the place. When that contract is next revised, the pointer should read `docs/PERFORMANCE_BUDGET.md`. No behaviour changes; only the reference resolves |
 | Handoff §9.2, "first remote-content presentation" | Names no instrument, and at the pinned tag there are several that could be meant. §3 resolves it to `Startup.FirstWebContents.NonEmptyPaint3` and `.FirstContentfulPaint` |
 | Handoff §9.2, "memory with 10/30 tabs" | Does not state the workspace distribution, which is the only variable that makes the number Sunshine's rather than Chromium's. PB-2a and PB-4 fixture (c) supply it |
 | Handoff §9.2, "browser launch" | Does not distinguish cold from warm. `Startup.Temperature` exists at the pinned tag precisely because the distinction changes the number more than any product decision would |

@@ -534,6 +534,10 @@ memory-only there, which the existing models already encode.
 Checkable once a native build exists. Criteria 1–4 are the ones that catch a
 mirrored tab model; run them first.
 
+`TLA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `TLA-9`, so a citation written before this revision still
+resolves.
+
 **Derivation**
 
 1. **TLA-1.** For a scripted sequence of at least 200 operations (navigate,
@@ -620,12 +624,12 @@ mirrored tab model; run them first.
     changes — none from navigation, activation, title, favicon, freeze, discard,
     or crash.
 24. **TLA-24.** An off-the-record window performs zero persistent Sunshine
-    writes across the whole of criteria 1–23.
+    writes across the whole of TLA-1 to TLA-23.
 
 **Roll gate**
 
 25. **TLA-25.** At each upstream roll, the signals in section 4.2 still exist or
-    their replacements are identified, and criteria 1–24 are re-run. A changed
+    their replacements are identified, and TLA-1 to TLA-24 are re-run. A changed
     successor-selection rule upstream is adopted, not compensated for.
 
 ## 14. Open decisions
@@ -652,12 +656,12 @@ mirrored tab model; run them first.
   is the only place in this repository where pinned-tag symbols have actually
   been checked, and it does not cover them.
 - Whether the restore path carries tab session extra-data at the pinned tag is
-  **NOT VERIFIED**; criterion 8 exists to settle it, and section 12's storage
+  **NOT VERIFIED**; TLA-8 exists to settle it, and section 12's storage
   decision for the per-workspace last active tab is **NOT IMPLEMENTED** in
   `scripts/workspace_model.py`.
 - Chromium's exact successor-selection rule was not read at the pinned tag. This
   contract deliberately does not restate it (7.2), so the risk is limited to the
-  restriction in 7.1 being applied at the wrong point — which criteria 9 and 10
+  restriction in 7.1 being applied at the wrong point — which TLA-9 and TLA-10
   detect.
 - No command was registered and none is proposed by name here.
   `first_party/commands.json` remains the only authoritative list.
@@ -666,5 +670,5 @@ mirrored tab model; run them first.
 
 This contract is complete when reviewed. Handoff section 5.4 is complete when a
 native build exists, the projection derives every state from native predicates,
-the close transaction and successor restriction are implemented, and criteria
-1–25 have been run and recorded on the supported desktop platforms.
+the close transaction and successor restriction are implemented, and TLA-1 to
+TLA-25 have been run and recorded on the supported desktop platforms.

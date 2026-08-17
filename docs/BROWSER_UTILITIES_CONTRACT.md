@@ -301,6 +301,10 @@ These are checkable at runtime once a native build exists. They test that
 Sunshine has *not* interposed itself; all of them should pass on an unmodified
 pinned build, and that is the point.
 
+`BUA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `BUA-9`, so a citation written before this revision still
+resolves. The *Invariants* section above is numbered separately.
+
 **Find in Page**
 
 1. **BUA-1.** On a fixture page with a known number of matches, including
@@ -370,9 +374,9 @@ pinned build, and that is the point.
 **Roll gate**
 
 22. **BUA-22.** At each upstream roll, the source paths in *Implementation
-    authority* still exist or their replacements are identified, and criteria
-    1–21 are re-run. A changed upstream behaviour blocks the roll for review; it
-    is not corrected by layering a Sunshine implementation over Chromium.
+    authority* still exist or their replacements are identified, and BUA-1 to
+    BUA-21 are re-run. A changed upstream behaviour blocks the roll for review;
+    it is not corrected by layering a Sunshine implementation over Chromium.
 
 ## Not verified
 
@@ -396,7 +400,7 @@ disclaimer was more cautious than the evidence demanded, and a disclaimer that
 outlives its cause teaches readers to discount the ones that are still true.
 
 Any claim that these utilities work in Sunshine is unsupported until a native
-build exists and criteria 1–22 have been run and recorded.
+build exists and BUA-1 to BUA-22 have been run and recorded.
 
 ## Completion gate
 

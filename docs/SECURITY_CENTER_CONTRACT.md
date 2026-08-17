@@ -29,7 +29,7 @@ security surfaces a user cannot tell apart is the failure mode this page can
 least afford. At the pinned revision that header contains no `sunshine` host, so
 `sunshine-security` collides with nothing there today **[read]**. The absence is
 a fact about one revision, not a property of the name: the implementing wave
-re-checks it at every upstream roll, per acceptance criterion 13.
+re-checks it at every upstream roll, per acceptance criterion SCA-13.
 
 This wave is intentionally **documentation-only**. It adds no downstream patch,
 no WebUI resource, and no provider implementation. Nothing here has been
@@ -245,6 +245,10 @@ by calling Chromium internals to avoid registering them.
 
 Use Chromium test fixtures and a local test server. No test may depend on a live
 reputation service, a real provider endpoint, or a public website.
+
+`SCA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 13 is `SCA-13`. `SC-` remains the prefix for the invariants each
+criterion cites; the two do not overlap.
 
 1. **SCA-1. Chromium block is never relaxed.** With an interstitial-triggering
    fixture and a stubbed provider returning `safe`, the interstitial is shown,

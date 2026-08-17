@@ -11,15 +11,19 @@ model duplicating `SplitTabCollection` because nobody checked.
 The host-collision check needs the pinned sources and lives in its own function
 so the tests can stub it and the suite stays offline.
 
-No `Enforces:` claim is made, deliberately. These four criteria are ordinals in
-renumbering lists -- `SIDE_PANEL_CONTRACT` §12.9, `SECURITY_CENTER_CONTRACT` 13,
-`COMMAND_PALETTE_CONTRACT` §14.9, `TAB_LIFECYCLE_CONTRACT` §15 -- not stable
-identifiers, so there is nothing durable to cite. An invented one would inflate
-the coverage number while pointing at nothing, and `scripts/trace_invariants.py`
-rejects exactly that: it caught two invented identifiers in an earlier draft of
-this file. `docs/ACCEPTANCE_SUITES.md` §9 records giving those lists stable
-prefixes as an open decision; until it is taken, these checks are real and
-uncounted.
+Enforces: SPA-9, CPA-9, SCA-13.
+
+Three of the four are now citable. They were ordinals in renumbering lists when
+this file was written -- `SIDE_PANEL_CONTRACT` §12.9, `COMMAND_PALETTE_CONTRACT`
+§14.9, `SECURITY_CENTER_CONTRACT` 13 -- so no claim was made, because an
+invented identifier would inflate the coverage number while pointing at nothing.
+`scripts/trace_invariants.py` rejects exactly that, and it caught two invented
+identifiers in an earlier draft of this file. The acceptance lists have since
+been given stable prefixes, and the ordinals were preserved through the rename,
+so §12.9 is `SPA-9` and the same check now cites something durable.
+
+The fourth remains uncounted: `TAB_LIFECYCLE_CONTRACT` §15 is a section, not a
+criterion, and nothing was invented to cover that.
 """
 
 from __future__ import annotations
@@ -38,7 +42,7 @@ MIRROR = "https://raw.githubusercontent.com/chromium/chromium/{version}/{path}"
 HOST_HEADER = "chrome/common/webui_url_constants.h"
 HOST_CONSTANT = re.compile(r'kChromeUI[A-Za-z0-9]*Host\[\]\s*=\s*"([a-z0-9._-]+)"')
 
-# Panels Chromium already registers. `SIDE_PANEL_CONTRACT` §12.9: the bookmarks
+# Panels Chromium already registers. `SIDE_PANEL_CONTRACT` SPA-9: the bookmarks
 # and history panels present must be Chromium's, with no Sunshine entry -- a
 # parallel entry makes the extension-registered panels invisible or misplaced.
 CHROMIUM_OWNED_PANELS = ("bookmark", "history")
@@ -87,7 +91,7 @@ def sunshine_hosts(root: Path) -> set[str]:
 
 
 def check_panels(root: Path, failures: list[str]) -> None:
-    """SIDE_PANEL §12.9: no Sunshine entry for a Chromium-owned panel."""
+    """SIDE_PANEL SPA-9: no Sunshine entry for a Chromium-owned panel."""
 
     registry = json.loads((root / "first_party/registry.json").read_text(encoding="utf-8"))
     for entry in registry["modules"]:
@@ -101,7 +105,7 @@ def check_panels(root: Path, failures: list[str]) -> None:
 
 
 def check_reason_tokens(root: Path, failures: list[str]) -> None:
-    """COMMAND_PALETTE §14.9, declared half.
+    """COMMAND_PALETTE CPA-9, declared half.
 
     A command with a predicate must declare the reasons that predicate can
     return, or a disabled row cannot explain itself -- which is the whole
@@ -132,7 +136,7 @@ def check_last_active_tab_owner(root: Path, failures: list[str]) -> None:
 
 
 def check_host_collisions(root: Path, failures: list[str], version: str) -> None:
-    """SECURITY_CENTER 13, collision half.
+    """SECURITY_CENTER SCA-13, collision half.
 
     Sunshine's surfaces live under Chromium's internal scheme (ADR 0003), so a
     host is only Sunshine's while upstream does not take it. Upstream adds hosts

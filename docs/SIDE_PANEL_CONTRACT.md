@@ -470,6 +470,11 @@ Sunshine code must not introduce:
 Checkable once a native build exists. Criteria 1–8 are the ones that decide
 whether §7.6 was actually implemented.
 
+`SPA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `SPA-9`, so a citation written before this revision still
+resolves. `D` and `E` remain the prefixes for the §4.6 detections and the §9
+eligibility rules.
+
 **Lazy mount**
 
 1. **SPA-1.** Open five windows and restore a thirty-tab session without
@@ -546,7 +551,7 @@ whether §7.6 was actually implemented.
 
 26. **SPA-26.** At each upstream roll, the source paths in §13 still exist or
     their replacements are identified, upstream still creates entry content on
-    first show, and criteria 1–25 are re-run. A changed upstream behaviour
+    first show, and SPA-1 to SPA-25 are re-run. A changed upstream behaviour
     blocks the roll for review; it is not corrected by layering a Sunshine
     implementation over Chromium.
 
@@ -610,5 +615,5 @@ Nothing in this document has been executed. Specifically:
 This contract is complete when reviewed. Section 7.6 is complete when the two
 inherited panels have been exercised unmodified on a native pinned build, the two
 Sunshine-contributed panels exist as registered modules with registered commands,
-criteria 1–26 have passed on the supported desktop platforms, and the first
+SPA-1 to SPA-26 have passed on the supported desktop platforms, and the first
 native build has recorded the baselines that §4.6 gates against.

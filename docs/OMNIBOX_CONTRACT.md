@@ -458,6 +458,10 @@ invalidated by native observers, and must never become a source of truth.
 Runnable once a native build exists. Most of them pass on an unmodified pinned
 build; that is the point — they test that Sunshine has *not* interposed itself.
 
+`OMA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `OMA-9`. The `OC-`, `OP-`, `OS-` and `OT-` rules keep their own
+identifiers and are cited from criteria below unchanged.
+
 **Classification corpus**
 
 1. **OMA-1.** Every input in section 3 is classified on the pinned build and its
@@ -556,11 +560,11 @@ build; that is the point — they test that Sunshine has *not* interposed itself
 
 22. **OMA-22.** At each upstream roll the paths in section 2 still exist or
     their replacements are identified — this surface has already moved once —
-    and criteria 1–15 and 17–21 are re-run, together with the two checks folded
-    into criterion 16; criterion 16 itself is unreachable and is never re-run
+    and OMA-1 to OMA-15 and OMA-17 to OMA-21 are re-run, together with the two
+    checks folded into OMA-16; OMA-16 itself is unreachable and is never re-run
     while ADR 0003 stands. The roll additionally re-checks that no first-party
     internal host has collided with a host upstream added, per
-    `docs/SECURITY_CENTER_CONTRACT.md` acceptance criterion 13. A changed
+    `docs/SECURITY_CENTER_CONTRACT.md` acceptance criterion SCA-13. A changed
     upstream classification blocks the roll for review; it is never corrected by
     adding a Sunshine rule.
 
@@ -590,7 +594,7 @@ What was **NOT RUN**:
 repository, so nothing above could be observed rather than read.
 
 Any claim that Sunshine's omnibox behaves as described is unsupported until a
-native build exists and criteria 1–22 have been run and recorded.
+native build exists and OMA-1 to OMA-22 have been run and recorded.
 
 ## 15. Decisions required from the product owner
 
@@ -604,9 +608,9 @@ native build exists and criteria 1–22 have been run and recorded.
 ## 16. Completion gate
 
 This contract is complete when reviewed. Section 5.3 of the handoff is complete
-when the corpus fixture exists, criteria 1–15 and 17–21 have passed on a native
-pinned build together with the two checks folded into criterion 16 — criterion
-16 itself cannot pass, because ADR 0003 leaves it no build to run on — and the
-roll gate in criterion 22 has run at least once. No part of it is
-complete by virtue of Sunshine having written code, because the correct amount
-of Sunshine code on this path is none.
+when the corpus fixture exists, OMA-1 to OMA-15 and OMA-17 to OMA-21 have passed
+on a native pinned build together with the two checks folded into OMA-16 —
+OMA-16 itself cannot pass, because ADR 0003 leaves it no build to run on — and
+the roll gate in OMA-22 has run at least once. No part of it is complete by
+virtue of Sunshine having written code, because the correct amount of Sunshine
+code on this path is none.

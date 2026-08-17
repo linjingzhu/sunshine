@@ -44,7 +44,7 @@ class FirstPartySurfaceTests(unittest.TestCase):
         self.assertEqual([], self.failures())
 
     def test_registering_a_chromium_owned_panel_is_rejected(self) -> None:
-        """SIDE_PANEL §12.9. Chromium ships bookmarks and history panels with
+        """SIDE_PANEL SPA-9. Chromium ships bookmarks and history panels with
         their own coordinators; a parallel Sunshine entry makes the
         extension-registered panels invisible or misplaced."""
 
@@ -55,7 +55,7 @@ class FirstPartySurfaceTests(unittest.TestCase):
         self.assertRejected("side panel that Chromium already provides")
 
     def test_a_predicate_without_declared_reasons_is_rejected(self) -> None:
-        """COMMAND_PALETTE §14.9. A disabled row that cannot say why is the
+        """COMMAND_PALETTE CPA-9. A disabled row that cannot say why is the
         requirement unmet, not a cosmetic gap."""
 
         path = self.root / "first_party/commands.json"
@@ -80,7 +80,7 @@ class FirstPartySurfaceTests(unittest.TestCase):
         self.assertRejected("WindowWorkspaceState")
 
     def test_a_host_colliding_with_upstream_is_rejected(self) -> None:
-        """SECURITY_CENTER 13, collision half. Sunshine's surfaces live under
+        """SECURITY_CENTER SCA-13, collision half. Sunshine's surfaces live under
         Chromium's internal scheme, so a host is only Sunshine's while upstream
         does not take it -- and upstream adds hosts every roll."""
 

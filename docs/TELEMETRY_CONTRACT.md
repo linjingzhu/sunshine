@@ -20,9 +20,9 @@ RUN**, runtime **NOT RUN**, measurement **NOT AVAILABLE**.
 
 Twenty-four registered commands in `first_party/commands.json` each declare a
 `Sunshine.Command.*` event. `docs/GESTURE_CONTRACT.md` §7 declares four more.
-`docs/DOWNLOAD_SAFETY.md` acceptance item 6 requires warning events.
+`docs/DOWNLOAD_SAFETY.md` DSA-6 requires warning events.
 `docs/SIDE_PANEL_CONTRACT.md` D1 assumes a session histogram exists.
-`docs/PERFORMANCE_BUDGET.md` §4 P4 proposes a paired comparison over the
+`docs/PERFORMANCE_BUDGET.md` §4 PB-4 proposes a paired comparison over the
 `Startup.*` family. Nothing receives any of it, and
 `docs/ACCEPTANCE_SUITES.md` U4 records the consequence: five of the seven Stage 2
 acceptance items and four of the five Stage 3 candidates have no evidence path.
@@ -218,10 +218,10 @@ command line. A build whose instrumentation differs from the shipped one
 produces evidence about a browser nobody uses.
 
 **T3.** Emission is event-driven only. No timer, no polling, no periodic
-provider, no idle sampling. This keeps `docs/PERFORMANCE_BUDGET.md` P5 intact:
-P5 holds that the *existence* of a repeating Sunshine task is the regression, and
-a histogram incremented on a user-initiated command is not one. It also puts the
-README's "Impossible: Identify percent of browsing time a feature is in use"
+provider, no idle sampling. This keeps `docs/PERFORMANCE_BUDGET.md` PB-5 intact:
+PB-5 holds that the *existence* of a repeating Sunshine task is the regression,
+and a histogram incremented on a user-initiated command is not one. It also puts
+the README's "Impossible: Identify percent of browsing time a feature is in use"
 permanently out of scope, which is the right answer to a question Sunshine
 should not be asking.
 
@@ -387,7 +387,7 @@ which this contract adopts unchanged.
 | Field | Permitted | Source |
 |---|---|---|
 | Command identity | Yes | The registry, at build time |
-| Invocation source | Yes, from a closed set: toolbar, keyboard, menu, context menu, palette, gesture | Required by `docs/COMMAND_PALETTE_CONTRACT.md` §14.1, which demands identical telemetry from every source "differing only in the source label" |
+| Invocation source | Yes, from a closed set: toolbar, keyboard, menu, context menu, palette, gesture | Required by `docs/COMMAND_PALETTE_CONTRACT.md` CPA-1, which demands identical telemetry from every source "differing only in the source label" |
 | Anything else | **No** | — |
 
 **T17.** The event is recorded **once, on dispatch, by the dispatcher**, and only
@@ -497,9 +497,10 @@ annotations are local-only in this build, but a key set now is a key uploaded on
 the day someone builds Fork B, and its author will not be in the room.
 
 **What Sunshine keeps.** Everything local and user-visible:
-`docs/SESSION_PROFILE_CONTRACT.md` items 1–8 — Chromium's exit-type state, its
-native crash recovery UI, its crashed-tab UI, and its per-`WebContents` renderer
-crash isolation — are untouched, because none of them requires an upload.
+`docs/SESSION_PROFILE_CONTRACT.md` SRA-1 to SRA-8 — Chromium's exit-type state,
+its native crash recovery UI, its crashed-tab UI, and its per-`WebContents`
+renderer crash isolation — are untouched, because none of them requires an
+upload.
 
 **What Sunshine loses, stated.** Handoff §5.7 A1.7 ("no critical crash") and
 §6.8 A2.1 (crash and renderer-recovery *rate*) remain class H, evidenced by an
@@ -629,6 +630,10 @@ system over it, which is the failure mode
 
 Runnable once a native build exists. All are **NOT RUN**.
 
+`TA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `TA-9`. `T` remains the invariant prefix of §10; the two do not
+overlap.
+
 **Recording and non-reporting**
 
 1. **TA-1.** With the browser running normally and a `Sunshine.Command.*`
@@ -648,14 +653,14 @@ Runnable once a native build exists. All are **NOT RUN**.
 
 5. **TA-5.** Invoking `browser.back` from the toolbar, the keyboard, the palette
    and a gesture produces four records of one histogram, differing only in the
-   source label (`docs/COMMAND_PALETTE_CONTRACT.md` §14.1).
+   source label (`docs/COMMAND_PALETTE_CONTRACT.md` CPA-1).
 6. **TA-6.** Exactly one command event is recorded per successful dispatch, and
    zero for a dispatch refused by availability (T17).
 7. **TA-7.** A failing command records its declared error token from the
    registry, and a byte inspection of the exported log finds none of the
    prohibited fields of §5.3.
 8. **TA-8.** A canary run in the manner of `docs/SESSION_PROFILE_CONTRACT.md`
-   item 13 — canary strings in a URL query, a form field, a find query, a
+   SRA-13 — canary strings in a URL query, a form field, a find query, a
    palette query, a download filename and a workspace name — finds no canary in
    the exported log.
 
@@ -673,7 +678,7 @@ Runnable once a native build exists. All are **NOT RUN**.
 
 11. **TA-11.** A forced renderer crash produces no upload attempt and no crash
     key set by Sunshine code, while Chromium's native crashed-tab UI and the
-    recovery path of `docs/SESSION_PROFILE_CONTRACT.md` items 4–8 behave
+    recovery path of `docs/SESSION_PROFILE_CONTRACT.md` SRA-4 to SRA-8 behave
     unchanged.
 
 **Process**
@@ -727,7 +732,7 @@ believed was missing was passing all along.
 
 U4 lists "the `DOWNLOAD_SAFETY` 6 warning events" alongside the
 `Sunshine.Command.*` and gesture events as "specified" events that "nothing
-receives". `docs/DOWNLOAD_SAFETY.md` acceptance item 6 does not specify Sunshine
+receives". `docs/DOWNLOAD_SAFETY.md` DSA-6 does not specify Sunshine
 events: it requires that Sunshine preserve **Chromium's** warning-event model
 from `chrome/browser/download/download_item_warning_data.h`, and the surrounding
 contract's "future patch boundary" forbids sending download data to a Sunshine

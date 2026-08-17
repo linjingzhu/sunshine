@@ -128,8 +128,8 @@ Chromium's existing internal scheme.**
 - The leak described above stops being reachable by the intended route, because the
   surface no longer has a `sunshine://` spelling to type. It is not fixed in
   general: any unregistered scheme a user types still searches, and Sunshine must
-  not add a rule to prevent that. Acceptance criterion 15 of `docs/OMNIBOX_CONTRACT.md`
-  remains the correct expectation, and criterion 16 becomes unreachable rather than
+  not add a rule to prevent that. OMA-15 of `docs/OMNIBOX_CONTRACT.md`
+  remains the correct expectation, and OMA-16 becomes unreachable rather than
   passing.
 - Sunshine pages sit in the same namespace as Chromium's, so host names must be
   disambiguated by prefix and re-checked at every upstream roll for collision with

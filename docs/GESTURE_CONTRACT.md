@@ -265,13 +265,17 @@ Further requirements:
 Checkable once a native build exists. Each is written to be falsifiable by
 observation, on web content served from a local test server.
 
+`GA-` is the prefix for these criteria, and the ordinals are unchanged:
+criterion 9 is `GA-9`, so a citation written before this revision still resolves.
+The §2 invariants are numbered separately and are cited as invariants.
+
 1. **GA-1. Ordinary right-click is unchanged.** Right press and release with no
    movement shows the Chromium context menu at the press position, with the
    same items as a build without gestures. No navigation occurs.
 2. **GA-2. Back gesture.** Right press, drag left beyond `D`, release: the
    active tab navigates back exactly once, no context menu appears, and the
    resulting history state is identical to using the toolbar back control.
-3. **GA-3. Forward gesture.** The mirror of criterion 2, with drag right.
+3. **GA-3. Forward gesture.** The mirror of GA-2, with drag right.
 4. **GA-4. One outcome per press.** No press produces both a navigation and a
    context menu, and no press produces two navigations.
 5. **GA-5. Below threshold.** Right press, drag left by less than `D`, release:

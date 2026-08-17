@@ -72,12 +72,12 @@ class NoInterpositionTests(unittest.TestCase):
     # --- the repository today ------------------------------------------------
 
     def test_the_repository_interposes_on_nothing_today(self) -> None:
-        """Enforces: OS-9, AT-1, AT-9, AT-12, P5.
+        """Enforces: OS-9, AT-1, AT-9, AT-12, PB-5.
 
-        Criterion: docs/OMNIBOX_CONTRACT.md 13.20;
+        Criterion: docs/OMNIBOX_CONTRACT.md OMA-20;
         docs/TAB_LIFECYCLE_CONTRACT.md 13.2 (invariant 1);
         docs/ADVANCED_TABS_CONTRACT.md 11.10;
-        docs/PERFORMANCE_BUDGET.md P5, cheap form.
+        docs/PERFORMANCE_BUDGET.md PB-5, cheap form.
         """
 
         self.assertEqual([], checker.validate(REPOSITORY_ROOT))
@@ -88,7 +88,7 @@ class NoInterpositionTests(unittest.TestCase):
         self.assertGreater(len(checker.sunshine_sources(self.root)), 10)
         self.assertGreater(len(checker.declared_names(self.root)), 100)
 
-    # --- OMNIBOX_CONTRACT 13.20: no second parser ----------------------------
+    # --- OMNIBOX_CONTRACT OMA-20: no second parser ---------------------------
 
     def test_a_classifier_constructed_in_first_party_code_is_rejected(self) -> None:
         self.write_patch(added=("  AutocompleteInput input(text, metrics::OmniboxEventProto::OTHER);",))
@@ -257,29 +257,29 @@ class NoInterpositionTests(unittest.TestCase):
         )
         self.assertAccepted()
 
-    # --- PERFORMANCE_BUDGET P5 -----------------------------------------------
+    # --- PERFORMANCE_BUDGET PB-5 -----------------------------------------------
 
     def test_a_repeating_interval_is_rejected(self) -> None:
         self.write_patch(added=("  setInterval(() => this.refresh_(), 30000);",))
-        self.assertRejected("P5")
+        self.assertRejected("PB-5")
 
     def test_a_chromium_repeating_timer_is_rejected(self) -> None:
         self.write_patch(added=("  base::RepeatingTimer refresh_timer_;",))
-        self.assertRejected("P5")
+        self.assertRejected("PB-5")
 
     def test_an_idle_callback_is_rejected(self) -> None:
         self.write_patch(added=("  requestIdleCallback(() => this.prewarm_());",))
-        self.assertRejected("P5")
+        self.assertRejected("PB-5")
 
     def test_an_infinite_css_animation_is_rejected(self) -> None:
         """Idle cost does not stop being idle cost for being declarative."""
 
         self.write_patch(added=("  animation-iteration-count: infinite;",))
-        self.assertRejected("P5")
+        self.assertRejected("PB-5")
 
     def test_a_stored_poll_interval_is_rejected(self) -> None:
         self.write_patch(added=('  "poll_interval_ms": 5000,',))
-        self.assertRejected("P5")
+        self.assertRejected("PB-5")
 
     def test_a_timer_in_a_patch_context_line_is_not_a_violation(self) -> None:
         """`0002-sunshine-new-tab.patch` carries exactly this in its context."""

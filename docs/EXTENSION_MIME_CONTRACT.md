@@ -93,8 +93,8 @@ attributes — none of which a flag would reach.
 Two facts read from the pinned sources close the question of adding one.
 
 - [`components/download/public/common/download_danger_type.h`](https://github.com/chromium/chromium/blob/152.0.7977.42/components/download/public/common/download_danger_type.h)
-  enumerates twenty-six values covering dangerous files, URLs, content, hosts,
-  unwanted software, policy allowlisting, five scanning states and four
+  enumerates twenty-five live values covering dangerous files, URLs, content and
+  hosts, unwanted software, policy allowlisting, deep-scanning states, and
   enterprise blocking states. None of them is a type mismatch. The enumeration is
   persisted to logs, is mirrored in a generated Java enum, and its comments
   forbid renumbering — it is not a place a downstream adds a member.
@@ -115,19 +115,19 @@ where being wrong has a consequence.
 ## The residual set
 
 Comparison 1 is guarded. Each guard leaves a case where extension and effective
-type still disagree after target determination. This is the complete list, in the
-order the code applies it, and it is the only set a Sunshine mismatch flag could
-ever fire on.
+type still disagree after target determination. This is the complete list,
+grouped by the function that applies the guard, and it is the only set a Sunshine
+mismatch flag could ever fire on.
 
-| | Condition | Chromium's reason |
-|---|---|---|
-| **r1** | the effective type is empty | nothing to compare against |
-| **r2** | a page- or extension-supplied `suggested_filename` exists | the name was chosen deliberately by something other than the server's headers |
-| **r3** | `Content-Disposition` carries a `filename` | stated in the source as "Trust content disposition header filename attribute" |
-| **r4** | `FileTypePolicies::IsCheckedBinaryFile` is true for the generated name | stated in the source: do not replace the extension when Safe Browsing considers it unsafe — "just let safe browsing scan the generated file" |
-| **r5** | effective type is `text/plain` and the declared type is not | the `nosniff` and csv case; comparison 2 |
-| **r6** | the effective type has no preferred extension — `application/octet-stream` is the common instance | there is no better extension to offer |
-| **r7** | the extension is already among the valid extensions for the effective type, including the final component of a double extension | avoids renaming `foo.jpg` to `foo.jpeg` or `foo.tar.gz` to `foo.gz` |
+| | Applied in | Condition | Chromium's reason |
+|---|---|---|---|
+| **r1** | `GenerateFileName()` | the effective type is empty | nothing to compare against |
+| **r2** | `GenerateFileName()` | a page- or extension-supplied `suggested_filename` exists | the name was chosen deliberately by something other than the server's headers |
+| **r3** | `GenerateFileName()` | `Content-Disposition` carries a `filename` | stated in the source as "Trust content disposition header filename attribute" |
+| **r4** | `GenerateFileName()` | `FileTypePolicies::IsCheckedBinaryFile` is true for the generated name | stated in the source: do not replace the extension when Safe Browsing considers it unsafe — "just let safe browsing scan the generated file". Applied first of the five. |
+| **r5** | `GenerateFileName()` | effective type is `text/plain` and the declared type is not | the `nosniff` and csv case; comparison 2 |
+| **r6** | `GetCorrectedExtensionUnsafe()` | the effective type has no preferred extension — `application/octet-stream` is the common instance | there is no better extension to offer |
+| **r7** | `GetCorrectedExtensionUnsafe()` | the extension is already among the valid extensions for the effective type, or the final component of a double extension is | avoids renaming `foo.jpg` to `foo.jpeg` or `foo.tar.gz` to `foo.gz` |
 
 **r7 is not a mismatch** — it is the code declining a cosmetic rename. **r1 and
 r6** are the absence of a comparable signal, not a disagreement. **r4** is a
@@ -286,7 +286,7 @@ pinned build, and that is the point.
 | **XM-C1** | O | No Sunshine-authored source declares an extension list, a MIME table, a mismatch field, or an extension-to-danger mapping. Decidable over the same corpus `scripts/verify_no_interposition.py` already searches — `first_party`, the added lines of `downstream` patches, `scripts`, `config` — by the same field-extraction method. Enforces XM-1, XM-2. |
 | **XM-C2** | O | No Sunshine-authored source names any of the symbols listed in XM-4. Enforces XM-4, source half. |
 | **XM-C3** | O | `first_party/commands.json` registers no download command and declares no download surface. True at the state of this wave: twenty-four commands over the surfaces `bookmark`, `browser`, `tab`, `workspace`. |
-| **XM-C4** | O | Roll gate. At each upstream revision change, the five guards in `GenerateFileName()` (r2–r6), the two in `GetCorrectedExtensionUnsafe()` (r7), and `GetDangerLevel()`'s use of `virtual_path_.BaseName()` still exist, and `STATE_GENERATE_TARGET_PATH` still precedes `STATE_CHECK_VISITED_REFERRER_BEFORE`. Reachable by the mechanism `scripts/verify_pinned_upstream.py` already uses for seams; today that script checks only that the cited paths resolve. |
+| **XM-C4** | O | Roll gate. At each upstream revision change, the five guards in `GenerateFileName()` (r1–r5), the two in `GetCorrectedExtensionUnsafe()` (r6, r7), and `GetDangerLevel()`'s use of `virtual_path_.BaseName()` still exist, and `STATE_GENERATE_TARGET_PATH` still precedes `STATE_CHECK_VISITED_REFERRER_BEFORE`. Reachable by the mechanism `scripts/verify_pinned_upstream.py` already uses for seams; today that script checks only that the cited paths resolve. |
 | **XM-C5** | B | **Normal-file regression.** A download whose extension already matches its declared type completes through the standard flow with no Sunshine surface, no extra record, and no rename. |
 | **XM-C6** | B | **Correction case.** Served with a type whose preferred extension differs from the URL's, with no `Content-Disposition` filename, no suggested name, and a generated name that is not a checked binary: the saved file carries Chromium's corrected extension, and any Sunshine surface displays that name verbatim. |
 | **XM-C7** | B | **Preservation case (r4).** A file named `.exe` in the URL but served as `text/plain`: the name keeps `.exe`, the danger level is computed from `.exe`, and no first-party code participated. |
@@ -310,7 +310,7 @@ and it is recorded below rather than left to be discovered.
 | Priority | Question |
 |---|---|
 | P1 | Should XM-C1, XM-C2 and XM-C4 be implemented as guards? They are the class-O half of this contract and the same shape as the ten checks `docs/ACCEPTANCE_SUITES.md` §8 records as the highest-value work available before a build exists. XM-C4 is the one with a shelf life: the reconciliation guards it names are ordinary implementation detail upstream, and if one is reordered or removed, this contract's central claim silently stops being true. |
-| P1 | The **first** clause of handoff §5.6.4 — "warn before opening executable or script-like downloads" — is mapped by `docs/ACCEPTANCE_SUITES.md` to `DOWNLOAD_SAFETY` criteria 2 and 5, which are about classification preservation and action safety and say nothing about opening. Upstream, opening is governed by `FileTypePolicies::IsAllowedToOpenAutomatically` and `DownloadPrefs::IsAutoOpenEnabled`, which no contract names. This document does not claim that clause; someone should decide whether it is a second uncovered half or is inherited in the same way this one is. |
+| P1 | The **first** clause of handoff §5.6.4 — "warn before opening executable or script-like downloads" — is mapped by `docs/ACCEPTANCE_SUITES.md` to `DOWNLOAD_SAFETY` DSA-2 and DSA-5, which are about classification preservation and action safety and say nothing about opening. Upstream, opening is governed by `FileTypePolicies::IsAllowedToOpenAutomatically` and `DownloadPrefs::IsAutoOpenEnabled`, which no contract names. This document does not claim that clause; someone should decide whether it is a second uncovered half or is inherited in the same way this one is. |
 | P2 | Add `XM` to `scripts/trace_invariants.py`'s `FAMILIES`, so XM-1 to XM-9 are countable rather than joining the "enforced but uncounted" set `config/invariant_coverage.txt` already complains about. |
 
 ## Not verified

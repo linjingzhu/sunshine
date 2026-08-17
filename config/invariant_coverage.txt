@@ -10,16 +10,27 @@
 # no offline suite can establish those. The ones listed here are the subset that
 # a source, registry or patch check can actually decide.
 #
-# Two families are enforced but uncounted, because they have no stable
-# identifier to cite: the ordinal criteria (SIDE_PANEL 12.9, SECURITY_CENTER 13,
-# COMMAND_PALETTE 14.9, TAB_LIFECYCLE 15) and PERFORMANCE_BUDGET's P1..P6, which
-# collide with the P0/P1/P2 priority labels every contract uses. Giving those
-# lists stable prefixes is an open decision in ACCEPTANCE_SUITES section 9.
+# Five checks that were enforced but uncounted are now listed. They had no
+# stable identifier to cite -- the acceptance criteria were bare ordinals, and
+# PERFORMANCE_BUDGET's P1..P6 collided with the P0/P1/P2 priority labels every
+# contract uses. The acceptance lists were given per-document prefixes and the
+# budgets became PB-1..PB-6, with every ordinal preserved through the rename, so
+# SIDE_PANEL 12.9 is SPA-9 and the same check now cites something durable.
+#
+# Still uncounted: the bare-ordinal *invariant* lists (TAB_LIFECYCLE 13.2,
+# TAB_WORKSPACE_SPLIT 1-12, GESTURE section 2), and TAB_LIFECYCLE section 15,
+# which is a section rather than a criterion. ACCEPTANCE_SUITES section 9
+# records the remainder as a defect in the contract set.
 
 AT-1
 AT-9
 AT-12
+CPA-9
+OMA-20
 OS-9
+PB-5
+SCA-13
+SPA-9
 PO-A1
 PO-A2
 PO-A3
