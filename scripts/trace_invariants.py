@@ -28,15 +28,47 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "config/invariant_coverage.txt"
 
-# `OS-3`, `AT-11`, `SC-8`, `OT-2`, `D4`, and the compound form `PO-A1`, where
-# the family is followed by a lettered series. The letter is optional, so both
-# shapes match and the family is whatever precedes the hyphen.
-# `{1,4}` and not `{1,3}`: SECA-n is a four-letter family, and the earlier
-# pattern could not parse it at all. That failed silently -- the claims in
-# verify_web_asset_security.py and verify_first_party_surfaces.py were simply
-# not seen, so two acceptance criteria read as enforced in the contract and as
-# unclaimed here, with nothing reporting the disagreement.
-INVARIANT = re.compile(r"\b([A-Z]{1,4}-?[A-Z]?\d{1,2})\b")
+# `OS-3`, `AT-11`, `SC-8`, `OT-2`, `D4`, the compound form `PO-A1` where the
+# family is followed by a lettered series, and the sub-lettered form `PB-2a`
+# where one budget is split into parts that are each their own rule.
+#
+# Every widening here has been the same bug arriving again, and the shape of it
+# is worth stating once: **an unparsed token is absent, not rejected.** Nothing
+# errors, no count moves, and both ends of the disagreement -- the contract that
+# declares the identifier and the check that claims it -- read as consistent,
+# because neither can see the other.
+#
+#   `{1,4}` and not `{1,3}`: SECA-n is a four-letter family and matched nothing
+#   at all. The claims in verify_web_asset_security.py and
+#   verify_first_party_surfaces.py were simply not seen.
+#
+#   `[a-z]?`: PERFORMANCE_BUDGET declares PB-2a, PB-2b and PB-2c. Ending the
+#   pattern at `\d{1,2}` did not truncate them to PB-2 -- the trailing `\b`
+#   fails against the letter, so the whole token vanished, which is why nothing
+#   downstream could notice a wrong answer either.
+#
+# The suffix is lowercase deliberately, and that is the whole of what separates
+# an identifier from an acronym: `E2E` would parse as family E with an uppercase
+# suffix, and E is a declared family. Every identifier-shaped token in docs/ was
+# surveyed before this was widened, and the survey is what the bounds are drawn
+# from: one sub-lettered shape in use (PB-2a/b/c, 15 occurrences), one
+# uppercase-suffixed one (E2E, twice), and nothing numbered past 99. The last
+# two widenings were designed from imagination and each looked general enough.
+# tests/test_invariant_tracing.py re-runs the survey against the documents, so
+# the bounds are asserted rather than trusted here.
+INVARIANT = re.compile(r"\b([A-Z]{1,4}-?[A-Z]?\d{1,2}[a-z]?)\b")
+
+# Deliberately wider than INVARIANT, in the two directions identifiers have
+# actually grown: more digits, and a suffix after them. Nothing is parsed with
+# this -- it exists so that a token of a *declared family* which it matches and
+# INVARIANT does not can be reported as lost rather than dropped in silence.
+CANDIDATE = re.compile(r"\b[A-Z]{1,6}-?[A-Z]?\d{1,4}[a-z]{0,3}\b")
+
+# The leading run of capitals. Read off the front, because the front is the
+# part that has stayed still: both widenings above were changes to the tail of
+# an identifier, and a family derived by stripping the tail would have had to
+# change with each of them.
+FAMILY = re.compile(r"^[A-Z]+")
 
 # Families a contract actually uses. Without this the pattern also matches
 # version numbers, Chromium symbols and ordinary prose like "P1".
@@ -62,12 +94,60 @@ FAMILIES = (
 )
 
 
+# This tool and its own tests are excluded from the claim scan. The tests write
+# fixture documents containing `Enforces:` lines to prove the check works, and
+# counting those as real claims made the tool report invariants that no file in
+# the repository actually enforces.
+EXCLUDED = {Path(__file__).name, "test_invariant_tracing.py"}
+
+# The text a check offers as its claim: the rest of the line after the marker.
+# Lowercase is admitted so that a sub-lettered identifier survives being read at
+# all -- without it `Enforces: PB-2a` is captured as `PB-2` and the claim is
+# truncated before anything is in a position to reject it. Prose swept up
+# alongside is harmless: whether a word is an identifier is decided by INVARIANT
+# and FAMILIES, never by this character class.
+CLAIM = re.compile(r"Enforces:[ \t]*([A-Za-z0-9,\- \t]+)")
+
+
+def _family(candidate: str) -> str:
+    """The family a token belongs to: its leading run of capitals."""
+
+    match = FAMILY.match(candidate)
+    return match.group(0) if match else ""
+
+
 def _identifiers(text: str) -> set[str]:
     found = set()
     for candidate in INVARIANT.findall(text):
-        family = candidate.split("-")[0] if "-" in candidate else candidate.rstrip("0123456789")
-        if family in FAMILIES and any(character.isdigit() for character in candidate):
+        if _family(candidate) in FAMILIES and any(character.isdigit() for character in candidate):
             found.add(candidate)
+    return found
+
+
+def unparsed_claims(root: Path = ROOT) -> list[tuple[str, str]]:
+    """(file, token) for every claim this tool can see but cannot read.
+
+    The gap the pattern widenings kept falling into, closed from the other side.
+    A check writing `Enforces: PB-2a` registered nothing at all, and no count
+    moved, so the only way to find out was for a person to wonder. Here the
+    token is compared against a pattern wider than the parsing one, and a
+    mismatch is reported instead of dropped.
+
+    Restricted to families a contract declares. `MV3`, `AV1` and `E2E` are the
+    shapes that would otherwise be swept up out of ordinary prose, and none of
+    them is a claim about anything.
+    """
+
+    found: list[tuple[str, str]] = []
+    for directory in ("tests", "scripts"):
+        for path in sorted((root / directory).rglob("*.py")):
+            if path.name in EXCLUDED:
+                continue
+            for match in CLAIM.finditer(path.read_text(encoding="utf-8")):
+                parsed = _identifiers(match.group(1))
+                for token in CANDIDATE.findall(match.group(1)):
+                    if _family(token) in FAMILIES and token not in parsed:
+                        found.append((path.name, token))
     return found
 
 
@@ -85,17 +165,12 @@ def claimed(root: Path = ROOT) -> dict[str, set[str]]:
     """Invariants a test or tool claims to enforce, keyed by identifier."""
 
     result: dict[str, set[str]] = {}
-    # This tool and its own tests are excluded. The tests write fixture
-    # documents containing `Enforces:` lines to prove the check works, and
-    # counting those as real claims made the tool report invariants that no
-    # file in the repository actually enforces.
-    excluded = {Path(__file__).name, "test_invariant_tracing.py"}
     for directory in ("tests", "scripts"):
         for path in sorted((root / directory).rglob("*.py")):
-            if path.name in excluded:
+            if path.name in EXCLUDED:
                 continue
             text = path.read_text(encoding="utf-8")
-            for match in re.finditer(r"Enforces:[ \t]*([A-Z0-9,\- \t]+)", text):
+            for match in CLAIM.finditer(text):
                 for identifier in _identifiers(match.group(1)):
                     result.setdefault(identifier, set()).add(path.name)
     return result
@@ -125,6 +200,17 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
     ]
 
     failures = []
+
+    # A claim this tool cannot read is worse than a wrong one: a wrong claim is
+    # reported below, an unreadable one used to count as no claim at all. It is
+    # listed first because every other number on this report is computed from
+    # tokens that parsed, and an unparsed one makes all of them quietly short.
+    for name, token in unparsed_claims(root):
+        failures.append(
+            f"{name} claims {token}, which INVARIANT cannot parse; {_family(token)} is a "
+            "declared family, so the identifier is being lost rather than counted "
+            "-- widen the pattern or correct the claim"
+        )
 
     # Claiming an invariant no contract declares means the identifier is wrong,
     # or the contract that declared it was edited without the test.
