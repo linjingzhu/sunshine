@@ -217,7 +217,10 @@ class ThrottlingIsNotAbsenceTests(unittest.TestCase):
         ) as urlopen:
             with self.assertRaises(checker.UpstreamCheckError):
                 checker.exists("github", "152.0.7977.42", "base/check.h")
-        self.assertEqual(checker.RETRIES, urlopen.call_count)
+        # The larger budget, not the ordinary one: a 429 is a quota answer and
+        # is retried on `THROTTLED_RETRIES`. The count is asserted rather than
+        # ignored so that a change to either budget has to be deliberate.
+        self.assertEqual(checker.THROTTLED_RETRIES, urlopen.call_count)
 
     def test_a_server_error_raises_instead_of_reporting_absence(self) -> None:
         with mock.patch.object(checker.time, "sleep"), mock.patch.object(
@@ -612,3 +615,50 @@ class LineEndingTests(unittest.TestCase):
     def test_the_temp_repository_disables_line_ending_conversion(self) -> None:
         self.assertIn("core.autocrlf=false", self.SOURCE)
         self.assertIn("core.eol=lf", self.SOURCE)
+
+
+class ThrottleBudgetTests(unittest.TestCase):
+    """A quota answer needs more patience than a burst answer.
+
+    Both hosts meter anonymous clients over a window, and the ordinary backoff
+    spends less time than the window lasts, so a run that meets the limit gives
+    up while waiting would have answered. This buys patience, never permission:
+    a 429 that outlasts the larger budget is still a failure, and is still
+    never reported as a missing path.
+    """
+
+    def _error(self, code: int) -> urllib.error.HTTPError:
+        return urllib.error.HTTPError("https://example.invalid", code, "", None, None)
+
+    def test_a_throttled_answer_is_retried_more_than_an_ordinary_error(self) -> None:
+        for code, expected in ((429, checker.THROTTLED_RETRIES), (503, checker.THROTTLED_RETRIES)):
+            with self.subTest(code=code), mock.patch.object(checker.time, "sleep"), \
+                    mock.patch.object(checker.urllib.request, "urlopen",
+                                      side_effect=self._error(code)) as urlopen:
+                with self.assertRaises(checker.UpstreamCheckError):
+                    checker.exists("github", "152.0.7977.42", "base/check.h")
+            self.assertEqual(expected, urlopen.call_count)
+
+    def test_an_ordinary_error_keeps_the_smaller_budget(self) -> None:
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(500)
+        ) as urlopen:
+            with self.assertRaises(checker.UpstreamCheckError):
+                checker.exists("github", "152.0.7977.42", "base/check.h")
+        self.assertEqual(checker.RETRIES, urlopen.call_count)
+
+    def test_a_missing_path_is_still_never_retried(self) -> None:
+        """The whole point survives the larger budget."""
+
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(404)
+        ) as urlopen:
+            self.assertFalse(checker.exists("github", "152.0.7977.42", "base/gone.h"))
+        self.assertEqual(1, urlopen.call_count)
+
+    def test_a_throttled_run_that_never_recovers_still_fails(self) -> None:
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(429)
+        ):
+            with self.assertRaises(checker.UpstreamCheckError):
+                checker.exists("github", "152.0.7977.42", "base/check.h")

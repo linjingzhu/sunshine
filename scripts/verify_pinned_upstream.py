@@ -175,6 +175,25 @@ ABSENT_STATUS = frozenset({404, 410})
 RETRIES = 4
 BACKOFF_SECONDS = 3
 
+# A quota answer is not a burst answer, and the two need different patience.
+#
+# Both hosts meter anonymous clients over a window rather than instantaneously:
+# googlesource says so in as many words -- `RESOURCE_EXHAUSTED subject:
+# "shared/shared_anonymous"`, "short term server-time rate limit exceeded". The
+# ordinary backoff spends 45 seconds and gives up, which is shorter than the
+# window, so a run that meets the limit fails even though waiting would have
+# answered. Six attempts capped at 60 seconds spends about four minutes, inside
+# the job's twenty-minute budget.
+#
+# This buys patience, not permission: a 429 that outlasts the budget is still a
+# failure and still never an absent path. The durable fix is authenticating to
+# googlesource, which leaves the shared anonymous pool entirely -- the same
+# conclusion `scripts/bootstrap_chromium.py` reached for gclient, and it needs a
+# credential on the build machine rather than a change here.
+THROTTLED_STATUS = frozenset({429, 503})
+THROTTLED_RETRIES = 6
+THROTTLED_BACKOFF_SECONDS = 10
+
 
 def _open(request: urllib.request.Request | str, path: str, version: str):
     """Open a URL, retrying the answers that mean "not now" rather than "no".
@@ -187,24 +206,32 @@ def _open(request: urllib.request.Request | str, path: str, version: str):
     """
 
     last: Exception | None = None
-    for attempt in range(RETRIES):
+    attempt = 0
+    budget = RETRIES
+    while attempt < budget:
         try:
             return urllib.request.urlopen(request, timeout=60)
         except urllib.error.HTTPError as error:
             if error.code in ABSENT_STATUS:
                 raise
             last = error
+            if error.code in THROTTLED_STATUS:
+                budget = max(budget, THROTTLED_RETRIES)
+                base = THROTTLED_BACKOFF_SECONDS
+            else:
+                base = BACKOFF_SECONDS
             delay = error.headers.get("Retry-After") if error.headers else None
-            wait = int(delay) if delay and delay.isdigit() else BACKOFF_SECONDS * (2**attempt)
+            wait = int(delay) if delay and delay.isdigit() else base * (2**attempt)
         except urllib.error.URLError as error:
             last = error
             wait = BACKOFF_SECONDS * (2**attempt)
         except TimeoutError as error:
             last = error
             wait = BACKOFF_SECONDS * (2**attempt)
-        if attempt < RETRIES - 1:
+        attempt += 1
+        if attempt < budget:
             time.sleep(min(wait, 60))
-    raise UpstreamCheckError(f"could not reach {path} at {version} after {RETRIES} attempts: {last}")
+    raise UpstreamCheckError(f"could not reach {path} at {version} after {attempt} attempts: {last}")
 
 
 def fetch(source: str, version: str, path: str) -> str:
