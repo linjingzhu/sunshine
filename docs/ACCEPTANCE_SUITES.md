@@ -5,7 +5,7 @@
 item, and which items nothing answers".
 **Sources:** sections 5.7, 6.8 and 7.9 of
 `docs/SUNSHINE_OS_STAGE_1_TO_3_IMPLEMENTATION_HANDOFF.md`, against the
-acceptance sections of the fifteen contracts listed in section 2.
+acceptance sections of the documents listed in section 2.
 
 ---
 
@@ -27,9 +27,17 @@ invent one: an item with no owning criterion is reported as uncovered, which is
 the finding, not a gap in this index.
 
 It sits beside `scripts/trace_invariants.py`, which asks the adjacent question
-one level down — which of the eighty-one declared contract *invariants* a test
-claims to enforce. That tool currently reports three. This document asks the
-question one level up, and reaches the same shape of answer.
+one level down — which of the declared contract *invariants* a test or tool
+claims to enforce. No standing total is written here for that, because it moves
+with every wave and a number left behind reads as a finding rather than as
+prose. The tool prints both totals on every run, and
+`config/invariant_coverage.txt` is the ratchet that stops the enforced one
+falling: adding is free, removing has to be done on purpose. On 2026-08-17 it
+stood at 38 claimed of 429 declared. This document asks the question one level
+up, and reaches the same shape of answer — a small enforced fraction of a large
+declared set, for the reason that baseline file gives: most of what these
+contracts declare is a statement about a running browser, and no offline suite
+can establish one.
 
 ---
 
@@ -192,9 +200,13 @@ text is `GESTURE_CONTRACT` GA-11, which treats a file drag as a gesture
 all, and it is the half that Gmail, Google Drive and the shopping sites in the
 corpus exercise on the first day.
 
-**A1.4 — media playback.** Uncovered, and worse than uncovered: see section 6,
-finding U1. The build configuration already decides this line, and no document
-records the decision.
+**A1.4 — media playback.** Uncovered, and the reason is now the ordinary one:
+no contract states a criterion about it. The build configuration used to decide
+this line in advance — `proprietary_codecs` was off, so most of the corpus could
+not have played whatever a dogfood day found — and that is settled. The flag is
+on, the premise for turning it on is recorded in
+`docs/decisions/0004-media-codecs.md`, and the line is now evaluable. Evaluable
+is not covered. See section 6, finding U1.
 
 **A1.5 — popup flows.** `PERMISSION_POLICY` establishes the *setting* — pop-ups
 default to block, Chromium's own affordance offers the exception. Nothing
@@ -412,18 +424,32 @@ than asks about.
 The most valuable lines in this document. Each is a requirement the handoff
 states as acceptance and no document in `docs/` would fail on.
 
-**U1 — media playback is uncovered, and the build configuration already decides
-it.** `scripts/build_chromium_windows.ps1` writes `proprietary_codecs=false` and
-`ffmpeg_branding="Chromium"` into the GN args. No document mentions either
-setting: `docs/WINDOWS_CHROMIUM_BUILD.md` explains PGO, the toolchain, the
-workspace and the size report, and is silent on codecs. Under that configuration
-H.264 and AAC are not compiled in, so a substantial part of the §5.7 corpus
-cannot play media. This is the one Stage 1 acceptance line whose likely outcome
-is knowable today, offline, by reading two lines of a build script — and it is
-recorded nowhere as a decision, a limitation, or a risk. Whether it is the right
-configuration is a product and licensing question, not an implementation
-preference, and it should be answered before a dogfood day is spent discovering
-it. **NOT RUN**: no build exists in which to confirm the consequence.
+**U1 — media playback is uncovered, and the reason has changed.**
+`scripts/build_chromium_windows.ps1` writes `proprietary_codecs=true` and
+`ffmpeg_branding="Chrome"` into the GN args, so the H.264 and AAC paths are
+compiled in and the §5.7 media corpus is decodable. Neither value is Chromium's
+default — `proprietary_codecs` derives from `is_chrome_branded`, which Sunshine
+does not set — so the flag had to be turned on deliberately. It was, under the
+personal-use premise recorded in `docs/decisions/0004-media-codecs.md`, and
+`docs/WINDOWS_CHROMIUM_BUILD.md` now carries a Media codecs section stating the
+same configuration and the same premise.
+
+This finding used to read the other way round, and the correction is worth
+recording rather than overwriting. It said the script wrote
+`proprietary_codecs=false` and `ffmpeg_branding="Chromium"`, that H.264 and AAC
+were therefore not compiled in, and that no document recorded the choice. All of
+that was true when it was written, and it is what caused the ADR to be written.
+The ADR then changed the flags and this paragraph was not changed with them, so
+an index whose subject is stale citations went on asserting a build
+configuration the repository had already replaced.
+
+The verdict is what does **not** change. A1.4 is still **Uncovered**, now for an
+ordinary reason instead of a hidden one: no contract in `docs/` states a
+criterion about media playback, so nothing in this repository would fail if
+media stopped playing. An ADR is a decision, not a criterion — it records why a
+flag is set and it never observes a video. The line moved from *predetermined to
+fail* to *evaluable*, which is a real gain and is not coverage. **NOT RUN**: no
+build exists in which to confirm that the compiled paths decode.
 
 **U2 — profile onboarding has no contract.** Handoff §5.2 requires "Use locally"
 to work without network with Google optional, and §5.6.6 requires Sunshine
@@ -561,11 +587,12 @@ U5.
 
 ## 8. What is checkable offline today
 
-The repository holds one hundred and forty tests, the guards in `scripts/`
-(`verify_architecture`, `patch_manifest`, `validate_first_party_modules`,
-`validate_commands`, `validate_doc_metadata`, `verify_pinned_upstream`, plus
-`compile_check` and `trace_invariants`), and the pinned sources those guards
-already fetch.
+The repository holds the regression suite under `tests/`, the guards in
+`scripts/` that `.github/workflows/architecture-guard-self-hosted.yml` runs, and
+the pinned sources those guards already fetch. Neither the suite nor the guard
+list is enumerated here: both grow every wave, and the workflow is the one list
+that cannot fall behind, because it is the thing that runs them. On 2026-08-17
+`python -m unittest discover -s tests` reported 418 tests.
 
 **What they establish:** that the patch stack applies to the pinned revision and
 owns its files exclusively; that the module and command registries are
@@ -615,9 +642,11 @@ identifier: the ordinal criteria above, and `PERFORMANCE_BUDGET`'s P1..P6, which
 collided with the P0/P1/P2 priority labels every contract uses. Both now have
 prefixes — §2 lists them, and the budgets are `PB-1`…`PB-6` — so a check of one
 of them has something durable to claim. Declaring an identifier does not enforce
-it: the claim still has to be written into the check that performs the work, and
-`scripts/verify_first_party_surfaces.py` is where the four checks named above
-wait for one.
+it: the claim still has to be written into the check that performs the work.
+That step has since been taken — `scripts/verify_first_party_surfaces.py` names
+SPA-9, CPA-9 and SCA-13 in its own `Enforces:` lines, which is why
+`scripts/trace_invariants.py` counts them and why the Status column above can
+say so.
 
 Everything else divides as follows. Class **B** — the great majority: every
 criterion in `TAB_LIFECYCLE_CONTRACT` §13, `OMNIBOX_CONTRACT` §13,
@@ -681,12 +710,13 @@ unrunnable (C7), and the handoff §11 P0 on warned dangerous downloads, which
   §6.8 or §7.9 was exercised. **NOT RUN.**
 - No visual, accessibility, localisation, keyboard or screen-reader check was
   performed. **NOT RUN.**
-- The codec consequence in U1 is read from the GN args in
-  `scripts/build_chromium_windows.ps1` and from the absence of any codec
-  statement in `docs/WINDOWS_CHROMIUM_BUILD.md`. Its effect on any particular
-  site is inferred from the configuration and was not observed. **NOT RUN.**
+- The codec configuration in U1 is read from the GN args in
+  `scripts/build_chromium_windows.ps1`, from `docs/decisions/0004-media-codecs.md`
+  and from the Media codecs section of `docs/WINDOWS_CHROMIUM_BUILD.md`. That the
+  compiled H.264 and AAC paths decode any particular site's media is inferred
+  from the configuration and was not observed. **NOT RUN.**
 - The verdicts in sections 3, 4 and 5 are claims about which criteria exist in
-  `docs/`, verified by reading the fifteen documents in section 2 at the state
+  `docs/`, verified by reading the documents listed in section 2 at the state
   of this wave. They are not claims about any behaviour of any build.
 - The counts in C5 are read from `first_party/commands.json` and are current as
   of this wave; they will need re-reading whenever the registry changes.
