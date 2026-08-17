@@ -109,6 +109,36 @@ jobs:
           grep -q 'CreateAddTabExtraDataCommand' "$worktree/session_service_commands.cc"
           grep -q 'CreateAddWindowExtraDataCommand' "$worktree/session_service_commands.cc"
 
+      - name: Verify the New Tab colour tokens the patch depends on
+        shell: bash
+        run: |
+          revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
+          version="${revision#refs/tags/}"
+          css="$(mktemp)"
+          trap 'rm -f "$css"' EXIT
+          curl --fail --silent --show-error --location \
+            "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/chrome/browser/resources/new_tab_page/app.css?format=TEXT" \
+            | base64 --decode > "$css"
+          # The Sunshine wordmark consumes these without a fallback, deliberately:
+          # a fallback colour would look right in light mode and silently escape
+          # the theme everywhere else. Nothing in the patch proves they exist --
+          # they appear only on added lines -- so upstream's own use of them is
+          # the evidence. --ntp-logo-margin-bottom needs no check here; upstream's
+          # #logo rule sits in the patch context.
+          missing=0
+          for token in --color-new-tab-page-primary-foreground --ntp-theme-text-shadow; do
+            if ! grep -q -- "$token" "$css"; then
+              echo "Token absent from pinned upstream app.css: $token" >&2
+              missing=1
+            fi
+          done
+          if (( missing )); then
+            echo "" >&2
+            echo "Colour and shadow tokens upstream does define, as candidates:" >&2
+            grep -oE -- '--(color-new-tab-page|ntp)[a-z0-9-]*' "$css" | sort -u >&2
+            exit 1
+          fi
+
       - name: Check complete patch stack against pinned upstream source
         shell: bash
         run: |

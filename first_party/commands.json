@@ -21,6 +21,51 @@
       "errors": []
     },
     {
+      "id": "browser.devtools.open",
+      "summary": "Open developer tools attached to the active tab.",
+      "owner": "chromium",
+      "availability": "The active tab hosts a debuggable target and policy permits it.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserDevtoolsOpen",
+      "errors": ["devtools_disabled_by_policy", "undebuggable_target"]
+    },
+    {
+      "id": "browser.find.close",
+      "summary": "Dismiss the find bar and clear the native find selection.",
+      "owner": "chromium",
+      "availability": "The active tab has a find session.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserFindClose",
+      "errors": ["no_active_find_session"]
+    },
+    {
+      "id": "browser.find.next",
+      "summary": "Advance to the next match in the active tab's find session.",
+      "owner": "chromium",
+      "availability": "The active tab has a find session.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserFindNext",
+      "errors": ["no_active_find_session"]
+    },
+    {
+      "id": "browser.find.open",
+      "summary": "Open the native find bar for the active tab and focus its input.",
+      "owner": "chromium",
+      "availability": "The active tab hosts findable contents.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserFindOpen",
+      "errors": ["find_unavailable_for_contents"]
+    },
+    {
+      "id": "browser.find.previous",
+      "summary": "Return to the previous match in the active tab's find session.",
+      "owner": "chromium",
+      "availability": "The active tab has a find session.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserFindPrevious",
+      "errors": ["no_active_find_session"]
+    },
+    {
       "id": "browser.forward",
       "summary": "Navigate the active tab to its next entry.",
       "owner": "chromium",
@@ -30,6 +75,24 @@
       "errors": []
     },
     {
+      "id": "browser.page.save",
+      "summary": "Open Chromium's save-page picker for the active tab.",
+      "owner": "chromium",
+      "availability": "The active tab hosts a savable scheme and policy permits it.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserPageSave",
+      "errors": ["save_disabled_by_policy", "unsavable_scheme"]
+    },
+    {
+      "id": "browser.print",
+      "summary": "Open Chromium's print preview for the active tab.",
+      "owner": "chromium",
+      "availability": "The active tab hosts printable contents and policy permits it.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserPrint",
+      "errors": ["printing_disabled_by_policy", "unprintable_contents"]
+    },
+    {
       "id": "browser.reload",
       "summary": "Reload the active tab, or stop a load in progress.",
       "owner": "chromium",
@@ -37,6 +100,42 @@
       "guard": null,
       "telemetry": "Sunshine.Command.BrowserReload",
       "errors": []
+    },
+    {
+      "id": "browser.view_source",
+      "summary": "Open the view-source document for the active tab's current entry.",
+      "owner": "chromium",
+      "availability": "The active tab has a navigation entry on a viewable scheme.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserViewSource",
+      "errors": ["unsupported_scheme", "no_navigation_entry"]
+    },
+    {
+      "id": "browser.zoom.in",
+      "summary": "Increase the active tab's zoom to the next native level.",
+      "owner": "chromium",
+      "availability": "The active tab is below Chromium's maximum zoom level.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserZoomIn",
+      "errors": ["zoom_limit_reached", "zoom_fixed_for_contents"]
+    },
+    {
+      "id": "browser.zoom.out",
+      "summary": "Decrease the active tab's zoom to the previous native level.",
+      "owner": "chromium",
+      "availability": "The active tab is above Chromium's minimum zoom level.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserZoomOut",
+      "errors": ["zoom_limit_reached", "zoom_fixed_for_contents"]
+    },
+    {
+      "id": "browser.zoom.reset",
+      "summary": "Return the active tab's origin to the profile default zoom level.",
+      "owner": "chromium",
+      "availability": "The active tab's origin has a zoom level set.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserZoomReset",
+      "errors": ["zoom_fixed_for_contents"]
     },
     {
       "id": "tab.close",

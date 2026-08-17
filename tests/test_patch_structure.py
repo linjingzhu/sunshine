@@ -78,6 +78,27 @@ class PatchStructureTests(unittest.TestCase):
         self.assertIn("direction: ltr;", patch)
         self.assertIn("padding-inline-start: 0.18em;", patch)
 
+    def test_borrowed_tokens_are_either_proven_or_checked_upstream(self) -> None:
+        """A token used only on added lines is asserted, not proven.
+
+        `--ntp-logo-margin-bottom` is proven: upstream's own `#logo` rule sits in
+        the patch context. The two colour tokens appear only on added lines, so
+        CI fetches the pinned stylesheet and confirms upstream uses them.
+        """
+
+        patch = (PATCH_DIR / "0002-sunshine-new-tab.patch").read_text(encoding="utf-8")
+        context = {line[1:] for line in patch.splitlines() if line.startswith(" ")}
+        self.assertTrue(
+            any("--ntp-logo-margin-bottom" in line for line in context),
+            "the margin token is no longer proven by upstream context",
+        )
+
+        workflow = (ROOT / ".github/workflows/chromium-architecture-check.yml").read_text(encoding="utf-8")
+        for token in ("--color-new-tab-page-primary-foreground", "--ntp-theme-text-shadow"):
+            with self.subTest(token=token):
+                self.assertIn(token, patch)
+                self.assertIn(token, workflow)
+
     def test_stage_one_does_not_remove_chromium_browser_primitives(self) -> None:
         patch = (PATCH_DIR / "0002-sunshine-new-tab.patch").read_text(encoding="utf-8")
         for primitive in ("ntp-searchbox", "cr-most-visited", "ntp-realbox"):
