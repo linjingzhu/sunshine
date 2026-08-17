@@ -414,9 +414,18 @@ def check_patch_stack(source: str, version: str, root: Path, report: list[str]) 
         for path in entries:
             target = worktree / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(fetch(source, version, path), encoding="utf-8")
+            # `write_bytes`, never `write_text`. Text mode translates "\n" to
+            # the platform line ending, so on Windows every fetched upstream
+            # file was written with CRLF while the patches carry LF context --
+            # and all three patches failed to apply on the build runner while
+            # applying cleanly on Linux. The patch stack was fine; the harness
+            # was corrupting its own inputs.
+            target.write_bytes(fetch(source, version, path).encode("utf-8"))
 
-        git = ["git", "-C", str(worktree)]
+        # `core.autocrlf=false` for the same reason, one layer down: on Windows
+        # git's default would normalise on add and convert back on checkout,
+        # reintroducing the mismatch this temp tree exists to avoid.
+        git = ["git", "-C", str(worktree), "-c", "core.autocrlf=false", "-c", "core.eol=lf"]
         subprocess.run([*git, "init", "--quiet"], check=True)
         subprocess.run([*git, "add", "."], check=True)
         subprocess.run(

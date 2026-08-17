@@ -586,3 +586,29 @@ class CitationRequestCountTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LineEndingTests(unittest.TestCase):
+    """The harness must not rewrite the bytes it is about to check.
+
+    All three patches failed to apply on the Windows build runner and applied
+    cleanly on Linux. The patch stack was correct: the checker wrote each
+    fetched upstream file with `write_text`, whose text mode translates "\\n"
+    to the platform line ending, so the temp tree held CRLF while the patches
+    carry LF context. A harness that corrupts its own inputs reports a defect
+    in whatever it is checking.
+
+    Asserted structurally because the defect is invisible on the platform this
+    suite usually runs on -- a behavioural test would pass on Linux whichever
+    call were used, which is exactly how this survived until CI existed.
+    """
+
+    SOURCE = (REPOSITORY_ROOT / "scripts/verify_pinned_upstream.py").read_text(encoding="utf-8")
+
+    def test_upstream_files_are_written_as_bytes(self) -> None:
+        self.assertIn("write_bytes(", self.SOURCE)
+        self.assertNotIn("write_text(", self.SOURCE)
+
+    def test_the_temp_repository_disables_line_ending_conversion(self) -> None:
+        self.assertIn("core.autocrlf=false", self.SOURCE)
+        self.assertIn("core.eol=lf", self.SOURCE)
