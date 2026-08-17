@@ -11,6 +11,13 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Checked before anything else: $IsWindows does not exist in Windows PowerShell
+# 5.1, so under StrictMode the next check would fail with an unrelated error
+# instead of naming the real requirement.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  throw ("PowerShell 7 or newer is required; this is Windows PowerShell " +
+    "$($PSVersionTable.PSVersion). Install it with: winget install Microsoft.PowerShell")
+}
 if (-not $IsWindows) {
   throw "Sunshine native Chromium builds require Windows."
 }

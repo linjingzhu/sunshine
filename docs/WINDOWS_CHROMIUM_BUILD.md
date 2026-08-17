@@ -17,11 +17,14 @@ The machine must have:
 
 - Windows 11 x64;
 - at least 180 GB free on a persistent NTFS build volume;
+- **PowerShell 7 or newer** (`pwsh`), which the build step requires and a stock Windows install does not include — `winget install Microsoft.PowerShell`;
 - Visual Studio 2022 with Desktop development with C++;
 - Windows 11 SDK;
 - Python 3 and Git;
 - Chromium `depot_tools` on `PATH`;
 - long paths enabled.
+
+GitHub-hosted Windows images ship `pwsh` preinstalled, so this requirement is invisible until the pipeline first runs on a real machine. Without it the job fails in about a minute with `pwsh: command not found`.
 
 Set the repository Actions variable `SUNSHINE_CHROMIUM_WORKSPACE` to the persistent workspace, for example `F:\sunshine-chromium`. Do not place this checkout in an ephemeral runner directory.
 
