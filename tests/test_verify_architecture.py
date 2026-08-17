@@ -335,6 +335,19 @@ class ChromiumBootstrapTests(unittest.TestCase):
         self.assertIn("https://chromium.googlesource.com/chromium/src.git", source)
         self.assertNotIn('run("fetch"', source)
 
+    def test_an_official_build_asks_for_its_pgo_profiles(self) -> None:
+        """Without them GN stops: default_pgo_flags finds no profile path.
+
+        Disabling PGO instead would weaken the release configuration that
+        docs/SIZE_BUDGET.md pins, so the profiles are requested rather than the
+        optimisation dropped.
+        """
+
+        source = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('"custom_vars": {"checkout_pgo_profiles": True},', source)
+        build_script = REPOSITORY_ROOT / "scripts" / "build_chromium_windows.ps1"
+        self.assertNotIn("chrome_pgo_phase", build_script.read_text(encoding="utf-8"))
+
     def test_reset_exists_and_is_opt_in(self) -> None:
         """Bootstrapping a human's workspace must still refuse to discard work."""
 

@@ -48,6 +48,17 @@ An interrupted sync resumes: everything already fetched stays in the workspace. 
 
 A dependency left half-cloned by an interrupted sync will not reconcile itself — the next run stops with `Unrecognized error, please merge or rebase manually`. The pipeline passes `--force --reset` to gclient for exactly this, since the pinned revision always wins in a build-owned workspace. If a dependency is damaged beyond that, delete its directory under `src/third_party/` and sync again; gclient re-clones it.
 
+## Profile-guided optimisation
+
+`is_official_build=true` enables PGO, and GN generation fails without the profile it expects:
+
+```
+Command: .../tools/update_pgo_profiles.py --target win64 get_profile_path
+Returned 1.
+```
+
+gclient does not fetch those profiles unless asked, so the bootstrap sets `checkout_pgo_profiles` in the solution spec and writes the spec on every run — an existing workspace picks the change up on its next sync. Setting `chrome_pgo_phase=0` would also silence the error, at the cost of quietly weakening the release configuration this repository pins; that is not the trade made here.
+
 ## Workspace ownership
 
 The Chromium workspace belongs to the build, not to a person. The pipeline runs `bootstrap_chromium.py --reset`, which discards modifications to tracked upstream files so a changed patch stack does not stop the next build for manual cleanup.
