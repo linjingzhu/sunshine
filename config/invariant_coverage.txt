@@ -22,6 +22,13 @@
 # which is a section rather than a criterion. ACCEPTANCE_SUITES section 9
 # records the remainder as a defect in the contract set.
 #
+# Bare-ordinal lists that remain uncitable, and are therefore not counted at
+# all: BROWSER_UTILITIES_CONTRACT's *Invariants* section 1-22 (distinct from its
+# BUA-1..BUA-22 acceptance criteria, which are prefixed), and
+# SESSION_PROFILE_CONTRACT's per-section rule lists. Converting either needs a
+# new family registered in `scripts/trace_invariants.py`, so it is a decision
+# rather than a cleanup.
+#
 # SEC-1 and SEC-2 are the sandbox and site-isolation boundaries. Nothing in this
 # repository mentioned either until the guard that claims them was written, so
 # their count going from zero to two is the whole of the protection, not an

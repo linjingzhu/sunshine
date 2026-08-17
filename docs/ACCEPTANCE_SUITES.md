@@ -184,13 +184,13 @@ Nine acceptance lines, plus the corpus line that governs all of them.
 
 **A1.1 — login persistence.** Every cookie and credential criterion in the
 contract set is about *isolation and non-leakage*: profile A must not see
-profile B (`SESSION_PROFILE_CONTRACT` 9), incognito must vanish
-(`SESSION_PROFILE_CONTRACT` 11), canaries must not reach a Sunshine log
-(`SESSION_PROFILE_CONTRACT` 13). Not one asserts the positive: that a session
+profile B (`SESSION_PROFILE_CONTRACT` SRA-9), incognito must vanish
+(`SESSION_PROFILE_CONTRACT` SRA-11), canaries must not reach a Sunshine log
+(`SESSION_PROFILE_CONTRACT` SRA-13). Not one asserts the positive: that a session
 logged in before a clean restart is still logged in after it. That is the
 behaviour §5.7 names, and it is uncovered. The mechanism is entirely Chromium's,
 which is a reason to expect it to work and not a reason to omit the check —
-`SESSION_PROFILE_CONTRACT` 2 makes exactly this argument for tab order and
+`SESSION_PROFILE_CONTRACT` SRA-2 makes exactly this argument for tab order and
 checks it anyway.
 
 **A1.3 — file upload.** No document in `docs/` mentions file upload, a file
@@ -271,7 +271,7 @@ not any individual gap, is the finding for Stage 2.
 | A2.4 | gesture activation, cancellation, false-positive, reversal rate | events: `GESTURE_CONTRACT` §7 and GA-17. behaviour: `GESTURE_CONTRACT` GA-1–GA-16. **thresholds: nothing** | B + H | **Partial** |
 | A2.5 | permission friction | **nothing** — `PERMISSION_POLICY` has no criteria of any kind | H | **Uncovered** |
 | A2.6 | download failure and security override rate | events: `DOWNLOAD_SAFETY` DSA-6. **rate: nothing** | B + H | **Partial** |
-| A2.7 | session restore failure rate | behaviour: `SESSION_PROFILE_CONTRACT` 1–8, 14. **rate: nothing** | B + H | **Partial** |
+| A2.7 | session restore failure rate | behaviour: `SESSION_PROFILE_CONTRACT` SRA-1–SRA-8, SRA-14. **rate: nothing** | B + H | **Partial** |
 
 **Stage 2: 0 covered, 5 partial, 2 uncovered.**
 
@@ -310,8 +310,8 @@ upload half could remain unnoticed for as long as they have.
 
 Stage 2 features whose acceptance §6.8 does not mention, and which are therefore
 gated only by their own contracts: the Security Center
-(`SECURITY_CENTER_CONTRACT` 1–13), browser utilities
-(`BROWSER_UTILITIES_CONTRACT` 1–22), and the §2.3 extension architecture gate
+(`SECURITY_CENTER_CONTRACT` SCA-1–SCA-13), browser utilities
+(`BROWSER_UTILITIES_CONTRACT` BUA-1–BUA-22), and the §2.3 extension architecture gate
 (`EXTENSION_COMPATIBILITY_GATE` matrix and GO/NO-GO). See finding C4 for a
 tension in the last of these.
 
@@ -558,7 +558,7 @@ records S1 as unrunnable because "this session has no pinned Chromium checkout".
 `scripts/verify_pinned_upstream.py` already fetches pinned sources over HTTPS and
 checks every upstream path the contracts cite, on every CI run, without a
 checkout. S1 is reachable today by the same mechanism. The same applies to the
-host-collision half of `SECURITY_CENTER_CONTRACT` 13.
+host-collision half of `SECURITY_CENTER_CONTRACT` SCA-13.
 
 **C7 — two acceptance criteria depend on an open product decision.**
 `ADVANCED_TABS_CONTRACT` ATA-9 reads "produces the workspace outcome chosen in
