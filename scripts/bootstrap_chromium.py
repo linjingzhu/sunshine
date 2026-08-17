@@ -152,10 +152,15 @@ def main() -> int:
     jobs = f"-j{args.jobs}"
     if not args.skip_fetch:
         workspace.mkdir(parents=True, exist_ok=True)
-        # Written on every run, not just the first. `gclient config` only
-        # rewrites .gclient, so an existing workspace picks up a changed spec
-        # -- such as newly requesting PGO profiles -- on its next sync.
-        run("gclient", "config", "--spec", CHROMIUM_SPEC, cwd=workspace)
+        # Written directly rather than through `gclient config --spec`. The
+        # depot_tools entry point is a .bat, so the spec would travel through
+        # cmd.exe, which cannot carry the embedded newlines: gclient received
+        # one mangled line and reported a syntax error at character 13. The
+        # file is the whole of what that command produces.
+        #
+        # Rewritten on every run, so an existing workspace picks up a changed
+        # spec -- such as newly requesting PGO profiles -- on its next sync.
+        (workspace / ".gclient").write_text(CHROMIUM_SPEC, encoding="utf-8")
         if not src.exists():
             run("gclient", "sync", "--nohooks", jobs, cwd=workspace)
 

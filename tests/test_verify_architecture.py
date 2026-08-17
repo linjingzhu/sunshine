@@ -331,9 +331,23 @@ class ChromiumBootstrapTests(unittest.TestCase):
         """`fetch chromium` cannot bound concurrency, so it is expanded inline."""
 
         source = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('run("gclient", "config", "--spec", CHROMIUM_SPEC, cwd=workspace)', source)
+        self.assertIn('(workspace / ".gclient").write_text(CHROMIUM_SPEC, encoding="utf-8")', source)
         self.assertIn("https://chromium.googlesource.com/chromium/src.git", source)
         self.assertNotIn('run("fetch"', source)
+
+    def test_structured_input_reaches_tools_as_files_not_shell_arguments(self) -> None:
+        """Twice now, cmd.exe destroyed text passed as a native argument.
+
+        GN lost the quotes around ffmpeg_branding="Chromium"; gclient lost the
+        newlines in its solution spec and reported a syntax error at character
+        13. Both are written to files instead.
+        """
+
+        bootstrap = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn('"config", "--spec"', bootstrap)
+
+        build_script = (REPOSITORY_ROOT / "scripts" / "build_chromium_windows.ps1").read_text(encoding="utf-8")
+        self.assertNotIn("--args=", build_script)
 
     def test_an_official_build_asks_for_its_pgo_profiles(self) -> None:
         """Without them GN stops: default_pgo_flags finds no profile path.
