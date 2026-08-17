@@ -82,8 +82,9 @@ class PatchStructureTests(unittest.TestCase):
         """A token used only on added lines is asserted, not proven.
 
         `--ntp-logo-margin-bottom` is proven: upstream's own `#logo` rule sits in
-        the patch context. The two colour tokens appear only on added lines, so
-        CI fetches the pinned stylesheet and confirms upstream uses them.
+        the patch context. The other two are checked in CI against the pinned
+        revision -- and against the right source for each kind, which is the
+        point of `test_the_colour_token_is_checked_where_it_is_defined`.
         """
 
         patch = (PATCH_DIR / "0002-sunshine-new-tab.patch").read_text(encoding="utf-8")
@@ -94,10 +95,60 @@ class PatchStructureTests(unittest.TestCase):
         )
 
         workflow = (ROOT / ".github/workflows/chromium-architecture-check.yml").read_text(encoding="utf-8")
-        for token in ("--color-new-tab-page-primary-foreground", "--ntp-theme-text-shadow"):
-            with self.subTest(token=token):
-                self.assertIn(token, patch)
-                self.assertIn(token, workflow)
+        self.assertIn("--ntp-theme-text-shadow", patch)
+        self.assertIn("--ntp-theme-text-shadow:", workflow)
+        self.assertIn("--color-new-tab-page-primary-foreground", patch)
+
+    def test_the_colour_token_is_checked_where_it_is_defined(self) -> None:
+        """`--color-new-tab-page-*` tokens are not declared in app.css.
+
+        Chromium emits them from the colour IDs in `chrome_color_id.h` and
+        serves them through `chrome://theme`, so a token can be entirely valid
+        while appearing nowhere in the stylesheet. Verified against the pinned
+        tag: `app.css` contains no `--color-new-tab-page-primary-foreground`,
+        and `chrome_color_id.h` does define `kColorNewTabPagePrimaryForeground`.
+
+        Grepping app.css for it -- which this check first did -- fails the build
+        on a token that exists.
+        """
+
+        workflow = (ROOT / ".github/workflows/chromium-architecture-check.yml").read_text(encoding="utf-8")
+        self.assertIn("chrome/browser/ui/color/chrome_color_id.h", workflow)
+        self.assertIn("kColorNewTabPagePrimaryForeground", workflow)
+
+    def test_the_wordmark_leaves_no_reference_to_the_element_it_replaced(self) -> None:
+        """Replacing `ntp-logo` is not finished when the template changes.
+
+        `app.ts` referred to the logo in four places. Removing only the element
+        failed the build at `//chrome/browser/resources/new_tab_page:lint_ts`:
+
+            Id 'logo' is listed in the interface definition for AppElement,
+            but no element with that ID was found in the template file
+
+        The other three are silent rather than fatal -- an unused type import,
+        an inert allowlist that would have made the wordmark inert whenever the
+        composebox opened, and a click metric that would have stopped recording.
+        """
+
+        patch = (PATCH_DIR / "0002-sunshine-new-tab.patch").read_text(encoding="utf-8")
+        removed = [line[1:] for line in patch.splitlines() if line.startswith("-")]
+        added = [line[1:] for line in patch.splitlines() if line.startswith("+")]
+
+        self.assertTrue(any('<ntp-logo id="logo"' in line for line in removed))
+
+        for orphan in (
+            "    logo: LogoElement,",
+            "import type {LogoElement} from './logo.js';",
+            "  '#logo',",
+            "        case $$(this, 'ntp-logo'):",
+        ):
+            with self.subTest(reference=orphan.strip()):
+                self.assertIn(orphan, removed)
+
+        # The two that are replaced rather than simply dropped must land on the
+        # wordmark, or the behaviour is lost instead of carried over.
+        self.assertIn("  '#sunshineWordmark',", added)
+        self.assertIn("        case $$(this, '#sunshineWordmark'):", added)
 
     def test_stage_one_does_not_remove_chromium_browser_primitives(self) -> None:
         patch = (PATCH_DIR / "0002-sunshine-new-tab.patch").read_text(encoding="utf-8")

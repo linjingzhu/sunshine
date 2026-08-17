@@ -114,30 +114,45 @@ jobs:
         run: |
           revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
           version="${revision#refs/tags/}"
-          css="$(mktemp)"
-          trap 'rm -f "$css"' EXIT
-          curl --fail --silent --show-error --location \
-            "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/chrome/browser/resources/new_tab_page/app.css?format=TEXT" \
-            | base64 --decode > "$css"
-          # The Sunshine wordmark consumes these without a fallback, deliberately:
-          # a fallback colour would look right in light mode and silently escape
-          # the theme everywhere else. Nothing in the patch proves they exist --
-          # they appear only on added lines -- so upstream's own use of them is
-          # the evidence. --ntp-logo-margin-bottom needs no check here; upstream's
-          # #logo rule sits in the patch context.
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          fetch() {
+            curl --fail --silent --show-error --location \
+              "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version/$1?format=TEXT" \
+              | base64 --decode > "$work/$2"
+          }
+          fetch chrome/browser/resources/new_tab_page/app.css app.css
+          fetch chrome/browser/ui/color/chrome_color_id.h chrome_color_id.h
+
+          # The wordmark consumes both tokens without a fallback, deliberately: a
+          # fallback colour would look right in light mode and silently escape the
+          # theme everywhere else. That makes their existence load-bearing.
+          #
+          # They are different KINDS of token and need different evidence.
+          # --ntp-theme-text-shadow is a plain custom property that app.css itself
+          # declares, so the definition is the proof. --color-new-tab-page-*
+          # tokens are emitted by Chromium's colour pipeline from the colour IDs
+          # in chrome_color_id.h and reach the page through chrome://theme, so a
+          # token can be perfectly valid while appearing nowhere in app.css. An
+          # earlier version of this step grepped app.css for both and would have
+          # failed the build on a token that exists.
+          #
+          # --ntp-logo-margin-bottom needs no check: upstream's own #logo rule
+          # sits in the patch context, so applying the patch already proves it.
           missing=0
-          for token in --color-new-tab-page-primary-foreground --ntp-theme-text-shadow; do
-            if ! grep -q -- "$token" "$css"; then
-              echo "Token absent from pinned upstream app.css: $token" >&2
-              missing=1
-            fi
-          done
-          if (( missing )); then
-            echo "" >&2
-            echo "Colour and shadow tokens upstream does define, as candidates:" >&2
-            grep -oE -- '--(color-new-tab-page|ntp)[a-z0-9-]*' "$css" | sort -u >&2
-            exit 1
+          if ! grep -q -- '--ntp-theme-text-shadow:' "$work/app.css"; then
+            echo "app.css no longer declares --ntp-theme-text-shadow" >&2
+            missing=1
           fi
+          if ! grep -q 'kColorNewTabPagePrimaryForeground' "$work/chrome_color_id.h"; then
+            echo "chrome_color_id.h no longer defines kColorNewTabPagePrimaryForeground" >&2
+            echo "(which is what emits --color-new-tab-page-primary-foreground)" >&2
+            echo "" >&2
+            echo "New Tab Page foreground colour IDs upstream does define:" >&2
+            grep -oE 'kColorNewTabPage[A-Za-z0-9]*Foreground' "$work/chrome_color_id.h" | sort -u >&2
+            missing=1
+          fi
+          (( missing == 0 ))
 
       - name: Check complete patch stack against pinned upstream source
         shell: bash
