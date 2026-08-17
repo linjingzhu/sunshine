@@ -99,6 +99,19 @@ class WindowsBuildContractTests(unittest.TestCase):
         doc = (ROOT / "docs/WINDOWS_CHROMIUM_BUILD.md").read_text(encoding="utf-8")
         self.assertIn("PowerShell 7 or newer", doc)
 
+    def test_gn_arguments_travel_by_file_not_through_the_shell(self) -> None:
+        """PowerShell strips embedded quotes from native-command arguments.
+
+        `--args=... ffmpeg_branding="Chromium"` reached GN as
+        `ffmpeg_branding=Chromium`, which it rejected as an undefined
+        identifier. args.gn removes shell quoting from the path.
+        """
+
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('Set-Content -Path (Join-Path $out "args.gn")', script)
+        self.assertIn('gn gen "out/Sunshine"', script)
+        self.assertNotIn("--args=", script)
+
     def test_compile_parallelism_is_capped_when_asked(self) -> None:
         """The runner is also the owner's workstation, so it must stay usable."""
 

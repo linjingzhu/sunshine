@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "surfaces": ["bookmark", "browser", "tab", "view", "workspace"],
+  "commands": [
+    {
+      "id": "bookmark.toggle",
+      "summary": "Add or remove the active tab's URL from bookmarks.",
+      "owner": "chromium",
+      "availability": "The active tab has a bookmarkable URL.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BookmarkToggle",
+      "errors": ["unbookmarkable_scheme"]
+    },
+    {
+      "id": "browser.back",
+      "summary": "Navigate the active tab to its previous entry.",
+      "owner": "chromium",
+      "availability": "The active tab has a previous navigation entry.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserBack",
+      "errors": []
+    },
+    {
+      "id": "browser.forward",
+      "summary": "Navigate the active tab to its next entry.",
+      "owner": "chromium",
+      "availability": "The active tab has a forward navigation entry.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserForward",
+      "errors": []
+    },
+    {
+      "id": "browser.reload",
+      "summary": "Reload the active tab, or stop a load in progress.",
+      "owner": "chromium",
+      "availability": "A tab is active.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.BrowserReload",
+      "errors": []
+    },
+    {
+      "id": "tab.close",
+      "summary": "Close the target tab and activate an adjacent one.",
+      "owner": "chromium",
+      "availability": "A closable tab is targeted.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.TabClose",
+      "errors": []
+    },
+    {
+      "id": "tab.duplicate",
+      "summary": "Open a copy of the target tab beside it.",
+      "owner": "chromium",
+      "availability": "A tab is targeted.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.TabDuplicate",
+      "errors": []
+    },
+    {
+      "id": "tab.group.create",
+      "summary": "Group the selected tabs using Chromium's native tab groups.",
+      "owner": "chromium",
+      "availability": "At least one tab is selected in one window.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.TabGroupCreate",
+      "errors": ["selection_spans_windows"]
+    },
+    {
+      "id": "tab.group.ungroup",
+      "summary": "Remove the selected tabs from their group without closing them.",
+      "owner": "chromium",
+      "availability": "Every selected tab belongs to a group.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.TabGroupUngroup",
+      "errors": []
+    },
+    {
+      "id": "tab.new",
+      "summary": "Open a New Tab Page in the active window.",
+      "owner": "chromium",
+      "availability": "A browser window is open.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.TabNew",
+      "errors": []
+    },
+    {
+      "id": "view.split.close",
+      "summary": "Dissolve the split and return the surviving tab to the normal view.",
+      "owner": "sunshine.split_view",
+      "availability": "The active window has a split layout.",
+      "guard": "scripts.split_view_model:close_pane",
+      "telemetry": "Sunshine.Command.ViewSplitClose",
+      "errors": ["unknown_pane"]
+    },
+    {
+      "id": "view.split.open",
+      "summary": "Place two distinct active-workspace tabs into two panes.",
+      "owner": "sunshine.split_view",
+      "availability": "Two distinct tabs share the active workspace and one profile.",
+      "guard": "scripts.split_view_model:open_split",
+      "telemetry": "Sunshine.Command.ViewSplitOpen",
+      "errors": [
+        "same_tab_in_both_panes",
+        "tab_outside_active_workspace",
+        "panes_span_profiles",
+        "unsupported_orientation",
+        "ratio_out_of_range"
+      ]
+    },
+    {
+      "id": "view.split.swap",
+      "summary": "Exchange the two panes' positions without navigating or reloading.",
+      "owner": "sunshine.split_view",
+      "availability": "The active window has a split layout.",
+      "guard": "scripts.split_view_model:swap_panes",
+      "telemetry": "Sunshine.Command.ViewSplitSwap",
+      "errors": []
+    },
+    {
+      "id": "workspace.close",
+      "summary": "Retire a workspace, transferring every one of its tabs at once.",
+      "owner": "sunshine.workspace",
+      "availability": "A second workspace exists in the same profile to receive the tabs.",
+      "guard": "scripts.workspace_model:close_workspace_atomic",
+      "telemetry": "Sunshine.Command.WorkspaceClose",
+      "errors": ["workspace_missing", "destination_not_distinct", "group_spans_workspaces"]
+    },
+    {
+      "id": "workspace.create",
+      "summary": "Create an empty workspace in the active profile with a New Tab.",
+      "owner": "sunshine.workspace",
+      "availability": "A profile is active.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.WorkspaceCreate",
+      "errors": ["name_rejected", "colour_unsupported"]
+    },
+    {
+      "id": "workspace.switch",
+      "summary": "Project the selected workspace and restore its last active tab.",
+      "owner": "sunshine.workspace",
+      "availability": "The selected workspace exists in the window's profile.",
+      "guard": null,
+      "telemetry": "Sunshine.Command.WorkspaceSwitch",
+      "errors": ["workspace_missing"]
+    },
+    {
+      "id": "workspace.tab.move",
+      "summary": "Transfer tabs to another workspace while keeping their native state.",
+      "owner": "sunshine.workspace",
+      "availability": "The destination workspace exists in the same profile.",
+      "guard": "scripts.workspace_model:move_tabs_atomic",
+      "telemetry": "Sunshine.Command.WorkspaceTabMove",
+      "errors": ["workspace_missing", "stale_tab", "group_spans_workspaces"]
+    }
+  ]
+}

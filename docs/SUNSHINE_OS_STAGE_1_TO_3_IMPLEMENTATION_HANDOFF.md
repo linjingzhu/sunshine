@@ -137,20 +137,11 @@ must never weaken a Chromium security default to make a feature easier.
 Every user-visible action is a command identifier. UI affordances resolve a
 command rather than calling browser internals directly.
 
-```text
-CommandId:
-  | "browser.back"
-  | "browser.forward"
-  | "browser.reload"
-  | "tab.new"
-  | "tab.close"
-  | "tab.duplicate"
-  | "bookmark.toggle"
-  | "workspace.switch"
-  | "view.split.toggle"
-```
+`first_party/commands.json` is the authoritative list. It records, for each command, the owner, availability predicate, telemetry event, and error results this rule requires. Do not restate the list here or in a feature contract. An earlier copy in this section kept a split-view "toggle" command alive long after the split-view contract had replaced it with `view.split.open`, `view.split.swap`, and `view.split.close`; a reader could not tell which list was current.
 
-Invocation sources include toolbar, keyboard, context menu, mouse gesture, command palette, and later automation. A command has one authoritative implementation, availability predicate, telemetry event, and error result.
+A Sunshine-owned command is claimed by exactly one module, through a `native_command` entrypoint in that module's manifest. Chromium-owned commands such as `browser.back` carry no Sunshine implementation; Sunshine only surfaces them.
+
+Invocation sources include toolbar, keyboard, context menu, mouse gesture, command palette, and later automation.
 
 ### 3.3 Domain ownership
 

@@ -35,6 +35,25 @@ general in-process plug-in ABI are excluded. The first implementation is a
 compile-time registry with feature-controlled activation, not an unsafe dynamic
 plug-in host.
 
+## Command ownership
+
+`first_party/commands.json` is the authoritative command list. Each entry names
+an owner, an availability predicate, a telemetry event, and its error results.
+
+A Sunshine-owned command is claimed by declaring a `native_command` entrypoint
+whose target is the command id. Entrypoint targets are already globally unique
+across the module registry, so that declaration is what makes "one authoritative
+implementation" enforceable rather than aspirational: a second module claiming
+the same command fails validation.
+
+Chromium-owned commands such as `browser.back` appear in the registry but must
+not be declared by any module. Sunshine surfaces them; it does not implement
+them.
+
+Where a Sunshine model already enforces a command's availability, the entry
+carries a `guard` naming that callable, and validation imports it. A guard that
+stops resolving fails the build rather than silently becoming prose.
+
 ## Manifest contract
 
 Every registered module declares a stable `sunshine.*` ID, ownership, lifecycle,
