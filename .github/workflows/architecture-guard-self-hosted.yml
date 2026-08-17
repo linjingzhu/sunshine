@@ -91,6 +91,9 @@ jobs:
       - name: Verify Sunshine-authored web assets execute and load nothing remote
         run: python scripts/verify_web_asset_security.py
 
+      - name: Verify the open-decisions index agrees with its sources
+        run: python scripts/verify_decision_index.py
+
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py
 
