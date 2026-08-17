@@ -133,52 +133,55 @@ isolation is marked complete.
 
 ### Clean lifecycle
 
-1. With startup set to New Tab, open two windows and multiple tabs, exit
-   normally, relaunch, and verify exactly one usable New Tab—not the old tabs.
-2. With Continue where you left off selected, repeat the same setup and verify
-   window count, tab order, pinned state, active tab, and navigation entries.
-3. With configured startup URLs, verify those URLs open after a clean exit and
-   are not replaced by a forced Sunshine dashboard.
+1. **SRA-1.** With startup set to New Tab, open two windows and multiple tabs,
+   exit normally, relaunch, and verify exactly one usable New Tab—not the old
+   tabs.
+2. **SRA-2.** With Continue where you left off selected, repeat the same setup
+   and verify window count, tab order, pinned state, active tab, and navigation
+   entries.
+3. **SRA-3.** With configured startup URLs, verify those URLs open after a clean
+   exit and are not replaced by a forced Sunshine dashboard.
 
 ### Whole-browser crash
 
-4. Create a known two-window/six-tab fixture, terminate the browser abnormally,
-   relaunch, and verify Chromium exposes its recovery behavior without
-   Sunshine auto-confirming it.
-5. Accept recovery and verify each fixture tab appears once. Corrupt one
-   disposable session entry and verify valid entries remain recoverable.
-6. Include a tab whose last navigation was a POST and verify recovery does not
-   silently resubmit it.
+4. **SRA-4.** Create a known two-window/six-tab fixture, terminate the browser
+   abnormally, relaunch, and verify Chromium exposes its recovery behavior
+   without Sunshine auto-confirming it.
+5. **SRA-5.** Accept recovery and verify each fixture tab appears once. Corrupt
+   one disposable session entry and verify valid entries remain recoverable.
+6. **SRA-6.** Include a tab whose last navigation was a POST and verify recovery
+   does not silently resubmit it.
 
 ### Partial failure
 
-7. Crash one renderer with Chromium's test facilities. Verify other tabs remain
-   interactive, only the failed tab shows crash UI, and it reloads only after
-   explicit user action.
-8. Crash a Sunshine-owned WebUI surface and verify normal web tabs and the
-   profile's next-launch session remain intact.
+7. **SRA-7.** Crash one renderer with Chromium's test facilities. Verify other
+   tabs remain interactive, only the failed tab shows crash UI, and it reloads
+   only after explicit user action.
+8. **SRA-8.** Crash a Sunshine-owned WebUI surface and verify normal web tabs
+   and the profile's next-launch session remain intact.
 
 ### Isolation matrix
 
-9. Create profiles A and B with disjoint fixture URLs, cookies, permissions,
-   downloads, and recently closed tabs. Relaunch each profile and assert no
-   cross-profile value appears in UI or restored state.
-10. Crash while both A and B are open. Restore A and verify B's windows are not
-    attached to A; then restore B independently.
-11. Browse a unique fixture in Incognito and Guest, close the final window,
-    restart, and verify it is absent from regular restore, history, recently
-    closed UI, Sunshine analytics, and AI history.
-12. Delete a disposable profile through native UI and verify another profile's
-    path and data are unchanged.
+9. **SRA-9.** Create profiles A and B with disjoint fixture URLs, cookies,
+   permissions, downloads, and recently closed tabs. Relaunch each profile and
+   assert no cross-profile value appears in UI or restored state.
+10. **SRA-10.** Crash while both A and B are open. Restore A and verify B's
+    windows are not attached to A; then restore B independently.
+11. **SRA-11.** Browse a unique fixture in Incognito and Guest, close the final
+    window, restart, and verify it is absent from regular restore, history,
+    recently closed UI, Sunshine analytics, and AI history.
+12. **SRA-12.** Delete a disposable profile through native UI and verify another
+    profile's path and data are unchanged.
 
 ### Secret leakage
 
-13. Use canary values in a URL query, form field, cookie, password entry, and
-    authorization header. Exercise clean exit, crash recovery, renderer crash,
-    and diagnostic collection; assert prohibited canaries do not appear in
-    Sunshine logs, exported configuration, workflow artifacts, or AI requests.
-14. Verify local session recovery works with network access disabled, proving
-    it does not depend on or trigger a Sunshine cloud upload.
+13. **SRA-13.** Use canary values in a URL query, form field, cookie, password
+    entry, and authorization header. Exercise clean exit, crash recovery,
+    renderer crash, and diagnostic collection; assert prohibited canaries do not
+    appear in Sunshine logs, exported configuration, workflow artifacts, or AI
+    requests.
+14. **SRA-14.** Verify local session recovery works with network access
+    disabled, proving it does not depend on or trigger a Sunshine cloud upload.
 
 ## Upstream-roll gate
 

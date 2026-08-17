@@ -774,101 +774,108 @@ Runnable once a native build and a palette exist. All are `NOT RUN`.
 
 **Dispatch and equivalence**
 
-1. A command invoked from the palette and the same command invoked from the
-   toolbar produce identical observable state and identical telemetry, differing
-   only in the source label.
-2. Exactly one registry telemetry event is recorded per palette activation.
-3. Tracing a palette activation shows dispatch through the command service, with
-   no direct call into browser internals from palette code.
+1. **CPA-1.** A command invoked from the palette and the same command invoked
+   from the toolbar produce identical observable state and identical telemetry,
+   differing only in the source label.
+2. **CPA-2.** Exactly one registry telemetry event is recorded per palette
+   activation.
+3. **CPA-3.** Tracing a palette activation shows dispatch through the command
+   service, with no direct call into browser internals from palette code.
 
 **Ruling 2**
 
-4. With a load in progress, the palette offers reload and stop as two rows; each
-   produces its own outcome, and neither produces the other's, on 100 consecutive
-   activations timed to straddle load completion.
-5. `browser.reload` during a load restarts the load and never cancels it.
-6. The toolbar's reload-or-stop control dispatches whichever identifier its
-   displayed glyph promises, on every transition.
+4. **CPA-4.** With a load in progress, the palette offers reload and stop as two
+   rows; each produces its own outcome, and neither produces the other's, on 100
+   consecutive activations timed to straddle load completion.
+5. **CPA-5.** `browser.reload` during a load restarts the load and never cancels
+   it.
+6. **CPA-6.** The toolbar's reload-or-stop control dispatches whichever
+   identifier its displayed glyph promises, on every transition.
 
 **Availability and explanation**
 
-7. Rendering a full palette list evaluates availability for every command with no
-   state mutation observable in the tab strip, session store, workspace catalog,
-   or split layout.
-8. With a renderer deliberately hung, the palette opens, lists, and explains
-   within the same frame budget as with a responsive renderer.
-9. Every unavailable row shows a reason that is a member of that command's
-   declared token set; no runtime reason token is undeclared.
-10. A command rendered available that becomes unavailable before `Enter`
-    performs no action, shows no dialog, and records one unavailable attempt.
-11. No reason string rendered anywhere in the palette contains a URL, hostname,
-    title, filename, workspace name, or profile name, across a fixture covering
-    every declared token.
+7. **CPA-7.** Rendering a full palette list evaluates availability for every
+   command with no state mutation observable in the tab strip, session store,
+   workspace catalog, or split layout.
+8. **CPA-8.** With a renderer deliberately hung, the palette opens, lists, and
+   explains within the same frame budget as with a responsive renderer.
+9. **CPA-9.** Every unavailable row shows a reason that is a member of that
+   command's declared token set; no runtime reason token is undeclared.
+10. **CPA-10.** A command rendered available that becomes unavailable before
+    `Enter` performs no action, shows no dialog, and records one unavailable
+    attempt.
+11. **CPA-11.** No reason string rendered anywhere in the palette contains a
+    URL, hostname, title, filename, workspace name, or profile name, across a
+    fixture covering every declared token.
 
 **Ranking**
 
-12. The same query produces a byte-identical ordered result list across: a
-    restart, a different page, a different workspace, a profile with different
-    policy, and after executing an arbitrary sequence of commands.
-13. No two candidates ever compare equal under the section 6.2 tuple.
-14. Typing a fixed prefix and pressing `Enter` selects the same command on 100
-    trials interleaved with unrelated browsing.
+12. **CPA-12.** The same query produces a byte-identical ordered result list
+    across: a restart, a different page, a different workspace, a profile with
+    different policy, and after executing an arbitrary sequence of commands.
+13. **CPA-13.** No two candidates ever compare equal under the section 6.2
+    tuple.
+14. **CPA-14.** Typing a fixed prefix and pressing `Enter` selects the same
+    command on 100 trials interleaved with unrelated browsing.
 
 **Keyboard and focus**
 
-15. `Ctrl+K` opens the palette on a page that installs a capturing key handler
-    for that chord and calls `preventDefault`.
-16. `ArrowDown` at the last row and `ArrowUp` at the first row do not move.
-17. `Escape` from the first stage closes with a non-empty query; `Escape` from a
-    second stage returns to the first with the query intact.
-18. After `tab.close` from the palette, focus is on a named element and a screen
-    reader announces it; the same holds after `workspace.switch` and after
-    dismissing without activating.
-19. Activating an unavailable row leaves the palette open with the same active
-    option and announces the reason.
+15. **CPA-15.** `Ctrl+K` opens the palette on a page that installs a capturing
+    key handler for that chord and calls `preventDefault`.
+16. **CPA-16.** `ArrowDown` at the last row and `ArrowUp` at the first row do
+    not move.
+17. **CPA-17.** `Escape` from the first stage closes with a non-empty query;
+    `Escape` from a second stage returns to the first with the query intact.
+18. **CPA-18.** After `tab.close` from the palette, focus is on a named element
+    and a screen reader announces it; the same holds after `workspace.switch`
+    and after dismissing without activating.
+19. **CPA-19.** Activating an unavailable row leaves the palette open with the
+    same active option and announces the reason.
 
 **Recents and privacy**
 
-20. Executing commands writes only identifiers to the profile store; a byte
-    inspection of the stored value finds no timestamp, count, selection handle,
-    or query text.
-21. An incognito window's palette records nothing and displays no recents from
-    the regular profile.
-22. Clearing browsing history for any range empties the recents list entirely.
-23. A recents entry for a selection-bearing command re-opens the second stage and
-    never re-uses a previous selection.
-24. After a build that retires a command, a stored entry for it disappears
-    without error and without offering a row.
+20. **CPA-20.** Executing commands writes only identifiers to the profile store;
+    a byte inspection of the stored value finds no timestamp, count, selection
+    handle, or query text.
+21. **CPA-21.** An incognito window's palette records nothing and displays no
+    recents from the regular profile.
+22. **CPA-22.** Clearing browsing history for any range empties the recents list
+    entirely.
+23. **CPA-23.** A recents entry for a selection-bearing command re-opens the
+    second stage and never re-uses a previous selection.
+24. **CPA-24.** After a build that retires a command, a stored entry for it
+    disappears without error and without offering a row.
 
 **Scope**
 
-25. Typing a URL, a search phrase, a file path, and a command identifier each
-    produce either matching command rows or the empty state — never a navigation,
-    a search, a history result, or an open-tab result.
-26. Network tracing during a full palette session shows no request attributable
-    to the palette.
+25. **CPA-25.** Typing a URL, a search phrase, a file path, and a command
+    identifier each produce either matching command rows or the empty state —
+    never a navigation, a search, a history result, or an open-tab result.
+26. **CPA-26.** Network tracing during a full palette session shows no request
+    attributable to the palette.
 
 **Accessibility**
 
-27. With a screen reader, every row including every unavailable row is reachable
-    by arrow keys, and each unavailable row's reason is announced when it becomes
-    active.
-28. Under forced colours, in both a light and a dark forced theme, every row's
-    text meets 4.5:1, the active-option indicator remains visible, and available
-    and unavailable rows remain distinguishable without colour.
-29. At 200% zoom and the platform's largest text size, no reason text is clipped
-    and the list scrolls.
-30. Under reduced motion the palette is interactive at first paint and no
-    keystroke issued during presentation is lost.
-31. The result-count announcement is coalesced: rapid typing produces at most one
-    announcement per settle, while the visual list updates on every keystroke.
+27. **CPA-27.** With a screen reader, every row including every unavailable row
+    is reachable by arrow keys, and each unavailable row's reason is announced
+    when it becomes active.
+28. **CPA-28.** Under forced colours, in both a light and a dark forced theme,
+    every row's text meets 4.5:1, the active-option indicator remains visible,
+    and available and unavailable rows remain distinguishable without colour.
+29. **CPA-29.** At 200% zoom and the platform's largest text size, no reason
+    text is clipped and the list scrolls.
+30. **CPA-30.** Under reduced motion the palette is interactive at first paint
+    and no keystroke issued during presentation is lost.
+31. **CPA-31.** The result-count announcement is coalesced: rapid typing
+    produces at most one announcement per settle, while the visual list updates
+    on every keystroke.
 
 **Split and workspaces**
 
-32. Opening and closing the palette in a split changes neither pane focus nor the
-    active tab; a tab-scoped command acts on the focused pane.
-33. A workspace second-stage enumeration in a window of one profile lists no
-    workspace of another profile.
+32. **CPA-32.** Opening and closing the palette in a split changes neither pane
+    focus nor the active tab; a tab-scoped command acts on the focused pane.
+33. **CPA-33.** A workspace second-stage enumeration in a window of one profile
+    lists no workspace of another profile.
 
 ## 15. Not verified
 

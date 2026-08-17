@@ -101,19 +101,21 @@ After installation, verify:
 
 ## Media codecs
 
-`scripts/build_chromium_windows.ps1` sets `proprietary_codecs=false` and
-`ffmpeg_branding="Chromium"`. That is Chromium's open-source default and it is
-deliberate, but it has a product consequence that was recorded nowhere until
-`docs/ACCEPTANCE_SUITES.md` traced an acceptance item back to it:
+`scripts/build_chromium_windows.ps1` sets `proprietary_codecs=true` and
+`ffmpeg_branding="Chrome"`, so the build decodes H.264 and AAC.
 
-**The resulting build cannot play H.264 or AAC.** Most video on the web is
-H.264, so a large share of the Stage 1 acceptance corpus will fail to play in a
-build produced by this pipeline. Nothing is broken; the codecs are absent.
+Neither is Chromium's default. `proprietary_codecs` derives from
+`is_chrome_branded`, which Sunshine does not set, so an unmodified build cannot
+play most web video — a Stage 1 acceptance item was determined by a build flag no
+document mentioned until `docs/ACCEPTANCE_SUITES.md` traced it here.
 
-The alternative is `proprietary_codecs=true` with `ffmpeg_branding="Chrome"`,
-which requires the licensing position that Google holds for Chrome and Sunshine
-does not automatically inherit. That is a licence judgment, not an engineering
-one, and it is recorded as an owner decision rather than taken here.
+Turning it on is a licensing decision, not an engineering one, and it is
+recorded in `docs/decisions/0004-media-codecs.md` under an explicit
+**personal-use premise**: the owner builds Sunshine for themselves and does not
+distribute it. Read that ADR before changing the flag in either direction.
 
-Until it is taken, read a media failure in this build as configuration, not as a
-regression, and do not "fix" it by flipping the flags without the decision.
+**The decision does not travel with the artifact.** An installer produced under
+it is not licensed for redistribution by virtue of having been built. Before
+publishing a release or handing a build to anyone else, revisit the ADR; the
+honest default at that point is to turn the flag back off unless a licence has
+been obtained.

@@ -568,33 +568,37 @@ or `docs/COMMAND_PALETTE_CONTRACT.md` is contradicted by this document.
 
 Each item is falsifiable at runtime once a native build exists.
 
-1. Pinning a tab moves it into the pinned region and unpinning returns it to the
-   unpinned region, with no Sunshine record written in either direction.
-2. Pinning both members of a split pins the split; pinning one member dissolves
-   the split, with both tabs surviving.
-3. A pinned tab in an inactive workspace stays in the pinned region while
-   hidden, and switching workspaces performs zero tab moves.
-4. With the startup preference set to something other than restore-last-session,
-   pinned tabs return at startup and recover into Default, with no tab lost.
-5. Tab search lists tabs from inactive workspaces, and the count of listed tabs
-   equals the count of open tabs in the profile's normal windows.
-6. Committing a tab-search result for a tab in an inactive workspace produces
-   exactly one visible transition: the workspace changes, then the tab is
-   active. The tab is never active while its workspace is not.
-7. The number of tabs a window reports as visible in the contents area is one,
-   or two while a split is open, regardless of how many workspaces hold tabs.
-8. Closing three tabs from tab search produces one activation change, and the
-   successor is in the active workspace.
-9. **Not yet evaluable — blocked on Q3.** Reopening a closed tab produces the workspace outcome chosen in Q3, and the
-   same outcome from all three reopen surfaces.
-10. No Sunshine-owned file, preference, or catalog field contains a pinned flag,
-    a recently-closed entry, a duplicate set, or a canonical-URL table, after a
-    session that exercises all of the above and restarts twice.
-11. Incognito and Guest windows contribute nothing to any persistent Sunshine
-    record produced by any of the five features.
-12. If duplicate detection ships: a duplicate set is reported only on request,
-    reports the workspace of each member, retains the member the user chooses,
-    and closes nothing until the user acts.
+1. **ATA-1.** Pinning a tab moves it into the pinned region and unpinning
+   returns it to the unpinned region, with no Sunshine record written in either
+   direction.
+2. **ATA-2.** Pinning both members of a split pins the split; pinning one member
+   dissolves the split, with both tabs surviving.
+3. **ATA-3.** A pinned tab in an inactive workspace stays in the pinned region
+   while hidden, and switching workspaces performs zero tab moves.
+4. **ATA-4.** With the startup preference set to something other than
+   restore-last-session, pinned tabs return at startup and recover into Default,
+   with no tab lost.
+5. **ATA-5.** Tab search lists tabs from inactive workspaces, and the count of
+   listed tabs equals the count of open tabs in the profile's normal windows.
+6. **ATA-6.** Committing a tab-search result for a tab in an inactive workspace
+   produces exactly one visible transition: the workspace changes, then the tab
+   is active. The tab is never active while its workspace is not.
+7. **ATA-7.** The number of tabs a window reports as visible in the contents
+   area is one, or two while a split is open, regardless of how many workspaces
+   hold tabs.
+8. **ATA-8.** Closing three tabs from tab search produces one activation change,
+   and the successor is in the active workspace.
+9. **ATA-9. Not yet evaluable — blocked on Q3.** Reopening a closed tab produces
+   the workspace outcome chosen in Q3, and the same outcome from all three
+   reopen surfaces.
+10. **ATA-10.** No Sunshine-owned file, preference, or catalog field contains a
+    pinned flag, a recently-closed entry, a duplicate set, or a canonical-URL
+    table, after a session that exercises all of the above and restarts twice.
+11. **ATA-11.** Incognito and Guest windows contribute nothing to any persistent
+    Sunshine record produced by any of the five features.
+12. **ATA-12.** If duplicate detection ships: a duplicate set is reported only
+    on request, reports the workspace of each member, retains the member the
+    user chooses, and closes nothing until the user acts.
 
 Status of every item above: **NOT RUN**. All require the pinned native build,
 which is **NOT AVAILABLE** in this wave.

@@ -303,72 +303,76 @@ pinned build, and that is the point.
 
 **Find in Page**
 
-1. On a fixture page with a known number of matches, including matches inside
-   an iframe, a scrolled container, and a `contenteditable` region, the
-   displayed count and ordinal equal Chromium's reported values exactly.
-2. Find-next past the last match wraps to the first, and the active-match
-   highlight is the native one; no additional highlight layer is present.
-3. Two tabs each run a different query concurrently; switching between them,
-   and switching workspaces, preserves each session independently.
-4. The query does not appear in any Sunshine-written file, preference, or
-   telemetry payload after the find bar is closed.
+1. **BUA-1.** On a fixture page with a known number of matches, including
+   matches inside an iframe, a scrolled container, and a `contenteditable`
+   region, the displayed count and ordinal equal Chromium's reported values
+   exactly.
+2. **BUA-2.** Find-next past the last match wraps to the first, and the
+   active-match highlight is the native one; no additional highlight layer is
+   present.
+3. **BUA-3.** Two tabs each run a different query concurrently; switching
+   between them, and switching workspaces, preserves each session independently.
+4. **BUA-4.** The query does not appear in any Sunshine-written file,
+   preference, or telemetry payload after the find bar is closed.
 
 **Zoom**
 
-5. Zoom an origin in one tab; open the same origin in a second tab in the same
-   profile; the second tab shows the same level without Sunshine involvement.
-6. Restart cleanly; the per-origin level persists, and it is present in the
-   profile's native preference storage and in no Sunshine-owned file.
-7. Reset zoom returns the origin to the profile default; a subsequent query of
-   the native zoom controller reports the default level.
-8. The same origin zoomed in a regular profile shows the default level in
-   incognito and in a second profile.
+5. **BUA-5.** Zoom an origin in one tab; open the same origin in a second tab in
+   the same profile; the second tab shows the same level without Sunshine
+   involvement.
+6. **BUA-6.** Restart cleanly; the per-origin level persists, and it is present
+   in the profile's native preference storage and in no Sunshine-owned file.
+7. **BUA-7.** Reset zoom returns the origin to the profile default; a subsequent
+   query of the native zoom controller reports the default level.
+8. **BUA-8.** The same origin zoomed in a regular profile shows the default
+   level in incognito and in a second profile.
 
 **Print and save**
 
-9. Invoking print opens Chromium's preview; cancelling leaves no Sunshine
-   artefact and no download record.
-10. Saving a complete page produces the native directory-plus-file result, the
-    item appears once in the native download model, and no first-party module
-    has opened the saved files.
-11. A page that Chromium refuses to save or print behaves identically with and
-    without Sunshine surfaces open.
-12. Process and file-access tracing during a print and a save shows no
-    first-party module in the document data path.
+9. **BUA-9.** Invoking print opens Chromium's preview; cancelling leaves no
+   Sunshine artefact and no download record.
+10. **BUA-10.** Saving a complete page produces the native directory-plus-file
+    result, the item appears once in the native download model, and no
+    first-party module has opened the saved files.
+11. **BUA-11.** A page that Chromium refuses to save or print behaves
+    identically with and without Sunshine surfaces open.
+12. **BUA-12.** Process and file-access tracing during a print and a save shows
+    no first-party module in the document data path.
 
 **View source and inspect**
 
-13. View source and inspect are present and enabled in the page context menu in
-    a normal window, an incognito window, a split pane, and a window whose
-    Sunshine chrome has been forced into a failure state.
-14. View source produces no additional network request for an already-loaded
-    document.
-15. Inspect opens DevTools attached to the right target for each pane of a
-    split and for a subframe.
-16. Opening DevTools on a Sunshine WebUI surface succeeds; a scan of that
-    surface's shipped source and client-side storage finds no credential,
+13. **BUA-13.** View source and inspect are present and enabled in the page
+    context menu in a normal window, an incognito window, a split pane, and a
+    window whose Sunshine chrome has been forced into a failure state.
+14. **BUA-14.** View source produces no additional network request for an
+    already-loaded document.
+15. **BUA-15.** Inspect opens DevTools attached to the right target for each
+    pane of a split and for a subframe.
+16. **BUA-16.** Opening DevTools on a Sunshine WebUI surface succeeds; a scan of
+    that surface's shipped source and client-side storage finds no credential,
     token, or private endpoint.
-17. Mutating that surface's client-side state through the DevTools console
-    cannot produce a command outcome the command layer would refuse.
+17. **BUA-17.** Mutating that surface's client-side state through the DevTools
+    console cannot produce a command outcome the command layer would refuse.
 
 **Context menus**
 
-18. The link and image context menus contain the pinned revision's native items,
-    in native order, with no removals.
-19. Copy link address yields the exact target URL from native context-menu
-    parameters, including for a redirecting or percent-encoded link.
-20. Open link in incognito lands in an off-the-record context with no regular
-    profile history or storage written.
-21. Save image and save link route through the native download pipeline and are
-    subject to `docs/DOWNLOAD_SAFETY.md`; no image bytes pass through
-    first-party code.
+18. **BUA-18.** The link and image context menus contain the pinned revision's
+    native items, in native order, with no removals.
+19. **BUA-19.** Copy link address yields the exact target URL from native
+    context-menu parameters, including for a redirecting or percent-encoded
+    link.
+20. **BUA-20.** Open link in incognito lands in an off-the-record context with
+    no regular profile history or storage written.
+21. **BUA-21.** Save image and save link route through the native download
+    pipeline and are subject to `docs/DOWNLOAD_SAFETY.md`; no image bytes pass
+    through first-party code.
 
 **Roll gate**
 
-22. At each upstream roll, the source paths in *Implementation authority* still
-    exist or their replacements are identified, and criteria 1–21 are re-run.
-    A changed upstream behaviour blocks the roll for review; it is not
-    corrected by layering a Sunshine implementation over Chromium.
+22. **BUA-22.** At each upstream roll, the source paths in *Implementation
+    authority* still exist or their replacements are identified, and criteria
+    1–21 are re-run. A changed upstream behaviour blocks the roll for review; it
+    is not corrected by layering a Sunshine implementation over Chromium.
 
 ## Not verified
 

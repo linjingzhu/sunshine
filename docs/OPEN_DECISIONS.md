@@ -19,7 +19,6 @@ direction sees the same thing.
 
 | Question | Owner document | Blocks |
 | --- | --- | --- |
-| Is `proprietary_codecs=false` intended? A build from this pipeline cannot play H.264 or AAC, so most web video will not play. The alternative needs a licensing position Sunshine does not inherit from Chrome. | `docs/WINDOWS_CHROMIUM_BUILD.md`, `docs/ACCEPTANCE_SUITES.md` §9 | Stage 1 dogfood |
 | Are the Stage 1 and Stage 2 acceptance suites gates or reports? Handoff §10 forbids starting a wave while a gate knowingly fails, and no item in any suite can be decided offline today. | `docs/ACCEPTANCE_SUITES.md` §9 | Stage 1 exit |
 | What may a provider `block` verdict actually do? Held at an attributed advisory; anything stronger is a second blocking path beside Chromium's. | `docs/SECURITY_CENTER_CONTRACT.md` §14 | Security Center |
 | Is origin-only egress accepted, given it reduces detection for path-specific threats and constrains which providers are compatible? | `docs/SECURITY_CENTER_CONTRACT.md` §14 | Security Center |
@@ -62,6 +61,7 @@ reader may arrive holding the old question.
 | Does the command registry separate the operation from the availability predicate? | Registry schema 2 — `implementation`, `predicate`, `unavailable_reasons` |
 | Is `font-weight: 650` resolvable? | Changed to 600, inside the allowed set; `docs/DESIGN_SYSTEM_CONTRACT.md` S8 now passes |
 | Do the New Tab colour tokens exist upstream? | Yes — `kColorNewTabPagePrimaryForeground` at the pinned tag; checked in CI |
+| Is `proprietary_codecs=false` intended? | `docs/decisions/0004-media-codecs.md` — enabled under a personal-use premise, to be revisited before any distribution |
 
 ## Keeping this honest
 

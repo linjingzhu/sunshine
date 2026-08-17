@@ -460,67 +460,69 @@ build; that is the point — they test that Sunshine has *not* interposed itself
 
 **Classification corpus**
 
-1. Every input in section 3 is classified on the pinned build and its input type
-   recorded. Each row either matches or this document is corrected in the same
-   change. The corpus is a checked-in fixture, not a prose table.
-2. The full corpus is re-run with all Sunshine modules disabled. Input type and
-   default match are identical in both runs (OC-2).
-3. `github.com` produces a classified URL of `https://github.com/`; an
-   http-only host reached the same way still loads, demonstrating that the
+1. **OMA-1.** Every input in section 3 is classified on the pinned build and its
+   input type recorded. Each row either matches or this document is corrected in
+   the same change. The corpus is a checked-in fixture, not a prose table.
+2. **OMA-2.** The full corpus is re-run with all Sunshine modules disabled.
+   Input type and default match are identical in both runs (OC-2).
+3. **OMA-3.** `github.com` produces a classified URL of `https://github.com/`;
+   an http-only host reached the same way still loads, demonstrating that the
    upgrade retains its fallback and that Sunshine adds no forced scheme.
-4. `https://github.com` commits to that origin and path with no host, port, path
-   or query substitution; canonicalisation alone is accepted.
-5. `localhost:3000` and a single-label host with a port both navigate over HTTP
-   without a Sunshine allowlist present anywhere in the build.
-6. `github.com@evil.example` searches by default; the offered navigation match,
-   and the committed navigation if chosen, target `evil.example`, and the address
-   bar shows `evil.example` as the origin. With the desired-TLD accelerator it
-   navigates, and still shows `evil.example`.
-7. An internationalised host that trips the spoof checker displays exactly what
-   Chromium chooses to display, with no Sunshine transformation of the host
-   string in the address bar, the tab title, or any Sunshine surface.
-8. No omnibox input executes script in the current page's context, and no
-   omnibox input reaches an internal surface that a browser-initiated navigation
-   would not reach.
+4. **OMA-4.** `https://github.com` commits to that origin and path with no host,
+   port, path or query substitution; canonicalisation alone is accepted.
+5. **OMA-5.** `localhost:3000` and a single-label host with a port both navigate
+   over HTTP without a Sunshine allowlist present anywhere in the build.
+6. **OMA-6.** `github.com@evil.example` searches by default; the offered
+   navigation match, and the committed navigation if chosen, target
+   `evil.example`, and the address bar shows `evil.example` as the origin. With
+   the desired-TLD accelerator it navigates, and still shows `evil.example`.
+7. **OMA-7.** An internationalised host that trips the spoof checker displays
+   exactly what Chromium chooses to display, with no Sunshine transformation of
+   the host string in the address bar, the tab title, or any Sunshine surface.
+8. **OMA-8.** No omnibox input executes script in the current page's context,
+   and no omnibox input reaches an internal surface that a browser-initiated
+   navigation would not reach.
 
 **Disclosure**
 
-9. For 50 randomly drawn corpus inputs, the destination reached on Enter equals
-   the destination shown as the selected match immediately before Enter (OC-1).
-10. For an `UNKNOWN` input that searches, the navigation match and the
-    accidental-search correction are both present and functional (OC-3).
+9. **OMA-9.** For 50 randomly drawn corpus inputs, the destination reached on
+   Enter equals the destination shown as the selected match immediately before
+   Enter (OC-1).
+10. **OMA-10.** For an `UNKNOWN` input that searches, the navigation match and
+    the accidental-search correction are both present and functional (OC-3).
 
 **Paste and drop**
 
-11. A URL broken across three lines on the clipboard is pasted and navigates to
-    the rejoined URL; the clipboard content itself is unmodified.
-12. Clipboard text beginning with a `javascript` schema, pasted and committed,
-    navigates or searches but never executes.
-13. Paste & Go invoked from every Sunshine-added surface states in advance
-    whether it will navigate or search (OP-2), and no Sunshine gesture binding
-    resolves to it (OP-3).
-14. Text dragged from a web page onto the address bar never commits without an
-    explicit user action.
+11. **OMA-11.** A URL broken across three lines on the clipboard is pasted and
+    navigates to the rejoined URL; the clipboard content itself is unmodified.
+12. **OMA-12.** Clipboard text beginning with a `javascript` schema, pasted and
+    committed, navigates or searches but never executes.
+13. **OMA-13.** Paste & Go invoked from every Sunshine-added surface states in
+    advance whether it will navigate or search (OP-2), and no Sunshine gesture
+    binding resolves to it (OP-3).
+14. **OMA-14.** Text dragged from a web page onto the address bar never commits
+    without an explicit user action.
 
 **Internal surfaces**
 
-15. Text in an unregistered scheme — including any Sunshine-scheme spelling a
-    reader of a superseded draft might try — classifies as `UNKNOWN` and
-    searches. This is the expected result on every build, not a defect and not a
-    Stage 1 gap, and no Sunshine rule suppresses it (ADR 0003).
-16. **Unreachable, not passing.** This criterion read: "On any build where the
-    scheme is registered: a page link, a script navigation, a redirect, a
-    subframe, a `fetch`, and `window.open` to the scheme all fail (OS-2); the
-    installer has registered no OS-level handler for it (OS-3); an unknown host
-    yields a local error page and no network request to the search provider
-    (OS-5); completion offers only compiled surfaces (OS-6)." ADR 0003 settles
-    that no such build exists, so the criterion has nothing to run against and
-    must never be recorded as passed. Its content is not lost: OS-2 and OS-5 are
-    upstream's behaviour for its own internal scheme rather than Sunshine's to
-    demonstrate, and OS-6 is satisfied by the built-in completion provider
-    enumerating the compiled host list. Restore this criterion only under a
-    superseding ADR. Two checks carry the part of it that was never contingent
-    on a registration, and both run on the same build as the rest of this suite:
+15. **OMA-15.** Text in an unregistered scheme — including any Sunshine-scheme
+    spelling a reader of a superseded draft might try — classifies as `UNKNOWN`
+    and searches. This is the expected result on every build, not a defect and
+    not a Stage 1 gap, and no Sunshine rule suppresses it (ADR 0003).
+16. **OMA-16. Unreachable, not passing.** This criterion read: "On any build
+    where the scheme is registered: a page link, a script navigation, a
+    redirect, a subframe, a `fetch`, and `window.open` to the scheme all fail
+    (OS-2); the installer has registered no OS-level handler for it (OS-3); an
+    unknown host yields a local error page and no network request to the search
+    provider (OS-5); completion offers only compiled surfaces (OS-6)." ADR 0003
+    settles that no such build exists, so the criterion has nothing to run
+    against and must never be recorded as passed. Its content is not lost: OS-2
+    and OS-5 are upstream's behaviour for its own internal scheme rather than
+    Sunshine's to demonstrate, and OS-6 is satisfied by the built-in completion
+    provider enumerating the compiled host list. Restore this criterion only
+    under a superseding ADR. Two checks carry the part of it that was never
+    contingent on a registration, and both run on the same build as the rest of
+    this suite:
 
     - no Sunshine URL protocol is registered with the operating system by any
       platform's installer output, and no first-party source adds one to a
@@ -533,30 +535,30 @@ build; that is the point — they test that Sunshine has *not* interposed itself
 
 **Tabs and workspaces**
 
-17. A URL open in a tab of a non-active workspace produces an open-tab match
-    labelled with that workspace; committing it switches workspace and activates
-    the tab, with no duplicate tab created (OT-1, OT-2).
-18. A URL open in a split pane focuses that pane; the split survives, panes are
-    not swapped, and the pane does not reload (OT-4).
-19. Typing into the address bar, switching workspace, and switching back
-    restores the per-tab edit state; the text appears in no persisted Sunshine
-    file (OT-6).
+17. **OMA-17.** A URL open in a tab of a non-active workspace produces an
+    open-tab match labelled with that workspace; committing it switches
+    workspace and activates the tab, with no duplicate tab created (OT-1, OT-2).
+18. **OMA-18.** A URL open in a split pane focuses that pane; the split
+    survives, panes are not swapped, and the pane does not reload (OT-4).
+19. **OMA-19.** Typing into the address bar, switching workspace, and switching
+    back restores the per-tab edit state; the text appears in no persisted
+    Sunshine file (OT-6).
 
 **Non-interposition**
 
-20. A build-wide search of first-party sources finds no URL parser, TLD list,
-    scheme table, or host validator, and no navigation call taking an
+20. **OMA-20.** A build-wide search of first-party sources finds no URL parser,
+    TLD list, scheme table, or host validator, and no navigation call taking an
     unclassified string.
-21. After a session exercising the whole corpus, no Sunshine-written file,
-    preference, telemetry payload, or crash key contains any omnibox text.
+21. **OMA-21.** After a session exercising the whole corpus, no Sunshine-written
+    file, preference, telemetry payload, or crash key contains any omnibox text.
 
 **Roll gate**
 
-22. At each upstream roll the paths in section 2 still exist or their
-    replacements are identified — this surface has already moved once — and
-    criteria 1–15 and 17–21 are re-run, together with the two checks folded into
-    criterion 16; criterion 16 itself is unreachable and is never re-run while
-    ADR 0003 stands. The roll additionally re-checks that no first-party
+22. **OMA-22.** At each upstream roll the paths in section 2 still exist or
+    their replacements are identified — this surface has already moved once —
+    and criteria 1–15 and 17–21 are re-run, together with the two checks folded
+    into criterion 16; criterion 16 itself is unreachable and is never re-run
+    while ADR 0003 stands. The roll additionally re-checks that no first-party
     internal host has collided with a host upstream added, per
     `docs/SECURITY_CENTER_CONTRACT.md` acceptance criterion 13. A changed
     upstream classification blocks the roll for review; it is never corrected by

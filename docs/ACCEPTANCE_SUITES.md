@@ -623,7 +623,7 @@ implementation.
 
 | Priority | Question | Blocks |
 |---|---|---|
-| P0 | Is `proprietary_codecs=false` an intended product decision? It determines A1.4 before any dogfooding starts, and it is recorded in no document. | Stage 1 dogfood |
+| ~~P0~~ | ~~Is `proprietary_codecs=false` an intended product decision?~~ **Settled by `docs/decisions/0004-media-codecs.md`**: enabled under a personal-use premise, so A1.4 becomes evaluable. The premise, not convenience, is what makes it permissible, and it must be revisited before any distribution. | settled |
 | P0 | Are §5.7 and §6.8 gates or reports? Handoff §10 forbids starting a wave while a gate knowingly fails, but two Stage 1 items and three Stage 2 items have no criterion, so the gate cannot currently be evaluated either way. | Stage 1 exit |
 | ~~P0~~ | ~~Who owns profile onboarding and the §5.6.6 OAuth separation?~~ **Answered** by `docs/PROFILE_ONBOARDING_CONTRACT.md`: a keyless build has no Dice, no browser sign-in and no first-run experience, so local-only is what the build produces rather than a mode it implements. | settled |
 | ~~P0~~ | ~~What is the telemetry and crash sink?~~ **Answered** by `docs/TELEMETRY_CONTRACT.md`: Sunshine records and does not report. Three upstream gates are already closed in a non-branded build, so the numbers the suites need never leave the machine. This also closes `docs/PERFORMANCE_BUDGET.md` §9's version of the question and `SIDE_PANEL_CONTRACT` D1's assumption. | settled |

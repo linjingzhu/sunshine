@@ -139,9 +139,9 @@ budget below states its tolerance as a **shape**, not a number:
 ## 3. Chromium's own instruments — use these, invent nothing
 
 Chromium has spent years building the measurement infrastructure for every
-metric handoff §9.2 asks for. Sunshine adds one counter of its own (§4, P1) and
-otherwise reads upstream's. Paths and names below were read from the pinned tag
-on 2026-08-17.
+metric handoff §9.2 asks for. Sunshine adds one counter of its own (§4, PB-1)
+and otherwise reads upstream's. Paths and names below were read from the pinned
+tag on 2026-08-17.
 
 | What §9.2 asks for | Upstream instrument at `152.0.7977.42` | Names |
 |---|---|---|
@@ -165,8 +165,8 @@ below:
   `system_health.webview_startup` and nothing else with "startup" in its name.
   Desktop startup is measured by the `Startup.*` UMA family over many real
   launches, not by a Telemetry benchmark. A Sunshine startup budget is therefore
-  a UMA comparison over N paired launches (§4, P4). Building a Telemetry startup
-  benchmark for desktop would be constructing infrastructure upstream
+  a UMA comparison over N paired launches (§4, PB-4). Building a Telemetry
+  startup benchmark for desktop would be constructing infrastructure upstream
   deliberately does not have.
 - **Tab-switch latency is already stratified upstream and must not be
   averaged.** `TabSwitchReason` records whether the destination was loaded and
@@ -174,7 +174,7 @@ below:
   to a live tab" from "switched to a tab Chromium had discarded and is now
   reloading". Collapsing them into one mean is the single easiest way to
   produce a workspace-switch number that blames Sunshine for Chromium correctly
-  reclaiming memory (§4, P3).
+  reclaiming memory (§4, PB-3).
 
 ## 4. What Sunshine can regress
 
@@ -186,14 +186,14 @@ none is left implied:
 
 | §9.2 measurement | Budget |
 |---|---|
-| Browser launch | P4 |
-| First remote-content presentation | P4 |
-| Tab switching | P3. A plain tab switch is Chromium's and is not budgeted; it is P3's baseline |
-| Memory with 10 / 30 tabs | P2a and P4 fixture (c); panel registration memory is P1 / D4 |
-| CPU while idle | P5 |
-| Restoration time | P4 |
+| Browser launch | PB-4 |
+| First remote-content presentation | PB-4 |
+| Tab switching | PB-3. A plain tab switch is Chromium's and is not budgeted; it is PB-3's baseline |
+| Memory with 10 / 30 tabs | PB-2a and PB-4 fixture (c); panel registration memory is PB-1 / D4 |
+| CPU while idle | PB-5 |
+| Restoration time | PB-4 |
 
-### P1 — Side panel registration and mount
+### PB-1 — Side panel registration and mount
 
 **Already budgeted.** `docs/SIDE_PANEL_CONTRACT.md` §4.6 defines detections
 D1–D7 and §12 criteria 1–8; those are the panel performance contract and are not
@@ -214,14 +214,14 @@ What this document adds is only what §4.6 defers to §9.2:
 - **D4 cites "§9.2" as where its baseline is recorded.** This document is that
   place.
 
-### P2 — The workspace projection and Chromium's lifecycle policy
+### PB-2 — The workspace projection and Chromium's lifecycle policy
 
 `docs/TAB_LIFECYCLE_CONTRACT.md` §6.4 states the mechanism: Chromium decides
 freezing and discarding from visibility, and Sunshine changes what is visible.
 That makes the projection a lifecycle policy change whether or not it intends to
 be one, in two opposite directions.
 
-**P2a — Hidden-workspace tabs must actually be background tabs.**
+**PB-2a — Hidden-workspace tabs must actually be background tabs.**
 
 | | |
 |---|---|
@@ -234,7 +234,7 @@ The user-visible consequence is accepted and already stated in
 `docs/TAB_LIFECYCLE_CONTRACT.md` §6.4.2: returning to a long-hidden workspace
 may reload tabs. That is native behaviour and is not a Sunshine regression.
 
-**P2b — Both split panes must be genuinely visible.**
+**PB-2b — Both split panes must be genuinely visible.**
 
 | | |
 |---|---|
@@ -248,16 +248,16 @@ the user is watching stops updating. It is a scheduling consequence of a layout
 decision, which is why it is a performance budget and not only a correctness
 rule.
 
-**P2c — Discard behaviour must not drift.**
+**PB-2c — Discard behaviour must not drift.**
 
 | | |
 |---|---|
 | Measured | Counts of freeze and discard events over a fixed browsing fixture, and the reason recorded for each |
 | Boundary | `chrome/browser/performance_manager/policies/page_discarding_helper.h` and the eligibility policy beside it |
-| Baseline | The paired Sunshine-disabled build over the same fixture, with all tabs in one workspace. Target: the only difference is the increase attributable to hidden workspaces in P2a |
+| Baseline | The paired Sunshine-disabled build over the same fixture, with all tabs in one workspace. Target: the only difference is the increase attributable to hidden workspaces in PB-2a |
 | Regression | Any Sunshine code that exempts a tab from discard, forces one, or second-guesses a decision — prohibited outright by `docs/TAB_LIFECYCLE_CONTRACT.md` §2 — and any discard count that changes for a reason the workspace distribution does not explain |
 
-### P3 — Workspace switch latency
+### PB-3 — Workspace switch latency
 
 | | |
 |---|---|
@@ -268,7 +268,7 @@ rule.
 
 Reported in two populations, never one, per §3: switches where
 `destination_is_loaded` is true, and switches where it is false. The second
-population is a reload of a discarded tab, which is Chromium doing what P2a
+population is a reload of a discarded tab, which is Chromium doing what PB-2a
 asked it to do.
 
 Zero-tolerance conditions attached to this budget, each of which is a
@@ -291,7 +291,7 @@ correctness invariant elsewhere and a latency defect here:
    (`docs/TAB_LIFECYCLE_CONTRACT.md` criterion 22).
 4. **Exactly one activation change** per switch, observable once.
 
-### P4 — Startup and session restore
+### PB-4 — Startup and session restore
 
 This is the path Chromium has spent years optimising and the one Sunshine adds
 work to. Sunshine's additions on it are: reading `sunshine_tab_uuid` and
@@ -322,7 +322,7 @@ Zero-tolerance conditions:
    startup cost. `docs/SIDE_PANEL_CONTRACT.md` §4.2 rule 8 states the same shape
    for panel registration.
 4. **Hidden workspaces do not create renderers.** Restoring fixture (c) must not
-   produce 30 live renderers. This is P2a measured on the startup path, and it
+   produce 30 live renderers. This is PB-2a measured on the startup path, and it
    is the largest single memory number Sunshine can move.
 5. **No synchronous wait** introduced before first window paint, and no work
    deferred into an idle-load of content a user did not open —
@@ -330,11 +330,11 @@ Zero-tolerance conditions:
 
 The open P1 in `docs/TAB_LIFECYCLE_CONTRACT.md` §14 — on return to a workspace,
 restore only the last active tab or all previously loaded tabs — sets both the
-restore time in this budget and the memory number in P2a. It is a product
+restore time in this budget and the memory number in PB-2a. It is a product
 decision with a measured consequence, and it should be taken before B1 rather
 than discovered by it.
 
-### P5 — Idle cost
+### PB-5 — Idle cost
 
 Sunshine's legitimate idle cost is zero. It runs no timer, no poll, no
 background refresh, no idle-triggered work: `docs/SIDE_PANEL_CONTRACT.md` §4.3
@@ -353,13 +353,13 @@ The cheap form of this budget is a source-level assertion that no Sunshine-owned
 repeating timer or idle task exists. It is stricter than a CPU measurement, it
 does not need a baseline, and it can be written before a native build exists.
 
-### P6 — Sunshine WebUI surfaces
+### PB-6 — Sunshine WebUI surfaces
 
 A Sunshine-contributed panel or WebUI surface has its own render cost once it
 exists. At B0 no such surface exists, so this budget is a placeholder with a
 stated trigger rather than a metric: **when the first Sunshine WebUI surface is
 built, it gains a row here** covering its mount-to-first-paint time and its
-memory while mounted, measured against the panel-registration baseline of P1.
+memory while mounted, measured against the panel-registration baseline of PB-1.
 
 Two constraints already bind it and are not restated: the panel must be usable
 at the minimum panel width (`docs/SIDE_PANEL_CONTRACT.md` §7), and the command
@@ -399,12 +399,12 @@ Silence here would be read as oversight by a later wave. It is not.
 
 Two classes of gate, and they behave differently:
 
-- **Pass/fail invariants** — P1's D1 mount counter at zero, P2a's visible-tab
-  count, P2b's unfocused-pane rate, P3's zero writes and zero moves, P4's
-  file-read and scaling rules, P5's absence of a repeating task. These need no
+- **Pass/fail invariants** — PB-1's D1 mount counter at zero, PB-2a's visible-tab
+  count, PB-2b's unfocused-pane rate, PB-3's zero writes and zero moves, PB-4's
+  file-read and scaling rules, PB-5's absence of a repeating task. These need no
   baseline, fail CI outright, and are implementable as browser tests as soon as
   the code exists. They are the majority of this document on purpose.
-- **Statistical deltas** — P1's D4, P2a's and P2c's counts, P3's latency, P4's
+- **Statistical deltas** — PB-1's D4, PB-2a's and PB-2c's counts, PB-3's latency, PB-4's
   startup and restore times. These require B1 and the provenance of §2.3.
 
 At an upstream roll, **baselines are re-taken, not carried**. A roll moves the
@@ -422,7 +422,7 @@ compensating downstream creates a second owner of upstream behaviour.
 |---|---|
 | `docs/SIDE_PANEL_CONTRACT.md` §4.6 D4 and §12 criterion 8 | Both defer their baseline to "§9.2", which says only "set initial budgets during implementation and refine after baseline profiling" — a pointer to an instruction, not to a place. This document is the place. When that contract is next revised, the pointer should read `docs/PERFORMANCE_BUDGET.md`. No behaviour changes; only the reference resolves |
 | Handoff §9.2, "first remote-content presentation" | Names no instrument, and at the pinned tag there are several that could be meant. §3 resolves it to `Startup.FirstWebContents.NonEmptyPaint3` and `.FirstContentfulPaint` |
-| Handoff §9.2, "memory with 10/30 tabs" | Does not state the workspace distribution, which is the only variable that makes the number Sunshine's rather than Chromium's. P2a and P4 fixture (c) supply it |
+| Handoff §9.2, "memory with 10/30 tabs" | Does not state the workspace distribution, which is the only variable that makes the number Sunshine's rather than Chromium's. PB-2a and PB-4 fixture (c) supply it |
 | Handoff §9.2, "browser launch" | Does not distinguish cold from warm. `Startup.Temperature` exists at the pinned tag precisely because the distinction changes the number more than any product decision would |
 | `docs/SIZE_BUDGET.md` and the handoff | The size baseline is to be established by "the first native macOS release build"; the handoff's primary target is Windows desktop. Two documents, two reference platforms. This document does not choose; §9 raises it |
 | `scripts/verify_pinned_upstream.py` | ~~Its `CITATION` regex does not match `tools/...` or `.csv`, so the `tools/perf/...` citations in §3 are not CI-checked.~~ **Fixed.** This was true when written and was the finding that prompted the fix: the regex now covers `tools` and `build`, and the `csv`, `json`, `gn`, `gni` and `xml` suffixes. Every path this document cites is CI-checked at the pinned revision |
@@ -433,7 +433,7 @@ compensating downstream creates a second owner of upstream behaviour.
 |---|---|---|
 | P1 | Is a statistical budget a hard CI gate or an investigation threshold? `docs/SIZE_BUDGET.md` chose investigation thresholds explicitly; consistency argues for the same here, but the pass/fail invariants of §7 are hard gates either way. Answering this decides what B1 turns on | Before B1 |
 | P1 | Which platform is the reference for B1? `docs/SIZE_BUDGET.md` names the first native macOS release build; the handoff targets Windows desktop. A baseline on one platform does not gate the other | Before B1 |
-| P1 | On return to a workspace whose tabs were discarded, restore only the last active tab or all previously loaded ones? Already open as P1 in `docs/TAB_LIFECYCLE_CONTRACT.md` §14; it sets the P4 restore number and the P2a memory number | Stage 3 workspace release |
+| P1 | On return to a workspace whose tabs were discarded, restore only the last active tab or all previously loaded ones? Already open as P1 in `docs/TAB_LIFECYCLE_CONTRACT.md` §14; it sets the PB-4 restore number and the PB-2a memory number | Stage 3 workspace release |
 | P2 | Does Sunshine emit UMA at all in shipping builds, or are these budgets lab-only? `docs/SIDE_PANEL_CONTRACT.md` §4.6 D1 assumes a session histogram exists; `docs/SESSION_PROFILE_CONTRACT.md` constrains what any telemetry may contain. The two are compatible, but the question has not been answered | Before the first Sunshine histogram is added |
 | P2 | Is the Sunshine feature-flag set frozen for a measurement run, and which upstream defaults does Sunshine change? The two split flags in `chrome/browser/ui/tabs/features.h` are already open in `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` §9, and `kVerticalTabsLaunch` is an inherited default per `docs/WORKSPACE_NATIVE_INTEGRATION_MAP.md`. Each changes the baseline | Before B1 |
 

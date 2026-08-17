@@ -631,55 +631,59 @@ Runnable once a native build exists. All are **NOT RUN**.
 
 **Recording and non-reporting**
 
-1. With the browser running normally and a `Sunshine.Command.*` histogram
-   emitting, `chrome://metrics-internals` shows the samples and no log is
-   uploaded; a network capture over the session shows no request to any metrics
-   or crash endpoint.
-2. The same session with network access disabled behaves identically, proving
-   recording never depended on reachability.
-3. A build produced by the repository's own scripts reports
+1. **TA-1.** With the browser running normally and a `Sunshine.Command.*`
+   histogram emitting, `chrome://metrics-internals` shows the samples and no log
+   is uploaded; a network capture over the session shows no request to any
+   metrics or crash endpoint.
+2. **TA-2.** The same session with network access disabled behaves identically,
+   proving recording never depended on reachability.
+3. **TA-3.** A build produced by the repository's own scripts reports
    `is_chrome_branded = false`, and the metrics server URL and crash upload URL
    resolve empty.
-4. No file under the profile directory grows as a result of Sunshine command
-   invocation, and no Sunshine-written file anywhere contains a histogram sample
-   after the browser exits (T8).
+4. **TA-4.** No file under the profile directory grows as a result of Sunshine
+   command invocation, and no Sunshine-written file anywhere contains a
+   histogram sample after the browser exits (T8).
 
 **Payload**
 
-5. Invoking `browser.back` from the toolbar, the keyboard, the palette and a
-   gesture produces four records of one histogram, differing only in the source
-   label (`docs/COMMAND_PALETTE_CONTRACT.md` §14.1).
-6. Exactly one command event is recorded per successful dispatch, and zero for a
-   dispatch refused by availability (T17).
-7. A failing command records its declared error token from the registry, and a
-   byte inspection of the exported log finds none of the prohibited fields of
-   §5.3.
-8. A canary run in the manner of `docs/SESSION_PROFILE_CONTRACT.md` item 13 —
-   canary strings in a URL query, a form field, a find query, a palette query, a
-   download filename and a workspace name — finds no canary in the exported log.
+5. **TA-5.** Invoking `browser.back` from the toolbar, the keyboard, the palette
+   and a gesture produces four records of one histogram, differing only in the
+   source label (`docs/COMMAND_PALETTE_CONTRACT.md` §14.1).
+6. **TA-6.** Exactly one command event is recorded per successful dispatch, and
+   zero for a dispatch refused by availability (T17).
+7. **TA-7.** A failing command records its declared error token from the
+   registry, and a byte inspection of the exported log finds none of the
+   prohibited fields of §5.3.
+8. **TA-8.** A canary run in the manner of `docs/SESSION_PROFILE_CONTRACT.md`
+   item 13 — canary strings in a URL query, a form field, a find query, a
+   palette query, a download filename and a workspace name — finds no canary in
+   the exported log.
 
 **Off the record**
 
-9. Invoking `browser.reload`, `bookmark.toggle` and `workspace.switch` in an
-   off-the-record window increments no Sunshine histogram, and the same commands
-   in a regular window in the same session do.
-10. Opening an off-the-record window does not suppress recording for the regular
-    windows that remain open — the gate is per-invocation, not global, which is
-    where this deliberately differs from upstream's UKM behaviour.
+9. **TA-9.** Invoking `browser.reload`, `bookmark.toggle` and `workspace.switch`
+   in an off-the-record window increments no Sunshine histogram, and the same
+   commands in a regular window in the same session do.
+10. **TA-10.** Opening an off-the-record window does not suppress recording for
+    the regular windows that remain open — the gate is per-invocation, not
+    global, which is where this deliberately differs from upstream's UKM
+    behaviour.
 
 **Crash**
 
-11. A forced renderer crash produces no upload attempt and no crash key set by
-    Sunshine code, while Chromium's native crashed-tab UI and the recovery path
-    of `docs/SESSION_PROFILE_CONTRACT.md` items 4–8 behave unchanged.
+11. **TA-11.** A forced renderer crash produces no upload attempt and no crash
+    key set by Sunshine code, while Chromium's native crashed-tab UI and the
+    recovery path of `docs/SESSION_PROFILE_CONTRACT.md` items 4–8 behave
+    unchanged.
 
 **Process**
 
-12. Every `Sunshine.*` histogram emitted by the binary has an XML entry with an
-    owner and an unexpired `expires_after`, and every XML entry has an emitting
-    call site. A histogram in one and not the other fails the build.
-13. Every `Sunshine.Command.*` name corresponds to a registered command
-    identifier, and every registered command has exactly one (T27).
+12. **TA-12.** Every `Sunshine.*` histogram emitted by the binary has an XML
+    entry with an owner and an unexpired `expires_after`, and every XML entry
+    has an emitting call site. A histogram in one and not the other fails the
+    build.
+13. **TA-13.** Every `Sunshine.Command.*` name corresponds to a registered
+    command identifier, and every registered command has exactly one (T27).
 
 ---
 

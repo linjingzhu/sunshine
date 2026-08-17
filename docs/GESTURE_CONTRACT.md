@@ -265,50 +265,51 @@ Further requirements:
 Checkable once a native build exists. Each is written to be falsifiable by
 observation, on web content served from a local test server.
 
-1. **Ordinary right-click is unchanged.** Right press and release with no
+1. **GA-1. Ordinary right-click is unchanged.** Right press and release with no
    movement shows the Chromium context menu at the press position, with the
    same items as a build without gestures. No navigation occurs.
-2. **Back gesture.** Right press, drag left beyond `D`, release: the active tab
-   navigates back exactly once, no context menu appears, and the resulting
-   history state is identical to using the toolbar back control.
-3. **Forward gesture.** The mirror of criterion 2, with drag right.
-4. **One outcome per press.** No press produces both a navigation and a context
-   menu, and no press produces two navigations.
-5. **Below threshold.** Right press, drag left by less than `D`, release: the
-   context menu appears and no navigation occurs.
-6. **Ambiguous direction.** Right press, drag diagonally so that
+2. **GA-2. Back gesture.** Right press, drag left beyond `D`, release: the
+   active tab navigates back exactly once, no context menu appears, and the
+   resulting history state is identical to using the toolbar back control.
+3. **GA-3. Forward gesture.** The mirror of criterion 2, with drag right.
+4. **GA-4. One outcome per press.** No press produces both a navigation and a
+   context menu, and no press produces two navigations.
+5. **GA-5. Below threshold.** Right press, drag left by less than `D`, release:
+   the context menu appears and no navigation occurs.
+6. **GA-6. Ambiguous direction.** Right press, drag diagonally so that
    `abs(dx) < 2 * abs(dy)`, release: no navigation, no context menu.
-7. **Selection is protected.** With text selected, right-pressing inside the
-   selection and dragging left leaves the selection intact, produces no
+7. **GA-7. Selection is protected.** With text selected, right-pressing inside
+   the selection and dragging left leaves the selection intact, produces no
    navigation, and shows the context menu on release.
-8. **Selection in progress.** A left-button selection drag is unaffected by any
-   concurrent gesture state, and pressing the right button during it produces no
-   navigation.
-9. **Page control.** A right-press-drag beginning on a form control, link,
+8. **GA-8. Selection in progress.** A left-button selection drag is unaffected
+   by any concurrent gesture state, and pressing the right button during it
+   produces no navigation.
+9. **GA-9. Page control.** A right-press-drag beginning on a form control, link,
    image, media element, or editable field produces no navigation.
-10. **Page-handled events.** On a page that cancels the originating pointer
-    event, no gesture is recognised.
-11. **File drag.** Dragging a file over and into the window is unaffected, and
-    a drag session started during tracking cancels the gesture with no
-    navigation.
-12. **Focus loss.** Losing window focus mid-gesture cancels it; releasing the
-    button afterwards produces neither navigation nor context menu.
-13. **Unavailable command.** At the first entry of session history, the back
-    gesture produces no navigation, no dialog, and no audible feedback, and
+10. **GA-10. Page-handled events.** On a page that cancels the originating
+    pointer event, no gesture is recognised.
+11. **GA-11. File drag.** Dragging a file over and into the window is
+    unaffected, and a drag session started during tracking cancels the gesture
+    with no navigation.
+12. **GA-12. Focus loss.** Losing window focus mid-gesture cancels it; releasing
+    the button afterwards produces neither navigation nor context menu.
+13. **GA-13. Unavailable command.** At the first entry of session history, the
+    back gesture produces no navigation, no dialog, and no audible feedback, and
     records exactly one unavailable event.
-14. **Settings.** With gestures disabled, or with the back binding disabled,
-    behaviour is byte-for-byte the ordinary right-click path; sensitivity
-    changes the measured activation distance to the value in section 3.2.
-15. **Trail.** Disabling the trail changes nothing except the trail; recognition
-    and dispatch are unaffected, and the trail never appears in captured page
-    content.
-16. **No direct internals.** The dispatched command is the same identifier the
-    toolbar dispatches, observed through the command layer, not a separate
-    navigation call.
-17. **Telemetry hygiene.** Recorded events contain none of the prohibited fields
-    in section 7, and suppressed presses record nothing.
-18. **Accessibility.** Every command in section 8 remains reachable by keyboard
-    and by toolbar with gestures disabled.
+14. **GA-14. Settings.** With gestures disabled, or with the back binding
+    disabled, behaviour is byte-for-byte the ordinary right-click path;
+    sensitivity changes the measured activation distance to the value in section
+    3.2.
+15. **GA-15. Trail.** Disabling the trail changes nothing except the trail;
+    recognition and dispatch are unaffected, and the trail never appears in
+    captured page content.
+16. **GA-16. No direct internals.** The dispatched command is the same
+    identifier the toolbar dispatches, observed through the command layer, not a
+    separate navigation call.
+17. **GA-17. Telemetry hygiene.** Recorded events contain none of the prohibited
+    fields in section 7, and suppressed presses record nothing.
+18. **GA-18. Accessibility.** Every command in section 8 remains reachable by
+    keyboard and by toolbar with gestures disabled.
 
 ## 10. Not verified
 

@@ -246,58 +246,59 @@ by calling Chromium internals to avoid registering them.
 Use Chromium test fixtures and a local test server. No test may depend on a live
 reputation service, a real provider endpoint, or a public website.
 
-1. **Chromium block is never relaxed.** With an interstitial-triggering fixture
-   and a stubbed provider returning `safe`, the interstitial is shown, the
-   navigation does not commit, and no proceed affordance is added. Repeat for a
-   certificate error and for a dangerous download. (SC-1)
-2. **Provider is off the critical path.** With a provider stubbed to hang past
-   its deadline, navigation start-to-commit timing is statistically unchanged
-   against a no-provider baseline, and no navigation is cancelled. (SC-2)
-3. **Failure returns `unknown` and browsing continues.** Parameterise error,
-   timeout, unreachable host, malformed body, unrecognised verdict value, absent
-   timestamp, and future timestamp. Each yields `unknown`, records exactly one
-   local event, and leaves the page loading normally. (SC-3)
-4. **Egress is exactly the allowed fields.** Capture the outbound request at a
-   local endpoint for a URL carrying credentials, a path, a query string, and a
-   fragment. Assert the payload contains scheme, host, port, request reason, and
-   contract version, and nothing else. Assert no stable identifier is present
-   across two checks from the same profile. (SC-4, SC-5, SC-6)
-5. **Default off.** On a fresh profile, no provider request is emitted during a
-   scripted browsing session. After opt-in, requests appear. After opt-out, they
-   stop and cached verdicts are cleared. (SC-7)
-6. **Provider strings never reach browser-core UI.** With a provider returning
-   hostile strings — markup, a script fragment, a URL, an over-long category —
-   assert nothing is rendered raw, the unmapped category is dropped, and the
-   omnibox, security chip, interstitials, and download UI are byte-identical to
-   the no-provider baseline. (SC-5, SC-8)
-7. **Read-only surface.** Assert the page changes no content setting, no
+1. **SCA-1. Chromium block is never relaxed.** With an interstitial-triggering
+   fixture and a stubbed provider returning `safe`, the interstitial is shown,
+   the navigation does not commit, and no proceed affordance is added. Repeat
+   for a certificate error and for a dangerous download. (SC-1)
+2. **SCA-2. Provider is off the critical path.** With a provider stubbed to hang
+   past its deadline, navigation start-to-commit timing is statistically
+   unchanged against a no-provider baseline, and no navigation is cancelled.
+   (SC-2)
+3. **SCA-3. Failure returns `unknown` and browsing continues.** Parameterise
+   error, timeout, unreachable host, malformed body, unrecognised verdict value,
+   absent timestamp, and future timestamp. Each yields `unknown`, records
+   exactly one local event, and leaves the page loading normally. (SC-3)
+4. **SCA-4. Egress is exactly the allowed fields.** Capture the outbound request
+   at a local endpoint for a URL carrying credentials, a path, a query string,
+   and a fragment. Assert the payload contains scheme, host, port, request
+   reason, and contract version, and nothing else. Assert no stable identifier
+   is present across two checks from the same profile. (SC-4, SC-5, SC-6)
+5. **SCA-5. Default off.** On a fresh profile, no provider request is emitted
+   during a scripted browsing session. After opt-in, requests appear. After
+   opt-out, they stop and cached verdicts are cleared. (SC-7)
+6. **SCA-6. Provider strings never reach browser-core UI.** With a provider
+   returning hostile strings — markup, a script fragment, a URL, an over-long
+   category — assert nothing is rendered raw, the unmapped category is dropped,
+   and the omnibox, security chip, interstitials, and download UI are
+   byte-identical to the no-provider baseline. (SC-5, SC-8)
+7. **SCA-7. Read-only surface.** Assert the page changes no content setting, no
    extension state, and no download command enablement; and that a permission or
    extension change made through Chromium's own UI is reflected on the page.
    (SC-9)
-8. **Availability honesty.** With Safe Browsing absent from the build, and again
-   with it present but disabled by preference, the page states the real status
-   and does not present a provider as equivalent protection. (SC-11)
-9. **Retention and deletion.** Seed events across several days and origins.
-   Assert age-out at the 30-day bound and at the row-count bound; assert a
-   time-range clear removes exactly the in-range rows without the page being
-   open; assert per-URL history deletion, download-history deletion, and
+8. **SCA-8. Availability honesty.** With Safe Browsing absent from the build,
+   and again with it present but disabled by preference, the page states the
+   real status and does not present a provider as equivalent protection. (SC-11)
+9. **SCA-9. Retention and deletion.** Seed events across several days and
+   origins. Assert age-out at the 30-day bound and at the row-count bound;
+   assert a time-range clear removes exactly the in-range rows without the page
+   being open; assert per-URL history deletion, download-history deletion, and
    per-origin site-data deletion each remove their derived rows and cached
    verdicts; assert profile deletion removes the store from disk.
-10. **Off-the-record isolation.** In Incognito and Guest: assert zero provider
-    requests, zero writes to any store, no historic view, and that the
+10. **SCA-10. Off-the-record isolation.** In Incognito and Guest: assert zero
+    provider requests, zero writes to any store, no historic view, and that the
     regular-profile log is unchanged. Assert the off-the-record cache does not
     survive the last window closing.
-11. **Module removal.** With the module disabled, ordinary browsing, Chromium
-    interstitials, download warnings, permission prompts, and extension warnings
-    all behave as on stock Chromium. (SC-12)
-12. **Patch and build gate.** The eventual downstream patch series applies in
-    order to `refs/tags/152.0.7977.42`, native compilation succeeds, and the
-    relevant unit, browser, and view tests pass. The privileged WebUI is
+11. **SCA-11. Module removal.** With the module disabled, ordinary browsing,
+    Chromium interstitials, download warnings, permission prompts, and extension
+    warnings all behave as on stock Chromium. (SC-12)
+12. **SCA-12. Patch and build gate.** The eventual downstream patch series
+    applies in order to `refs/tags/152.0.7977.42`, native compilation succeeds,
+    and the relevant unit, browser, and view tests pass. The privileged WebUI is
     confirmed to load no remote resource.
-13. **Route, host, and the absence of a scheme.** The centre is reachable at
-    `chrome://sunshine-security` and nowhere else. Assert that the build
-    registers no Sunshine URL scheme — the standard, secure, savable, referrer,
-    CORS-enabled, service-worker, empty-document and handled-protocol
+13. **SCA-13. Route, host, and the absence of a scheme.** The centre is
+    reachable at `chrome://sunshine-security` and nowhere else. Assert that the
+    build registers no Sunshine URL scheme — the standard, secure, savable,
+    referrer, CORS-enabled, service-worker, empty-document and handled-protocol
     registrations carry no `sunshine` entry — that the installer registers no
     Sunshine protocol with the operating system on any platform, and that the
     host does not collide with any host in the compiled internal-page list at

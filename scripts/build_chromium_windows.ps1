@@ -60,8 +60,13 @@ $gnArgs = @(
   "blink_symbol_level=0",
   "v8_symbol_level=0",
   "use_remoteexec=false",
-  "proprietary_codecs=false",
-  'ffmpeg_branding="Chromium"'
+  # H.264/AAC. Not Chromium's default: `proprietary_codecs` derives from
+  # `is_chrome_branded`, which is false here, so an unmodified build cannot play
+  # most web video. Enabled deliberately under the personal-use premise recorded
+  # in docs/decisions/0004-media-codecs.md -- that premise, not convenience, is
+  # what makes it permissible, and it must be revisited before any distribution.
+  "proprietary_codecs=true",
+  'ffmpeg_branding="Chrome"'
 )
 
 # Written to args.gn rather than passed through --args. PowerShell strips the

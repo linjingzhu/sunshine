@@ -536,83 +536,96 @@ mirrored tab model; run them first.
 
 **Derivation**
 
-1. For a scripted sequence of at least 200 operations (navigate, reload,
-   fragment navigate, background-load, discard, unfreeze, crash, reload, pin,
-   group, move, split, close, restore), every tab's Sunshine-displayed state
-   equals the state recomputed from native predicates after each operation.
-2. No Sunshine-owned field, file, or session record contains a lifecycle state.
-   A search of first-party sources finds no stored `Ready`, `Loading`, or
-   equivalent per-tab flag.
-3. Fragment navigation and History API navigation within a page cause no state
-   change and no throbber in any Sunshine surface, matching the native strip.
-4. A tab whose main document is interactive while a subframe still loads is
-   shown as loading in both the native strip and every Sunshine surface.
+1. **TLA-1.** For a scripted sequence of at least 200 operations (navigate,
+   reload, fragment navigate, background-load, discard, unfreeze, crash, reload,
+   pin, group, move, split, close, restore), every tab's Sunshine-displayed
+   state equals the state recomputed from native predicates after each
+   operation.
+2. **TLA-2.** No Sunshine-owned field, file, or session record contains a
+   lifecycle state. A search of first-party sources finds no stored `Ready`,
+   `Loading`, or equivalent per-tab flag.
+3. **TLA-3.** Fragment navigation and History API navigation within a page cause
+   no state change and no throbber in any Sunshine surface, matching the native
+   strip.
+4. **TLA-4.** A tab whose main document is interactive while a subframe still
+   loads is shown as loading in both the native strip and every Sunshine
+   surface.
 
 **Identity**
 
-5. Duplicating a tab and restarting cleanly leaves both tabs in their original
-   workspace with distinct UUIDs; neither falls back to Default.
-6. Discarding a tab under induced memory pressure leaves its UUID, workspace,
-   group, pinned state, and position unchanged, and writes no session command.
-7. A crashed and then reloaded tab keeps its UUID, membership, and pane.
-8. **Not yet evaluable — blocked on `docs/ADVANCED_TABS_CONTRACT.md` Q3.** Reopening a recently closed tab recovers its UUID and workspace, or — if
-   extra-data is not carried by the restore path at the pinned tag — joins the
-   active workspace with a fresh UUID, deterministically and without duplicating
-   an existing UUID.
+5. **TLA-5.** Duplicating a tab and restarting cleanly leaves both tabs in their
+   original workspace with distinct UUIDs; neither falls back to Default.
+6. **TLA-6.** Discarding a tab under induced memory pressure leaves its UUID,
+   workspace, group, pinned state, and position unchanged, and writes no session
+   command.
+7. **TLA-7.** A crashed and then reloaded tab keeps its UUID, membership, and
+   pane.
+8. **TLA-8. Not yet evaluable — blocked on `docs/ADVANCED_TABS_CONTRACT.md`
+   Q3.** Reopening a recently closed tab recovers its UUID and workspace, or —
+   if extra-data is not carried by the restore path at the pinned tag — joins
+   the active workspace with a fresh UUID, deterministically and without
+   duplicating an existing UUID.
 
 **Closing**
 
-9. Closing other tabs in a window of 20 tabs produces exactly one activation
-   change; a trace of visibility changes shows no tab other than the final
-   successor ever becoming visible.
-10. Closing a set containing the tab immediately after the active tab activates
-    a tab outside the set; no tab in the set is ever activated.
-11. Closing every tab of the active workspace in a window that also holds tabs
-    of another workspace leaves the window open, in the same workspace, showing
-    one new New Tab Page, with no hidden tab activated and no workspace change.
-12. Closing every tab of a window closes the window. No New Tab Page appears, no
-    new window appears, and quitting the browser from the last window exits the
-    process.
-13. Refusing a `beforeunload` prompt leaves the tab in the strip, in its
-    workspace, at its index, in its pane, with the same UUID, and leaves the
+9. **TLA-9.** Closing other tabs in a window of 20 tabs produces exactly one
+   activation change; a trace of visibility changes shows no tab other than the
+   final successor ever becoming visible.
+10. **TLA-10.** Closing a set containing the tab immediately after the active
+    tab activates a tab outside the set; no tab in the set is ever activated.
+11. **TLA-11.** Closing every tab of the active workspace in a window that also
+    holds tabs of another workspace leaves the window open, in the same
+    workspace, showing one new New Tab Page, with no hidden tab activated and no
+    workspace change.
+12. **TLA-12.** Closing every tab of a window closes the window. No New Tab Page
+    appears, no new window appears, and quitting the browser from the last
+    window exits the process.
+13. **TLA-13.** Refusing a `beforeunload` prompt leaves the tab in the strip, in
+    its workspace, at its index, in its pane, with the same UUID, and leaves the
     active tab unchanged.
-14. Dragging a tab to a new window does not clear its workspace UUID; the value
-    in tab session extra-data is byte-identical before and after.
+14. **TLA-14.** Dragging a tab to a new window does not clear its workspace
+    UUID; the value in tab session extra-data is byte-identical before and
+    after.
 
 **Asynchronous safety**
 
-15. With favicon and title delivery artificially delayed past tab removal, no
-    Sunshine surface shows a row for a removed tab, and none is re-created.
-16. Injecting an update message for a UUID a surface has never seen adds no row.
-17. Closing a tab during a slow load, with a navigation committing between the
-    close request and the removal, produces no Sunshine metadata write and no
-    crash.
-18. A membership change requested for a tab whose close is already pending is
-    refused with the stale-tab error result and leaves the projection unchanged.
+15. **TLA-15.** With favicon and title delivery artificially delayed past tab
+    removal, no Sunshine surface shows a row for a removed tab, and none is
+    re-created.
+16. **TLA-16.** Injecting an update message for a UUID a surface has never seen
+    adds no row.
+17. **TLA-17.** Closing a tab during a slow load, with a navigation committing
+    between the close request and the removal, produces no Sunshine metadata
+    write and no crash.
+18. **TLA-18.** A membership change requested for a tab whose close is already
+    pending is refused with the stale-tab error result and leaves the projection
+    unchanged.
 
 **Split and visibility**
 
-19. With a split open, exactly two tabs report visible; a long-running timer and
-    an animation in the unfocused pane keep running at full rate.
-20. Closing both paned tabs in one operation dissolves the layout once and
-    performs one successor selection.
-21. Crashing one paned tab leaves the split open, the other pane untouched, and
-    the layout record unchanged.
-22. Switching to another workspace and back does not reload a crashed tab and
-    does not reload tabs that Chromium did not discard.
+19. **TLA-19.** With a split open, exactly two tabs report visible; a
+    long-running timer and an animation in the unfocused pane keep running at
+    full rate.
+20. **TLA-20.** Closing both paned tabs in one operation dissolves the layout
+    once and performs one successor selection.
+21. **TLA-21.** Crashing one paned tab leaves the split open, the other pane
+    untouched, and the layout record unchanged.
+22. **TLA-22.** Switching to another workspace and back does not reload a
+    crashed tab and does not reload tabs that Chromium did not discard.
 
 **Persistence**
 
-23. Instrumenting session-command writes over a five-minute browsing session
-    with 30 tabs shows writes only at tab insertion and at membership changes —
-    none from navigation, activation, title, favicon, freeze, discard, or crash.
-24. An off-the-record window performs zero persistent Sunshine writes across the
-    whole of criteria 1–23.
+23. **TLA-23.** Instrumenting session-command writes over a five-minute browsing
+    session with 30 tabs shows writes only at tab insertion and at membership
+    changes — none from navigation, activation, title, favicon, freeze, discard,
+    or crash.
+24. **TLA-24.** An off-the-record window performs zero persistent Sunshine
+    writes across the whole of criteria 1–23.
 
 **Roll gate**
 
-25. At each upstream roll, the signals in section 4.2 still exist or their
-    replacements are identified, and criteria 1–24 are re-run. A changed
+25. **TLA-25.** At each upstream roll, the signals in section 4.2 still exist or
+    their replacements are identified, and criteria 1–24 are re-run. A changed
     successor-selection rule upstream is adopted, not compensated for.
 
 ## 14. Open decisions

@@ -472,80 +472,83 @@ whether §7.6 was actually implemented.
 
 **Lazy mount**
 
-1. Open five windows and restore a thirty-tab session without touching a panel:
-   the mount counter for every Sunshine panel is zero, no renderer hosts panel
-   WebUI, and no panel holds a service handle or model observer.
-2. Open a panel in window A: exactly one content view and, for WebUI content, at
-   most one renderer appears; window B is unchanged.
-3. Close that panel: the content view is destroyed and the renderer is released
-   within one second; a subsequent memory sample returns to the pre-mount level
-   within the recorded tolerance.
-4. Switch entries with the panel open: the previous entry's view is cached, holds
-   no model observers, and performs no rendering while not shown.
-5. Restart with the panel previously open: every restored window opens with the
-   panel closed and the mount counter at zero.
-6. Open a new window from a window with the panel open: the new window's panel is
-   closed.
-7. Trigger a download, a bookmark change, and a tab-group change with no panel
-   open: no panel mounts and no panel-owned observer fires.
-8. Per-window memory delta and window-creation time with panel registration
-   enabled versus disabled are within the baseline tolerance recorded at the
-   first native build.
+1. **SPA-1.** Open five windows and restore a thirty-tab session without
+   touching a panel: the mount counter for every Sunshine panel is zero, no
+   renderer hosts panel WebUI, and no panel holds a service handle or model
+   observer.
+2. **SPA-2.** Open a panel in window A: exactly one content view and, for WebUI
+   content, at most one renderer appears; window B is unchanged.
+3. **SPA-3.** Close that panel: the content view is destroyed and the renderer
+   is released within one second; a subsequent memory sample returns to the
+   pre-mount level within the recorded tolerance.
+4. **SPA-4.** Switch entries with the panel open: the previous entry's view is
+   cached, holds no model observers, and performs no rendering while not shown.
+5. **SPA-5.** Restart with the panel previously open: every restored window
+   opens with the panel closed and the mount counter at zero.
+6. **SPA-6.** Open a new window from a window with the panel open: the new
+   window's panel is closed.
+7. **SPA-7.** Trigger a download, a bookmark change, and a tab-group change with
+   no panel open: no panel mounts and no panel-owned observer fires.
+8. **SPA-8.** Per-window memory delta and window-creation time with panel
+   registration enabled versus disabled are within the baseline tolerance
+   recorded at the first native build.
 
 **Ownership**
 
-9. The bookmarks and history panels present are Chromium's, with no Sunshine
-   entry registered for either id.
-10. Where the upstream history panel reports itself unsupported, no panel
-    appears and no Sunshine substitute appears.
-11. The downloads panel shows exactly the items the native download model holds;
-    a completed item removed natively disappears from the panel without a reload;
-    every action goes through the native download command layer and a disabled
-    action is disabled in the panel.
-12. A dangerous download shows Chromium's warning treatment; the panel neither
-    upgrades, downgrades, nor duplicates it, and warning display and user action
-    are recorded once on the correct surface.
-13. The tabs panel reflects `TabStripModel` order, group membership, and active
-    tab exactly; reordering from the panel changes the native model, and no tab
-    identity is derived from an index or a URL.
-14. Closing and reopening the tabs panel loses nothing but scroll position and
-    filter text.
+9. **SPA-9.** The bookmarks and history panels present are Chromium's, with no
+   Sunshine entry registered for either id.
+10. **SPA-10.** Where the upstream history panel reports itself unsupported, no
+    panel appears and no Sunshine substitute appears.
+11. **SPA-11.** The downloads panel shows exactly the items the native download
+    model holds; a completed item removed natively disappears from the panel
+    without a reload; every action goes through the native download command
+    layer and a disabled action is disabled in the panel.
+12. **SPA-12.** A dangerous download shows Chromium's warning treatment; the
+    panel neither upgrades, downgrades, nor duplicates it, and warning display
+    and user action are recorded once on the correct surface.
+13. **SPA-13.** The tabs panel reflects `TabStripModel` order, group membership,
+    and active tab exactly; reordering from the panel changes the native model,
+    and no tab identity is derived from an index or a URL.
+14. **SPA-14.** Closing and reopening the tabs panel loses nothing but scroll
+    position and filter text.
 
 **Layout, width, split**
 
-15. With a split active, opening the panel changes both panes' widths and neither
-    pane's ratio, membership, or focus.
-16. Split open, swap, and close leave the panel's open state, entry, and width
-    unchanged.
-17. In a window narrower than the floor, the open-panel command is unavailable
-    and states its reason; in a split, the reason names the split.
-18. Shrinking a window with both open closes the panel and preserves both panes;
-    widening it again reopens nothing.
-19. At the minimum panel width, at 200% zoom, in RTL, and with a screen reader,
-    every panel's controls are reachable and labelled.
+15. **SPA-15.** With a split active, opening the panel changes both panes'
+    widths and neither pane's ratio, membership, or focus.
+16. **SPA-16.** Split open, swap, and close leave the panel's open state, entry,
+    and width unchanged.
+17. **SPA-17.** In a window narrower than the floor, the open-panel command is
+    unavailable and states its reason; in a split, the reason names the split.
+18. **SPA-18.** Shrinking a window with both open closes the panel and preserves
+    both panes; widening it again reopens nothing.
+19. **SPA-19.** At the minimum panel width, at 200% zoom, in RTL, and with a
+    screen reader, every panel's controls are reachable and labelled.
 
 **Keyboard and accessibility**
 
-20. Pane rotation reaches the panel; focus order matches §8 rule 3 for both
-    alignments and with a split active.
-21. Opening announces the panel; closing returns focus to the invoking control.
-22. Keyboard resize works and announces the result.
-23. A progressing download and a changing tab title move no focus and reorder no
-    row under a keyboard user's cursor.
+20. **SPA-20.** Pane rotation reaches the panel; focus order matches §8 rule 3
+    for both alignments and with a split active.
+21. **SPA-21.** Opening announces the panel; closing returns focus to the
+    invoking control.
+22. **SPA-22.** Keyboard resize works and announces the result.
+23. **SPA-23.** A progressing download and a changing tab title move no focus
+    and reorder no row under a keyboard user's cursor.
 
 **Privacy and profile**
 
-24. In incognito, no panel writes to the regular profile; closing the last
-    incognito window leaves no Sunshine-owned record of its tabs or downloads.
-25. Panel telemetry contains no title, URL, filename, or query.
+24. **SPA-24.** In incognito, no panel writes to the regular profile; closing
+    the last incognito window leaves no Sunshine-owned record of its tabs or
+    downloads.
+25. **SPA-25.** Panel telemetry contains no title, URL, filename, or query.
 
 **Roll gate**
 
-26. At each upstream roll, the source paths in §13 still exist or their
-    replacements are identified, upstream still creates entry content on first
-    show, and criteria 1–25 are re-run. A changed upstream behaviour blocks the
-    roll for review; it is not corrected by layering a Sunshine implementation
-    over Chromium.
+26. **SPA-26.** At each upstream roll, the source paths in §13 still exist or
+    their replacements are identified, upstream still creates entry content on
+    first show, and criteria 1–25 are re-run. A changed upstream behaviour
+    blocks the roll for review; it is not corrected by layering a Sunshine
+    implementation over Chromium.
 
 ## 13. Implementation authority in the pinned revision
 
