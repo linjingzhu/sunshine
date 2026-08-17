@@ -7,6 +7,7 @@ import importlib.util
 import io
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -270,6 +271,44 @@ class ChromiumBootstrapTests(unittest.TestCase):
             self.assertTrue(
                 self.bootstrap.patch_stack_is_applied(self.source, ["branding.patch"])
             )
+
+    def test_reset_exists_and_is_opt_in(self) -> None:
+        """Bootstrapping a human's workspace must still refuse to discard work."""
+
+        result = subprocess.run(
+            (sys.executable, str(BOOTSTRAP_SCRIPT), "--help"),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        self.assertIn("--reset", result.stdout)
+        self.assertIn("build-owned workspace", result.stdout)
+
+    def test_forced_checkout_discards_patches_but_keeps_build_output(self) -> None:
+        """The whole --reset design rests on this git behaviour.
+
+        A build workspace carries the previous wave's patch stack plus tens of
+        gigabytes of untracked output under out/. Resetting must drop the first
+        and keep the second, or every patch change costs a full rebuild.
+        """
+
+        patch = self.root / "downstream/patches/branding.patch"
+        subprocess.run(("git", "apply", str(patch)), cwd=self.source, check=True)
+        build_output = self.source / "out/Sunshine/chrome.exe"
+        build_output.parent.mkdir(parents=True)
+        build_output.write_text("expensive incremental build\n", encoding="utf-8")
+
+        subprocess.run(
+            ("git", "checkout", "--detach", "--force", "HEAD"),
+            cwd=self.source,
+            check=True,
+            capture_output=True,
+        )
+
+        branding = self.source / "chrome/app/theme/chromium/BRANDING"
+        self.assertEqual("PRODUCT_FULLNAME=Chromium\n", branding.read_text(encoding="utf-8"))
+        self.assertTrue(build_output.is_file(), "untracked build output must survive a reset")
 
     def test_unrelated_dirty_file_is_not_accepted_as_patch_stack(self) -> None:
         patch = self.root / "downstream/patches/branding.patch"

@@ -36,7 +36,7 @@ if ([string]::IsNullOrWhiteSpace($installationPath)) {
   throw "Visual Studio C++ x64 tools were not found."
 }
 
-python (Join-Path $RepositoryRoot "scripts\bootstrap_chromium.py") --workspace $workspacePath
+python (Join-Path $RepositoryRoot "scripts\bootstrap_chromium.py") --workspace $workspacePath --reset
 if ($LASTEXITCODE -ne 0) { throw "Chromium bootstrap failed." }
 
 $src = Join-Path $workspacePath "src"

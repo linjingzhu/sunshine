@@ -71,6 +71,15 @@ class WindowsBuildContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, text)
 
+    def test_build_resets_the_build_owned_chromium_workspace(self) -> None:
+        """Without --reset the previous wave's patch stack stops the next build.
+
+        The workspace persists between runs on a self-hosted runner, so a changed
+        patch stack would leave it dirty and require manual cleanup.
+        """
+
+        self.assertIn("bootstrap_chromium.py\") --workspace $workspacePath --reset", SCRIPT.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

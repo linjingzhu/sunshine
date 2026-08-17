@@ -79,6 +79,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", type=pathlib.Path, default=ROOT / "chromium")
     parser.add_argument("--skip-fetch", action="store_true")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help=(
+            "discard modifications to tracked upstream files in a build-owned workspace. "
+            "Untracked build output such as out/ is never touched."
+        ),
+    )
     args = parser.parse_args()
 
     if not shutil.which("fetch") or not shutil.which("gclient"):
@@ -108,12 +116,21 @@ def main() -> int:
         if current_head == fetched_head and patch_stack_is_applied(src, patch_names):
             print(f"Sunshine Chromium checkout already ready at {src}")
             return 0
-        raise SystemExit(
-            "Chromium checkout has uncommitted changes that are not exactly the current "
-            "Sunshine patch stack. Preserve or remove those changes before bootstrapping."
-        )
+        if not args.reset:
+            raise SystemExit(
+                "Chromium checkout has uncommitted changes that are not exactly the current "
+                "Sunshine patch stack. Preserve or remove those changes before bootstrapping, "
+                "or pass --reset in a build-owned workspace."
+            )
 
-    run("git", "checkout", "--detach", "FETCH_HEAD", cwd=src)
+    # A build workspace holds the previous wave's patch stack, so every patch
+    # change would otherwise stop the next build for manual cleanup. --force
+    # discards modifications to tracked upstream files only; untracked build
+    # output such as out/Sunshine survives, keeping the incremental build.
+    checkout = ["git", "checkout", "--detach"]
+    if args.reset:
+        checkout.append("--force")
+    run(*checkout, "FETCH_HEAD", cwd=src)
     run("gclient", "sync", cwd=workspace)
 
     for patch_name in patch_names:
