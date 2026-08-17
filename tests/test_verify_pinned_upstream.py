@@ -183,9 +183,9 @@ class PinnedUpstreamTests(unittest.TestCase):
 
         self.assertIn("googlesource", checker.SOURCES)
         self.assertIn("github", checker.SOURCES)
-        workflow = (REPOSITORY_ROOT / ".github/workflows/chromium-architecture-check.yml").read_text(
-            encoding="utf-8"
-        )
+        workflow = (
+            REPOSITORY_ROOT / ".github/workflows/architecture-guard-self-hosted.yml"
+        ).read_text(encoding="utf-8")
         self.assertIn("python scripts/verify_pinned_upstream.py", workflow)
         self.assertNotIn("--source github", workflow)
 

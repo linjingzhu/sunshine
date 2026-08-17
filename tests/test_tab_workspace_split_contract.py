@@ -43,7 +43,7 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         self.assertIn("struct SESSIONS_EXPORT SessionWindow {", checker)
 
         workflow = (
-            ROOT / ".github" / "workflows" / "chromium-architecture-check.yml"
+            ROOT / ".github" / "workflows" / "architecture-guard-self-hosted.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("scripts/verify_pinned_upstream.py", workflow)
 

@@ -1,17 +1,27 @@
-name: Architecture Guard (self-hosted fallback)
+name: Architecture Guard (self-hosted)
 
-# The same checks as the hosted architecture guard, on the machine that already
-# hosts the build runner. It exists so the guard can still run when GitHub
-# declines to allocate a hosted runner -- an allowance or billing condition the
-# repository cannot fix from inside.
+# Sunshine's only CI. It runs on the machine that already hosts the build
+# runner, which costs nothing: self-hosted runners do not consume GitHub's
+# included minutes. The hosted guard it replaces could not be allocated a
+# runner for an entire day -- an account allowance condition the repository
+# cannot fix from inside -- so depending on one was depending on someone
+# else's billing state.
 #
-# workflow_dispatch ONLY, and that is a security requirement, not a convenience.
-# The runner is a physical machine, so a fork-reachable trigger here would
-# execute a stranger's code on it. `tests/test_windows_build_contract.py`
-# enforces the rule for every workflow that names a self-hosted runner.
+# workflow_dispatch ONLY, and that is a security requirement, not a
+# convenience. The runner is a physical machine, so a fork-reachable trigger
+# here would execute a stranger's code on it.
+# `tests/test_windows_build_contract.py` enforces the rule for every workflow
+# that names a self-hosted runner.
 #
-# Run it after a build finishes: the runner is single-purpose, so a guard queued
-# during a Chromium compile waits behind hours of work.
+# No `uses:` anywhere, also deliberately. Every action is downloaded from
+# codeload.github.com during `Set up job`, and this account is rate-limited
+# there: build runs 13 and 14 both died with HTTP 429 after three retries,
+# before a single step of ours executed. git and python are already required on
+# this machine for the Chromium build, so `actions/checkout` and
+# `actions/setup-python` bought nothing and could cost the whole job.
+#
+# Run it when the build runner is idle: the machine is single-purpose, so a
+# guard queued during a Chromium compile waits behind hours of work.
 on:
   workflow_dispatch:
 
@@ -24,23 +34,30 @@ concurrency:
 
 jobs:
   architecture-guard:
-    name: Reject Electron and validate Python tooling (self-hosted)
+    name: Reject Electron and validate Python tooling
     runs-on: [self-hosted, Windows, X64, sunshine-chromium]
     timeout-minutes: 20
 
     steps:
+      # The one step that cannot be Python, because the repository holding the
+      # Python is what it fetches. The token reaches git through the remote URL
+      # rather than `.git/config`, so it is not left on disk afterwards.
       - name: Check out Sunshine source only
-        uses: actions/checkout@v4
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Test-Path ".git")) { git init -q . }
+          git fetch --no-tags --depth=1 "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git" $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+          git checkout -q --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
+          git clean -qffd
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      # Every step below is pure Python on purpose. The hosted guard uses bash
-      # for two steps; relying on a bash that happens to be on a Windows
-      # workstation's PATH would make this fallback fail for a reason unrelated
-      # to what it is checking.
+      # Every step below invokes Python directly. Relying on a bash that
+      # happens to be on a Windows workstation's PATH would fail for a reason
+      # unrelated to what is being checked.
       - name: Reject excluded wrapper runtimes
         run: python scripts/verify_architecture.py
 

@@ -144,52 +144,119 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
 
 
-class ArchitectureGuardParityTests(unittest.TestCase):
-    """The self-hosted guard exists because a hosted runner can stop being
-    allocated -- an allowance condition the repository cannot fix from inside.
-    A fallback that checks less than the thing it stands in for is worse than no
-    fallback, because it reports green for a smaller claim.
+class SelfHostedGuardTests(unittest.TestCase):
+    """The self-hosted guard is not a fallback any more -- it is the only CI.
+
+    It replaced a hosted guard that could not be allocated a runner for a full
+    day, which made the repository's verification depend on an account
+    allowance it cannot influence. The rules below are what keep a guard that
+    now stands alone from quietly checking less than the repository contains.
 
     Parsed with the standard library on purpose: a YAML dependency here would
     make the guard's own tests need a package the guard does not install.
     """
 
-    HOSTED = WORKFLOW_DIR / "chromium-architecture-check.yml"
-    SELF_HOSTED = WORKFLOW_DIR / "architecture-guard-self-hosted.yml"
+    GUARD = WORKFLOW_DIR / "architecture-guard-self-hosted.yml"
 
     RUN_STEP = re.compile(r"^\s+run: (.+)$", re.MULTILINE)
-    SHELL_STEP = re.compile(r"^\s+shell: (.+)$", re.MULTILINE)
+    USES_STEP = re.compile(r"^\s+uses: (.+)$", re.MULTILINE)
 
-    def _runs(self, path: Path) -> list[str]:
-        return [line.strip() for line in self.RUN_STEP.findall(path.read_text(encoding="utf-8"))]
+    # Scripts that are checks. `bootstrap_chromium.py` and `workspace_model.py`
+    # are not -- one is build tooling, the other is a model the checks read.
+    GUARD_PREFIXES = ("verify_", "validate_")
+    GUARD_NAMES = ("patch_manifest.py", "trace_invariants.py", "compile_check.py")
 
-    def test_both_guards_run_the_same_checks(self) -> None:
-        self.assertEqual(self._runs(self.HOSTED), self._runs(self.SELF_HOSTED))
-        # A guard that runs nothing would satisfy equality.
-        self.assertGreaterEqual(len(self._runs(self.HOSTED)), 8)
+    def _commands(self, path: Path) -> list[str]:
+        """Single-line `run:` values. A `run: |` block yields "|", not a command."""
 
-    def test_the_self_hosted_guard_is_dispatch_only(self) -> None:
+        found = [line.strip() for line in self.RUN_STEP.findall(path.read_text(encoding="utf-8"))]
+        return [command for command in found if command != "|"]
+
+    def test_no_workflow_downloads_a_third_party_action(self) -> None:
+        """`uses:` is fetched from codeload.github.com during `Set up job`.
+
+        This account is rate-limited there. Build runs 13 and 14 both failed
+        with HTTP 429 after three retries, before any step of ours executed --
+        so an action is not a convenience the job can degrade without, it is a
+        remote dependency that can kill the job outright. git and python are
+        already required on this machine by the Chromium build itself.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
+            with self.subTest(workflow=workflow.name):
+                self.assertEqual(
+                    [],
+                    self.USES_STEP.findall(workflow.read_text(encoding="utf-8")),
+                    f"{workflow.name} depends on an action download",
+                )
+
+    def test_the_guard_runs_every_check_the_repository_has(self) -> None:
+        """A guard script that CI never invokes is a check nobody runs.
+
+        Enumerated from disk rather than listed here, so adding
+        `scripts/verify_something.py` without wiring it in fails immediately
+        instead of passing silently for as long as nobody notices.
+        """
+
+        commands = " ".join(self._commands(self.GUARD))
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            name = script.name
+            if not (name.startswith(self.GUARD_PREFIXES) or name in self.GUARD_NAMES):
+                continue
+            with self.subTest(script=name):
+                self.assertIn(name, commands, f"{name} is never run by the guard")
+
+        self.assertIn("unittest discover -s tests", commands)
+
+    def test_every_check_step_invokes_python_directly(self) -> None:
+        """The runner is a Windows workstation. A check that needs a bash which
+        happens to be on its PATH fails for a reason unrelated to what it is
+        checking. The checkout step is the one exception and is a `run: |`
+        block, so it is not among the single-line commands.
+        """
+
+        for command in self._commands(self.GUARD):
+            self.assertTrue(command.startswith("python"), command)
+
+    def test_the_guard_is_dispatch_only(self) -> None:
         """Asserted separately from the fork rule because this is the single
         property that makes running a guard on a physical machine safe."""
 
-        text = self.SELF_HOSTED.read_text(encoding="utf-8")
+        text = self.GUARD.read_text(encoding="utf-8")
         self.assertIn("on:\n  workflow_dispatch:\n", text)
         for event in ("pull_request", "push:", "schedule:"):
             with self.subTest(event=event):
                 self.assertNotIn(f"  {event}", text)
 
-    def test_neither_guard_depends_on_a_shell(self) -> None:
-        """The self-hosted runner is a Windows workstation. A check needing a
-        bash that happens to be on its PATH fails for a reason unrelated to what
-        it is checking, so every step invokes Python directly.
+    def test_the_checkout_step_leaves_no_credential_on_disk(self) -> None:
+        """The runner is a physical machine that outlives the job.
+
+        The token travels in the fetch URL, which lives only in that process's
+        arguments. `git remote add` or an `extraheader` config would write it
+        into `.git/config`, where it would remain after the job ended.
         """
 
-        for path in (self.HOSTED, self.SELF_HOSTED):
-            with self.subTest(workflow=path.name):
-                text = path.read_text(encoding="utf-8")
-                self.assertEqual([], self.SHELL_STEP.findall(text))
-                for command in self._runs(path):
-                    self.assertTrue(command.startswith("python"), command)
+        for workflow in (self.GUARD, WORKFLOW):
+            with self.subTest(workflow=workflow.name):
+                text = workflow.read_text(encoding="utf-8")
+                self.assertIn("git fetch", text)
+                self.assertNotIn("git remote add", text)
+                self.assertNotIn("extraheader", text)
+                self.assertNotIn("git config", text)
+
+
+class InstallerDeliveryTests(unittest.TestCase):
+    """The runner is the owner's own machine, so the installer is already where
+    it needs to be when the build ends. Uploading it to GitHub storage, which a
+    private repository is billed for, and downloading it back to the machine
+    that produced it, is cost with no delivery.
+    """
+
+    def test_the_build_reports_the_installer_instead_of_uploading_it(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("upload-artifact", text)
+        self.assertIn("sunshine-installer-windows-x64.exe", text)
+        self.assertIn("size-report.json", text)
 
 
 if __name__ == "__main__":
