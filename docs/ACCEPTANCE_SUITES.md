@@ -32,8 +32,8 @@ claims to enforce. No standing total is written here for that, because it moves
 with every wave and a number left behind reads as a finding rather than as
 prose. The tool prints both totals on every run, and
 `config/invariant_coverage.txt` is the ratchet that stops the enforced one
-falling: adding is free, removing has to be done on purpose. On 2026-08-17 it
-stood at 38 claimed of 429 declared. This document asks the question one level
+falling: adding is free, removing has to be done on purpose. Run it for the
+current pair rather than reading one here. This document asks the question one level
 up, and reaches the same shape of answer — a small enforced fraction of a large
 declared set, for the reason that baseline file gives: most of what these
 contracts declare is a statement about a running browser, and no offline suite
@@ -591,8 +591,10 @@ The repository holds the regression suite under `tests/`, the guards in
 `scripts/` that `.github/workflows/architecture-guard-self-hosted.yml` runs, and
 the pinned sources those guards already fetch. Neither the suite nor the guard
 list is enumerated here: both grow every wave, and the workflow is the one list
-that cannot fall behind, because it is the thing that runs them. On 2026-08-17
-`python -m unittest discover -s tests` reported 418 tests.
+that cannot fall behind, because it is the thing that runs them.
+`python -m unittest discover -s tests` reports 525 tests, and
+`scripts/verify_stated_counts.py` checks that number against `tests/` on every
+run, so it is current by construction rather than as of a date.
 
 **What they establish:** that the patch stack applies to the pinned revision and
 owns its files exclusively; that the module and command registries are

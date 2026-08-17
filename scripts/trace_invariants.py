@@ -91,6 +91,11 @@ FAMILIES = (
     "TA", "PB",
     # The security architecture: SEC-n invariants, SECA-n acceptance criteria.
     "SEC", "SECA",
+    # Runtime verification gates: RV-n needs the browser open, RVV-n needs a
+    # person looking. Both prefixes exist because the first draft numbered them
+    # R1-R9 and V1-V3 -- colliding with DESIGN_SYSTEM_CONTRACT's own R series in
+    # one direction, and unparseable in the other.
+    "RV", "RVV",
 )
 
 

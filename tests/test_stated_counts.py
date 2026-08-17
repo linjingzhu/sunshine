@@ -18,6 +18,7 @@ immediately which document they just broke.
 """
 
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -31,16 +32,16 @@ import verify_stated_counts as counts  # noqa: E402
 # The real repository's surviving stale counts. Failures on the real tree must be
 # a subset of this: fixing a document keeps the test green, adding a new stale
 # count turns it red. Delete an entry once its document is corrected.
-KNOWN_STALE = (
-    # Section 4.3 still reads 27 after the three `view.split.*` commands were
-    # retired. Section 15 of the same contract already records the correction,
-    # and `docs/ACCEPTANCE_SUITES.md` C5 records it again.
-    "docs/COMMAND_PALETTE_CONTRACT.md:349",
-)
+# Empty, and kept rather than deleted. It held one entry -- a dated measurement
+# in ACCEPTANCE_SUITES section 8, written when nothing could check the number --
+# which was replaced with a checked sentence in the same change that landed the
+# `tests` subject. The assertion below is a subset check, so an empty tuple
+# means every stale count the guard reports is a real finding.
+KNOWN_STALE: tuple[str, ...] = ()
 
 
 class TreeTestCase(unittest.TestCase):
-    """A temp tree whose four countable facts are chosen by the test."""
+    """A temp tree whose five countable facts are chosen by the test."""
 
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
@@ -55,6 +56,7 @@ class TreeTestCase(unittest.TestCase):
         modules: int = 2,
         patches: int = 3,
         revision: str = "152.0.7977.42",
+        tests: int = 4,
     ) -> None:
         entries = ",".join(f'{{"id": "browser.c{n}"}}' for n in range(commands))
         surface_names = ",".join(f'"s{n}"' for n in range(surfaces))
@@ -71,6 +73,8 @@ class TreeTestCase(unittest.TestCase):
             "# ordered\n" + "".join(f"000{n}-x.patch\n" for n in range(1, patches + 1)),
         )
         self.write("config/chromium.version", f"CHROMIUM_REVISION=refs/tags/{revision}\n")
+        methods = "".join(f"    def test_n{n}(self): pass\n" for n in range(tests))
+        self.write("tests/test_fixture.py", f"import unittest\nclass T(unittest.TestCase):\n{methods}")
 
     def write(self, relative: str, text: str) -> None:
         path = self.root / relative
@@ -401,6 +405,270 @@ class DeliberateNonMatchTests(TreeTestCase):
 
 
 # --- The real repository ------------------------------------------------------
+
+
+class TestCountTests(TreeTestCase):
+    """The fifth subject: how many tests `unittest discover` would report."""
+
+    def test_a_wrong_test_count_citing_the_discover_command_is_reported(self) -> None:
+        self.doc(
+            "On 2026-08-17 `python -m unittest discover -s tests` reported 9 tests.\n"
+        )
+        failures = self.failures()
+        self.assertEqual(1, len(failures))
+        self.assertIn("states 9 tests", failures[0])
+        self.assertIn("tests/ has 4", failures[0])
+
+    def test_a_correct_test_count_passes_and_is_counted(self) -> None:
+        self.doc("`python3 -m unittest discover -s tests` reports four tests.")
+        summary, failures = counts.check(self.root)
+        self.assertEqual([], failures)
+        self.assertIn("1 stated count(s)", summary)
+
+    def test_test_methods_and_test_cases_are_the_same_claim(self) -> None:
+        for noun in ("test methods", "test cases"):
+            with self.subTest(noun=noun):
+                self.doc(f"`unittest discover -s tests` reports 9 {noun}.")
+                self.assertEqual(1, len(self.failures()))
+
+    def test_a_date_in_the_sentence_is_not_a_count(self) -> None:
+        """The dated form is the sentence being replaced; its date must not parse."""
+
+        self.doc("On 2026-08-17 `python -m unittest discover -s tests` reported 4 tests.")
+        self.assertEqual([], self.failures())
+        self.assertEqual([4], [claim.stated for claim in self.claims()])
+
+
+class TestCountNonMatchTests(TreeTestCase):
+    """Forms the tests subject deliberately does not match."""
+
+    def test_a_count_of_tests_without_the_discover_command_is_not_a_claim(self) -> None:
+        """`docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` §4.2, which names a test file.
+
+        This is the reason the anchor is the discover command and not `tests/`.
+        With `tests/` as the anchor this correct sentence is reported as
+        claiming the suite holds two tests.
+        """
+
+        self.assertUnmatched(
+            "These identifiers must leave `first_party/commands.json`, this section,\n"
+            "and the two tests that assert their presence in the same commit, because\n"
+            "`tests/test_command_registry.py` fails when the registry and this table\n"
+            "disagree.\n"
+        )
+
+    def test_a_contracts_acceptance_criteria_are_not_the_suite(self) -> None:
+        """`docs/ACCEPTANCE_SUITES.md` section 2 counts criteria, calling them tests."""
+
+        self.assertUnmatched(
+            "| `docs/SESSION_PROFILE_CONTRACT.md` | 14 tests SRA-1…SRA-14 in 5 groups |"
+            " SRA-, numbered continuously |\n"
+        )
+
+    def test_prose_about_where_tests_live_is_not_a_count(self) -> None:
+        """`docs/SECURITY_ARCHITECTURE_CONTRACT.md` §10."""
+
+        self.assertUnmatched(
+            "Security tests live in `tests/` with everything else. A separate\n"
+            "`security/` tree would fork the suite, and a forked suite is one somebody\n"
+            "forgets to run.\n"
+        )
+
+
+class UncountableSuiteTests(TreeTestCase):
+    """Constructs that make the count undecidable must refuse, never guess low.
+
+    Under-counting is the dangerous direction: the documented number would drift
+    back toward the truth from the wrong side and read as agreement. Each
+    construct here was checked against real `unittest` discovery first, and each
+    is absent from `tests/` today.
+    """
+
+    def claim_with(self, module: str) -> list[str]:
+        self.write("tests/test_fixture.py", module)
+        self.doc("`python -m unittest discover -s tests` reports 4 tests.")
+        return self.failures()
+
+    def test_load_tests_builds_the_suite_at_runtime(self) -> None:
+        failures = self.claim_with(
+            "import unittest\n"
+            "class A(unittest.TestCase):\n    def test_a(self): pass\n"
+            "def load_tests(loader, tests, pattern):\n    return tests\n"
+        )
+        self.assertEqual(1, len(failures))
+        self.assertIn("load_tests", failures[0])
+        self.assertIn("cannot be checked", failures[0])
+
+    def test_a_class_defined_outside_the_module_body_is_refused(self) -> None:
+        failures = self.claim_with(
+            "import unittest\nimport sys\n"
+            "if sys.platform:\n"
+            "    class A(unittest.TestCase):\n        def test_a(self): pass\n"
+        )
+        self.assertEqual(1, len(failures))
+        self.assertIn("outside the module body", failures[0])
+
+    def test_setattr_can_add_test_methods_at_import_time(self) -> None:
+        failures = self.claim_with(
+            "import unittest\n"
+            "class A(unittest.TestCase): pass\n"
+            "setattr(A, 'test_x', lambda self: None)\n"
+        )
+        self.assertEqual(1, len(failures))
+        self.assertIn("setattr()", failures[0])
+
+    def test_a_base_class_from_another_module_is_refused(self) -> None:
+        failures = self.claim_with(
+            "import unittest\nfrom helpers import Base\n"
+            "class A(Base):\n    def test_a(self): pass\n"
+        )
+        self.assertEqual(1, len(failures))
+        self.assertIn("not defined in that module", failures[0])
+
+    def test_a_class_bound_to_a_second_name_would_be_counted_twice(self) -> None:
+        failures = self.claim_with(
+            "import unittest\n"
+            "class A(unittest.TestCase):\n    def test_a(self): pass\n"
+            "Alias = A\n"
+        )
+        self.assertEqual(1, len(failures))
+        self.assertIn("twice", failures[0])
+
+    def test_a_subdirectory_under_tests_is_refused(self) -> None:
+        self.write("tests/nested/test_deep.py", "import unittest\n")
+        failures = self.claim_with("import unittest\n")
+        self.assertEqual(1, len(failures))
+        self.assertIn("subdirectory", failures[0])
+
+    def test_an_uncountable_suite_is_silent_when_no_document_claims_a_count(self) -> None:
+        """Not being able to count is not by itself a defect."""
+
+        self.write("tests/test_fixture.py", "def load_tests(l, t, p):\n    return t\n")
+        self.doc("`first_party/commands.json` holds three commands.")
+        self.assertEqual([], self.failures())
+
+
+class DiscoveryAgreementTests(unittest.TestCase):
+    """The static count must equal what the command the document cites reports.
+
+    This is the contract the whole subject rests on, so it is asserted against
+    `unittest` itself rather than argued for in a comment. Discovery imports the
+    test modules -- already imported, since this file is one of them -- and
+    `countTestCases()` collects without executing, so this stays fast and runs
+    no test body.
+
+    If someone adds a construct the static counter cannot model, this test fails
+    and names the gap. That is the intended outcome: the choice is then to teach
+    the counter or to drop the claim from the document, and both are decisions a
+    person should make.
+    """
+
+    @staticmethod
+    def discovered(start: Path) -> int:
+        saved_path = list(sys.path)
+        saved_modules = set(sys.modules)
+        try:
+            return unittest.TestLoader().discover(str(start)).countTestCases()
+        finally:
+            for name in set(sys.modules) - saved_modules:
+                del sys.modules[name]
+            sys.path[:] = saved_path
+
+    def test_the_static_count_equals_real_discovery_on_this_repository(self) -> None:
+        self.assertEqual(
+            self.discovered(REPOSITORY_ROOT / "tests"),
+            counts.count_tests(REPOSITORY_ROOT),
+        )
+
+    def test_the_static_count_equals_real_discovery_on_the_awkward_shapes(self) -> None:
+        """The three the brief named, plus the ones that broke a first attempt."""
+
+        shapes = {
+            "a subTest loop is one test": (
+                "import unittest\n"
+                "class A(unittest.TestCase):\n"
+                "    def test_many(self):\n"
+                "        for i in range(50):\n"
+                "            with self.subTest(i=i): pass\n"
+            ),
+            "a skipped test is still counted": (
+                "import unittest\n"
+                "class A(unittest.TestCase):\n"
+                "    @unittest.skip('why')\n"
+                "    def test_skipped(self): pass\n"
+                "    def test_ok(self): pass\n"
+            ),
+            "an inherited method counts once per subclass": (
+                "import unittest\n"
+                "class Base(unittest.TestCase):\n    def test_shared(self): pass\n"
+                "class A(Base):\n    def test_a(self): pass\n"
+                "class B(Base):\n    def test_b(self): pass\n"
+            ),
+            "an override is one test, not two": (
+                "import unittest\n"
+                "class Base(unittest.TestCase):\n    def test_shared(self): pass\n"
+                "class A(Base):\n    def test_shared(self): pass\n"
+            ),
+            "a fixture base class with no test methods adds nothing": (
+                "import unittest\n"
+                "class Fixture(unittest.TestCase):\n    def setUp(self): pass\n"
+                "class A(Fixture):\n    def test_a(self): pass\n"
+            ),
+            "diamond inheritance": (
+                "import unittest\n"
+                "class Base(unittest.TestCase):\n    def test_base(self): pass\n"
+                "class L(Base):\n    def test_l(self): pass\n"
+                "class R(Base):\n    def test_r(self): pass\n"
+                "class D(L, R):\n    def test_d(self): pass\n"
+            ),
+            "a non-TestCase class named like one is not collected": (
+                "import unittest\n"
+                "class Helper:\n    def test_not_a_test(self): pass\n"
+                "class A(unittest.TestCase):\n    def test_a(self): pass\n"
+            ),
+            "a class nested in a class is not a module attribute": (
+                "import unittest\n"
+                "class A(unittest.TestCase):\n"
+                "    def test_a(self): pass\n"
+                "    class Inner(unittest.TestCase):\n        def test_inner(self): pass\n"
+            ),
+            "the prefix is `test`, not `test_`": (
+                "import unittest\n"
+                "class A(unittest.TestCase):\n"
+                "    def testCamel(self): pass\n"
+                "    def test_snake(self): pass\n"
+                "    def helper_test(self): pass\n"
+                "    def _test_private(self): pass\n"
+            ),
+            "`from unittest import TestCase`": (
+                "from unittest import TestCase\n"
+                "class A(TestCase):\n    def test_a(self): pass\n"
+            ),
+            "an asyncio case": (
+                "import unittest\n"
+                "class A(unittest.IsolatedAsyncioTestCase):\n"
+                "    async def test_async(self): pass\n"
+                "    def test_sync(self): pass\n"
+            ),
+        }
+        for name, module in shapes.items():
+            with self.subTest(shape=name):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / "tests").mkdir()
+                    # A unique module name per shape: `discover` imports by name
+                    # and a cached module would answer for the previous shape.
+                    stem = "test_" + re.sub(r"\W+", "_", name)
+                    (root / "tests" / f"{stem}.py").write_text(module, encoding="utf-8")
+                    # Not matching `test*.py`, so discovery must ignore it.
+                    (root / "tests" / "helper_support.py").write_text(
+                        "import unittest\n"
+                        "class Ignored(unittest.TestCase):\n    def test_x(self): pass\n",
+                        encoding="utf-8",
+                    )
+                    self.assertEqual(
+                        self.discovered(root / "tests"), counts.count_tests(root)
+                    )
 
 
 class RealRepositoryTests(unittest.TestCase):

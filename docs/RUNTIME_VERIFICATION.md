@@ -2,8 +2,12 @@
 
 ## Why this exists
 
-The contract set declares 418 invariants and enforces 33. Most of the remainder
-are class B — decidable only with a built browser. A browser has existed since
+`scripts/trace_invariants.py` prints how many invariants the contract set
+declares and how many a check claims; `config/invariant_coverage.txt` is the
+ratchet that stops the second number falling. Run it for the current pair — a
+figure written here would be stale within a wave, and this paragraph's argument
+does not need one. Most of the unclaimed remainder are class B — decidable only
+with a built browser. A browser has existed since
 build #12 finished, and nothing was reading it: every module manifest still
 says
 
@@ -50,21 +54,21 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 
 | # | Step | Expected | Invariant |
 | --- | --- | --- | --- |
-| R1 | Open `chrome://version` | The command line contains no `--no-sandbox`, no `--single-process`, no `--disable-site-isolation-trials` | SEC-1, SEC-2 |
-| R2 | Open `chrome://sandbox` | Every renderer row reports a sandbox as active | SEC-1 |
-| R3 | Open `chrome://process-internals` | Site isolation mode is site-per-process, and two cross-site frames occupy different processes | SEC-2 |
-| R4 | Type `sunshine://anything` in the omnibox | Treated as a search, not a navigation — the scheme does not resolve | SEC-13 |
-| R5 | Play an H.264/AAC video | Decodes and plays | ADR 0004 |
-| R6 | Play a VP9 or AV1 video | Decodes and plays — the codec change must not have cost the royalty-free path | ADR 0004 |
-| R7 | Open a new tab | The Sunshine wordmark occupies the logo slot; Chromium's own logo is absent | patch 0002 |
-| R8 | Open a new tab on a keyless build | No infobar reports missing Google API keys | patch 0003, ADR 0005 |
-| R9 | Search from the New Tab page | Chromium's own search handling runs; no Sunshine interposition, no forced startup URL | `verify_architecture.py` startup-URL rule, at runtime |
+| RV-1 | Open `chrome://version` | The command line contains no `--no-sandbox`, no `--single-process`, no `--disable-site-isolation-trials` | SEC-1, SEC-2 |
+| RV-2 | Open `chrome://sandbox` | Every renderer row reports a sandbox as active | SEC-1 |
+| RV-3 | Open `chrome://process-internals` | Site isolation mode is site-per-process, and two cross-site frames occupy different processes | SEC-2 |
+| RV-4 | Type `sunshine://anything` in the omnibox | Treated as a search, not a navigation — the scheme does not resolve | SEC-13 |
+| RV-5 | Play an H.264/AAC video | Decodes and plays | ADR 0004 |
+| RV-6 | Play a VP9 or AV1 video | Decodes and plays — the codec change must not have cost the royalty-free path | ADR 0004 |
+| RV-7 | Open a new tab | The Sunshine wordmark occupies the logo slot; Chromium's own logo is absent | patch 0002 |
+| RV-8 | Open a new tab on a keyless build | No infobar reports missing Google API keys | patch 0003, ADR 0005 |
+| RV-9 | Search from the New Tab page | Chromium's own search handling runs; no Sunshine interposition, no forced startup URL | `verify_architecture.py` startup-URL rule, at runtime |
 
-R6 is not redundant with R5. `ffmpeg_branding="Chrome"` changes which FFmpeg
+RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
 had before the decision rather than the ones it added.
 
-R4 is the runtime half of SEC-13 that neither the source guard nor the registry
+RV-4 is the runtime half of SEC-13 that neither the source guard nor the registry
 check covers: a scheme can be registered inside the browser without touching the
 registry, and the omnibox is where a user would meet it.
 
@@ -72,20 +76,39 @@ registry, and the omnibox is where a user would meet it.
 
 | # | Step | Expected |
 | --- | --- | --- |
-| V1 | New Tab at 533 px, 768 px and 933 px width | The wordmark scales fluidly and does not clip or wrap |
-| V2 | New Tab in light and dark | Both use the design-system tokens; neither hardcodes a colour |
-| V3 | Keyboard-only traversal of the New Tab page | Focus is visible at every stop and reaches the search field |
+| RVV-1 | New Tab at 533 px, 768 px and 933 px width | The wordmark scales fluidly and does not clip or wrap |
+| RVV-2 | New Tab in light and dark | Both use the design-system tokens; neither hardcodes a colour |
+| RVV-3 | Keyboard-only traversal of the New Tab page | Focus is visible at every stop and reaches the search field |
 
-`docs/DESIGN_SYSTEM_CONTRACT.md` owns the token rules; V2 checks that the built
+`docs/DESIGN_SYSTEM_CONTRACT.md` owns the token rules; RVV-2 checks that the built
 page actually resolves them, which `scripts/verify_design_tokens.py` cannot do
 from source.
+
+### Why the gates are prefixed
+
+They used a bare `R` series and a bare `V` series for one night.
+`docs/DESIGN_SYSTEM_CONTRACT.md` numbers its own rules in the `R` series, `R` is
+a family `scripts/trace_invariants.py` knows, and the tracer promptly reported
+this document's gates as declared by both — so an `Enforces:` line naming one of
+them named two different rules at once. The `V` series failed the opposite way:
+`V` belongs to no family, so those gates could never be claimed by any check at
+all. One series resolved to the wrong document and the other was invisible.
+
+The tokens are deliberately not repeated in this paragraph. `declared()` counts
+an identifier wherever it appears, including inside a note explaining that it
+was withdrawn, so spelling them out here would re-create the collision the
+paragraph is about.
+
+`RV` and `RVV` are registered families, and `docs/ACCEPTANCE_SUITES.md` §2
+already stated the rule this broke: every prefix must be distinct from every
+other and from the families the tracer knows.
 
 ## 4. Recording the result
 
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       R1..R9, V1..V3
+gate       RV-1..RV-9, RVV-1..RVV-3
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

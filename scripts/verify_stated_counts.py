@@ -14,17 +14,26 @@ in ways that were checkable offline in seconds:
     correction, and section 15 of the palette contract records it again, and
     section 4.3 of that same contract still reads 27 today.
 
-Four facts are decidable from files in this repository:
+Five facts are decidable from files in this repository:
 
     first_party/commands.json           how many commands are registered
     first_party/commands.json           how many command surfaces are declared
     first_party/registry.json           how many first-party modules exist
     downstream/patches/series           how many patches are in the stack
+    tests/                              how many tests the suite holds
 
 and one value is decidable from `config/chromium.version` -- the pinned
 revision. A stale revision literal in a contract is not a count, but it is the
 same failure with the same cause (a repository fact restated in prose and then
-left behind), so it is checked here rather than in a fifth guard nobody runs.
+left behind), so it is checked here rather than in a sixth guard nobody runs.
+
+The suite count was added last and for a specific reason. The acceptance index
+once said the repository held "one hundred and forty tests"; the real number was
+383 by the time anyone noticed. It was rewritten to a dated measurement -- "On
+2026-08-17 `python -m unittest discover -s tests` reported 418 tests" -- which
+is the weakest available fix, because a number with a date on it is still a
+number that rots and the date only says how stale it might be. The count is
+reconstructed from source instead; see "Counting the suite without running it".
 
 Precision, not coverage
 -----------------------
@@ -37,8 +46,9 @@ correct work, so every rule below exists to *narrow* what matches.
 
 A phrase is a claim only when all of these hold.
 
-**The counted noun is one of four.** `commands` (and `command names`,
-`command entries`), `surfaces`, `modules`, `patches`. Nothing else.
+**The counted noun is one of five.** `commands` (and `command names`,
+`command entries`), `surfaces`, `modules`, `patches`, `tests` (and `test
+methods`, `test cases`). Nothing else.
 `docs/TELEMETRY_CONTRACT.md` section 5.5 weighs "twenty-four separate histogram
 names" against "one enumerated histogram with twenty-four buckets", and
 `docs/OPEN_DECISIONS.md` P1 repeats it as a question. Those sentences contain
@@ -48,7 +58,7 @@ holds. `docs/BROWSER_UTILITIES_CONTRACT.md` counts "Eleven of these utilities",
 a subset, with the registry path in the same sentence. A noun set that grew to
 cover any of them would turn a correct document into a build failure.
 
-**The claim names its source file.** The count phrase's block must contain
+**The claim names its source.** The count phrase's block must contain
 `first_party/commands.json`, `first_party/registry.json`, or
 `downstream/patches/series`. Without that anchor, "N commands" is almost always
 a subset: `docs/ADVANCED_TABS_CONTRACT.md` says "its two registered commands"
@@ -56,6 +66,18 @@ about `tab.group.create` and `tab.group.ungroup`, and it is right. The anchor is
 looked for in the enclosing block rather than the sentence because
 `docs/EXTENSION_MIME_CONTRACT.md` XM-C3 names the file in one sentence of a
 table cell and states the count in the next.
+
+For `tests` the anchor is the string `unittest discover`, and deliberately not
+`tests/`. `tests/` is the obvious choice and is unusable: the contracts name
+individual test files constantly, so any block mentioning
+`tests/test_command_registry.py` would anchor a count of tests sitting near it.
+`docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` section 4.2 is exactly that block -- "the
+two tests that assert their presence", beside `tests/test_command_registry.py`
+-- and anchoring on `tests/` reports that correct sentence as claiming 2 when
+the suite holds 469. The claim worth checking is "what the discover command
+reports", so the citation of that command is what makes a sentence the claim.
+The consequence is a real narrowing: a document that states a test count without
+citing the command is not checked, and that is the intended trade.
 
 **The count is not inside quotation marks or backticks.** Block-scoped anchoring
 would otherwise catch the one place in the corpus that quotes a wrong number in
@@ -90,9 +112,12 @@ hypothetical palette "that rendered twenty-seven rows" is not an assertion.
 Deliberately not matched, and left that way
 -------------------------------------------
 
-  * bare counts with no source file named, at or below the total -- subsets;
-  * any noun outside the four above, including `names`, `buckets`, `entries`,
+  * bare counts with no source named, at or below the total -- subsets;
+  * any noun outside the five above, including `names`, `buckets`, `entries`,
     `rows`, `utilities`, `items`;
+  * counts of tests that do not cite the discover command, including the
+    acceptance index's own "14 tests SRA-1…SRA-14" and "8 tests DSA-1…DSA-8",
+    which count criteria in a contract and not test methods in `tests/`;
   * counts written as `no` / `none` ("registers no download command") -- the
     word is doing set-selection work, not counting;
   * section and identifier references (`section 4.2`, `CPA-14`, `invariant 9`,
@@ -110,6 +135,7 @@ and inventing one here would be the same defect this file exists to prevent.
 
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -205,6 +231,23 @@ SUBJECTS = (
         anchors=("downstream/patches/series",),
         bounded=False,
     ),
+    Subject(
+        name="tests",
+        source="tests/",
+        nouns=r"test\s+methods|test\s+cases|tests",
+        # The discover command, and only the discover command. `tests/` looks
+        # like the obvious anchor and is not usable: it appears throughout the
+        # contracts as the head of a file path, so a block naming
+        # `tests/test_command_registry.py` would anchor any count of tests near
+        # it. `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` §4.2 does exactly that --
+        # "the two tests that assert their presence" sits in a block that names
+        # `tests/test_command_registry.py` -- and anchoring on `tests/` reports
+        # that correct sentence as claiming 2 when the suite holds 469. The
+        # claim being checked is "what that command reports", so the citation of
+        # that command is the honest anchor for it.
+        anchors=("unittest discover",),
+        bounded=False,
+    ),
 )
 
 # Adjectives that describe the whole set rather than selecting part of it. Every
@@ -255,6 +298,163 @@ PHRASE_PATTERNS = {subject.name: _phrase_pattern(subject) for subject in SUBJECT
 VERSION_LITERAL = re.compile(r"\b\d{2,3}\.\d+\.\d{4}\.\d+\b")
 
 
+# --- Counting the suite without running it ------------------------------------
+#
+# `python -m unittest discover -s tests` reports a number by importing every
+# test module and executing every test. This guard may do neither: it must stay
+# fast and side-effect free. So the number is reconstructed from source, and the
+# reconstruction has to equal what that command prints -- a guard that checks a
+# nearby-but-different number is worse than the dated prose it replaces, because
+# it looks authoritative.
+#
+# What `unittest` actually counts, and what is reproduced here:
+#
+#   * files under the start directory matching `test*.py` (the discover default);
+#   * module-level classes deriving from `TestCase`, transitively;
+#   * their methods whose names begin with `test` (`testMethodPrefix`, whose
+#     default is `test` and not `test_`), **including methods inherited from a
+#     base class** -- a base with one test method and three subclasses is four
+#     tests, not one -- and de-duplicated by name, so an override is one test.
+#
+# Three things it is easy to get wrong, all verified against real discovery in
+# `tests/test_stated_counts.py`: a `subTest` loop is **one** test however many
+# sub-cases it runs; a `@unittest.skip` method is still counted, because it is
+# collected and reported; and a class nested inside another class is *not*
+# collected, because the loader iterates module attributes.
+#
+# Where a construct makes membership undecidable from source, this refuses to
+# answer rather than guessing low. Silently under-counting is the failure that
+# matters: it would let the documented number drift back toward the truth from
+# the wrong side and read as agreement. The refusals below were each checked to
+# fire on a fixture and to be absent from `tests/` today.
+
+TESTCASE_BASES = frozenset(
+    {
+        "unittest.TestCase",
+        "TestCase",
+        "unittest.IsolatedAsyncioTestCase",
+        "IsolatedAsyncioTestCase",
+    }
+)
+# Bases that cannot be a TestCase, so a class carrying one stays decidable.
+INERT_BASES = frozenset({"object", "Exception", "ValueError", "RuntimeError"})
+
+DISCOVER_GLOB = "test*.py"  # unittest.TestLoader.discover's default pattern
+TEST_METHOD_PREFIX = "test"  # unittest.TestLoader.testMethodPrefix's default
+
+
+class UncountableSuite(Exception):
+    """The suite contains something whose test count is not decidable statically."""
+
+
+def _class_table(tree: ast.Module) -> dict[str, tuple[list[str], list[str]]]:
+    """name -> (base expressions, own test-method names), module level only."""
+
+    table: dict[str, tuple[list[str], list[str]]] = {}
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            methods = [
+                item.name
+                for item in node.body
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and item.name.startswith(TEST_METHOD_PREFIX)
+            ]
+            table[node.name] = ([ast.unparse(base) for base in node.bases], methods)
+    return table
+
+
+def _refuse_unmodellable(tree: ast.Module, table: dict, label: str) -> None:
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "load_tests":
+            raise UncountableSuite(f"{label} defines load_tests(), which builds the suite at runtime")
+
+    # A class the loader can see but this parser cannot: one defined inside an
+    # `if`, a loop, or a factory function still becomes a module attribute.
+    # A class nested directly in another class does not, and is fine.
+    permitted = {id(node) for node in tree.body}
+    permitted |= {
+        id(item)
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        for item in node.body
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and id(node) not in permitted:
+            raise UncountableSuite(
+                f"{label} defines class {node.name} at line {node.lineno} outside the module body; "
+                "whether the loader sees it depends on runtime"
+            )
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "setattr":
+            raise UncountableSuite(
+                f"{label} calls setattr() at line {node.lineno}; test methods may be added at import time"
+            )
+
+    for name, (bases, _) in table.items():
+        for base in bases:
+            if base not in TESTCASE_BASES and base not in INERT_BASES and base not in table:
+                raise UncountableSuite(
+                    f"{label}: class {name} inherits from {base!r}, which is not defined in that "
+                    "module, so its inherited test methods cannot be read"
+                )
+
+    # `Alias = SomeTestCaseClass` gives the loader a second module attribute for
+    # the same class, and it counts the tests twice.
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name) and node.value.id in table:
+            raise UncountableSuite(
+                f"{label} binds {node.value.id} to a second module-level name at line {node.lineno}; "
+                "the loader would count its tests twice"
+            )
+
+
+def count_module_tests(text: str, label: str) -> int:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as error:
+        raise UncountableSuite(f"{label} does not parse: {error}") from error
+
+    table = _class_table(tree)
+    _refuse_unmodellable(tree, table, label)
+
+    def is_case(name: str, seen: tuple[str, ...] = ()) -> bool:
+        if name in seen or name not in table:
+            return False
+        bases, _ = table[name]
+        return any(
+            base in TESTCASE_BASES or is_case(base, seen + (name,)) for base in bases
+        )
+
+    def methods(name: str, seen: tuple[str, ...] = ()) -> set[str]:
+        if name in seen:
+            return set()
+        bases, own = table[name]
+        found = set(own)
+        for base in bases:
+            if base in table:
+                found |= methods(base, seen + (name,))
+        return found
+
+    return sum(len(methods(name)) for name in table if is_case(name))
+
+
+def count_tests(root: Path) -> int:
+    """What `python -m unittest discover -s tests` would report."""
+
+    base = root / "tests"
+    if not base.is_dir():
+        raise UncountableSuite("there is no tests/ directory")
+    for entry in sorted(base.iterdir()):
+        if entry.is_dir() and entry.name != "__pycache__":
+            raise UncountableSuite(
+                f"tests/{entry.name}/ is a subdirectory; whether discovery recurses into it "
+                "depends on package rules this does not model"
+            )
+    return sum(
+        count_module_tests(path.read_text(encoding="utf-8"), path.name)
+        for path in sorted(base.glob(DISCOVER_GLOB))
+    )
+
+
 # --- Ground truth -------------------------------------------------------------
 
 
@@ -291,6 +491,14 @@ def repository_counts(root: Path) -> dict[str, int]:
                 if line.strip() and not line.lstrip().startswith("#")
             ]
         )
+
+    try:
+        counts["tests"] = count_tests(root)
+    except UncountableSuite:
+        # The reason is reported by `stated_counts`, and only when a document
+        # actually claims a test count -- a suite this cannot count is not by
+        # itself a defect.
+        pass
 
     return counts
 
@@ -428,15 +636,21 @@ class Claim:
     subject: str
     source: str
     stated: int
-    actual: int
+    actual: int | None  # None when the repository side could not be computed
     sentence: str
     rule: str  # "names the source file" or "above the registry total"
+    unavailable: str = ""
 
     @property
     def agrees(self) -> bool:
-        return self.stated == self.actual
+        return self.actual is not None and self.stated == self.actual
 
     def failure(self) -> str:
+        if self.actual is None:
+            return (
+                f"{self.document}:{self.line}: states {self.stated} {self.subject}, "
+                f"which cannot be checked -- {self.unavailable} -- {self.sentence!r}"
+            )
         return (
             f"{self.document}:{self.line}: states {self.stated} {self.subject}, "
             f"{self.source} has {self.actual} ({self.rule}) -- {self.sentence!r}"
@@ -452,6 +666,20 @@ def _documents(root: Path) -> list[Path]:
 
 def stated_counts(root: Path) -> list[Claim]:
     counts = repository_counts(root)
+
+    # A subject whose *file* is missing is skipped entirely (another guard owns
+    # absence). The suite is different: it is always present, so failing to
+    # count it means this guard has met a construct it cannot model, and a
+    # document claiming a number the guard silently stopped checking is the
+    # exact failure the guard exists to prevent. So the claim is still reported,
+    # as unverifiable rather than as wrong.
+    unavailable = ""
+    if "tests" not in counts:
+        try:
+            count_tests(root)
+        except UncountableSuite as error:
+            unavailable = str(error)
+
     claims: list[Claim] = []
     for path in _documents(root):
         label = path.relative_to(root).as_posix()
@@ -459,14 +687,15 @@ def stated_counts(root: Path) -> list[Claim]:
         for block in blocks(text):
             masked = mask_quoted(block.text)
             for subject in SUBJECTS:
-                if subject.name not in counts:
+                actual = counts.get(subject.name)
+                if actual is None and not (subject.name == "tests" and unavailable):
                     continue
                 anchored = any(anchor in block.text for anchor in subject.anchors)
                 if not anchored and not subject.bounded:
                     continue
                 claims.extend(
                     _claims_in_block(
-                        label, block, masked, subject, counts[subject.name], anchored
+                        label, block, masked, subject, actual, anchored, unavailable
                     )
                 )
     return claims
@@ -477,8 +706,9 @@ def _claims_in_block(
     block: Block,
     masked: str,
     subject: Subject,
-    actual: int,
+    actual: int | None,
     anchored: bool,
+    unavailable: str = "",
 ) -> list[Claim]:
     claims: list[Claim] = []
     pattern = PHRASE_PATTERNS[subject.name]
@@ -496,7 +726,7 @@ def _claims_in_block(
                 continue
             if anchored:
                 rule = "names the source file"
-            elif stated > actual and not CONDITIONAL.search(sentence):
+            elif actual is not None and stated > actual and not CONDITIONAL.search(sentence):
                 rule = "above the registry total"
             else:
                 continue
@@ -510,6 +740,7 @@ def _claims_in_block(
                     actual=actual,
                     sentence=sentence,
                     rule=rule,
+                    unavailable=unavailable,
                 )
             )
     return claims

@@ -105,6 +105,9 @@ jobs:
       - name: Verify the acceptance index's own claims resolve
         run: python scripts/verify_acceptance_claims.py
 
+      - name: Verify runtime-verification evidence
+        run: python scripts/verify_verification_evidence.py
+
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py
 
