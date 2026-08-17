@@ -21,6 +21,11 @@
 # TAB_WORKSPACE_SPLIT 1-12, GESTURE section 2), and TAB_LIFECYCLE section 15,
 # which is a section rather than a criterion. ACCEPTANCE_SUITES section 9
 # records the remainder as a defect in the contract set.
+#
+# SEC-1 and SEC-2 are the sandbox and site-isolation boundaries. Nothing in this
+# repository mentioned either until the guard that claims them was written, so
+# their count going from zero to two is the whole of the protection, not an
+# improvement on an earlier version of it.
 
 AT-1
 AT-9
@@ -30,6 +35,13 @@ OMA-20
 OS-9
 PB-5
 SCA-13
+SEC-1
+SEC-2
+SEC-4
+SEC-5
+SEC-6
+SEC-7
+SEC-8
 SPA-9
 PO-A1
 PO-A2

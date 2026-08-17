@@ -28,6 +28,8 @@ direction sees the same thing.
 | What behaviour is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | handoff §11, `docs/DOWNLOAD_SAFETY.md` | download release |
 | What is the default profile and data deletion and backup policy? | handoff §11 | persistence release |
 | Is partial extension compatibility acceptable for v1? | handoff §11 | Stage 1 architecture gate |
+| What is the Chromium roll cadence? A roll costs a patch-stack rebase, re-verification of 204 cited paths, and a 6 h 31 min build on the project's only machine, which is also its only CI. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §8 | security update posture |
+| When, if ever, is Sunshine distributed? The answer gates code signing and auto-update, and re-opens ADR 0004 (codec licensing) and ADR 0005 (no Safe Browsing) together. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §9 | distribution |
 
 ## P1 — shapes the work, does not stop it
 

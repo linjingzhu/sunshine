@@ -52,6 +52,8 @@ FAMILIES = (
     # Acceptance criteria and budgets, one prefix per owning document.
     "ATA", "OMA", "TLA", "CPA", "SPA", "SCA", "GA", "BUA", "SRA", "DSA", "BH",
     "TA", "PB",
+    # The security architecture: SEC-n invariants, SECA-n acceptance criteria.
+    "SEC", "SECA",
 )
 
 

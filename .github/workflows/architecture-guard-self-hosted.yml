@@ -76,6 +76,9 @@ jobs:
       - name: Verify the build cannot acquire an account identity
         run: python scripts/verify_account_freedom.py
 
+      - name: Verify Chromium's sandbox and site isolation are intact
+        run: python scripts/verify_chromium_security_invariants.py
+
       - name: Verify Sunshine interposes on nothing Chromium owns
         run: python scripts/verify_no_interposition.py
 
