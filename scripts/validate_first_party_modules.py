@@ -59,7 +59,7 @@ def registered_paths(root: Path = ROOT) -> list[Path]:
         paths.append(path)
     inventory = set((root / "first_party/modules").glob("*/module.json"))
     if set(paths) != inventory:
-        missing = sorted(str(path.relative_to(root)) for path in inventory - set(paths))
+        missing = sorted(path.relative_to(root).as_posix() for path in inventory - set(paths))
         raise ModuleValidationError(f"unregistered module manifests: {missing}")
     return paths
 
@@ -201,7 +201,7 @@ def validate(root: Path = ROOT) -> int:
     targets: set[str] = set()
     for path in registered_paths(root):
         manifest = json.loads(path.read_text(encoding="utf-8"))
-        module_id, module_targets = validate_manifest(manifest, str(path.relative_to(root)))
+        module_id, module_targets = validate_manifest(manifest, path.relative_to(root).as_posix())
         if module_id in ids:
             raise ModuleValidationError(f"duplicate module id: {module_id}")
         overlap = targets & module_targets

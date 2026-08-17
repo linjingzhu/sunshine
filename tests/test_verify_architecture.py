@@ -470,3 +470,44 @@ class ChromiumBootstrapTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportPortabilityTests(unittest.TestCase):
+    """A path in a failure message must not change shape with the machine.
+
+    The first run of the guard suite on the Windows build runner failed four
+    of these tests. They assert `src/legacy-wrapper.js`; the guard emitted
+    `src\\legacy-wrapper.js`, because `Path.relative_to` keeps the platform
+    separator and the message interpolated it directly. Nothing was wrong with
+    the tests: a path quoted into a commit message, an issue, or a search has
+    to be the same string on every platform, and this repository's checks run
+    on Linux in development and Windows in CI.
+
+    Every other guard already used `as_posix()`. This rule is here so the next
+    one does too, and so the next discovery is not another CI run.
+    """
+
+    GUARDS = sorted((REPOSITORY_ROOT / "scripts").glob("verify_*.py")) + sorted(
+        (REPOSITORY_ROOT / "scripts").glob("validate_*.py")
+    )
+
+    def test_a_guard_that_takes_a_relative_path_reports_it_as_posix(self) -> None:
+        for guard in self.GUARDS:
+            source = guard.read_text(encoding="utf-8")
+            if "relative_to(" not in source:
+                continue
+            with self.subTest(guard=guard.name):
+                self.assertTrue(
+                    "as_posix()" in source,
+                    f"{guard.name} builds a relative path but never normalises its "
+                    "separators, so its report changes shape on Windows",
+                )
+
+    def test_the_rule_covers_something(self) -> None:
+        """A rule that applies to no file passes for the wrong reason."""
+
+        covered = [
+            guard.name for guard in self.GUARDS
+            if "relative_to(" in guard.read_text(encoding="utf-8")
+        ]
+        self.assertGreaterEqual(len(covered), 3, covered)

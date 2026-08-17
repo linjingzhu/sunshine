@@ -88,7 +88,7 @@ def check_no_credentials(root: Path, failures: list[str]) -> None:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
-            relative = path.relative_to(root)
+            relative = path.relative_to(root).as_posix()
             for candidate in _candidates(text):
                 for label, pattern in SECRET_PATTERNS:
                     if pattern.search(candidate):
