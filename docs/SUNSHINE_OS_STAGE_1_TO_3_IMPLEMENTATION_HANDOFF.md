@@ -137,7 +137,7 @@ must never weaken a Chromium security default to make a feature easier.
 Every user-visible action is a command identifier. UI affordances resolve a
 command rather than calling browser internals directly.
 
-`first_party/commands.json` is the authoritative list. It records, for each command, the owner, availability predicate, telemetry event, and error results this rule requires. Do not restate the list here or in a feature contract. An earlier copy in this section kept a split-view "toggle" command alive long after the split-view contract had replaced it with `view.split.open`, `view.split.swap`, and `view.split.close`; a reader could not tell which list was current.
+`first_party/commands.json` is the authoritative list. It records, for each command, the owner, availability predicate, telemetry event, and error results this rule requires. Do not restate the list here or in a feature contract. An earlier copy in this section kept a split-view "toggle" command alive long after the split-view contract had replaced it; a reader could not tell which list was current. Those replacements have since been retired too, because Chromium owns splits at the pinned revision -- which is the same failure one turn later, and the reason the list lives in one place.
 
 A Sunshine-owned command is claimed by exactly one module, through a `native_command` entrypoint in that module's manifest. Chromium-owned commands such as `browser.back` carry no Sunshine implementation; Sunshine only surfaces them.
 

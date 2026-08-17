@@ -65,9 +65,6 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
             "workspace.switch",
             "workspace.tab.move",
             "workspace.close",
-            "view.split.open",
-            "view.split.swap",
-            "view.split.close",
         ):
             with self.subTest(command=command):
                 self.assertIn(f"`{command}`", self.text)

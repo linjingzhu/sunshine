@@ -50,8 +50,8 @@ class CommandRegistryTests(unittest.TestCase):
         """`implementation` names the code that performs the command."""
 
         implemented = {i: c["implementation"] for i, c in self.commands.items() if c["implementation"]}
-        self.assertIn("view.split.open", implemented)
         self.assertIn("workspace.close", implemented)
+        self.assertIn("workspace.tab.move", implemented)
         for command_id, reference in implemented.items():
             with self.subTest(command=command_id):
                 module_name, _, attribute = reference.partition(":")
@@ -67,7 +67,6 @@ class CommandRegistryTests(unittest.TestCase):
         calls each predicate with inputs chosen to make it refuse.
         """
 
-        import split_view_model as split
         import workspace_model as workspace
 
         empty = workspace.default_catalog()
@@ -75,9 +74,6 @@ class CommandRegistryTests(unittest.TestCase):
         absent = "00000000-0000-4000-8000-000000000000"
 
         refusals = {
-            "view.split.open": split.can_open_split((), only),
-            "view.split.close": split.can_close_pane(None),
-            "view.split.swap": split.can_swap_panes(None),
             "workspace.close": workspace.can_close_workspace(empty, only),
             "workspace.tab.move": workspace.can_move_tabs(empty, absent),
         }
@@ -157,16 +153,16 @@ class CommandRegistryTests(unittest.TestCase):
         which is the reason the field exists.
         """
 
-        self._rejects(lambda p: self._command(p, "view.split.swap").update(unavailable_reasons=[]))
+        self._rejects(lambda p: self._command(p, "workspace.tab.move").update(unavailable_reasons=[]))
 
     def test_declared_reasons_without_a_predicate_are_rejected(self) -> None:
-        self._rejects(lambda p: self._command(p, "view.split.swap").update(predicate=None))
+        self._rejects(lambda p: self._command(p, "workspace.tab.move").update(predicate=None))
 
     def test_a_token_that_is_both_a_reason_and_an_error_is_rejected(self) -> None:
         """A reason says it cannot start; an error says it did not finish."""
 
         self._rejects(
-            lambda p: self._command(p, "view.split.close").update(errors=["no_split_layout"])
+            lambda p: self._command(p, "workspace.tab.move").update(errors=["no_destination_workspace"])
         )
 
     def test_documentation_naming_an_unregistered_command_is_rejected(self) -> None:
@@ -174,7 +170,7 @@ class CommandRegistryTests(unittest.TestCase):
 
         documented = self.validator.documented_commands(self.registry["surfaces"], ROOT / "docs")
         self.assertLessEqual(documented, set(self.commands))
-        self.assertIn("view.split.open", documented)
+        self.assertIn("workspace.tab.move", documented)
 
     def test_the_contract_table_and_the_registry_agree(self) -> None:
         contract = (ROOT / "docs/TAB_WORKSPACE_SPLIT_CONTRACT.md").read_text(encoding="utf-8")
@@ -185,13 +181,23 @@ class CommandRegistryTests(unittest.TestCase):
             "workspace.switch",
             "workspace.tab.move",
             "workspace.close",
-            "view.split.open",
-            "view.split.swap",
-            "view.split.close",
         ):
             with self.subTest(command=command_id):
                 self.assertIn(f"`{command_id}`", contract)
                 self.assertIn(command_id, self.commands)
+
+    def test_no_split_command_survives_the_native_derivation(self) -> None:
+        """ADR 0002: splits are tab-strip state at the pinned revision.
+
+        Chromium owns split identity, layout, ratio, swap, close and session
+        persistence (`SessionTab::split_id`, `SessionSplitTab`). Sunshine
+        registering its own split commands would put a second owner in front of
+        them, and the native swap is strictly larger than the metadata-only one
+        Sunshine had -- it reorders the view hierarchy and the active index.
+        """
+
+        self.assertFalse([i for i in self.commands if i.startswith("view.split.")])
+        self.assertNotIn("view", self.registry["surfaces"])
 
 
     def test_an_error_is_not_excluded_by_its_own_availability(self) -> None:

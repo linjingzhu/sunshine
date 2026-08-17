@@ -4,7 +4,6 @@
     "bookmark",
     "browser",
     "tab",
-    "view",
     "workspace"
   ],
   "commands": [
@@ -258,53 +257,6 @@
       "predicate": null,
       "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.TabNew",
-      "errors": []
-    },
-    {
-      "id": "view.split.close",
-      "summary": "Dissolve the split and return the surviving tab to the normal view.",
-      "owner": "sunshine.split_view",
-      "availability": "The active window has a split layout.",
-      "implementation": "scripts.split_view_model:close_pane",
-      "predicate": "scripts.split_view_model:can_close_pane",
-      "unavailable_reasons": [
-        "no_split_layout"
-      ],
-      "telemetry": "Sunshine.Command.ViewSplitClose",
-      "errors": [
-        "unknown_pane"
-      ]
-    },
-    {
-      "id": "view.split.open",
-      "summary": "Place two distinct active-workspace tabs into two panes.",
-      "owner": "sunshine.split_view",
-      "availability": "Two distinct tabs share the active workspace and one profile.",
-      "implementation": "scripts.split_view_model:open_split",
-      "predicate": "scripts.split_view_model:can_open_split",
-      "unavailable_reasons": [
-        "no_eligible_tab_pair"
-      ],
-      "telemetry": "Sunshine.Command.ViewSplitOpen",
-      "errors": [
-        "same_tab_in_both_panes",
-        "tab_outside_active_workspace",
-        "panes_span_profiles",
-        "unsupported_orientation",
-        "ratio_out_of_range"
-      ]
-    },
-    {
-      "id": "view.split.swap",
-      "summary": "Exchange the two panes' positions without navigating or reloading.",
-      "owner": "sunshine.split_view",
-      "availability": "The active window has a split layout.",
-      "implementation": "scripts.split_view_model:swap_panes",
-      "predicate": "scripts.split_view_model:can_swap_panes",
-      "unavailable_reasons": [
-        "no_split_layout"
-      ],
-      "telemetry": "Sunshine.Command.ViewSplitSwap",
       "errors": []
     },
     {

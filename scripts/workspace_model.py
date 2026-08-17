@@ -226,8 +226,8 @@ def close_workspace_atomic(
 #
 # Side-effect free answers to "may this command be offered?", returning None when
 # it may and the reason token the surface shows the user when it may not. See the
-# note in scripts/split_view_model.py for why the `guard` field could not serve
-# this purpose: it holds the operation, not a predicate.
+# The `guard` field could not serve this purpose: it held the operation, not a
+# predicate, so asking a command whether it was available performed it.
 
 
 def can_close_workspace(catalog: Catalog, closed_workspace_id: str) -> str | None:

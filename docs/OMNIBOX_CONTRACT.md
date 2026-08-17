@@ -257,7 +257,7 @@ a registration that cannot satisfy all of them must not land.
 
 | ID | Invariant |
 |---|---|
-| OS-1 | The scheme is registered as a standard, **WebUI-only** scheme with the same properties Chromium gives its own internal scheme: not web-safe, not a savable scheme, not a referrer scheme, not an extension scheme. Renderers hosting web content must never be granted request access to it. |
+| OS-1 | The scheme is registered as a standard, **WebUI-only** scheme with the same properties Chromium gives its own internal scheme. Read at the pinned tag rather than assumed: `content/common/url_schemes.cc` registers `kChromeUIScheme` as standard, secure, CORS-enabled, service-worker-enabled, and **savable** (`kDefaultSavableSchemes`), and not as a referrer or extension scheme. An earlier form of this invariant required "not a savable scheme", which is the opposite of what Chromium does; copying it literally would have diverged from the scheme being imitated while claiming to match it. Renderers hosting web content must never be granted request access to it. |
 | OS-2 | Navigation to the scheme is **browser-initiated only**. A link, a form, `window.open`, a script navigation, a meta refresh, a server redirect, a `fetch`/XHR/WebSocket request, a worker import, a stylesheet or image reference, or any subframe or embed from web content must fail, and must fail without a user-visible prompt that could be mistaken for consent. |
 | OS-3 | The Sunshine installer must **not** register the scheme with the operating system as an external protocol handler, and no Sunshine code may add it to the browser's own external-protocol allowances. Verified mechanism: the scheme classifier consults the external-protocol handler and the OS application registry, so an OS registration would turn every web page in every browser on the machine into a launcher for internal Sunshine routes. This is the single highest-severity mistake available on this surface. |
 | OS-4 | The scheme must not be obtainable through `registerProtocolHandler()`, and must not be added to any custom-handler allowlist. |
@@ -538,7 +538,7 @@ native build exists and criteria 1–22 have been run and recorded.
 
 | Priority | Decision | Required by |
 |---|---|---|
-| P0 | Is an internal `sunshine` scheme registered at all, or do first-party surfaces live under Chromium's existing internal scheme? OS-10 makes this a security decision, not a branding one. | before the Security Center surface lands |
+| P0 | ~~Is an internal `sunshine` scheme registered at all?~~ **Settled by ADR 0003: no scheme is registered.** First-party surfaces are internal pages under Chromium's existing internal scheme, so OS-1..OS-9 govern a scheme Sunshine will not create, and OS-10 is the outcome rather than the fallback. OS-5 and OS-6 come free as a result. | settled |
 | P1 | On committing an open-tab match for a hidden workspace, is the workspace switch automatic (OT-1) or must the user confirm it? | Stage 3 workspace wave |
 | P1 | Is the default search provider chosen by the user at onboarding, or left at Chromium's locale-derived default? ADR 0002 forbids hardcoding one; it does not say who chooses. | Stage 1 onboarding |
 | P2 | May commands ever appear in the omnibox as a provider (section 11), or is the palette the only command surface? | Stage 3 palette wave |

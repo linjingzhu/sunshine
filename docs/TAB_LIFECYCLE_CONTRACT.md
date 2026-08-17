@@ -419,9 +419,9 @@ WebUI surface that holds a list of rows.
 
 `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` invariants 5 and 6 hold unchanged: a tab
 occupies zero or one pane and can never be live in both; closing one pane returns
-the survivor to the normal active view. `scripts/split_view_model.py` already
-enforces the first at the metadata level and fails closed on damaged records.
-This contract adds the lifecycle cases the split contract does not reach.
+the survivor to the normal active view. Chromium enforces both natively -- a split is
+tab-strip state (`SplitTabCollection`), not Sunshine metadata. This contract
+adds the lifecycle cases the split contract does not reach.
 
 | Event | Effect on the split |
 |---|---|
@@ -431,15 +431,15 @@ This contract adds the lifecycle cases the split contract does not reach.
 | One paned tab is in a closing set | The split is dissolved when the removal completes; the survivor returns to the normal active view with its state intact. |
 | **Both** paned tabs are in one closing set | The layout record is dropped once, the window returns to the normal view, and successor selection then proceeds by section 7.1 exactly as if no split had existed. There is no intermediate one-pane state and no successor is chosen twice. |
 | A close is refused for a paned tab | The split is unchanged. It must not be dissolved in anticipation. |
-| A paned tab detaches to another window | The split is dissolved in the source window; the layout record is dropped rather than left pointing at a tab that is no longer in this window. |
+| A paned tab detaches to another window | The split is dissolved in the source window. A *whole* split moved between windows is a different operation and stays intact: `DetachSplitTabForInsertion` and `InsertDetachedSplitTabAt` carry it across. |
 | A paned tab's workspace membership changes | The split is dissolved: a pane may only hold a tab of the active workspace, which the existing model already enforces on open and on restore. |
 
-`view.split.swap` exchanges positions only and causes no lifecycle transition:
+Reversing a split exchanges positions only and causes no lifecycle transition:
 no navigation, no reload, no visibility change, no re-evaluation of freeze or
-discard eligibility. `view.split.close` dissolves a layout and closes no tab;
-`tab.close` closes a tab and may dissolve a layout. Conflating the two — a
-"close pane" affordance that closes the tab — is the most likely user-visible
-data-loss bug in this area.
+discard eligibility. Exiting a split dissolves it and closes no tab; `tab.close`
+closes a tab and may dissolve a split. Conflating the two — a "close pane"
+affordance that closes the tab — is the most likely user-visible data-loss bug
+in this area.
 
 ## 10. Interaction with workspace membership
 

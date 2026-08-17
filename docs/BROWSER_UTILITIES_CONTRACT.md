@@ -215,7 +215,7 @@ this or any adjacent feature.
 
 ## Interaction with split view
 
-`view.split.open` places two distinct tabs of the active workspace into two
+A split places two distinct tabs of the active workspace into two
 independently focusable panes, each backed by one real `WebContents`
 (`docs/TAB_WORKSPACE_SPLIT_CONTRACT.md`, sections 2 and 5). Every utility in
 this contract is therefore already correctly scoped, because each is bound to a
@@ -236,9 +236,9 @@ Additional rules:
 - Pane focus is the only input to "which pane" for keyboard and menu
   invocations. Pointer position is not a substitute; an invocation from a menu
   opened over an unfocused pane targets the pane the menu belongs to.
-- `view.split.swap` exchanges pane positions without navigation or reload and
+- Reversing a split exchanges pane positions without navigation or reload and
   therefore must not clear a pane's find session or zoom level.
-- `view.split.close` returns the survivor to the normal view with its find and
+- Exiting a split returns the survivor to the normal view with its find and
   zoom state intact.
 - A tab that opens in a new tab as a result of one of these actions follows
   normal workspace membership rules; it does not silently replace a pane.

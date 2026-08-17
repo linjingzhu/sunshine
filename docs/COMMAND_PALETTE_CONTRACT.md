@@ -48,9 +48,8 @@ Three such rulings follow. They are binding on `first_party/commands.json`, on
 ### 2.1 The three kinds of input, distinguished
 
 The registry has no argument schema, and the repository has been reading that
-as "commands take no parameters". That reading is false today. Three of the five
-guards in `first_party/commands.json` are functions that require arguments the
-registry does not describe: `scripts.split_view_model:close_pane` takes a pane,
+as "commands take no parameters". That reading is false today. Guards in `first_party/commands.json` were
+functions requiring arguments the registry did not describe:
 `scripts.workspace_model:move_tabs_atomic` takes a destination workspace
 identifier and a set of runtime tab identifiers, and
 `scripts.workspace_model:close_workspace_atomic` takes both a closed and a
@@ -62,7 +61,7 @@ from**:
 | Kind | Definition | Who resolves it | Example in the shipped registry |
 |---|---|---|---|
 | **Context** | Browser focus state at the moment of dispatch: focused window, focused pane, active tab, tab-strip selection, active workspace, profile | The command layer, from its own state. No invocation source supplies it | `browser.back`, `browser.print`, `tab.new`, `tab.group.create` |
-| **Selection** | A handle to an object the browser process already owns, chosen by the user, which focus does not by itself determine | The invoking surface, by letting the user choose from an enumeration the owning module produces | `workspace.switch`, `workspace.tab.move`, `workspace.close`, `view.split.open`, `view.split.close` |
+| **Selection** | A handle to an object the browser process already owns, chosen by the user, which focus does not by itself determine | The invoking surface, by letting the user choose from an enumeration the owning module produces | `workspace.switch`, `workspace.tab.move`, `workspace.close` |
 | **Payload** | A value that originates outside the browser process's own object graph: a renderer-supplied URL or node, a screen coordinate, or free text | Nobody, safely | Link and image context-menu actions |
 
 ### 2.2 The ruling
@@ -264,7 +263,7 @@ describes schema version 1 unless it says otherwise.
 | Field | What it is | Why it cannot explain a disabled row |
 |---|---|---|
 | `availability` | An English sentence, validated only for being a non-empty string ending in a period | Written for a reviewer, not a user. Not localised, not keyed, not a stable token. It states the condition under which the command *is* available, which is not the same as the reason this particular invocation *is not* |
-| `guard` | A dotted reference to a Python callable, resolved and checked for callability by `scripts/validate_commands.py` | Not a predicate. Every shipped guard is the model function that performs the operation: `scripts.split_view_model:open_split` returns a new layout, `scripts.workspace_model:move_tabs_atomic` returns a new projection, `scripts.split_view_model:close_pane` returns the surviving tab. Each signals refusal by raising after being given full execution inputs |
+| `guard` | A dotted reference to a Python callable, resolved and checked for callability by `scripts/validate_commands.py` | Not a predicate. Every shipped guard was the model function that performs the operation -- `scripts.workspace_model:move_tabs_atomic` returns a new projection, `scripts.workspace_model:close_workspace_atomic` returns a new catalog and projection -- signalling refusal by raising after being given full execution inputs |
 
 The second row is the material finding. **Asking a shipped guard whether a
 command is available requires calling the thing that performs it.** A palette
@@ -728,9 +727,9 @@ Further requirements:
   and closing it does not either.
 - Commands scoped to a tab act on the focused pane's tab, not on the most
   recently clicked one.
-- `view.split.swap` and `view.split.close` are available from the palette on the
-  same terms as from any other surface; `view.split.open` is selection-bearing
-  because focus determines at most one of its two tabs.
+- Splits are Chromium's (ADR 0002), so the palette registers no split command
+  and offers none. Chromium's own split entry points remain reachable from the
+  tab strip and its context menu.
 - Workspace commands operate in the window's profile only. The second-stage
   enumeration for a workspace selection never lists a workspace from another
   profile.
@@ -893,7 +892,7 @@ Nothing in this document has been executed. Specifically:
   wave.
 
 The findings in sections 2.1 and 4.1 about the shipped `guard` field were reached
-by reading `scripts/split_view_model.py` and `scripts/workspace_model.py`. They
+by reading `scripts/workspace_model.py`. They
 are source claims about this repository, not about Chromium, and they are
 checkable by reading those files.
 

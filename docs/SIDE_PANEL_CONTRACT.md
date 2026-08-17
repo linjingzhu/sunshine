@@ -293,7 +293,7 @@ recorded amendment to this section. It is not a preference someone adds.
 ## 6. Interaction with split view
 
 The panel and a split compete for the same horizontal space:
-`view.split.open` places two independently focusable panes in the contents
+a split places two independently focusable panes in the contents
 region (`docs/TAB_WORKSPACE_SPLIT_CONTRACT.md` §2 and §5), and the panel takes
 its width from that same region.
 
@@ -304,9 +304,9 @@ its width from that same region.
    membership.
 3. Opening the panel never closes a split, never swaps panes, and never changes
    which pane is focused.
-4. `view.split.open`, `view.split.swap`, and `view.split.close` never change
-   which panel is shown, whether the panel is open, or its width. In particular
-   `view.split.swap` exchanges pane positions and must not flip panel alignment.
+4. Opening, reversing and exiting a split never change which panel is shown,
+   whether the panel is open, or its width. In particular reversing a split
+   exchanges pane positions and must not flip panel alignment.
 5. The panel is one surface per window, not one per pane. There is no pane-scoped
    panel, and the panel does not follow pane focus.
 6. A tabs panel shows the window's tabs including both tabs currently in panes; a
