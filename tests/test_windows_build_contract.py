@@ -5,8 +5,18 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github/workflows/native-chromium-windows.yml"
+WORKFLOW_DIR = ROOT / ".github/workflows"
+WORKFLOW = WORKFLOW_DIR / "native-chromium-windows.yml"
 SCRIPT = ROOT / "scripts/build_chromium_windows.ps1"
+
+# Events a fork pull request can raise. A self-hosted runner reachable from one
+# of these would execute a stranger's code on the machine hosting the runner.
+FORK_REACHABLE_EVENTS = (
+    "pull_request:",
+    "pull_request_target:",
+    "issue_comment:",
+    "workflow_call:",
+)
 
 
 class WindowsBuildContractTests(unittest.TestCase):
@@ -21,6 +31,25 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", text)
         self.assertNotIn("pull_request:", text)
         self.assertNotIn("push:", text)
+
+    def test_no_self_hosted_workflow_is_reachable_from_a_fork(self) -> None:
+        """The runner is a physical machine, so this holds for every workflow.
+
+        `test_workflow_is_explicitly_dispatched` pins the one workflow that
+        exists today; this pins the rule for any workflow added later.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
+            text = workflow.read_text(encoding="utf-8")
+            if "self-hosted" not in text:
+                continue
+            for event in FORK_REACHABLE_EVENTS:
+                with self.subTest(workflow=workflow.name, event=event):
+                    self.assertNotIn(
+                        event,
+                        text,
+                        f"{workflow.name} exposes a self-hosted runner to {event}",
+                    )
 
     def test_build_uses_native_chromium_targets(self) -> None:
         text = SCRIPT.read_text(encoding="utf-8")
