@@ -112,6 +112,25 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn('gn gen "out/Sunshine"', script)
         self.assertNotIn("--args=", script)
 
+    def test_a_compile_failure_prints_the_compiler_diagnostic(self) -> None:
+        """siso keeps the failing command's output out of stdout.
+
+        Run 10 reached the compile, ran 17.5 minutes, and failed one of 66,739
+        steps. The log recorded `1 steps failed: exit=1` and nothing else --
+        no target, no source file, no compiler message -- because siso had
+        written all of it to out/Sunshine/siso_output on the runner. A compile
+        failure that cannot be read from the log cannot be fixed from the log.
+        """
+
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("siso_output", script)
+        self.assertIn("siso_failed_commands.bat", script)
+
+        # The dump has to precede the throw, or `throw` ends the script first.
+        dump = script.index("siso_output")
+        failure = script.index('throw "Chromium compilation failed."')
+        self.assertLess(dump, failure)
+
     def test_compile_parallelism_is_capped_when_asked(self) -> None:
         """The runner is also the owner's workstation, so it must stay usable."""
 

@@ -85,7 +85,23 @@ try {
   $ninjaArguments += @("chrome", "mini_installer")
 
   autoninja @ninjaArguments
-  if ($LASTEXITCODE -ne 0) { throw "Chromium compilation failed." }
+  if ($LASTEXITCODE -ne 0) {
+    # siso reports a compile failure as one summary line -- "1 steps failed:
+    # exit=1" -- and writes the failing command and its compiler output to
+    # out/Sunshine/siso_output instead of stdout. That file stays on the runner,
+    # so without this block the CI log names no target, no file, and no
+    # diagnostic, and the failure cannot be acted on from the log alone.
+    foreach ($diagnostic in @("siso_output", "siso_failed_commands.bat")) {
+      $diagnosticPath = Join-Path $out $diagnostic
+      if (Test-Path $diagnosticPath) {
+        Write-Host "===== $diagnostic (last 400 lines) ====="
+        Get-Content $diagnosticPath -Tail 400 | ForEach-Object { Write-Host $_ }
+      } else {
+        Write-Host "===== $diagnostic was not written ====="
+      }
+    }
+    throw "Chromium compilation failed."
+  }
 }
 finally {
   Pop-Location
