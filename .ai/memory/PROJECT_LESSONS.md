@@ -103,6 +103,31 @@ Confidence: high.
 
 ## Strategy Observations
 
+### 2026-08-17 — A rule stated in two documents is a rule with no owner
+Area: architecture enforcement.
+Evidence: the command-first rule was declared non-negotiable, but the command
+list lived as prose tables in two documents. They drifted: the handoff kept a
+split-view `toggle` command months after the contract replaced it with open,
+swap, and close. No gate could see it.
+Impact: workers reading either document would have built a different command
+set, and four planned features all invoke commands.
+Recommended future behavior: when a rule names a set of things, give the set one
+machine-readable home and let documents reference it. Check drift in one
+direction only — documents may not name what does not exist — because requiring
+the reverse forces back the duplication being removed.
+Confidence: high.
+
+### 2026-08-17 — Look for enforcement that already exists before adding more
+Area: architecture enforcement.
+Evidence: "one authoritative implementation per command" needed no new
+mechanism. Module entrypoint targets were already globally unique, so declaring
+a command as a `native_command` entrypoint made the rule enforceable by reusing
+the existing check.
+Impact: a smaller validator and one fewer parallel registry to keep consistent.
+Recommended future behavior: before writing a new guard, look for an invariant
+the repository already enforces that the new rule can be expressed in terms of.
+Confidence: medium.
+
 ### 2026-08-17 — Write the failure-injection test before the defensive guard
 Area: model implementation.
 Evidence: the workspace minimum-count guard in `close_workspace_atomic` was

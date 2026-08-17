@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "modules": [
-    "first_party/modules/sunshine-new-tab/module.json"
+    "first_party/modules/sunshine-new-tab/module.json",
+    "first_party/modules/sunshine-split-view/module.json",
+    "first_party/modules/sunshine-workspace/module.json"
   ]
 }
