@@ -23,7 +23,44 @@ Confidence: high.
 
 ## UX / Runtime Lessons
 
-- None recorded yet.
+### 2026-08-17 — The patch stack is WebUI, so visual verification never needed a build
+Area: New Tab surface.
+Evidence: all three upstream targets are configuration or WebUI resources; no
+C++. Rendering the wordmark in an ordinary Chromium found a Major RTL defect
+(-10.087px off centre, exactly one letter-space) that every static gate passed.
+Impact: three waves reported visual verification as blocked when the only
+Sunshine UI surface was renderable the whole time.
+Recommended future behavior: before recording a visual gate as blocked, check
+what the patch actually touches. Resource-only changes are verifiable now;
+only C++ changes wait for the native build.
+Confidence: high.
+
+### 2026-08-17 — A logical property is wrong when the content never flips
+Area: New Tab surface.
+Evidence: `padding-inline-start` compensated the trailing letter-space in LTR and
+doubled the error in RTL, because the wordmark text is always Latin LTR while the
+property followed the UI direction.
+Impact: silent RTL layout defect invisible to marker-based guards.
+Recommended future behavior: when a downstream element must not mirror, pin its
+own `direction` rather than switching to physical properties; the intent stays
+readable at upstream-roll review.
+Confidence: high.
+
+## Build / Compile Lessons
+
+### 2026-08-17 — This session cannot build Chromium, and that is not a resource limit
+Area: build environment.
+Evidence: the agent runs in an ephemeral cloud Linux container, not on the user's
+desktop. `chromium.googlesource.com` returns CONNECT 403 on three retries and
+over the git protocol; CIPD is unreachable; writable disk is empirically between
+20GB and 30GB against an 80-120GB need. Only the clang CDN is reachable.
+Impact: no local compile, and Windows gates could not be satisfied here even with
+more disk, because a Linux build is not the product target.
+Recommended future behavior: do not re-run this investigation. Route native
+builds to the self-hosted Windows runner in
+`.github/workflows/native-chromium-windows.yml`. Offline structural checks such
+as `git apply --numstat` are the local substitute.
+Confidence: high.
 
 ## Domain Risk Lessons
 

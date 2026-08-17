@@ -34,6 +34,11 @@ REQUIRED_NEW_TAB_MARKERS = (
     "chrome/browser/resources/new_tab_page/app.css",
     'id="sunshineWordmark"',
     'aria-label="Sunshine OS"',
+    # The wordmark occupies the native logo slot, so it must keep the two
+    # Chromium-owned behaviours that slot carries: the logo visibility state and
+    # the theme-controlled spacing below it.
+    '?hidden="${!this.logoEnabled_}"',
+    "var(--ntp-logo-margin-bottom",
 )
 FORBIDDEN_NEW_TAB_MARKERS = ("Life Dashboard", "Three.js", "AI assistant")
 FORBIDDEN_NEW_TAB_REMOVALS = ("-    <ntp-searchbox", "-      <cr-most-visited")
