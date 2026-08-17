@@ -1,6 +1,7 @@
 """Static contract tests for the resource-intensive Windows Chromium build."""
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -141,6 +142,54 @@ class WindowsBuildContractTests(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("ninja_jobs:", workflow)
         self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
+
+
+class ArchitectureGuardParityTests(unittest.TestCase):
+    """The self-hosted guard exists because a hosted runner can stop being
+    allocated -- an allowance condition the repository cannot fix from inside.
+    A fallback that checks less than the thing it stands in for is worse than no
+    fallback, because it reports green for a smaller claim.
+
+    Parsed with the standard library on purpose: a YAML dependency here would
+    make the guard's own tests need a package the guard does not install.
+    """
+
+    HOSTED = WORKFLOW_DIR / "chromium-architecture-check.yml"
+    SELF_HOSTED = WORKFLOW_DIR / "architecture-guard-self-hosted.yml"
+
+    RUN_STEP = re.compile(r"^\s+run: (.+)$", re.MULTILINE)
+    SHELL_STEP = re.compile(r"^\s+shell: (.+)$", re.MULTILINE)
+
+    def _runs(self, path: Path) -> list[str]:
+        return [line.strip() for line in self.RUN_STEP.findall(path.read_text(encoding="utf-8"))]
+
+    def test_both_guards_run_the_same_checks(self) -> None:
+        self.assertEqual(self._runs(self.HOSTED), self._runs(self.SELF_HOSTED))
+        # A guard that runs nothing would satisfy equality.
+        self.assertGreaterEqual(len(self._runs(self.HOSTED)), 8)
+
+    def test_the_self_hosted_guard_is_dispatch_only(self) -> None:
+        """Asserted separately from the fork rule because this is the single
+        property that makes running a guard on a physical machine safe."""
+
+        text = self.SELF_HOSTED.read_text(encoding="utf-8")
+        self.assertIn("on:\n  workflow_dispatch:\n", text)
+        for event in ("pull_request", "push:", "schedule:"):
+            with self.subTest(event=event):
+                self.assertNotIn(f"  {event}", text)
+
+    def test_neither_guard_depends_on_a_shell(self) -> None:
+        """The self-hosted runner is a Windows workstation. A check needing a
+        bash that happens to be on its PATH fails for a reason unrelated to what
+        it is checking, so every step invokes Python directly.
+        """
+
+        for path in (self.HOSTED, self.SELF_HOSTED):
+            with self.subTest(workflow=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertEqual([], self.SHELL_STEP.findall(text))
+                for command in self._runs(path):
+                    self.assertTrue(command.startswith("python"), command)
 
 
 if __name__ == "__main__":

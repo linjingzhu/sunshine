@@ -1,0 +1,66 @@
+name: Architecture Guard (self-hosted fallback)
+
+# The same checks as the hosted architecture guard, on the machine that already
+# hosts the build runner. It exists so the guard can still run when GitHub
+# declines to allocate a hosted runner -- an allowance or billing condition the
+# repository cannot fix from inside.
+#
+# workflow_dispatch ONLY, and that is a security requirement, not a convenience.
+# The runner is a physical machine, so a fork-reachable trigger here would
+# execute a stranger's code on it. `tests/test_windows_build_contract.py`
+# enforces the rule for every workflow that names a self-hosted runner.
+#
+# Run it after a build finishes: the runner is single-purpose, so a guard queued
+# during a Chromium compile waits behind hours of work.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-guard-self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-guard:
+    name: Reject Electron and validate Python tooling (self-hosted)
+    runs-on: [self-hosted, Windows, X64, sunshine-chromium]
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out Sunshine source only
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Every step below is pure Python on purpose. The hosted guard uses bash
+      # for two steps; relying on a bash that happens to be on a Windows
+      # workstation's PATH would make this fallback fail for a reason unrelated
+      # to what it is checking.
+      - name: Reject excluded wrapper runtimes
+        run: python scripts/verify_architecture.py
+
+      - name: Validate exclusive patch ownership
+        run: python scripts/patch_manifest.py
+
+      - name: Validate first-party module registry
+        run: python scripts/validate_first_party_modules.py
+
+      - name: Validate command registry
+        run: python scripts/validate_commands.py
+
+      - name: Validate policy document metadata and references
+        run: python scripts/validate_doc_metadata.py
+
+      - name: Compile-check repository Python tools
+        run: python scripts/compile_check.py
+
+      - name: Run architecture guard regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify the pinned revision still supports the patch stack
+        run: python scripts/verify_pinned_upstream.py

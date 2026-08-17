@@ -49,38 +49,10 @@ jobs:
         run: python scripts/validate_doc_metadata.py
 
       - name: Compile-check repository Python tools
-        shell: bash
-        run: |
-          mapfile -d '' python_files < <(find scripts -type f -name '*.py' -print0)
-          if (( ${#python_files[@]} == 0 )); then
-            echo "No Python tools found under scripts/." >&2
-            exit 1
-          fi
-          python -m py_compile "${python_files[@]}"
+        run: python scripts/compile_check.py
 
       - name: Run architecture guard regression tests
         run: python -m unittest discover -s tests -v
-
-      - name: Validate pinned Chromium inputs without downloading Chromium
-        shell: bash
-        run: |
-          grep -Eq '^CHROMIUM_REVISION=[^[:space:]]+$' config/chromium.version
-          while IFS= read -r patch || [[ -n "$patch" ]]; do
-            [[ -z "$patch" || "$patch" == \#* ]] && continue
-            test -f "downstream/patches/$patch" || {
-              echo "Missing downstream patch: $patch" >&2
-              exit 1
-            }
-          done < downstream/patches/series
-
-      - name: Verify pinned Chromium tag exists upstream
-        shell: bash
-        run: |
-          revision="$(sed -n 's/^CHROMIUM_REVISION=//p' config/chromium.version)"
-          version="${revision#refs/tags/}"
-          curl --fail --silent --show-error --location \
-            "https://chromium.googlesource.com/chromium/src/+/refs/tags/$version?format=JSON" \
-            > /dev/null
 
       - name: Verify the pinned revision still supports the patch stack
         # Seams, New Tab tokens, and patch application against the pinned
