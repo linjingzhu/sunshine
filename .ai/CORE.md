@@ -1,6 +1,6 @@
 ---
 doc_id: ai-core
-version: 1.1.0
+version: 1.2.0
 canonical_path: .ai/CORE.md
 updated: 2026-08-17
 ---
@@ -55,6 +55,11 @@ Optimize **useful development per token**, not session count.
 - Do not duplicate the same research across workers.
 - Reviewers receive requirements, diff, tests, and relevant context—not the implementer's full reasoning history.
 - Do not fabricate exact token/cost metrics when tooling does not expose them.
+- Default to silent execution: no progress narration, one final report. Escalate
+  immediately only for a required user decision, a critical risk, or a change to
+  approved scope. See `.ai/REPORTING.md`.
+- Think fully, investigate fully, verify fully, report minimally. Suppressing a
+  report never suppresses the evidence behind it.
 
 ## Document versioning
 

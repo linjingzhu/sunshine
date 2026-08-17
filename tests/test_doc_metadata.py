@@ -130,5 +130,52 @@ class DocMetadataTests(unittest.TestCase):
         self.assertIn("history is the source of truth", " ".join(core.split()))
 
 
+    def test_the_reporting_policy_has_one_home(self) -> None:
+        """Silent execution is stated once and referenced elsewhere.
+
+        `.ai/CORE.md` carries the standing default because it is always loaded;
+        `.ai/MANAGER.md` carries a pointer. Only `.ai/REPORTING.md` carries the
+        escalation exceptions and the report shapes, so there is one place to
+        change when they change.
+        """
+
+        homes = [
+            relative
+            for relative in checker.VERSIONED
+            if "Mission scope must change" in (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
+        ]
+        self.assertEqual([".ai/REPORTING.md"], homes)
+
+        for relative in (".ai/CORE.md", ".ai/MANAGER.md"):
+            with self.subTest(document=relative):
+                self.assertIn("`.ai/REPORTING.md`", (REPOSITORY_ROOT / relative).read_text(encoding="utf-8"))
+
+    def test_suppression_never_reaches_verification(self) -> None:
+        """The rule that keeps this policy from becoming a quality cut.
+
+        Reporting less is only safe while the evidence behind the report is
+        still gathered, so the policy has to say so in terms an agent cannot
+        read as permission to skip work.
+        """
+
+        reporting = " ".join((REPOSITORY_ROOT / ".ai/REPORTING.md").read_text(encoding="utf-8").split())
+        self.assertIn("MUST NOT reduce engineering rigor", reporting)
+        self.assertIn("Less reporting is not less verification", reporting)
+        self.assertIn("Printing less of a log is not reading less of it", reporting)
+
+    def test_escalation_survives_the_silence(self) -> None:
+        """Silence is the default, not the rule. The three exceptions are what
+        stop it from swallowing a decision the user has to make."""
+
+        reporting = " ".join((REPOSITORY_ROOT / ".ai/REPORTING.md").read_text(encoding="utf-8").split())
+        for exception in (
+            "A user decision is required",
+            "A critical risk appears",
+            "Mission scope must change",
+        ):
+            with self.subTest(exception=exception):
+                self.assertIn(exception, reporting)
+
+
 if __name__ == "__main__":
     unittest.main()
