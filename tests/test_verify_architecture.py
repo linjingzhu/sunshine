@@ -101,6 +101,65 @@ class ArchitectureVerifierTests(unittest.TestCase):
         self.assertIn("excluded runtime marker", stderr)
         self.assertIn("src/legacy-wrapper.js", stderr)
 
+    def test_wrapper_runtime_design_in_a_specification_fails(self) -> None:
+        """The guard must read specifications, not only code.
+
+        A wrapper architecture survived in an active handoff document while the
+        code tree was already clean, because documentation was not scanned.
+        """
+
+        webpreference = "node" + "Integration"
+        self._write(
+            "docs/HANDOFF.md",
+            f"Remote pages must have `{webpreference}: false`.\n",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("wrapper-runtime design marker", stderr)
+        self.assertIn("docs/HANDOFF.md", stderr)
+
+    def test_wrapper_runtime_design_in_code_fails(self) -> None:
+        bridge = "ipc" + "Renderer"
+        self._write("src/bridge.cc", f"// {bridge} bridge\n")
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("wrapper-runtime design marker", stderr)
+
+    def test_prohibiting_a_wrapper_runtime_by_name_is_allowed(self) -> None:
+        """Removing the runtime must not delete the rule that forbids it."""
+
+        self._write(
+            "docs/decisions/0002-native-chromium-downstream.md",
+            "Do not add Electron, CEF, Qt WebEngine, Tauri, or platform WebView wrappers.\n",
+        )
+
+        result, stdout, stderr = self._run()
+
+        self.assertEqual(0, result, stderr)
+        self.assertIn("Architecture check passed", stdout)
+
+    def test_documentation_may_quote_the_startup_url_it_forbids(self) -> None:
+        self._write(
+            "docs/CHROMIUM_MACOS_BUILD.md",
+            f"- A native New Tab Page opens; `{self.verifier.GOOGLE_STARTUP_URL}/` is not forced.\n",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(0, result, stderr)
+
+    def test_code_still_rejects_a_hardcoded_startup_url(self) -> None:
+        self._write("src/startup.cc", f'const char kStartup[] = "{self.verifier.GOOGLE_STARTUP_URL}";\n')
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("hardcoded Google startup URL", stderr)
+
     def test_excluded_wrapper_manifest_fails(self) -> None:
         manifest_name = "package" + ".json"
         self._write(manifest_name, "{}\n")

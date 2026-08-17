@@ -1,7 +1,7 @@
 # Sunshine OS — Stage 1–3 Implementation Handoff Specification
 
 **Version:** 0.1  
-**Status:** Ready for Codex implementation planning  
+**Status:** Native Chromium downstream roadmap  
 **Primary target:** Windows desktop, Chromium-based browser  
 **Scope:** Stage 1 Browser Core → Stage 2 Daily Browser → Stage 3 Power Browser  
 **Source baseline:** `SUNSHINE_OS_MASTER_SPEC_V0.2.md`
@@ -48,9 +48,9 @@ Use WebGL and Three.js as a future **Spatial UI Runtime** for Sunshine Apps, not
 
 | Layer | Technology direction |
 |---|---|
-| Browser chrome: tab strip, omnibox, settings, menus | React + HTML/CSS + Sunshine Design System |
-| Remote web content | Sandboxed Chromium content surface |
-| Future canvas, reference board, graph, spatial workspaces | WebGL + Three.js + React Three Fiber |
+| Browser chrome: tab strip, omnibox, settings, menus | Chromium Views with Sunshine Design System tokens |
+| Remote web content | Chromium renderer with its normal sandbox and site isolation |
+| Future canvas, reference board, graph, spatial workspaces | WebGL and Three.js inside a Sunshine native WebUI surface |
 | Future rendering abstraction | `SpatialRenderer` with WebGL first and optional WebGPU path |
 
 No Three.js dependency is required in the Stage 1–3 production bundle. Define only the future boundary in architecture documentation.
@@ -61,26 +61,31 @@ No Three.js dependency is required in the Stage 1–3 production bundle. Define 
 
 ### 2.1 Initial runtime
 
-Implement Sunshine on a Chromium-based browser runtime. Keep all runtime-facing calls behind browser-runtime adapters so product services, UI, and future Sunshine Apps remain independent from the embedding layer.
+Sunshine is a native downstream of the open-source Chromium browser. There is no
+embedding layer and no wrapper runtime. Sunshine builds Chromium's own `chrome`
+target and carries its changes as a small ordered patch stack against a pinned
+upstream revision. See `docs/decisions/0002-native-chromium-downstream.md`.
 
 ```text
-Renderer UI
-  ↓ typed IPC
-Application services
-  ↓ adapters
-Chromium runtime APIs
+Sunshine first-party modules   first_party/
+  ↓ declared contribution points
+Sunshine downstream patches    downstream/patches/
+  ↓ applied to
+Pinned Chromium source         config/chromium.version
+  ↓ GN + Ninja
+Native chrome target
 ```
 
 ### 2.2 Required Technology Stack
 
 | Concern | Decision |
 |---|---|
-| Desktop runtime | Windows-first Chromium-based browser shell |
-| Browser engine | Chromium |
-| Language | TypeScript with strict mode |
-| Browser chrome UI | React |
-| Styling | CSS variables + Sunshine tokens; Material 3 principles |
-| State | Service-owned domain state; renderer state is projection only |
+| Desktop runtime | Windows-first native Chromium `chrome` target |
+| Browser engine | Chromium at the revision pinned in `config/chromium.version` |
+| Language | C++ for browser code; TypeScript only inside Chromium WebUI resources |
+| Browser chrome UI | Chromium Views; Sunshine surfaces use native WebUI |
+| Styling | CSS variables + Sunshine tokens in WebUI; Material 3 principles |
+| State | Chromium services own domain state; Sunshine stores only feature-owned metadata |
 | Persistence | Chromium profile/session services; Sunshine stores only feature-owned metadata |
 | Secrets | OS-backed secure storage adapter |
 | Tests | Unit + integration + E2E + compatibility dogfood checklist |
@@ -108,28 +113,32 @@ Do not promise Chrome Web Store parity until it is demonstrated.
 
 ### 3.1 Process and trust model
 
+Sunshine inherits Chromium's process model unchanged. It does not introduce a
+second trust boundary, a privileged application process, or a custom bridge
+between chrome and web content.
+
 ```text
-Sunshine Chrome Renderer (trusted UI)
-  └─ React / views / interaction state
-       ↓ typed, allow-listed IPC
-Sunshine Main Process (trusted services)
-  ├─ TabManager / NavigationService
-  ├─ Persistence / credential adapter
-  ├─ Permission / download / security policy
-  └─ WindowManager
-       ↓
-Remote Chromium Content Surface (untrusted content)
-  └─ sandboxed Chromium page
+Chromium browser process (trusted)
+  ├─ Views browser chrome + Sunshine native WebUI
+  ├─ TabStripModel / TabGroupModel / NavigationController
+  ├─ Profile-keyed services: sessions, bookmarks, history, downloads, permissions
+  └─ Sunshine first-party modules at declared contribution points
+       ↓ Chromium Mojo interfaces and site isolation
+Chromium renderer processes (untrusted web content)
 ```
 
-Remote pages must have `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, and `webSecurity: true`. Remote content must never access filesystem, credentials, Sunshine metadata, NAS, or privileged IPC directly.
+Web content reaches Sunshine capability only through Chromium's existing
+sandbox, site isolation, and permission mediation. A Sunshine module must never
+expose filesystem, credential, or Sunshine metadata access to a web origin, and
+must never weaken a Chromium security default to make a feature easier.
 
 ### 3.2 Command-first rule
 
-Every user-visible action is a command identifier. UI events never call Chromium runtime APIs directly.
+Every user-visible action is a command identifier. UI affordances resolve a
+command rather than calling browser internals directly.
 
-```ts
-type CommandId =
+```text
+CommandId:
   | "browser.back"
   | "browser.forward"
   | "browser.reload"
@@ -138,68 +147,49 @@ type CommandId =
   | "tab.duplicate"
   | "bookmark.toggle"
   | "workspace.switch"
-  | "view.split.toggle";
+  | "view.split.toggle"
 ```
 
 Invocation sources include toolbar, keyboard, context menu, mouse gesture, command palette, and later automation. A command has one authoritative implementation, availability predicate, telemetry event, and error result.
 
 ### 3.3 Domain ownership
 
-| Domain | Authoritative service | Renderer responsibility |
+Every authoritative owner below is a Chromium service. Sunshine contributes UX
+and feature-owned metadata around them; it never creates a parallel owner.
+
+| Domain | Authoritative Chromium owner | Sunshine responsibility |
 |---|---|---|
-| Windows | `WindowManager` | render window state |
-| Tabs and active tab | Chromium `TabStripModel` | render/extend native tab UI |
-| Navigation | `NavigationService` | submit intent / render state |
-| Session recovery | Chromium `SessionService` / `TabRestoreService` | extend native recovery UX |
-| Bookmarks | `BookmarkService` | list/edit UX |
-| History | `HistoryService` | search/list UX |
-| Downloads | `DownloadService` | progress/status UX |
-| Origin permissions | `PermissionService` | explain/change UX |
-| Security events | `SecurityService` | Security Center UX |
-| Themes/preferences | `SettingsService` / `ThemeService` | apply token projection |
+| Windows | `BrowserWindow` / `Browser` | contribute chrome UI, never own window state |
+| Tabs and active tab | `TabStripModel` | render/extend native tab UI |
+| Navigation | `NavigationController` + omnibox `AutocompleteClassifier` | submit intent / render state |
+| Session recovery | `SessionService` / `TabRestoreService` | extend native recovery UX |
+| Bookmarks | `bookmarks::BookmarkModel` | list/edit UX |
+| History | `history::HistoryService` | search/list UX |
+| Downloads | `DownloadManager` | progress/status UX |
+| Origin permissions | `HostContentSettingsMap` / permission controller | explain/change UX |
+| Security events | Chromium security state + Safe Browsing when present | Security Center UX |
+| Themes/preferences | `PrefService` / `ThemeService` | apply token projection |
 
 ### 3.4 Required repository layout
 
 ```text
-src/
-  main/
-    bootstrap/
-    window/
-    browser/
-    navigation/
-    session/
-    downloads/
-    permissions/
-    security/
-    profiles/
-    persistence/
-    ipc/
-  preload/
-    sunshine-api.ts
-    contracts.ts
-  renderer/
-    app/
-    chrome/
-    pages/
-    components/
-    commands/
-    theme/
-  shared/
-    domain/
-    commands/
-    contracts/
-    errors/
-    telemetry/
-tests/
-  unit/
-  integration/
-  e2e/
+config/
+  chromium.version          pinned upstream revision
+downstream/
+  patches/                  ordered Sunshine patch stack + series
+first_party/
+  registry.json             declarative module inventory
+  modules/<id>/module.json  one manifest per first-party module
+scripts/                    bootstrap, build, and architecture guards
+tests/                      repository contract and guard tests
 docs/
-  decisions/
-  security/
+  decisions/                architecture decision records
 ```
 
-Names may differ, but no renderer component may import from `main/`.
+Chromium source itself is never vendored into this repository. Sunshine owns only
+the pinned revision, the patch stack, the module registry, and its guards. A
+patch must own its upstream files exclusively; `scripts/patch_manifest.py`
+rejects overlapping ownership.
 
 ---
 
@@ -268,7 +258,7 @@ Do not use these terms interchangeably in code or UI.
 | Sunshine-managed | Sunshine metadata store | workspace catalog and Sunshine settings only; never shadow Chromium tab/session data |
 | Secure | OS credential vault | OAuth refresh token, API keys, NAS credentials |
 
-Never store secrets in the metadata DB or renderer local storage.
+Never store secrets in the Sunshine metadata store or in web-accessible storage.
 
 ---
 
@@ -306,7 +296,10 @@ sunshine://settings   internal route request
 material design       search with configured provider
 ```
 
-Classify conservatively. Invalid or ambiguous input must produce a search rather than an unsafe inferred navigation. URL normalization belongs in `NavigationService`.
+Classify conservatively. Invalid or ambiguous input must produce a search rather
+than an unsafe inferred navigation. Classification and URL normalization stay in
+Chromium's omnibox `AutocompleteClassifier`; Sunshine must not add a second
+parser in front of it.
 
 ### 5.4 Tab state machine
 
@@ -322,27 +315,25 @@ Rules:
 - Closing the active tab activates an adjacent non-closing tab.
 - Closing the last normal tab opens a New Tab; it must not leave a dead browser surface.
 - A failed navigation retains the tab and shows an error state rather than deleting its history.
-- Content-surface attachment is controlled by `TabManager`; UI selection only requests activation.
+- Tab and `WebContents` lifetime is controlled by Chromium `TabStripModel`; UI selection only requests activation.
 - Favicon and title updates are asynchronous and must be safe for a tab closed mid-load.
 
-### 5.5 Stage 1 IPC contract examples
+### 5.5 Stage 1 module boundary
 
-```ts
-// Renderer → main
-"tabs:create"        { windowId, initialUrl? }
-"tabs:activate"      { tabId }
-"tabs:close"         { tabId }
-"navigation:go"      { tabId, input }
-"commands:execute"   { id, context }
+Sunshine adds no custom process bridge. A first-party module reaches browser
+state only through the contribution points declared in its manifest and
+documented in `docs/FIRST_PARTY_MODULE_ARCHITECTURE.md`:
 
-// Main → renderer event stream
-"tabs:changed"       TabSnapshot
-"navigation:changed" NavigationSnapshot
-"download:changed"   DownloadSnapshot
-"security:event"     SecurityEvent
+```text
+chromium_webui_overlay   decorate or add a native WebUI surface
+command                  register a command with an availability predicate
+profile_service          observe or extend a profile-keyed Chromium service
+integration              observe native browser events
 ```
 
-Preload exposes a narrow typed API. Every handler validates both payload shape and sender identity.
+A Sunshine WebUI page communicates with the browser process over Chromium's own
+Mojo interfaces. Every browser-side handler validates payload shape and the
+calling WebUI origin, and no handler is reachable from ordinary web content.
 
 ### 5.6 Stage 1 security requirements
 
@@ -394,7 +385,7 @@ Pointer input → GestureRecognizer → GestureBinding → CommandService → Br
 
 Implementation rules:
 
-- Gesture code cannot import `BrowserEngine`.
+- Gesture code resolves commands only; it must not call Chromium browser internals directly.
 - Do not trigger while selecting text, operating native page controls, dragging files, or when context-menu intent is clear.
 - Cancel on insufficient distance, direction ambiguity, focus loss, or native drag start.
 - The first release supports only left/right; custom multi-segment gestures are Stage 3+.
@@ -447,16 +438,17 @@ Implement Find in Page, zoom/reset, print, save page, view source, inspect, and 
 
 Provide `sunshine://security` with unsafe-site attempts, risky downloads, extension warnings, active site permissions, certificate warnings, and recent security events.
 
-```ts
-interface ThreatProtectionProvider {
-  checkUrl(input: { url: string; profileId: string }): Promise<{
-    verdict: "safe" | "warn" | "block" | "unknown";
-    categories?: string[];
-    provider: string;
-    checkedAt: string;
-  }>;
+```text
+ThreatProtectionProvider.CheckUrl(url, profile_id) -> {
+  verdict:   safe | warn | block | unknown
+  categories: optional list
+  provider:   provider identifier
+  checked_at: timestamp
 }
 ```
+
+Chromium's own Safe Browsing remains authoritative wherever it is present in the
+build. A provider is an additive signal, never a replacement for it.
 
 Provider failure must return `unknown`, log the event, and allow normal browsing unless a separately defined strict policy applies. Third-party API details must not leak into browser-core UI or navigation logic.
 
@@ -464,7 +456,7 @@ Provider failure must return `unknown`, log the event, and allow normal browsing
 
 Use Sunshine as primary browser for seven consecutive days. Track and review:
 
-- crash and renderer recovery rate;
+- crash and renderer-process recovery rate;
 - broken-site and login failures;
 - memory growth and background CPU;
 - gesture activation, cancellation, false-positive, and reversal rate;
@@ -591,14 +583,14 @@ Users edit semantic values: mode, accent, surface style, contrast, preset. The s
 | Area | Unit | Integration | E2E |
 |---|---|---|---|
 | Navigation classification | yes | yes | representative URLs/searches |
-| Tab lifecycle | yes | browser runtime adapter | create/select/close/restart |
+| Tab lifecycle | yes | native `TabStripModel` integration | create/select/close/restart |
 | Bookmarks/history | yes | repository persistence | create/search/reopen/restart |
 | Downloads | yes | lifecycle/policy | completed/failed/warned flow |
 | Permissions | yes | origin policy | allow/block/reload behavior |
 | Session restore | yes | persistence/recovery | clean/crash-like scenarios |
 | Gesture recognition | yes | command dispatch | valid/cancelled gesture flows |
 | Workspaces/split | yes | session serialization | switch/move/restore layout |
-| Security IPC | yes | sender/payload rejection | untrusted page cannot reach privileged API |
+| Module boundary | yes | WebUI origin/payload rejection | untrusted page cannot reach privileged API |
 
 ### 9.2 Performance checks
 
@@ -619,13 +611,17 @@ Every implementation handoff reports:
 
 ---
 
-## 10. Suggested Codex Implementation Waves
+## 10. Suggested Implementation Waves
+
+Waves 0–2 are already satisfied by the native downstream: Chromium supplies
+windows, tabs, the omnibox, and navigation on the first successful build. The
+remaining waves are Sunshine work on top of that.
 
 | Wave | Deliverable | Gate |
 |---|---|---|
-| 0 | Repository bootstrap, secure Chromium runtime defaults, typed IPC scaffold, design tokens | security review passes before remote navigation |
-| 1 | One window, one sandboxed tab, omnibox, navigation commands | representative navigation works |
-| 2 | TabManager, multi-tab UI, title/favicon/loading updates | tab lifecycle E2E passes |
+| 0 | Pinned upstream, patch stack, module registry, architecture guards | guards and contract tests pass |
+| 1 | Native Windows `chrome` build on a dedicated runner | build produces a runnable installer |
+| 2 | Sunshine New Tab and branding verified at runtime | visual verification against the spec |
 | 3 | Profiles, onboarding, bookmarks, history, New Tab, persistence | restart persistence passes |
 | 4 | Download baseline, permissions, secure window-open policy | download/permission flows pass |
 | 5 | Stage 1 dogfood and extension spike | architecture gate decision recorded |
@@ -666,14 +662,26 @@ These decisions should be answered before or at the named gate; they are not imp
 
 ---
 
-## 13. Start Prompt for Codex
+## 13. Start Prompt
 
 ```text
-You are implementing Sunshine OS Stage 1–3, a Windows-first Chromium-based browser.
+You are implementing Sunshine OS Stage 1–3 as a native downstream of the
+open-source Chromium browser. There is no wrapper runtime. Sunshine builds
+Chromium's own chrome target and ships changes as a small ordered patch stack
+against the revision pinned in config/chromium.version.
 
-Read this document completely before changing code. Treat Browser First as the highest product rule: ordinary secure web browsing must never be degraded to add Sunshine features.
+Read this document and .ai/PROJECT_CONTEXT.md before changing code. Treat
+Browser First as the highest product rule: ordinary secure web browsing must
+never be degraded to add Sunshine features. Chromium keeps ownership of tabs,
+omnibox, navigation, history, downloads, permissions, profiles, renderer
+isolation, and the sandbox.
 
-Start with Wave 0 only. Inspect the repository, report the existing architecture, then create a detailed Wave 0 plan covering secure Chromium runtime defaults, typed IPC, trusted-UI/untrusted-content boundaries, token foundation, and test setup. Do not implement later stages or invent product decisions marked P0/P1.
+Take one wave at a time. Inspect the repository and the native contracts under
+docs/ before proposing a change. Do not implement later stages or invent product
+decisions marked P0/P1.
 
-For every wave: implement only its approved scope, run focused tests plus a build, report files/services/commands changed, compatibility scenarios, security impact, and blockers. Keep Chromium runtime integration behind adapters and never let remote content access privileged functionality directly.
+For every wave: implement only its approved scope, run the repository guards and
+tests, report files and commands changed, compatibility scenarios, security
+impact, and blockers. Never claim a native build, runtime, or visual result that
+was not actually observed.
 ```

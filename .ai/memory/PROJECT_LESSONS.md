@@ -27,6 +27,30 @@ Confidence: high.
 
 ## Domain Risk Lessons
 
+### 2026-08-17 — A guard that skips specifications certifies a false clean tree
+Area: architecture enforcement.
+Evidence: `scripts/verify_architecture.py` ignored `docs/`, so it passed for
+months while `docs/SUNSHINE_OS_STAGE_1_TO_3_IMPLEMENTATION_HANDOFF.md` still
+specified a wrapper-runtime process model, source layout, and start prompt that
+contradicted `.ai/PROJECT_CONTEXT.md`.
+Impact: a worker starting from the handoff would have rebuilt the architecture
+the repository believed it had deleted, with every automated gate green.
+Recommended future behavior: an architecture rule must be enforced over the
+documents that direct implementation, not only over code. When a rule is added
+to project context, check which file a worker would actually read first.
+Confidence: high.
+
+### 2026-08-17 — Removing an architecture is not deleting the word for it
+Area: architecture enforcement.
+Evidence: the same names appear in prohibitions, in the guard's marker list, in
+the CI job name, and in historical reports. Deleting those would remove the
+mechanism that keeps the runtime out.
+Impact: an over-broad purge would silently reopen the door it was meant to close.
+Recommended future behavior: separate design carried forward from rules that
+forbid it. Remove precedent, specification, and API names; keep prohibitions,
+guards, and immutable run history.
+Confidence: high.
+
 ### 2026-08-17 — A borrowed validator can silently break a fail-closed promise
 Area: compile-free persistence models.
 Evidence: `restore_layout` promises never to raise and recovers from
