@@ -2,6 +2,11 @@ name: Native Chromium Windows Build
 
 on:
   workflow_dispatch:
+    inputs:
+      ninja_jobs:
+        description: "Parallel compile jobs. Blank saturates the machine; set it when the runner is also a workstation."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -14,7 +19,10 @@ jobs:
   build:
     name: Build Sunshine Chromium on Windows x64
     runs-on: [self-hosted, Windows, X64, sunshine-chromium]
-    timeout-minutes: 720
+    # The pinned fetch and gclient sync run inside this job, so the budget must
+    # cover source acquisition as well as the optimised build and its LTO link.
+    # A self-hosted runner has no upper job limit; an early finish costs nothing.
+    timeout-minutes: 1440
 
     steps:
       - name: Check out Sunshine downstream
@@ -24,6 +32,7 @@ jobs:
         shell: pwsh
         env:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+          SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}
         run: ./scripts/build_chromium_windows.ps1
 
       - name: Upload unsigned internal test installer

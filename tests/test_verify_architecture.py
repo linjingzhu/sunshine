@@ -7,6 +7,7 @@ import importlib.util
 import io
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -70,7 +71,9 @@ class ArchitectureVerifierTests(unittest.TestCase):
             "downstream/patches/0002-sunshine-new-tab.patch",
             "chrome/browser/resources/new_tab_page/app.html\n"
             "chrome/browser/resources/new_tab_page/app.css\n"
-            '<div id="sunshineWordmark" aria-label="Sunshine OS">SUNSHINE</div>\n'
+            '<div id="sunshineWordmark" aria-label="Sunshine OS"\n'
+            '    ?hidden="${!this.logoEnabled_}">SUNSHINE</div>\n'
+            "margin-bottom: var(--ntp-logo-margin-bottom, 38px);\n"
         )
         self._write("src/browser_main.cc", "int main() { return 0; }\n")
 
@@ -100,6 +103,65 @@ class ArchitectureVerifierTests(unittest.TestCase):
         self.assertEqual(1, result)
         self.assertIn("excluded runtime marker", stderr)
         self.assertIn("src/legacy-wrapper.js", stderr)
+
+    def test_wrapper_runtime_design_in_a_specification_fails(self) -> None:
+        """The guard must read specifications, not only code.
+
+        A wrapper architecture survived in an active handoff document while the
+        code tree was already clean, because documentation was not scanned.
+        """
+
+        webpreference = "node" + "Integration"
+        self._write(
+            "docs/HANDOFF.md",
+            f"Remote pages must have `{webpreference}: false`.\n",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("wrapper-runtime design marker", stderr)
+        self.assertIn("docs/HANDOFF.md", stderr)
+
+    def test_wrapper_runtime_design_in_code_fails(self) -> None:
+        bridge = "ipc" + "Renderer"
+        self._write("src/bridge.cc", f"// {bridge} bridge\n")
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("wrapper-runtime design marker", stderr)
+
+    def test_prohibiting_a_wrapper_runtime_by_name_is_allowed(self) -> None:
+        """Removing the runtime must not delete the rule that forbids it."""
+
+        self._write(
+            "docs/decisions/0002-native-chromium-downstream.md",
+            "Do not add Electron, CEF, Qt WebEngine, Tauri, or platform WebView wrappers.\n",
+        )
+
+        result, stdout, stderr = self._run()
+
+        self.assertEqual(0, result, stderr)
+        self.assertIn("Architecture check passed", stdout)
+
+    def test_documentation_may_quote_the_startup_url_it_forbids(self) -> None:
+        self._write(
+            "docs/CHROMIUM_MACOS_BUILD.md",
+            f"- A native New Tab Page opens; `{self.verifier.GOOGLE_STARTUP_URL}/` is not forced.\n",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(0, result, stderr)
+
+    def test_code_still_rejects_a_hardcoded_startup_url(self) -> None:
+        self._write("src/startup.cc", f'const char kStartup[] = "{self.verifier.GOOGLE_STARTUP_URL}";\n')
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("hardcoded Google startup URL", stderr)
 
     def test_excluded_wrapper_manifest_fails(self) -> None:
         manifest_name = "package" + ".json"
@@ -209,6 +271,44 @@ class ChromiumBootstrapTests(unittest.TestCase):
             self.assertTrue(
                 self.bootstrap.patch_stack_is_applied(self.source, ["branding.patch"])
             )
+
+    def test_reset_exists_and_is_opt_in(self) -> None:
+        """Bootstrapping a human's workspace must still refuse to discard work."""
+
+        result = subprocess.run(
+            (sys.executable, str(BOOTSTRAP_SCRIPT), "--help"),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        self.assertIn("--reset", result.stdout)
+        self.assertIn("build-owned workspace", result.stdout)
+
+    def test_forced_checkout_discards_patches_but_keeps_build_output(self) -> None:
+        """The whole --reset design rests on this git behaviour.
+
+        A build workspace carries the previous wave's patch stack plus tens of
+        gigabytes of untracked output under out/. Resetting must drop the first
+        and keep the second, or every patch change costs a full rebuild.
+        """
+
+        patch = self.root / "downstream/patches/branding.patch"
+        subprocess.run(("git", "apply", str(patch)), cwd=self.source, check=True)
+        build_output = self.source / "out/Sunshine/chrome.exe"
+        build_output.parent.mkdir(parents=True)
+        build_output.write_text("expensive incremental build\n", encoding="utf-8")
+
+        subprocess.run(
+            ("git", "checkout", "--detach", "--force", "HEAD"),
+            cwd=self.source,
+            check=True,
+            capture_output=True,
+        )
+
+        branding = self.source / "chrome/app/theme/chromium/BRANDING"
+        self.assertEqual("PRODUCT_FULLNAME=Chromium\n", branding.read_text(encoding="utf-8"))
+        self.assertTrue(build_output.is_file(), "untracked build output must survive a reset")
 
     def test_unrelated_dirty_file_is_not_accepted_as_patch_stack(self) -> None:
         patch = self.root / "downstream/patches/branding.patch"

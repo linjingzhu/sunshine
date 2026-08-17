@@ -2,17 +2,22 @@ diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/reso
 index dc7ebed..af5276f 100644
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -180,6 +180,18 @@ cr-most-visited {
+@@ -180,6 +180,23 @@ cr-most-visited {
    z-index: unset;
  }
  
 +#sunshineWordmark {
 +  color: var(--color-new-tab-page-primary-foreground);
++  /* The wordmark is a Latin lockup and stays LTR in RTL UI locales. This also
++     keeps padding-inline-start on the left, where it cancels the trailing
++     letter-space; letting it flip leaves the wordmark a full letter-space
++     off-centre. */
++  direction: ltr;
 +  font-size: clamp(2rem, 6vw, 3.5rem);
 +  font-weight: 650;
 +  letter-spacing: 0.18em;
 +  line-height: 1;
-+  margin-bottom: 38px;
++  margin-bottom: var(--ntp-logo-margin-bottom, 38px);
 +  padding-inline-start: 0.18em;
 +  text-shadow: var(--ntp-theme-text-shadow);
 +  user-select: none;
@@ -25,7 +30,7 @@ diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/res
 index c4ce4e5..f4f5c51 100644
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -28,13 +28,8 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -28,13 +28,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
          </ntp-iframe>
          `
      ) : ''}
@@ -37,7 +42,8 @@ index c4ce4e5..f4f5c51 100644
 -      .theme="${this.theme_}" ?hidden="${!this.logoEnabled_}">
 -  </ntp-logo>
 +  <div id="sunshineWordmark" role="heading" aria-level="1"
-+      aria-label="Sunshine OS">SUNSHINE</div>
++      aria-label="Sunshine OS"
++      ?hidden="${!this.logoEnabled_}">SUNSHINE</div>
    ${this.ntpRealboxNextEnabled_ ? html`
      <div id="scrim"
          @click="${this.onScrimClick_}"

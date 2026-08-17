@@ -10,14 +10,35 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXCLUDED_NAMES = {"package.json", "electron-builder.yml", "electron-builder.yaml"}
 EXCLUDED_TEXT = ("from \"electron\"", "require(\"electron\")", "electron-builder", "WebContentsView")
+# Wrapper-runtime API and configuration names. Unlike EXCLUDED_TEXT these also
+# appear in prose specifications, which is how a wrapper architecture survived in
+# an active handoff document while the code tree was already clean. Plain
+# prohibition prose naming a runtime is deliberately not matched.
+EXCLUDED_DESIGN_TEXT = (
+    "nodeIntegration",
+    "contextIsolation",
+    "webPreferences",
+    "ipcRenderer",
+    "ipcMain",
+    "@electron/",
+)
 GOOGLE_STARTUP_URL = "https://www.google.com"
-IGNORED_PARTS = {".git", "chromium", "node_modules", "dist", "release", "docs", ".ai", "upload"}
+IGNORED_PARTS = {".git", "chromium", "node_modules", "dist", "release", ".ai", "upload"}
+# Specifications are scanned for wrapper-runtime design, but not for a hardcoded
+# startup URL: that rule constrains what the product ships, and documentation
+# legitimately quotes the URL when stating that it must never be forced.
+DOCUMENTATION_ROOTS = {"docs"}
 PINNED_REVISION = re.compile(r"^refs/tags/\d+\.\d+\.\d+\.\d+$")
 REQUIRED_NEW_TAB_MARKERS = (
     "chrome/browser/resources/new_tab_page/app.html",
     "chrome/browser/resources/new_tab_page/app.css",
     'id="sunshineWordmark"',
     'aria-label="Sunshine OS"',
+    # The wordmark occupies the native logo slot, so it must keep the two
+    # Chromium-owned behaviours that slot carries: the logo visibility state and
+    # the theme-controlled spacing below it.
+    '?hidden="${!this.logoEnabled_}"',
+    "var(--ntp-logo-margin-bottom",
 )
 FORBIDDEN_NEW_TAB_MARKERS = ("Life Dashboard", "Three.js", "AI assistant")
 FORBIDDEN_NEW_TAB_REMOVALS = ("-    <ntp-searchbox", "-      <cr-most-visited")
@@ -76,12 +97,13 @@ def main() -> int:
     validate_patch_series(failures)
     validate_new_tab_patch(failures)
     for path in ROOT.rglob("*"):
-        if not path.is_file() or any(part in IGNORED_PARTS for part in path.relative_to(ROOT).parts):
+        relative = path.relative_to(ROOT)
+        if not path.is_file() or any(part in IGNORED_PARTS for part in relative.parts):
             continue
         if path.resolve() == pathlib.Path(__file__).resolve():
             continue
         if path.name in EXCLUDED_NAMES:
-            failures.append(f"excluded wrapper manifest: {path.relative_to(ROOT)}")
+            failures.append(f"excluded wrapper manifest: {relative}")
             continue
         try:
             text = path.read_text()
@@ -89,9 +111,14 @@ def main() -> int:
             continue
         for marker in EXCLUDED_TEXT:
             if marker in text:
-                failures.append(f"excluded runtime marker {marker!r}: {path.relative_to(ROOT)}")
+                failures.append(f"excluded runtime marker {marker!r}: {relative}")
+        for marker in EXCLUDED_DESIGN_TEXT:
+            if marker in text:
+                failures.append(f"excluded wrapper-runtime design marker {marker!r}: {relative}")
+        if relative.parts[0] in DOCUMENTATION_ROOTS:
+            continue
         if GOOGLE_STARTUP_URL in text:
-            failures.append(f"hardcoded Google startup URL: {path.relative_to(ROOT)}")
+            failures.append(f"hardcoded Google startup URL: {relative}")
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1

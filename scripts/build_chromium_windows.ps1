@@ -1,7 +1,11 @@
 param(
   [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")),
   [string]$Workspace = $env:SUNSHINE_CHROMIUM_WORKSPACE,
-  [int]$MinimumFreeSpaceGB = 180
+  [int]$MinimumFreeSpaceGB = 180,
+  # 0 lets autoninja saturate the machine. Set this when the runner is also a
+  # workstation: ninja otherwise schedules roughly core count plus two jobs and
+  # leaves nothing for interactive use.
+  [int]$NinjaJobs = $(if ($env:SUNSHINE_NINJA_JOBS) { [int]$env:SUNSHINE_NINJA_JOBS } else { 0 })
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,7 +40,7 @@ if ([string]::IsNullOrWhiteSpace($installationPath)) {
   throw "Visual Studio C++ x64 tools were not found."
 }
 
-python (Join-Path $RepositoryRoot "scripts\bootstrap_chromium.py") --workspace $workspacePath
+python (Join-Path $RepositoryRoot "scripts\bootstrap_chromium.py") --workspace $workspacePath --reset
 if ($LASTEXITCODE -ne 0) { throw "Chromium bootstrap failed." }
 
 $src = Join-Path $workspacePath "src"
@@ -58,7 +62,14 @@ try {
   gn gen "out/Sunshine" "--args=$gnArgs"
   if ($LASTEXITCODE -ne 0) { throw "GN generation failed." }
 
-  autoninja -C "out/Sunshine" chrome mini_installer
+  $ninjaArguments = @("-C", "out/Sunshine")
+  if ($NinjaJobs -gt 0) {
+    Write-Host "Limiting compilation to $NinjaJobs parallel jobs."
+    $ninjaArguments += @("-j", $NinjaJobs)
+  }
+  $ninjaArguments += @("chrome", "mini_installer")
+
+  autoninja @ninjaArguments
   if ($LASTEXITCODE -ne 0) { throw "Chromium compilation failed." }
 }
 finally {

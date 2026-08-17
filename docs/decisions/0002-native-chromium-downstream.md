@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted.
+Accepted. This is the first standing architecture decision; ADR 0001 was withdrawn as an error and removed, so the numbering starts here.
 
 ## Context
 
-Sunshine OS is browser-first. The Electron spike recreated browser chrome around an embedded page, caused platform composition defects, and contradicted the explicit decision to remove Electron.
+Sunshine OS is browser-first. A wrapper runtime that recreates browser chrome around an embedded page cannot deliver a full, unrestricted browser. It produced platform composition defects and left browser fundamentals to be reimplemented in application code.
 
 ## Decision
 
@@ -26,7 +26,7 @@ The first window opens Chromium's native New Tab Page. A public web URL, includi
 
 ## Consequences
 
-- The source checkout and build are substantially larger than an Electron app.
+- The source checkout and build are far larger than an application-level project; see `docs/SIZE_BUDGET.md`.
 - macOS builds require Xcode and the Chromium toolchain; Windows builds require Visual Studio and at least 100 GB of local free space.
 - Upstream security updates must be tracked continuously.
 - Browser fundamentals no longer need to be recreated in application code.

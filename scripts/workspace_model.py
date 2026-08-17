@@ -22,6 +22,8 @@ WORKSPACE_CORRUPTION_POLICY = "recover_tabs_to_default"
 WORKSPACE_FAILURE_POLICY = "rollback"
 WORKSPACE_OFF_THE_RECORD_POLICY = "memory_only"
 WORKSPACE_GROUP_PARTIAL_MOVE_POLICY = "explicit_choice"
+WORKSPACE_CLOSE_POLICY = "explicit_destination_atomic_transfer"
+WORKSPACE_ARCHIVE_POLICY = "excluded_from_mvp"
 
 DEFAULT_WORKSPACE_ID = "00000000-0000-4000-8000-000000000001"
 MAX_NAME_LENGTH = 64
@@ -73,7 +75,7 @@ def _normalized_name(value: object) -> str:
     return name
 
 
-def _canonical_uuid(value: object, field: str) -> str:
+def canonical_uuid(value: object, field: str) -> str:
     if not isinstance(value, str):
         raise WorkspaceModelError(f"{field} must be a UUID string")
     try:
@@ -99,7 +101,7 @@ def parse_catalog(payload: Mapping[str, object]) -> Catalog:
     for raw in raw_workspaces:
         if not isinstance(raw, Mapping):
             raise WorkspaceModelError("workspace entries must be objects")
-        workspace_id = _canonical_uuid(raw.get("id"), "workspace ID")
+        workspace_id = canonical_uuid(raw.get("id"), "workspace ID")
         if workspace_id in seen_ids:
             raise WorkspaceModelError("workspace IDs must be unique")
         color = raw.get("color", "grey")
@@ -137,7 +139,7 @@ def recover_membership(catalog: Catalog, tabs: Iterable[NativeTab]) -> tuple[Nat
             raise WorkspaceModelError("native runtime tab IDs must be non-empty and unique")
         seen_runtime_ids.add(tab.runtime_id)
         try:
-            durable_id = _canonical_uuid(tab.sunshine_tab_uuid, "Sunshine tab ID")
+            durable_id = canonical_uuid(tab.sunshine_tab_uuid, "Sunshine tab ID")
         except WorkspaceModelError:
             durable_id = None
         if durable_id and durable_id in seen_uuids:
@@ -177,3 +179,44 @@ def move_tabs_atomic(
         for tab in tabs
     )
     return tabs if fail_before_commit else candidate
+
+
+def close_workspace_atomic(
+    catalog: Catalog,
+    tabs: tuple[NativeTab, ...],
+    closed_workspace_id: str,
+    destination_workspace_id: str,
+    *,
+    fail_before_commit: bool = False,
+) -> tuple[Catalog, tuple[NativeTab, ...]]:
+    """Retire a workspace by transferring every one of its tabs at once.
+
+    Closing requires an explicit destination. Tabs are never discarded and
+    archiving is not a supported outcome. On failure the exact original catalog
+    and projection objects are returned so the caller can roll back.
+
+    The caller owns window-local state: any window whose active workspace was the
+    closed one must select the destination, and its split layout must be
+    re-resolved so no pane keeps pointing at the retired workspace.
+    """
+
+    known = catalog.by_id()
+    if closed_workspace_id not in known or destination_workspace_id not in known:
+        raise WorkspaceModelError("closed and destination workspaces must both exist")
+    if closed_workspace_id == destination_workspace_id:
+        raise WorkspaceModelError(WORKSPACE_CLOSE_POLICY)
+
+    for group_id in {tab.group_id for tab in tabs if tab.group_id and tab.workspace_id == closed_workspace_id}:
+        if {tab.workspace_id for tab in tabs if tab.group_id == group_id} != {closed_workspace_id}:
+            raise WorkspaceModelError(WORKSPACE_GROUP_PARTIAL_MOVE_POLICY)
+
+    transferred = {tab.runtime_id for tab in tabs if tab.workspace_id == closed_workspace_id}
+    if fail_before_commit:
+        return catalog, tabs
+    return (
+        Catalog(catalog.schema_version, tuple(ws for ws in catalog.workspaces if ws.id != closed_workspace_id)),
+        tuple(
+            replace(tab, workspace_id=destination_workspace_id) if tab.runtime_id in transferred else tab
+            for tab in tabs
+        ),
+    )
