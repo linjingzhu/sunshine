@@ -305,7 +305,19 @@ class ChromiumBootstrapTests(unittest.TestCase):
         self.assertIn("DEFAULT_SYNC_JOBS = 8", source)
         self.assertIn('jobs = f"-j{args.jobs}"', source)
         self.assertIn('run("gclient", "sync", "--nohooks", jobs, cwd=workspace)', source)
-        self.assertIn('run("gclient", "sync", jobs, cwd=workspace)', source)
+        self.assertIn('sync = ["gclient", "sync", jobs]', source)
+
+    def test_reset_repairs_a_dependency_an_interrupted_sync_left_behind(self) -> None:
+        """gclient will not reconcile a half-cloned dependency on its own.
+
+        After the rate-limited sync, `third_party/llvm-libc/src` made the next
+        run stop with "Unrecognized error, please merge or rebase manually".
+        In a build-owned workspace the pinned revision always wins.
+        """
+
+        source = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('sync += ["--force", "--reset"]', source)
+        self.assertNotIn("delete_unversioned_trees", source)
 
         result = subprocess.run(
             (sys.executable, str(BOOTSTRAP_SCRIPT), "--help"),
