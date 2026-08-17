@@ -212,6 +212,49 @@ duration, assigned runner, recorded steps, billable time. Zero on all four means
 the answer is outside the repository.
 Confidence: high.
 
+### 2026-08-17 — Check what the pinned revision already ships before designing it
+Area: domain ownership.
+Evidence: Sunshine's split-view model re-derives Chromium's native split tabs,
+which exist at the pinned tag as `SplitTabVisualData`, `SplitTabData`,
+`SplitTabCollection` and `MultiContentsView` -- down to the same default ratio of
+0.5 and the same two orientations. The duplication was undetectable from the
+repository alone, because nothing here recorded what upstream had gained.
+Impact: a shipped model, a module, three registered commands and a contract all
+rest on work Chromium already did. ADR 0002 says to use Chromium's tabs.
+Recommended future behavior: before contracting a browser feature, retrieve the
+pinned revision's own headers for it. Absence of a feature in this repository is
+not evidence of absence upstream, and Chromium gains features between pins.
+Confidence: high.
+
+### 2026-08-17 — Name a field for what it does, or it will be believed
+Area: command registry.
+Evidence: the registry field called `guard` holds, for every Sunshine-owned
+command, the model function that performs the operation -- it is called with full
+execution inputs and refuses by raising. Two waves read the name and assumed a
+side-effect-free predicate. One of them recorded "commands take no parameters" as
+a project fact; three of the five guards already require undeclared arguments.
+Impact: a palette rendering 27 rows by consulting guards would execute up to 27
+operations. The mistaken fact was then propagated into a wave report.
+Recommended future behavior: when a schema field is introduced, assert its
+contract in the validator, not only its resolvability. `validate_commands.py`
+checked that each guard resolved and was callable, which every operation also
+satisfies.
+Confidence: high.
+
+### 2026-08-17 — A parallel wave is the cheapest adversarial review available here
+Area: execution strategy.
+Evidence: cross-agent review has been NOT AVAILABLE in every wave. Four workers
+given independent contracts found, between them, three defects in already-shipped
+work that Manager review had passed: the split-tabs duplication, the guard
+misnaming, and a section stating no commands were registered in the same wave
+that registered eleven.
+Impact: the defects were found by workers reading shipped material as input to
+their own task, not by anyone reviewing it.
+Recommended future behavior: give each worker an explicit instruction to report
+anything wrong in the repository content it reads, and treat that channel as the
+review the process otherwise lacks.
+Confidence: medium.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:

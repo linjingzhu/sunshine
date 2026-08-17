@@ -104,6 +104,46 @@ class ArchitectureVerifierTests(unittest.TestCase):
         self.assertIn("excluded runtime marker", stderr)
         self.assertIn("src/legacy-wrapper.js", stderr)
 
+    def test_a_wrapper_view_class_is_still_caught_by_its_import(self) -> None:
+        """Removing the bare class name must not weaken detection.
+
+        The wrapper runtime's view class cannot be constructed without importing
+        the runtime, so the import markers carry the detection on their own.
+        """
+
+        excluded_import = "from \"" + "electron" + "\""
+        self._write(
+            "src/wrapper-shell.js",
+            excluded_import + " {WebContentsView};\n"
+            "const view = new WebContentsView({});\n",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("excluded runtime marker", stderr)
+        self.assertIn("src/wrapper-shell.js", stderr)
+
+    def test_the_chromium_type_of_the_same_name_is_allowed(self) -> None:
+        """`WebContentsView` is a real type in Chromium's content/ layer.
+
+        This repository is a downstream of Chromium and a side panel or
+        split-view patch reaches that layer directly. Rejecting the name failed
+        the build on legitimate upstream terminology while adding no detection,
+        which is why it is no longer an excluded marker.
+        """
+
+        self._write(
+            "docs/SOME_CONTRACT.md",
+            "The panel is hosted by the native `WebContentsView` rather than a\n"
+            "second view hierarchy owned by Sunshine.\n",
+        )
+
+        result, stdout, stderr = self._run()
+
+        self.assertEqual(0, result, stderr)
+        self.assertIn("Architecture check passed", stdout)
+
     def test_wrapper_runtime_design_in_a_specification_fails(self) -> None:
         """The guard must read specifications, not only code.
 

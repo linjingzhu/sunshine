@@ -9,7 +9,15 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXCLUDED_NAMES = {"package.json", "electron-builder.yml", "electron-builder.yaml"}
-EXCLUDED_TEXT = ("from \"electron\"", "require(\"electron\")", "electron-builder", "WebContentsView")
+# `WebContentsView` was here and has been removed deliberately. It is the name of
+# a real Chromium type in content/, which this repository is a downstream of and
+# is entitled to name -- a side panel or split-view patch reaches that layer
+# directly. The wrapper runtime's class of the same name cannot be used without
+# importing the runtime, which the markers below already catch, so the entry
+# added no detection and would have failed the build on legitimate upstream
+# terminology. `test_a_wrapper_view_class_is_still_caught_by_its_import` and
+# `test_the_chromium_type_of_the_same_name_is_allowed` pin both halves of that.
+EXCLUDED_TEXT = ("from \"electron\"", "require(\"electron\")", "electron-builder")
 # Wrapper-runtime API and configuration names. Unlike EXCLUDED_TEXT these also
 # appear in prose specifications, which is how a wrapper architecture survived in
 # an active handoff document while the code tree was already clean. Plain

@@ -242,18 +242,29 @@ Additional rules:
 - A tab that opens in a new tab as a result of one of these actions follows
   normal workspace membership rules; it does not silently replace a pane.
 
-## Command registration is deferred
+## Command registration
 
 Section 6.6 requires these actions to be reachable from the command palette
 later, and section 4 of the handoff requires every user-visible action to be a
 registered command with one implementation, an availability predicate, a
 telemetry event, and error results.
 
-No command identifier exists yet for any utility in this contract, and this
-document deliberately names none. `first_party/commands.json` is the only
-authoritative list; a document that invented identifiers ahead of the registry
-would recreate exactly the drift that registry exists to prevent. Registration
-is a separate, reviewed change.
+Eleven of these utilities are now registered in `first_party/commands.json`,
+all `chromium`-owned: find (open, close, next, previous), zoom (in, out, reset),
+print, save page, view source, and developer tools. `first_party/commands.json`
+remains the only authoritative list, and this document still names no identifier
+that is not in it -- a document that invented identifiers ahead of the registry
+would recreate exactly the drift the registry exists to prevent.
+
+The link and image context-menu actions are **not** deferred registrations. They
+are permanently unregistrable, and `docs/COMMAND_PALETTE_CONTRACT.md` sets out
+why: they target a document node or coordinate that only the renderer can
+resolve, so admitting them means either carrying a renderer-supplied target into
+a privileged dispatcher, which the trust model forbids, or holding ambient
+last-right-clicked state, which this contract forbids. Their surface is
+Chromium's own context menu, which resolves the target under site isolation.
+Treating them as pending work invites a future wave to build something that must
+not exist.
 
 When those commands are registered they must be `chromium`-owned, carry no
 Sunshine guard, and dispatch to the existing native implementation. Registering
