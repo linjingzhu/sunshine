@@ -1,0 +1,16 @@
+# Contract invariants a test or tool claims to enforce, one per line.
+#
+# Empty by design, and that is the finding rather than an omission: of the
+# invariants the contracts declare, almost none can be established without a
+# running browser. They govern what Chromium does when a pane is hidden, what
+# the omnibox commits, what a provider verdict may not relax. An offline suite
+# can check that a patch applies and that a registry is consistent; it cannot
+# check that a hidden tab was not silently activated.
+#
+# So this file measures something narrower and still worth having: it stops
+# enforcement from being lost quietly. A test claims an invariant by writing
+# `Enforces: XX-N` in its docstring. Once claimed and listed here, removing the
+# check fails the build. Adding is free.
+#
+# The number that matters for planning is in the run report: how much of this
+# contract set is unverifiable until the native build exists.
