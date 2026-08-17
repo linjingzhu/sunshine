@@ -50,9 +50,15 @@ Chromium-owned commands such as `browser.back` appear in the registry but must
 not be declared by any module. Sunshine surfaces them; it does not implement
 them.
 
-Where a Sunshine model already enforces a command's availability, the entry
-carries a `guard` naming that callable, and validation imports it. A guard that
-stops resolving fails the build rather than silently becoming prose.
+Where a Sunshine model performs a command, the entry carries an
+`implementation` naming that callable. Where a model can answer whether the
+command may be offered, the entry also carries a `predicate` -- a separate,
+side-effect-free callable returning either nothing or one of the tokens declared
+in `unavailable_reasons`. The two are distinct fields because they were once one
+field named `guard`, which held the operation while its name promised a
+predicate: a surface asking every command whether it was available would have
+performed every command to find out. Validation imports both, so either one
+failing to resolve fails the build rather than silently becoming prose.
 
 ## Manifest contract
 

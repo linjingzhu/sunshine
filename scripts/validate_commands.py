@@ -24,10 +24,20 @@ if str(ROOT) not in sys.path:
 REGISTRY = ROOT / "first_party/commands.json"
 DOCS = ROOT / "docs"
 
-REQUIRED_KEYS = {"id", "summary", "owner", "availability", "guard", "telemetry", "errors"}
+REQUIRED_KEYS = {
+    "id",
+    "summary",
+    "owner",
+    "availability",
+    "implementation",
+    "predicate",
+    "unavailable_reasons",
+    "telemetry",
+    "errors",
+}
 SEGMENT = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 TELEMETRY = re.compile(r"^Sunshine\.Command\.[A-Za-z0-9]+$")
-GUARD = re.compile(r"^scripts\.[a-z_]+:[a-z_]+$")
+CALLABLE_REF = re.compile(r"^scripts\.[a-z_]+:[a-z_]+$")
 # Tokens in documentation that look like a command: backticked, dotted, and
 # starting with a declared surface. Narrow enough that ordinary prose such as
 # `app.css` or `chromium.googlesource.com` is not mistaken for a command.
@@ -48,8 +58,8 @@ def expected_telemetry(command_id: str) -> str:
 
 def load(path: Path = REGISTRY) -> dict:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        raise CommandRegistryError("command registry schema_version must be 1")
+    if not isinstance(payload, dict) or payload.get("schema_version") != 2:
+        raise CommandRegistryError("command registry schema_version must be 2")
     surfaces = payload.get("surfaces")
     if not isinstance(surfaces, list) or not surfaces:
         raise CommandRegistryError("surfaces must be a non-empty list")
@@ -114,19 +124,45 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
     if not isinstance(availability, str) or not availability.strip() or not availability.endswith("."):
         raise CommandRegistryError(f"{command_id}: availability must be a sentence ending in a period")
 
-    guard = command["guard"]
-    if guard is not None:
-        if not isinstance(guard, str) or not GUARD.fullmatch(guard):
-            raise CommandRegistryError(f"{command_id}: guard must look like scripts.module:callable")
-        module_name, _, attribute = guard.partition(":")
+    # `implementation` performs the command; `predicate` only answers whether it
+    # may be offered. They were one field called `guard`, which held the
+    # operation while its name promised a predicate -- so a surface that asked
+    # 27 commands whether they were available would have performed up to 27
+    # operations to draw a list.
+    for role in ("implementation", "predicate"):
+        reference = command[role]
+        if reference is None:
+            continue
+        if not isinstance(reference, str) or not CALLABLE_REF.fullmatch(reference):
+            raise CommandRegistryError(f"{command_id}: {role} must look like scripts.module:callable")
+        module_name, _, attribute = reference.partition(":")
         try:
             resolved = getattr(importlib.import_module(module_name), attribute)
         except (ImportError, AttributeError) as error:
-            raise CommandRegistryError(f"{command_id}: guard does not resolve: {error}") from error
+            raise CommandRegistryError(f"{command_id}: {role} does not resolve: {error}") from error
         if not callable(resolved):
-            raise CommandRegistryError(f"{command_id}: guard is not callable")
+            raise CommandRegistryError(f"{command_id}: {role} is not callable")
         if owner == CHROMIUM_OWNER:
-            raise CommandRegistryError(f"{command_id}: a Chromium-owned command cannot carry a Sunshine guard")
+            raise CommandRegistryError(
+                f"{command_id}: a Chromium-owned command cannot carry a Sunshine {role}"
+            )
+
+    reasons = command["unavailable_reasons"]
+    if not isinstance(reasons, list) or any(
+        not isinstance(r, str) or not SEGMENT.fullmatch(r) for r in reasons
+    ):
+        raise CommandRegistryError(f"{command_id}: unavailable_reasons must be snake_case tokens")
+    if reasons != sorted(set(reasons)):
+        raise CommandRegistryError(f"{command_id}: unavailable_reasons must be unique and sorted")
+
+    # The two halves of the availability contract must arrive together. A
+    # predicate with no declared reasons cannot explain a disabled command --
+    # which is the whole point -- and declared reasons with no predicate are a
+    # promise nothing can keep.
+    if bool(command["predicate"]) != bool(reasons):
+        raise CommandRegistryError(
+            f"{command_id}: predicate and unavailable_reasons must both be present or both absent"
+        )
 
     telemetry = command["telemetry"]
     if not isinstance(telemetry, str) or not TELEMETRY.fullmatch(telemetry):
@@ -141,6 +177,14 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
         raise CommandRegistryError(f"{command_id}: errors must be snake_case tokens")
     if len(errors) != len(set(errors)):
         raise CommandRegistryError(f"{command_id}: duplicate error result")
+
+    # A reason says the command cannot start; an error says an offered command
+    # did not finish. One token meaning both hides which of the two happened.
+    overlap = sorted(set(errors) & set(reasons))
+    if overlap:
+        raise CommandRegistryError(
+            f"{command_id}: {overlap} appears as both an unavailable reason and an error"
+        )
     return command_id
 
 

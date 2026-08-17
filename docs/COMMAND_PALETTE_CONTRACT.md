@@ -255,8 +255,11 @@ and `browser.find.previous` are separate identifiers rather than one
 
 ### 4.1 What is shipped today
 
-Section 7.8 requires "disabled-state explanation". The registry offers two
-fields, and neither can produce one.
+Section 7.8 requires "disabled-state explanation". When this contract was
+written the registry offered two fields and neither could produce one. Schema
+version 2 resolved it along the lines set out here; the diagnosis is kept
+because it is the reason the schema has the shape it now has. What follows
+describes schema version 1 unless it says otherwise.
 
 | Field | What it is | Why it cannot explain a disabled row |
 |---|---|---|
@@ -333,13 +336,17 @@ not.
 
 Three further honest consequences:
 
-- The `guard` field is misnamed for what it holds. It points at the authoritative
-  model function, not at a predicate. Either the field is renamed and a separate
-  availability reference added, or `guard` is redefined to mean "the module
-  attribute from which both the availability evaluation and the execution are
-  derived". This contract requires only that the two be derived from one rule
-  so they cannot diverge; it does not choose the spelling. The choice is in the
-  report.
+- The `guard` field was misnamed for what it held: the authoritative model
+  function, not a predicate. **Settled in schema version 2.** `guard` became
+  `implementation`, a side-effect-free `predicate` was added beside it, and
+  `unavailable_reasons` declares the closed set of tokens that predicate may
+  return. The validator requires the predicate and its reasons to be present or
+  absent together, forbids a Chromium-owned command from carrying either, and
+  rejects a token used as both an unavailable reason and an error -- the first
+  says the command cannot start, the second says an offered command did not
+  finish. `tests/test_command_registry.py` calls each predicate with inputs
+  chosen to make it refuse and asserts the returned token was declared, which is
+  the check the old field could not support.
 - Twenty-seven commands currently declare no reason tokens. Every one needs its
   set enumerated by whoever owns it, and for the twenty-one Chromium-owned
   commands that enumeration is a claim about the pinned revision that this wave

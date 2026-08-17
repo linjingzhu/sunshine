@@ -261,3 +261,48 @@ def persistable_layout(layout: SplitLayout | None, *, off_the_record: bool) -> d
         "ratio": layout.ratio,
         "focused_pane": layout.focused_pane,
     }
+
+
+# --- Availability predicates -------------------------------------------------
+#
+# These answer "may this command be offered?" and nothing else. They are
+# side-effect free, they take only browser-process state, and they return either
+# None (available) or the reason token the surface shows the user.
+#
+# They exist because the registry field that used to answer this question,
+# `guard`, does not: every guard is the model function that performs the
+# operation and refuses by raising after receiving full execution inputs. A
+# palette rendering rows by consulting guards would execute the operations it
+# was trying to describe.
+#
+# Every token returned here must be declared in the command's
+# `unavailable_reasons`; `tests/test_command_registry.py` calls each predicate
+# and checks that.
+
+
+def can_open_split(tabs: Iterable[NativeTab], active_workspace_id: str) -> str | None:
+    """Two distinct same-profile tabs must share the active workspace."""
+
+    eligible = _eligible_tabs(tabs, active_workspace_id)
+    if len(eligible) < 2:
+        return "no_eligible_tab_pair"
+    profiles = {tab.off_the_record for tab in eligible.values()}
+    if len(profiles) < 2:
+        return None
+    # Mixed profiles are only a problem when no same-profile pair survives.
+    for off_the_record in profiles:
+        if sum(1 for tab in eligible.values() if tab.off_the_record == off_the_record) >= 2:
+            return None
+    return "no_eligible_tab_pair"
+
+
+def can_close_pane(layout: SplitLayout | None) -> str | None:
+    """A pane can only be closed out of an existing split."""
+
+    return None if layout is not None else "no_split_layout"
+
+
+def can_swap_panes(layout: SplitLayout | None) -> str | None:
+    """Panes can only be exchanged inside an existing split."""
+
+    return None if layout is not None else "no_split_layout"
