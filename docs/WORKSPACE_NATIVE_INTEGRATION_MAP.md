@@ -14,6 +14,16 @@
   through Chromium session tab `extra_data`.
 - The active workspace is window-local and must use Chromium window session
   `extra_data`; it is not a profile-global active selection.
+- The same record carries each workspace's last active tab for that window, as a
+  durable Sunshine tab UUID. `workspace.switch` is specified to restore it, and
+  until `scripts/workspace_model.py` gained `WindowWorkspaceState` nothing stored
+  it -- the behaviour was specified with no owner. It is window-local for the
+  same reason the active workspace is: the catalog is profile-wide, so two
+  windows showing one workspace would overwrite each other. It is a pointer into
+  Chromium's tabs, not a copy of them; when it does not resolve, or resolves to a
+  tab that has since changed workspace, Chromium's own restored active tab wins.
+  Off-the-record windows persist none of it, because a per-workspace record of
+  the last page read is browsing history by another name.
 
 ## Upstream ownership points to verify at the pinned tag
 
