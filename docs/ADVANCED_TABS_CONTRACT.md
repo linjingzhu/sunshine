@@ -585,7 +585,7 @@ Each item is falsifiable at runtime once a native build exists.
    or two while a split is open, regardless of how many workspaces hold tabs.
 8. Closing three tabs from tab search produces one activation change, and the
    successor is in the active workspace.
-9. Reopening a closed tab produces the workspace outcome chosen in Q3, and the
+9. **Not yet evaluable — blocked on Q3.** Reopening a closed tab produces the workspace outcome chosen in Q3, and the
    same outcome from all three reopen surfaces.
 10. No Sunshine-owned file, preference, or catalog field contains a pinned flag,
     a recently-closed entry, a duplicate set, or a canonical-URL table, after a

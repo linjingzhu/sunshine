@@ -356,9 +356,9 @@ calling WebUI origin, and no handler is reachable from ordinary web content.
 
 ### 5.6 Stage 1 security requirements
 
-1. Deny arbitrary `window.open`; route approved popup/new-window requests through a policy handler.
-2. Validate all navigation schemes. Only explicitly supported internal schemes may receive privileged handling.
-3. Use a permission request handler with a default-deny policy until the user has a per-origin decision.
+1. ~~Deny arbitrary `window.open`; route approved popup/new-window requests through a policy handler.~~ **Withdrawn.** Chromium already blocks popups without a user gesture, and a Sunshine handler in front of it is a second owner for a decision the browser makes — the defect this specification forbids everywhere else. `docs/PERMISSION_POLICY.md` holds the inherited behaviour.
+2. Validate all navigation schemes. Only explicitly supported internal schemes may receive privileged handling. Sunshine registers no scheme of its own; see `docs/decisions/0003-internal-scheme.md`.
+3. ~~Use a permission request handler with a default-deny policy until the user has a per-origin decision.~~ **Withdrawn.** `docs/PERMISSION_POLICY.md` sets every capability to `ASK` and keeps Chromium's native prompt, including its anti-abuse and quiet-prompt behaviour. Default-deny sounds stricter and is worse: it denies before the user is asked, so the user never gets the decision this clause says they should have, and it discards years of upstream abuse handling. The contract governs.
 4. Warn before opening executable or script-like downloads; flag extension/MIME mismatch.
 5. Log security-relevant download decisions with provenance and user action.
 6. Separate Sunshine profile OAuth from logging into Google inside a normal browser tab.

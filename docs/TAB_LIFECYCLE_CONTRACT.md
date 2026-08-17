@@ -555,7 +555,7 @@ mirrored tab model; run them first.
 6. Discarding a tab under induced memory pressure leaves its UUID, workspace,
    group, pinned state, and position unchanged, and writes no session command.
 7. A crashed and then reloaded tab keeps its UUID, membership, and pane.
-8. Reopening a recently closed tab recovers its UUID and workspace, or — if
+8. **Not yet evaluable — blocked on `docs/ADVANCED_TABS_CONTRACT.md` Q3.** Reopening a recently closed tab recovers its UUID and workspace, or — if
    extra-data is not carried by the restore path at the pinned tag — joins the
    active workspace with a fresh UUID, deterministically and without duplicating
    an existing UUID.
