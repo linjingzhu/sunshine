@@ -346,8 +346,9 @@ Three further honest consequences:
   finish. `tests/test_command_registry.py` calls each predicate with inputs
   chosen to make it refuse and asserts the returned token was declared, which is
   the check the old field could not support.
-- Twenty-seven commands currently declare no reason tokens. Every one needs its
-  set enumerated by whoever owns it, and for the twenty-one Chromium-owned
+- Twenty-two commands currently declare no reason tokens — the twenty
+  Chromium-owned ones, and two of the four `sunshine.workspace` commands. Every
+  one needs its set enumerated by whoever owns it, and for the Chromium-owned
   commands that enumeration is a claim about the pinned revision that this wave
   has **not** checked against source.
 - Until that change lands, the palette cannot satisfy section 7.8. A palette
@@ -896,13 +897,15 @@ Nothing in this document has been executed. Specifically:
   revision is stated from the documented accelerator model and has **not** been
   checked against source.
 - The reason-token sets that section 4 requires now exist as a schema field
-  (`unavailable_reasons`, schema version 2), populated for the four
-  Sunshine-owned commands and empty for the Chromium-owned ones, whose
-  enumeration is a claim about upstream behaviour this wave did not check.
-  Counts here read 27 registered and 21 Chromium-owned when this contract was
-  written; the registry holds **24 (20 Chromium-owned, 4 `sunshine.workspace`)**
-  since the three `view.split.*` commands were retired to Chromium's native
-  split tabs.
+  (`unavailable_reasons`, schema version 2), populated for `workspace.close` and
+  `workspace.tab.move` and empty for the other twenty-two, whose enumeration is
+  a claim about upstream behaviour this wave did not check.
+  Counts in section 4.3 read 27 registered and 21 Chromium-owned when this
+  contract was written; the registry holds **24 (20 Chromium-owned, 4
+  `sunshine.workspace`)** since the three `view.split.*` commands were retired
+  to Chromium's native split tabs. Those counts are now corrected in place, and
+  `scripts/verify_stated_counts.py` fails the build if they drift again — this
+  note is the record of the drift, not a standing exception to it.
 - `scripts/validate_commands.py` was read, not modified. The registry, the module
   registry, the patch stack, and the localisation resources are unchanged by this
   wave.

@@ -64,6 +64,11 @@ jobs:
       - name: Validate exclusive patch ownership
         run: python scripts/patch_manifest.py
 
+      # Before anything reads what the patches mean: a malformed hunk header
+      # fails at `git apply` time on the build runner, hours into a queue.
+      - name: Verify patch stack integrity
+        run: python scripts/verify_patch_integrity.py
+
       - name: Validate first-party module registry
         run: python scripts/validate_first_party_modules.py
 
@@ -93,6 +98,12 @@ jobs:
 
       - name: Verify the open-decisions index agrees with its sources
         run: python scripts/verify_decision_index.py
+
+      - name: Verify stated counts still match the repository
+        run: python scripts/verify_stated_counts.py
+
+      - name: Verify the acceptance index's own claims resolve
+        run: python scripts/verify_acceptance_claims.py
 
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py

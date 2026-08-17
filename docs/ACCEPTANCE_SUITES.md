@@ -581,28 +581,34 @@ wired to a test. In rough order of cost:
 
 | Criterion | Why it is offline-decidable | Status |
 |---|---|---|
-| `OMNIBOX_CONTRACT` OMA-20 | a source search of first-party sources for a URL parser, TLD list, scheme table or host validator | not implemented |
+| `OMNIBOX_CONTRACT` OMA-20 | a source search of first-party sources for a URL parser, TLD list, scheme table or host validator | **implemented** — `scripts/verify_no_interposition.py` |
 | `TAB_LIFECYCLE_CONTRACT` TLA-2 | a source search for a stored per-tab lifecycle flag | not implemented |
 | `ADVANCED_TABS_CONTRACT` ATA-10, source half | no pinned flag, recently-closed entry, duplicate set or canonical-URL table in any Sunshine-owned file | not implemented |
-| `SIDE_PANEL_CONTRACT` SPA-9 | no Sunshine entry registered for the bookmarks or history panel ids — decidable against `first_party/registry.json` | not implemented |
-| `COMMAND_PALETTE_CONTRACT` CPA-9, declared half | the reason-token sets exist or do not; every entry in `first_party/commands.json` currently declares `unavailable_reasons: []` | not implemented; currently empty for all 24 |
-| `DESIGN_SYSTEM_CONTRACT` S2–S12 | pattern checks over Sunshine-authored CSS in the patch stack | not implemented; S8 recorded as failing |
-| `DESIGN_SYSTEM_CONTRACT` S1 | token existence against pinned sources, by the mechanism `verify_pinned_upstream` already uses | not implemented; see C6 |
-| `SECURITY_CENTER_CONTRACT` SCA-13, collision half | no first-party internal host collides with a compiled upstream host at the pinned revision | not implemented; see C6 |
+| `SIDE_PANEL_CONTRACT` SPA-9 | no Sunshine entry registered for the bookmarks or history panel ids — decidable against `first_party/registry.json` | **implemented** — `scripts/verify_first_party_surfaces.py` |
+| `COMMAND_PALETTE_CONTRACT` CPA-9, declared half | the reason-token sets exist or do not, against `first_party/commands.json` | **implemented** — `scripts/verify_first_party_surfaces.py`; 22 of 24 entries declare an empty set, `workspace.close` and `workspace.tab.move` do not |
+| `DESIGN_SYSTEM_CONTRACT` S2–S12 | pattern checks over Sunshine-authored CSS in the patch stack | **implemented** — `tests/test_design_tokens.py`; S8 failed on first run and is fixed |
+| `DESIGN_SYSTEM_CONTRACT` S1 | token existence against pinned sources, by the mechanism `verify_pinned_upstream` already uses | **implemented** — `tests/test_design_tokens.py` |
+| `SECURITY_CENTER_CONTRACT` SCA-13, collision half | no first-party internal host collides with a compiled upstream host at the pinned revision | **implemented** — `scripts/verify_first_party_surfaces.py` |
 | `TAB_LIFECYCLE_CONTRACT` §15 storage decision | the per-workspace last-active-tab decision is absent from `scripts/workspace_model.py` | **implemented and checked** — `WindowWorkspaceState` stores it in window session extra-data as a pointer into Chromium's tabs, memory-only off the record |
-| `PERFORMANCE_BUDGET` PB-5, cheap form | a source assertion that no Sunshine-owned repeating timer or idle task exists; the contract states it needs no baseline and no build | not implemented |
+| `PERFORMANCE_BUDGET` PB-5, cheap form | a source assertion that no Sunshine-owned repeating timer or idle task exists; the contract states it needs no baseline and no build | **implemented** — `scripts/verify_no_interposition.py` |
 
 Ten cheap gates, all of them non-interposition checks — the class of criterion
 that fails when Sunshine has built something Chromium already owns, which is
 this project's characteristic failure mode. They are the highest-value work
 available before a build exists, and they are worth more than another contract.
 
-**All ten are now implemented**, across `scripts/verify_no_interposition.py`,
+**Eight of the ten are implemented**, across `scripts/verify_no_interposition.py`,
 `scripts/verify_design_tokens.py` and `scripts/verify_first_party_surfaces.py`.
-Enforced invariants went from 0 to 19. The design-system check found two real
-defects on its first run — `font-weight: 650` outside the allowed set with no
-R10 result recorded, and a fluid band the declaration never stated — and both
-are fixed.
+The design-system check found two real defects on its first run —
+`font-weight: 650` outside the allowed set with no R10 result recorded, and a
+fluid band the declaration never stated — and both are fixed.
+
+The two that are **not** implemented are `TAB_LIFECYCLE_CONTRACT` TLA-2 and
+`ADVANCED_TABS_CONTRACT` ATA-10: no check claims either identifier. This
+paragraph read "all ten are now implemented" until
+`scripts/verify_acceptance_claims.py` compared the Status column against what
+`scripts/trace_invariants.py` actually records, and disagreed with it in both
+directions at once — seven rows understated, the summary overstated.
 
 Two groups used to be enforced but uncounted, because they had no stable
 identifier: the ordinal criteria above, and `PERFORMANCE_BUDGET`'s P1..P6, which
