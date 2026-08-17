@@ -13,8 +13,8 @@ index d9d32b0..355c621 100644
 +     letter-space; letting it flip leaves the wordmark a full letter-space
 +     off-centre. */
 +  direction: ltr;
-+  font-size: clamp(2rem, 6vw, 3.5rem);
-+  font-weight: 650;
++  font-size: clamp(2rem, 6vw, 3.5rem); /* fluid 533px-933px at a 16px root */
++  font-weight: 600;
 +  letter-spacing: 0.18em;
 +  line-height: 1;
 +  margin-bottom: var(--ntp-logo-margin-bottom, 38px);

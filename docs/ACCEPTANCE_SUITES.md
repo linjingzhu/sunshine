@@ -570,13 +570,25 @@ wired to a test. In rough order of cost:
 | `DESIGN_SYSTEM_CONTRACT` S2–S12 | pattern checks over Sunshine-authored CSS in the patch stack | not implemented; S8 recorded as failing |
 | `DESIGN_SYSTEM_CONTRACT` S1 | token existence against pinned sources, by the mechanism `verify_pinned_upstream` already uses | not implemented; see C6 |
 | `SECURITY_CENTER_CONTRACT` 13, collision half | no first-party internal host collides with a compiled upstream host at the pinned revision | not implemented; see C6 |
-| `TAB_LIFECYCLE_CONTRACT` §15 storage decision | the per-workspace last-active-tab decision is absent from `scripts/workspace_model.py` | recorded as NOT IMPLEMENTED |
+| `TAB_LIFECYCLE_CONTRACT` §15 storage decision | the per-workspace last-active-tab decision is absent from `scripts/workspace_model.py` | **implemented and checked** — `WindowWorkspaceState` stores it in window session extra-data as a pointer into Chromium's tabs, memory-only off the record |
 | `PERFORMANCE_BUDGET` P5, cheap form | a source assertion that no Sunshine-owned repeating timer or idle task exists; the contract states it needs no baseline and no build | not implemented |
 
 Ten cheap gates, all of them non-interposition checks — the class of criterion
 that fails when Sunshine has built something Chromium already owns, which is
 this project's characteristic failure mode. They are the highest-value work
 available before a build exists, and they are worth more than another contract.
+
+**All ten are now implemented**, across `scripts/verify_no_interposition.py`,
+`scripts/verify_design_tokens.py` and `scripts/verify_first_party_surfaces.py`.
+Enforced invariants went from 0 to 19. The design-system check found two real
+defects on its first run — `font-weight: 650` outside the allowed set with no
+R10 result recorded, and a fluid band the declaration never stated — and both
+are fixed.
+
+Two groups are enforced but uncounted, because they have no stable identifier:
+the ordinal criteria above, and `PERFORMANCE_BUDGET`'s P1..P6, which collide
+with the P0/P1/P2 priority labels every contract uses. §9's proposal to give
+those lists stable prefixes is what would close the gap.
 
 Everything else divides as follows. Class **B** — the great majority: every
 criterion in `TAB_LIFECYCLE_CONTRACT` §13, `OMNIBOX_CONTRACT` §13,

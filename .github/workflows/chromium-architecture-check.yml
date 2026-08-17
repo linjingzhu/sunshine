@@ -51,6 +51,15 @@ jobs:
       - name: Verify the build cannot acquire an account identity
         run: python scripts/verify_account_freedom.py
 
+      - name: Verify Sunshine interposes on nothing Chromium owns
+        run: python scripts/verify_no_interposition.py
+
+      - name: Verify first-party surfaces do not collide or duplicate
+        run: python scripts/verify_first_party_surfaces.py
+
+      - name: Verify Sunshine-authored CSS against the design system
+        run: python scripts/verify_design_tokens.py
+
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py
 

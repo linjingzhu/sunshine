@@ -1,20 +1,37 @@
 # Contract invariants a test or tool claims to enforce, one per line.
 #
-# Empty by design, and that is the finding rather than an omission: of the
-# invariants the contracts declare, almost none can be established without a
-# running browser. They govern what Chromium does when a pane is hidden, what
-# the omnibox commits, what a provider verdict may not relax. An offline suite
-# can check that a patch applies and that a registry is consistent; it cannot
-# check that a hidden tab was not silently activated.
+# A test claims an invariant by writing `Enforces: XX-N` in its docstring. Once
+# claimed and listed here, removing the check fails the build; adding is free.
+# Ratchet up freely, ratchet down on purpose.
 #
-# So this file measures something narrower and still worth having: it stops
-# enforcement from being lost quietly. A test claims an invariant by writing
-# `Enforces: XX-N` in its docstring. Once claimed and listed here, removing the
-# check fails the build. Adding is free.
+# What this number is not: a coverage percentage. Most invariants in this
+# contract set govern what a running browser does -- what happens to a hidden
+# pane, what the omnibox commits, what a provider verdict may not relax -- and
+# no offline suite can establish those. The ones listed here are the subset that
+# a source, registry or patch check can actually decide.
 #
-# The number that matters for planning is in the run report: how much of this
-# contract set is unverifiable until the native build exists.
+# Two families are enforced but uncounted, because they have no stable
+# identifier to cite: the ordinal criteria (SIDE_PANEL 12.9, SECURITY_CENTER 13,
+# COMMAND_PALETTE 14.9, TAB_LIFECYCLE 15) and PERFORMANCE_BUDGET's P1..P6, which
+# collide with the P0/P1/P2 priority labels every contract uses. Giving those
+# lists stable prefixes is an open decision in ACCEPTANCE_SUITES section 9.
 
+AT-1
+AT-9
+AT-12
+OS-9
 PO-A1
 PO-A2
 PO-A3
+S1
+S2
+S3
+S4
+S5
+S6
+S7
+S8
+S9
+S10
+S11
+S12

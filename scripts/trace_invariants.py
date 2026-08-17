@@ -35,7 +35,14 @@ INVARIANT = re.compile(r"\b([A-Z]{1,3}-?[A-Z]?\d{1,2})\b")
 
 # Families a contract actually uses. Without this the pattern also matches
 # version numbers, Chromium symbols and ordinary prose like "P1".
-FAMILIES = ("AT", "OS", "SC", "OT", "OC", "OP", "PO", "D", "R", "E", "SP")
+#
+# "P" is deliberately absent even though PERFORMANCE_BUDGET numbers its budgets
+# P1..P6. Every contract also uses P0/P1/P2 for decision priority, and those are
+# far more common -- 23 occurrences in that document alone -- so admitting the
+# family would turn a priority label into an invariant everywhere. The budgets
+# need a distinct prefix before they can be counted; until then their checks are
+# real and uncounted, like the ordinal criteria.
+FAMILIES = ("AT", "OS", "SC", "OT", "OC", "OP", "PO", "S", "D", "R", "E", "SP")
 
 
 def _identifiers(text: str) -> set[str]:
