@@ -30,6 +30,22 @@ Set the repository Actions variable `SUNSHINE_CHROMIUM_WORKSPACE` to the persist
 
 The runner also needs `DEPOT_TOOLS_WIN_TOOLCHAIN=0` in the machine environment. Without it `gclient sync` tries to fetch a Google-internal toolchain and fails.
 
+## Authenticate to googlesource before the first sync
+
+Syncing Chromium clones well over a hundred dependency repositories. Anonymous requests share one server-side quota pool, and a multi-core runner exhausts it:
+
+```
+remote: RESOURCE_EXHAUSTED  subject: "shared/shared_anonymous"
+remote: "Short term server-time rate limit exceeded"
+fatal: The requested URL returned error: 429
+```
+
+Sign in once at <https://chromium.googlesource.com/new-password> and run the credential snippet it generates. This moves the runner out of the shared anonymous pool and is the reliable fix.
+
+The bootstrap also bounds concurrency with `--jobs`, defaulting to 8 rather than gclient's one-job-per-core. Lower it further if an unauthenticated runner still hits 429.
+
+An interrupted sync resumes: everything already fetched stays in the workspace. Delete `_bad_scm` between attempts if it accumulates; gclient moves conflicting directories there when a clone fails partway.
+
 ## Workspace ownership
 
 The Chromium workspace belongs to the build, not to a person. The pipeline runs `bootstrap_chromium.py --reset`, which discards modifications to tracked upstream files so a changed patch stack does not stop the next build for manual cleanup.
