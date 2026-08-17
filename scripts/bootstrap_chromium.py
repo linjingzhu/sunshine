@@ -23,13 +23,18 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 # Running the two steps directly lets the job count be bounded. Authenticating to
 # googlesource leaves the shared anonymous quota pool entirely and is the better
 # fix; see docs/WINDOWS_CHROMIUM_BUILD.md.
+#
+# checkout_pgo_profiles is off by default, and without it an official build
+# stops during GN generation: default_pgo_flags asks update_pgo_profiles.py for
+# a profile path and gets nothing. Turning off PGO instead would quietly weaken
+# the release configuration that docs/SIZE_BUDGET.md pins.
 CHROMIUM_SPEC = (
     'solutions = [\n'
     '  {\n'
     '    "name": "src",\n'
     '    "url": "https://chromium.googlesource.com/chromium/src.git",\n'
     '    "custom_deps": {},\n'
-    '    "custom_vars": {},\n'
+    '    "custom_vars": {"checkout_pgo_profiles": True},\n'
     '  },\n'
     ']\n'
 )
@@ -147,8 +152,11 @@ def main() -> int:
     jobs = f"-j{args.jobs}"
     if not args.skip_fetch:
         workspace.mkdir(parents=True, exist_ok=True)
+        # Written on every run, not just the first. `gclient config` only
+        # rewrites .gclient, so an existing workspace picks up a changed spec
+        # -- such as newly requesting PGO profiles -- on its next sync.
+        run("gclient", "config", "--spec", CHROMIUM_SPEC, cwd=workspace)
         if not src.exists():
-            run("gclient", "config", "--spec", CHROMIUM_SPEC, cwd=workspace)
             run("gclient", "sync", "--nohooks", jobs, cwd=workspace)
 
     if not (src / ".git").exists():
