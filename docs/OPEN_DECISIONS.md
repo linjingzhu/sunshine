@@ -28,6 +28,7 @@ direction sees the same thing.
 | What behaviour is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | handoff §11, `docs/DOWNLOAD_SAFETY.md` | download release |
 | What is the default profile and data deletion and backup policy? | handoff §11 | persistence release |
 | Is partial extension compatibility acceptable for v1? | handoff §11 | Stage 1 architecture gate |
+| Should `GOOGLE_API_KEY` be set on the owner's machine? Without it the build runs with no Safe Browsing. Setting it restores the keyed services and does **not** enable sign-in — only the OAuth client does that. | `docs/decisions/0005-google-api-keys.md` | daily-use safety |
 
 ## P1 — shapes the work, does not stop it
 
@@ -62,6 +63,7 @@ reader may arrive holding the old question.
 | Is `font-weight: 650` resolvable? | Changed to 600, inside the allowed set; `docs/DESIGN_SYSTEM_CONTRACT.md` S8 now passes |
 | Do the New Tab colour tokens exist upstream? | Yes — `kColorNewTabPagePrimaryForeground` at the pinned tag; checked in CI |
 | Is `proprietary_codecs=false` intended? | `docs/decisions/0004-media-codecs.md` — enabled under a personal-use premise, to be revisited before any distribution |
+| May the build warn that Google API keys are missing? | `docs/decisions/0005-google-api-keys.md` — no; PO-A15 forbids presenting local-only operation as an incomplete setup, and the infobar is patched out |
 
 ## Keeping this honest
 

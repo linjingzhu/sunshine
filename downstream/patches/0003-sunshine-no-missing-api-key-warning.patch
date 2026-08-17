@@ -1,0 +1,21 @@
+diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
+--- a/chrome/browser/ui/startup/infobar_utils.cc
++++ b/chrome/browser/ui/startup/infobar_utils.cc
+@@ -185,9 +185,14 @@
+   infobars::ContentInfoBarManager* infobar_manager =
+       infobars::ContentInfoBarManager::FromWebContents(web_contents);
+
+-  if (!google_apis::HasAPIKeyConfigured()) {
+-    GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+-  }
++  // Sunshine ships no Google API key by design, so upstream's infobar fires on
++  // every launch. PO-A15 in docs/PROFILE_ONBOARDING_CONTRACT.md forbids any
++  // surface that presents local-only operation as an error or an incomplete
++  // setup, and this is one: upstream addresses a Chromium developer who forgot
++  // to configure keys, whereas here the keyless build is the product.
++  //
++  // What the infobar warned about is real and is not hidden with it. See
++  // docs/decisions/0005-google-api-keys.md for what stays disabled.
+
+   if (ObsoleteSystem::IsObsoleteNowOrSoon()) {
+     PrefService* local_state = g_browser_process->local_state();
