@@ -1,3 +1,10 @@
+---
+doc_id: ai-reporting
+version: 1.0.0
+canonical_path: .ai/REPORTING.md
+updated: 2026-08-13
+---
+
 # Formal Development Reporting
 
 The Manager reports once per meaningful run. Worker logs are internal unless requested.

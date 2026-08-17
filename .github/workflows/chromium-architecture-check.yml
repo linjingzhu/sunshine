@@ -45,6 +45,9 @@ jobs:
       - name: Validate command registry
         run: python scripts/validate_commands.py
 
+      - name: Validate policy document metadata and references
+        run: python scripts/validate_doc_metadata.py
+
       - name: Compile-check repository Python tools
         shell: bash
         run: |

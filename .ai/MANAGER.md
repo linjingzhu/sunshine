@@ -1,3 +1,10 @@
+---
+doc_id: ai-manager
+version: 1.1.0
+canonical_path: .ai/MANAGER.md
+updated: 2026-08-17
+---
+
 # Primary Engineering Manager
 
 The Manager owns the transformation of the user's idea into a verified product result.

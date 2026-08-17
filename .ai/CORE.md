@@ -1,3 +1,10 @@
+---
+doc_id: ai-core
+version: 1.1.0
+canonical_path: .ai/CORE.md
+updated: 2026-08-17
+---
+
 # Core Development Constitution
 
 These rules are the stable quality floor. Execution strategy may adapt; these rules do not.
@@ -48,6 +55,69 @@ Optimize **useful development per token**, not session count.
 - Do not duplicate the same research across workers.
 - Reviewers receive requirements, diff, tests, and relevant context—not the implementer's full reasoning history.
 - Do not fabricate exact token/cost metrics when tooling does not expose them.
+
+## Document versioning
+
+Policy documents carry a version; their filenames and paths do not. The rule is
+**stable identity, mutable version**: a document's identity is its `doc_id` and
+its canonical path, and neither moves because its contents changed.
+
+Every policy document opens with exactly this metadata and nothing more:
+
+```text
+---
+doc_id: ai-manager
+version: 1.0.0
+canonical_path: .ai/MANAGER.md
+updated: 2026-08-17
+---
+```
+
+- `doc_id` is permanent. It survives edits, rewrites, and a move. Change it only
+  when the document's responsibility changes enough that it is a different
+  document, which is rare enough to be worth arguing for.
+- `canonical_path` is the one address other documents may use.
+- `version` is `MAJOR.MINOR.PATCH`, judged by policy impact, never bumped
+  mechanically:
+  - **PATCH** — wording, typos, clearer examples. Behaviour is unchanged.
+  - **MINOR** — a new rule or an extended behavioural contract that leaves the
+    existing structure intact.
+  - **MAJOR** — a break in Manager or Worker responsibility, the execution
+    contract, or integration ownership. Anything an agent following the previous
+    version would now get wrong.
+- `updated` is the date of the last meaningful change, not of the last commit
+  that touched the file.
+
+Append-only memory (`.ai/memory/PROJECT_LESSONS.md`) and run reports
+(`.ai/reports/`) carry no version. Appending a lesson is not a policy revision,
+and versioning an immutable record says nothing.
+
+### Reference stability
+
+> Document references MUST use stable canonical paths or stable `doc_id`.
+> Never reference a document by versioned filename.
+> A version change MUST NOT require reference updates unless the document's
+> responsibility or canonical location actually changes.
+
+Versioned filenames — `MANAGER_v2.md`, `EXECUTION_1.3.0.md` — are prohibited.
+They put the version in the one place every other document has to know, so a
+version bump becomes an edit to every file that cites it.
+
+Renaming or moving is a separate act from versioning, and never a consequence of
+it. When a canonical path genuinely must change: find every existing reference
+first, update `canonical_path`, keep the `doc_id`, and verify no stale reference
+survives. `scripts/validate_doc_metadata.py` enforces all of this and runs in
+CI, so a broken reference fails the build rather than waiting to mislead an
+agent.
+
+### Versioning is not reporting
+
+This changes what is tracked, not what is said. The reporting contract in
+`.ai/REPORTING.md` is unchanged -- one report per meaningful run, worker logs
+internal -- and versioning adds nothing to it: do not announce version bumps, do
+not recite metadata, and do not accumulate change logs inside the documents. Git
+history is the source of truth for how a document got here; the metadata only
+says where it is now.
 
 ## Build platform
 

@@ -1,3 +1,10 @@
+---
+doc_id: ai-review
+version: 1.0.0
+canonical_path: .ai/REVIEW.md
+updated: 2026-08-13
+---
+
 # Adversarial Review Policy
 
 Review should try to disprove correctness, not confirm the implementer's confidence.

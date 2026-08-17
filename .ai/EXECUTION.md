@@ -1,3 +1,10 @@
+---
+doc_id: ai-execution
+version: 1.0.0
+canonical_path: .ai/EXECUTION.md
+updated: 2026-08-13
+---
+
 # Execution, Mission Packs, and Sessions
 
 ## Core model
