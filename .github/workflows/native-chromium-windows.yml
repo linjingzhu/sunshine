@@ -2,6 +2,11 @@ name: Native Chromium Windows Build
 
 on:
   workflow_dispatch:
+    inputs:
+      ninja_jobs:
+        description: "Parallel compile jobs. Blank saturates the machine; set it when the runner is also a workstation."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -27,6 +32,7 @@ jobs:
         shell: pwsh
         env:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+          SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}
         run: ./scripts/build_chromium_windows.ps1
 
       - name: Upload unsigned internal test installer

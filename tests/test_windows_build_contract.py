@@ -58,7 +58,7 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn("bootstrap_chromium.py", text)
         self.assertIn("gn gen", text)
         self.assertIn("autoninja", text)
-        self.assertIn("chrome mini_installer", text)
+        self.assertIn('@("chrome", "mini_installer")', text)
         self.assertNotIn("electron", text.lower())
 
     def test_release_and_size_contracts_are_enforced(self) -> None:
@@ -81,6 +81,17 @@ class WindowsBuildContractTests(unittest.TestCase):
         """
 
         self.assertIn("bootstrap_chromium.py\") --workspace $workspacePath --reset", SCRIPT.read_text(encoding="utf-8"))
+
+    def test_compile_parallelism_is_capped_when_asked(self) -> None:
+        """The runner is also the owner's workstation, so it must stay usable."""
+
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("SUNSHINE_NINJA_JOBS", script)
+        self.assertIn('$ninjaArguments += @("-j", $NinjaJobs)', script)
+
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("ninja_jobs:", workflow)
+        self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
 
 
 if __name__ == "__main__":

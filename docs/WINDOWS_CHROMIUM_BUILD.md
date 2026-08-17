@@ -35,6 +35,12 @@ The Chromium workspace belongs to the build, not to a person. The pipeline runs 
 
 Do not use this workspace for manual Chromium edits you want to keep.
 
+## Sharing the machine
+
+`autoninja` schedules roughly core count plus two jobs, which leaves a workstation unusable for the length of a build. The workflow takes an optional **Parallel compile jobs** input, forwarded as `SUNSHINE_NINJA_JOBS`, that caps it.
+
+Leave it blank on a dedicated runner. On a machine that is also in daily use, keep two to four threads free — on a 12-core runner, `8` keeps the desktop responsive and costs roughly half again the compile time. Running the runner process at below-normal priority helps further.
+
 ## Workflow
 
 Run **Native Chromium Windows Build** manually after a downstream patch PR is merged:
