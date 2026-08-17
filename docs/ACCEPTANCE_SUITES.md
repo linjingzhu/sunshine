@@ -416,17 +416,26 @@ with no owning document.
 
 **U3 — file upload has no contract.** Section 3.1, A1.3.
 
-**U4 — there is no telemetry sink, so five of the seven §6.8 items and four of
-the five §7.9 candidates cannot produce evidence.** The events are specified —
-`Sunshine.Command.*` on all twenty-four registered commands, the
-`GESTURE_CONTRACT` §7 set, the `DOWNLOAD_SAFETY` 6 warning events. Nothing
-receives them. `EXTENSION_COMPATIBILITY_GATE` states that telemetry and crash
-reporting must not be assumed to exist, which is honest and leaves every rate in
-§6.8 unmeasurable. `PERFORMANCE_BUDGET` §9 raises the same question from its own
-side — whether Sunshine emits UMA in shipping builds at all, or whether these
-are lab-only measurements — and notes that `SIDE_PANEL_CONTRACT` D1 already
-assumes a session histogram exists. It is one question with at least three
-documents depending on the answer, and it dominates Stage 2 acceptance.
+**U4 — answered by `docs/TELEMETRY_CONTRACT.md`: Sunshine records, and does not
+report.** The events are specified — `Sunshine.Command.*` on all twenty-four
+registered commands and the `GESTURE_CONTRACT` §7 set. (This finding originally
+counted the `DOWNLOAD_SAFETY` warning events too; those are Chromium's
+`DownloadItemWarningData` events on Chromium's own pipeline, and that contract
+forbids sending download data to a Sunshine service at all.)
+
+The resolution is that the numbers the acceptance suites need never have to
+leave the machine. Three independent upstream gates are already closed in a
+build that is not Chrome-branded, which Sunshine's is not: reporting is disabled
+outright in non-official builds, the server URLs are deliberately empty to stop
+forks sending metrics to Google, and the crash upload URL is empty on the same
+condition. So histograms are recorded in-process and read through upstream's own
+tools; there is no consent state because there is no reporting state.
+
+That closes the question `PERFORMANCE_BUDGET` §9 and `SIDE_PANEL_CONTRACT` D1
+were both waiting on. It does not make the §6.8 rates automatic: a recorded
+histogram still has to be exported per browsing day rather than once at the end,
+and off-the-record activity is deliberately not recorded at all, so dogfood
+counts under-report by an unknowable amount.
 
 **U5 — the performance budget is a delta budget, and the acceptance suites ask
 absolute questions.** `docs/PERFORMANCE_BUDGET.md` settles handoff §9.2 with six

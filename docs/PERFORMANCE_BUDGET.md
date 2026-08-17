@@ -425,7 +425,7 @@ compensating downstream creates a second owner of upstream behaviour.
 | Handoff §9.2, "memory with 10/30 tabs" | Does not state the workspace distribution, which is the only variable that makes the number Sunshine's rather than Chromium's. P2a and P4 fixture (c) supply it |
 | Handoff §9.2, "browser launch" | Does not distinguish cold from warm. `Startup.Temperature` exists at the pinned tag precisely because the distinction changes the number more than any product decision would |
 | `docs/SIZE_BUDGET.md` and the handoff | The size baseline is to be established by "the first native macOS release build"; the handoff's primary target is Windows desktop. Two documents, two reference platforms. This document does not choose; §9 raises it |
-| `scripts/verify_pinned_upstream.py` | Its `CITATION` regex matches only paths under `base`, `chrome`, `components`, `content`, `net`, `services`, `third_party`, and `ui`, with a source-file suffix. The `tools/perf/...` citations in §3 are therefore **not** covered by the CI existence check. They were fetched from the mirror by hand on 2026-08-17. Adding `tools` to that alternation, and `.csv` to the suffix list, would close the gap |
+| `scripts/verify_pinned_upstream.py` | ~~Its `CITATION` regex does not match `tools/...` or `.csv`, so the `tools/perf/...` citations in §3 are not CI-checked.~~ **Fixed.** This was true when written and was the finding that prompted the fix: the regex now covers `tools` and `build`, and the `csv`, `json`, `gn`, `gni` and `xml` suffixes. Every path this document cites is CI-checked at the pinned revision |
 
 ## 9. Open decisions for the product owner
 
