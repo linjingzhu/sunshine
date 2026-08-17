@@ -183,7 +183,18 @@ def main() -> int:
     if args.reset:
         checkout.append("--force")
     run(*checkout, "FETCH_HEAD", cwd=src)
-    run("gclient", "sync", jobs, cwd=workspace)
+
+    # An interrupted sync can leave a dependency checkout that gclient will not
+    # reconcile on its own; it tries to rebase and gives up with "Unrecognized
+    # error, please merge or rebase manually". In a build-owned workspace the
+    # pinned revision always wins, so force a hard checkout of the dependency
+    # rather than requiring someone to repair it by hand. Untracked trees are
+    # deliberately left alone, which keeps out/Sunshine and its incremental
+    # build intact.
+    sync = ["gclient", "sync", jobs]
+    if args.reset:
+        sync += ["--force", "--reset"]
+    run(*sync, cwd=workspace)
 
     for patch_name in patch_names:
         patch_path = ROOT / "downstream/patches" / patch_name
