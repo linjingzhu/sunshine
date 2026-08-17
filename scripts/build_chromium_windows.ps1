@@ -62,11 +62,19 @@ $gnArgs = @(
   "use_remoteexec=false",
   "proprietary_codecs=false",
   'ffmpeg_branding="Chromium"'
-) -join " "
+)
+
+# Written to args.gn rather than passed through --args. PowerShell strips the
+# embedded quotes when it hands an argument to a native command, so GN received
+# ffmpeg_branding=Chromium and rejected Chromium as an undefined identifier.
+# A file removes shell quoting from the path entirely, and leaves the exact
+# build configuration readable in the output directory afterwards.
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+Set-Content -Path (Join-Path $out "args.gn") -Value $gnArgs -Encoding utf8
 
 Push-Location $src
 try {
-  gn gen "out/Sunshine" "--args=$gnArgs"
+  gn gen "out/Sunshine"
   if ($LASTEXITCODE -ne 0) { throw "GN generation failed." }
 
   $ninjaArguments = @("-C", "out/Sunshine")
