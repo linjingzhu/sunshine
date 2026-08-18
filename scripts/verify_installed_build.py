@@ -25,6 +25,7 @@ import argparse
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -145,6 +146,86 @@ def check_no_registered_scheme(result: Result) -> None:
             result.record(PASSED, f"{scheme}:// is not registered", "SEC-13")
 
 
+def check_chrome_launches(out: Path, result: Result) -> None:
+    """The one check that answers "does this actually run," not just "does the
+    configuration that produced it look right."
+
+    Every other check in this file reads a file or a registry key -- evidence
+    that is consistent with a browser that works, but also consistent with one
+    that is missing a resource, links against a DLL that is not beside it, or
+    is silently killed the instant it starts. `chrome.exe --version` is the
+    cheapest code path that exercises real process startup: it initializes
+    enough of the binary to print its own version string, then exits, without
+    opening a window, touching a profile directory, or needing the sandbox this
+    project will not weaken to get a faster smoke test.
+
+    This is also the only check positioned to catch what a build machine's own
+    antivirus or SmartScreen might do to an unsigned, freshly compiled binary --
+    a class of failure that leaves every artifact on disk, at a plausible size,
+    built with the right arguments, and still unable to run. A person watching
+    a blank screen after double-clicking the installer cannot tell that story
+    apart from a genuinely broken build; this check can, because it captures
+    the real exit code and output instead of a closed window.
+    """
+
+    if sys.platform != "win32":
+        result.record(
+            UNAVAILABLE,
+            "chrome.exe launches and reports its version",
+            f"needs Windows; this is {sys.platform}",
+        )
+        return
+
+    chrome = out / "chrome.exe"
+    if not chrome.is_file():
+        # check_artifacts already recorded this as FAILED; recorded again here
+        # would just restate it, and there is nothing to launch.
+        return
+
+    try:
+        completed = subprocess.run(
+            [str(chrome), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        result.record(
+            FAILED,
+            "chrome.exe launches and reports its version",
+            "did not exit within 30s -- hung, or waiting on something interactive",
+        )
+        return
+    except OSError as error:
+        # The shape a real-time antivirus quarantine or a SmartScreen block
+        # takes: the file is on disk (check_artifacts passed) but the OS
+        # refuses to start it. WinError 5 is access denied; WinError 1260 is
+        # "blocked by your organization's policy."
+        result.record(
+            FAILED,
+            "chrome.exe launches and reports its version",
+            f"process could not start: {error}",
+        )
+        return
+
+    output = (completed.stdout + completed.stderr).strip()
+    if completed.returncode != 0:
+        result.record(
+            FAILED,
+            "chrome.exe launches and reports its version",
+            f"exit code {completed.returncode}: {output or '(no output)'}",
+        )
+        return
+    if not output:
+        result.record(
+            FAILED,
+            "chrome.exe launches and reports its version",
+            "exited 0 but printed nothing -- not the version-print code path",
+        )
+        return
+    result.record(PASSED, "chrome.exe launches and reports its version", output)
+
+
 def resolve_out(explicit: str | None) -> Path | None:
     if explicit:
         return Path(explicit)
@@ -175,6 +256,7 @@ def main() -> int:
     check_artifacts(out, result)
     check_build_arguments(out, result)
     check_no_registered_scheme(result)
+    check_chrome_launches(out, result)
 
     print(f"Built browser at {out}")
     print(result.report())

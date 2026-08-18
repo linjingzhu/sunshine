@@ -4,26 +4,29 @@
 
 This is a re-assessment, not a design and not an implementation. It answers one
 question the product owner asked twice: earlier in this project's life, with
-zero native source in the tree, and again now that patch `0004` (`chrome://sunshine-security`)
-has a compiled build behind it and ADR 0007 has designed — but not yet landed —
-a seam that lets further WebUI surfaces plug in without touching upstream
-files. No patch, code, module manifest, or registry entry is created, changed,
-or proposed by this document. No product decision is made here; every place a
-command's shape depends on an open P0 is cited and left open.
+zero native source in the tree, and again now that the security surface
+(`chrome://sunshine-security`, patch `0005-sunshine-security-webui`) has a
+compiled build behind it and ADR 0007's seam
+(`0004-sunshine-webui-seam`) has landed, letting further WebUI surfaces plug
+in without touching upstream files. No patch, code, module manifest, or
+registry entry is created, changed, or proposed by this document. No product
+decision is made here; every place a command's shape depends on an open P0 is
+cited and left open.
 
-**On the seam itself.** `downstream/patches/series` holds four patches today —
+**On the seam itself.** `downstream/patches/series` holds five patches today —
 `0001-sunshine-branding`, `0002-sunshine-new-tab`,
-`0003-sunshine-no-missing-api-key-warning`, `0004-sunshine-security-webui` —
-checked at the time this roadmap was written. No fifth patch implementing the
-ADR 0007 seam is in that series yet, and `git log --oneline -15` shows no
-commit landing one. Everything below that depends on the seam existing is
-written as **"the sequence below assumes the seam described in
-`docs/decisions/0007-module-contribution-seam.md` exists once it lands,"**
-never as a claim that it exists today. Whether patch `0004` itself has ever
-been exercised in a real compile is outside what this repository's tracked
-history can confirm — no build log, module manifest entry, or test result for
-it exists in this tree — so that claim is treated the same way: reported as
-context this session was given, not verified independently here.
+`0003-sunshine-no-missing-api-key-warning`, `0004-sunshine-webui-seam`,
+`0005-sunshine-security-webui`. The seam described in
+`docs/decisions/0007-module-contribution-seam.md` is now the fourth of those,
+and the security surface it was designed for has been renumbered behind it —
+which is the seam doing exactly what the ADR said it would: a surface patch
+that once edited seven upstream files now appends to a registry the seam
+created.
+
+What the seam has *not* had is a compile. Everything below is sequencing
+against a mechanism verified in source and against the pinned revision, not
+against a built browser; `docs/RUNTIME_VERIFICATION.md` owns that distinction
+and this roadmap does not claim to close it.
 
 ## 1. The re-assessment
 
@@ -35,14 +38,15 @@ longer holds in the same shape, but the shape it changed into is narrower than
 
 What actually changed:
 
-- One WebUI surface (`chrome://sunshine-security`, patch `0004`) has gone from
+- One WebUI surface (`chrome://sunshine-security`, patch `0005`) has gone from
   contract to patch. `docs/decisions/0007-module-contribution-seam.md` records
   that this single build is what let the seam be designed at all — the seam is
   an abstraction over machinery ADR 0007 says was, at the time of its writing,
   entirely unexercised.
-- A seam design exists that would drop the marginal cost of a second WebUI
-  surface from seven upstream-file edits to zero upstream-file edits, once
-  built. It has not been built.
+- The seam (`0004-sunshine-webui-seam`) has now been built, dropping the
+  marginal cost of a second WebUI surface from seven upstream-file edits to
+  zero upstream-file edits: the security surface's own patch no longer
+  touches any of the seven, only the seam's own registry files.
 - **Neither change touches the command registry.** `first_party/commands.json`
   holds 24 commands, and reading every one of them (section 2 below) finds
   that not one is itself a WebUI-surface-shaped command — no entry in the
@@ -169,7 +173,7 @@ This is the load-bearing finding of this re-assessment, so it is stated
 plainly: **no command in `first_party/commands.json` is itself a
 WebUI-surface-shaped command.** Nothing in the registry navigates to a
 `chrome://` or `chrome-untrusted://` route. The pages this project has
-actually built or contracted — `chrome://sunshine-security` (patch `0004`,
+actually built or contracted — `chrome://sunshine-security` (patch `0005`,
 contracted in `docs/SECURITY_CENTER_CONTRACT.md`) and
 `chrome://sunshine-document` (contracted in `docs/DOCUMENT_SURFACE_CONTRACT.md`,
 "the first test of whether [the] seam is worth having" per ADR 0007) — are
@@ -195,14 +199,14 @@ of a registry category that in fact holds none.
 The sequence below assumes the seam described in
 `docs/decisions/0007-module-contribution-seam.md` exists once it lands, per
 this document's opening caveat. It is an order, not a timeline, ranked by: not
-blocked on an open P0 first; smallest genuine increment over what `0004`
+blocked on an open P0 first; smallest genuine increment over what `0005`
 already proved second; the handoff's own wave priorities third
 (`docs/SUNSHINE_OS_STAGE_1_TO_3_IMPLEMENTATION_HANDOFF.md` §10 places Security
 Center at wave 7 and command palette/workspaces at wave 9 — document surface
 is not in that table at all, being contracted after the handoff was written).
 
 1. **Register `chrome://sunshine-security` as a first-party module.**
-   Smallest possible increment: the WebUI itself is already patched (`0004`);
+   Smallest possible increment: the WebUI itself is already patched (`0005`);
    what is missing is a `module.json` for it and an entry in
    `first_party/registry.json`, in the same shape as the existing
    `sunshine.new_tab` and `sunshine.workspace` entries. Not blocked: ADR

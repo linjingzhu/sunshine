@@ -1,4 +1,4 @@
-"""What `0004-sunshine-security-webui.patch` must keep being true.
+"""What `0005-sunshine-security-webui.patch` must keep being true.
 
 The page states whether Safe Browsing is protecting this browser. A page that
 says the wrong thing here is worse than no page: `docs/SECURITY_CENTER_CONTRACT.md`
@@ -19,7 +19,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCH = ROOT / "downstream/patches/0004-sunshine-security-webui.patch"
+PATCH = ROOT / "downstream/patches/0005-sunshine-security-webui.patch"
 
 # The registrations ADR 0003 forbids Sunshine to add. Each is a file the
 # decision names by path; touching one is how a scheme would arrive.

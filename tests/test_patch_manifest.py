@@ -9,6 +9,15 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/patch_manifest.py"
 
+# The seam's own registry files: created empty by
+# `0004-sunshine-webui-seam.patch`, extended with one surface's registration
+# by `0005-sunshine-security-webui.patch`. See
+# `docs/decisions/0007-module-contribution-seam.md`.
+KNOWN_EXTENDED_REGISTRIES = frozenset({
+    "chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h",
+    "chrome/common/sunshine/sunshine_webui_hosts.h",
+})
+
 
 def load_manifest():
     spec = importlib.util.spec_from_file_location("patch_manifest", SCRIPT)
@@ -260,6 +269,14 @@ class PatchManifestTests(unittest.TestCase):
         `--- /dev/null` for the same file. If a hand-edit ever leaves one
         without the other, the manifest's answer to "is this an upstream path?"
         stops matching what `git apply` will actually do.
+
+        A path may legitimately be both created and modified now:
+        `docs/decisions/0007-module-contribution-seam.md`'s seam creates a
+        registry file empty, and a surface patch later extends it, which is
+        exactly `SeamExtensionTests` above. That is allowed only for the
+        registry files the seam actually built this way, named in
+        `KNOWN_EXTENDED_REGISTRIES` below -- an unlisted overlap is still
+        almost certainly a mistake, not a seam.
         """
 
         directory = ROOT / "downstream/patches"
@@ -279,9 +296,10 @@ class PatchManifestTests(unittest.TestCase):
             )
 
         self.assertEqual(
-            set(),
+            KNOWN_EXTENDED_REGISTRIES,
             created & modified,
-            "a path cannot be both created and modified by the stack",
+            "a path may be both created and modified only by one of the seam's "
+            "own registry files",
         )
         self.assertEqual(created | modified, set(self.module.patch_targets(ROOT, entries)))
 

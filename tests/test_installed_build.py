@@ -8,6 +8,7 @@ execute. Each of those must be distinguishable from a pass.
 
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -91,6 +92,82 @@ class PlatformHonestyTests(unittest.TestCase):
         result.record(built.UNAVAILABLE, "something else")
         self.assertTrue(result.unavailable)
         self.assertFalse(result.failed)
+
+
+class LaunchCheckTests(unittest.TestCase):
+    """`chrome.exe --version` is the one check that exercises real process
+    startup rather than reading a file or a registry key. These pin the
+    failure shapes that all leave every artifact on disk, at a plausible
+    size, and still unable to run -- the exact gap between "the build
+    succeeded" and "a person can use the browser."
+    """
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.out = Path(self.directory.name)
+        self.addCleanup(self.directory.cleanup)
+        (self.out / "chrome.exe").write_bytes(b"x" * 1024)
+
+    def run_check(self):
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "win32"):
+            built.check_chrome_launches(self.out, result)
+        return result
+
+    def test_off_windows_is_unavailable_not_a_pass(self) -> None:
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "linux"):
+            built.check_chrome_launches(self.out, result)
+        self.assertTrue(result.unavailable)
+        self.assertFalse(result.failed)
+
+    def test_a_missing_binary_reports_nothing_new(self) -> None:
+        """`check_artifacts` already failed on this; a second, identically
+        worded failure here would just be noise."""
+
+        (self.out / "chrome.exe").unlink()
+        result = self.run_check()
+        self.assertEqual([], result.rows)
+
+    def test_a_clean_version_print_passes(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="Sunshine OS 152.0.7977.42\n", stderr="")
+        with mock.patch.object(built.subprocess, "run", return_value=completed):
+            result = self.run_check()
+        self.assertFalse(result.failed)
+        self.assertIn(
+            (built.PASSED, "chrome.exe launches and reports its version", "Sunshine OS 152.0.7977.42"),
+            result.rows,
+        )
+
+    def test_a_nonzero_exit_fails(self) -> None:
+        completed = subprocess.CompletedProcess([], 1, stdout="", stderr="fatal error\n")
+        with mock.patch.object(built.subprocess, "run", return_value=completed):
+            result = self.run_check()
+        self.assertTrue(result.failed)
+        self.assertIn("exit code 1", result.rows[0][2])
+
+    def test_a_hang_fails_rather_than_blocking_forever(self) -> None:
+        with mock.patch.object(
+            built.subprocess, "run", side_effect=built.subprocess.TimeoutExpired(cmd="chrome.exe", timeout=30)
+        ):
+            result = self.run_check()
+        self.assertTrue(result.failed)
+        self.assertIn("30s", result.rows[0][2])
+
+    def test_a_blocked_launch_fails_with_the_os_error(self) -> None:
+        """The shape a real-time antivirus quarantine or SmartScreen block
+        takes: the file exists, but the OS refuses to start it."""
+
+        with mock.patch.object(built.subprocess, "run", side_effect=OSError(5, "Access is denied")):
+            result = self.run_check()
+        self.assertTrue(result.failed)
+        self.assertIn("could not start", result.rows[0][2])
+
+    def test_exit_zero_with_no_output_is_not_the_version_path(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with mock.patch.object(built.subprocess, "run", return_value=completed):
+            result = self.run_check()
+        self.assertTrue(result.failed)
 
 
 class InvocationTests(unittest.TestCase):
