@@ -33,10 +33,12 @@ import verify_stated_counts as counts  # noqa: E402
 # a subset of this: fixing a document keeps the test green, adding a new stale
 # count turns it red. Delete an entry once its document is corrected.
 # Empty, and kept rather than deleted. It held one entry -- a dated measurement
-# in ACCEPTANCE_SUITES section 8, written when nothing could check the number --
-# which was replaced with a checked sentence in the same change that landed the
-# `tests` subject. The assertion below is a subset check, so an empty tuple
-# means every stale count the guard reports is a real finding.
+# in ACCEPTANCE_SUITES section 8 -- which was first replaced with a checked
+# count and then with no count at all: the checked version went stale within the
+# hour, on the commit that added a single test. The `tests` subject stays
+# because it will catch the next document that states a total; the document that
+# prompted it now names the command instead. The assertion below is a subset
+# check, so an empty tuple means every stale count the guard reports is real.
 KNOWN_STALE: tuple[str, ...] = ()
 
 

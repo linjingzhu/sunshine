@@ -137,11 +137,32 @@ none, so a single build result cannot discharge both. Advancing either field
 needs a decision about what `native_build` asserts for a module with no native
 code yet, which is a product question rather than an evidence question.
 
+### Evidence
+
+```text
+gate       RV-7
+result     PASS
+build      run 32005990080, commit 6aa75ff
+observed   the owner ran the installer from build #12 and reports the Sunshine
+           wordmark in the New Tab logo slot
+```
+
+That is the whole of it, and the scope is the point. Build #12 was commit
+`6aa75ff`, "Finish replacing ntp-logo" — the change that completed the wordmark
+— so RV-7 is exactly the gate it can discharge.
+
+It cannot discharge the two gates that look adjacent. `6aa75ff` precedes both
+`803befe`, which enabled the codecs, and `77e4fb2`, which removed the infobar,
+so **RV-5, RV-6 and RV-8 remain NOT RUN**: the binary that was launched did not
+contain the code those gates are about. The first build that contains all three
+is #15.
+
 ## 6. NOT VERIFIED
 
-- **Nothing in section 2 or 3 has been run.** Build #12 produced an installer
-  that nobody executed; builds #15 and #16 succeeded and nobody has launched
-  either.
+- **One of twelve gates has been run.** RV-7 is recorded above. Every other
+  gate in sections 2 and 3 is `NOT RUN`: builds #15 and #16 succeeded and
+  neither has been launched, so the codec, infobar, sandbox, isolation, scheme
+  and visual gates are all still specification.
 - The gates are specified against Chromium's internal pages at the pinned
   revision. `chrome://sandbox` and `chrome://process-internals` are debugging
   surfaces whose output format upstream may change without notice; a gate that

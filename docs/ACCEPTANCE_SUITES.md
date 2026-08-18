@@ -592,9 +592,11 @@ The repository holds the regression suite under `tests/`, the guards in
 the pinned sources those guards already fetch. Neither the suite nor the guard
 list is enumerated here: both grow every wave, and the workflow is the one list
 that cannot fall behind, because it is the thing that runs them.
-`python -m unittest discover -s tests` reports 525 tests, and
-`scripts/verify_stated_counts.py` checks that number against `tests/` on every
-run, so it is current by construction rather than as of a date.
+Run `python -m unittest discover -s tests` for the current total.
+`scripts/verify_stated_counts.py` will check any figure written here against
+`tests/`, which is why none is written: the number changes with every test
+added, and a checked number that rots on contact taxes exactly the activity
+this document wants.
 
 **What they establish:** that the patch stack applies to the pinned revision and
 owns its files exclusively; that the module and command registries are

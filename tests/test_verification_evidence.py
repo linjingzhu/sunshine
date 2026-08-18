@@ -445,12 +445,40 @@ class RepositoryStateTests(unittest.TestCase):
                     {field: "pending" for field in guard.FIELDS}, manifest["verification"]
                 )
 
-    def test_no_evidence_record_exists_yet(self) -> None:
+    def test_the_recorded_evidence_is_only_what_was_actually_observed(self) -> None:
+        """This asserted `[] == records` for one day, and that was right then.
+
+        The owner has since run build #12 and reported the wordmark, so RV-7
+        has evidence. The assertion is kept rather than deleted because the
+        risk it guards has grown, not gone: the temptation now is to record the
+        adjacent gates too. Build #12 was commit 6aa75ff, which precedes both
+        the codec change and the infobar removal, so the binary that was
+        launched did not contain the code RV-5, RV-6 and RV-8 are about.
+
+        A record for any of those would be a claim about a build nobody ran.
+        """
+
         records, templates = guard.evidence_records(
             (REPOSITORY_ROOT / guard.DOCUMENT).read_text(encoding="utf-8")
         )
-        self.assertEqual([], records)
         self.assertEqual(1, len(templates), "section 4's record template is missing")
+        self.assertEqual(["RV-7"], [record.gate for record in records])
+        self.assertEqual(["PASS"], [record.result for record in records])
+        self.assertIn("6aa75ff", records[0].build)
+
+    def test_evidence_alone_advances_no_manifest(self) -> None:
+        """A gate passing is not a module being verified.
+
+        RV-7 is one of nine runtime gates, and `runtime: passed` needs all of
+        them. Recording the first is what makes that arithmetic visible rather
+        than something to be argued about later.
+        """
+
+        _, failures = guard.check(REPOSITORY_ROOT)
+        self.assertEqual([], failures)
+        for label, manifest in guard.manifests(REPOSITORY_ROOT):
+            with self.subTest(module=label):
+                self.assertNotIn("passed", manifest["verification"].values())
 
 
 if __name__ == "__main__":
