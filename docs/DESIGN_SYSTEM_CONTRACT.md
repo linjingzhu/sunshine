@@ -113,12 +113,12 @@ today, so it is the only surface with bindings.
 | Primary foreground | `--color-new-tab-page-primary-foreground` | Consumed today by `#sunshineWordmark`. Existence asserted by the Sunshine patch, not yet proven against pinned source. See §10. |
 | Over-image legibility treatment | `--ntp-theme-text-shadow` | Consumed today by `#sunshineWordmark`. Same status. |
 | Logo/wordmark bottom spacing | `--ntp-logo-margin-bottom`, default `38px` | Proven: upstream's own `#logo` rule in the patch context declares it. |
-| Secondary foreground | Unbound | Resolve from pinned source before first use. |
-| Surface background | Unbound | Resolve from pinned source before first use. |
-| Outline / divider | Unbound | Resolve from pinned source before first use. |
+| Secondary foreground | `--color-secondary-foreground` | Bound by patch 0004; enumerator read in `ui/color/color_id.h` at the pinned tag. |
+| Surface background | `--color-dialog-background` | Bound by patch 0004. Chromium has no generic surface role; the dialog background is the nearest enumerated one and is what a WebUI page sits on. |
+| Outline / divider | `--color-midground` | Bound by patch 0004. |
 | Focus indicator | Unbound; expected to come from the `--cr-*` focus-outline variable used by WebUI components | Resolve from pinned source before first use. |
 | Accent and on-accent | Unbound; §8.3 of the handoff names `--sun-color-primary` / `--sun-color-on-primary` as the semantic surface for the user-editable appearance model | Must be defined as references under §2.2(3). |
-| Error | Unbound; handoff names `--sun-color-error` | Must be defined as a reference under §2.2(3). |
+| Error | `--color-alert-high-severity` | Bound by patch 0004 for the one place it is currently needed — the verdict shown when the browser has no malware protection. The handoff's `--sun-color-error` remains the eventual semantic reference under §2.2(3); this is the Chromium role it will point at. |
 
 Binding procedure for an unbound role, to be performed once the pinned tree is
 available: locate the identifier in `ui/color/color_id.h`,

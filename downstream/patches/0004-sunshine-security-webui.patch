@@ -1,0 +1,472 @@
+diff --git a/chrome/browser/resources/BUILD.gn b/chrome/browser/resources/BUILD.gn
+index 2f13556..f5821a3 100644
+--- a/chrome/browser/resources/BUILD.gn
++++ b/chrome/browser/resources/BUILD.gn
+@@ -24,6 +24,7 @@ group("resources") {
+     "glic:resources",
+     "saved_tab_groups_unsupported:resources",
+     "segmentation_internals:resources",
++    "sunshine_security:resources",
+     "//components/enterprise/connectors/resources",
+   ]
+ 
+diff --git a/chrome/browser/resources/sunshine_security/BUILD.gn b/chrome/browser/resources/sunshine_security/BUILD.gn
+new file mode 100644
+index 0000000..110b7ec
+--- /dev/null
++++ b/chrome/browser/resources/sunshine_security/BUILD.gn
+@@ -0,0 +1,17 @@
++# Copyright 2026 The Sunshine OS contributors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import("//ui/webui/resources/tools/build_webui.gni")
++
++build_webui("build") {
++  grd_prefix = "sunshine_security"
++
++  static_files = [
++    "app.css",
++    "app.html",
++  ]
++  ts_files = [ "app.ts" ]
++  ts_deps = [ "//ui/webui/resources/js:build_ts" ]
++  webui_context_type = "trusted"
++}
+diff --git a/chrome/browser/resources/sunshine_security/app.css b/chrome/browser/resources/sunshine_security/app.css
+new file mode 100644
+index 0000000..5e1fdc4
+--- /dev/null
++++ b/chrome/browser/resources/sunshine_security/app.css
+@@ -0,0 +1,81 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * Every colour here is read from Chromium's colour pipeline through
++ * chrome://theme/colors.css. Sunshine declares no colour of its own and no
++ * fallback, per docs/DESIGN_SYSTEM_CONTRACT.md sections 2.1 and 2.3: a missing
++ * token must fail visibly rather than silently escape the theme. The role
++ * bindings used here were read at 152.0.7977.42 in ui/color/color_id.h. */
++
++body {
++  background-color: var(--color-dialog-background);
++  color: var(--color-primary-foreground);
++  margin: 0;
++}
++
++#page {
++  margin: 0 auto;
++  max-width: 46rem;
++  padding: 2rem 1.5rem;
++}
++
++h1 {
++  font-size: 1.5rem;
++  font-weight: 500;
++  margin: 0 0 1.5rem;
++}
++
++h2 {
++  font-size: 1.25rem;
++  font-weight: 500;
++  margin: 0 0 1rem;
++}
++
++h3 {
++  font-size: 1rem;
++  font-weight: 600;
++  margin: 2rem 0 0.5rem;
++}
++
++.verdict {
++  font-size: 1rem;
++  line-height: 1.6;
++  margin: 0;
++}
++
++#verdictAbsent,
++#verdictOff,
++#verdictUnreachable {
++  border-inline-start: 4px solid var(--color-alert-high-severity);
++  padding-inline-start: 1rem;
++}
++
++#facts {
++  margin: 0;
++}
++
++.fact {
++  border-top: 1px solid var(--color-midground);
++  display: flex;
++  gap: 1rem;
++  justify-content: space-between;
++  padding: 0.75rem 0;
++}
++
++.fact dt {
++  font-size: 0.875rem;
++}
++
++.fact dd {
++  font-size: 0.875rem;
++  font-weight: 500;
++  margin: 0;
++}
++
++.note {
++  color: var(--color-secondary-foreground);
++  font-size: 0.875rem;
++  line-height: 1.6;
++  margin: 2rem 0 0;
++}
+diff --git a/chrome/browser/resources/sunshine_security/app.html b/chrome/browser/resources/sunshine_security/app.html
+new file mode 100644
+index 0000000..18424e2
+--- /dev/null
++++ b/chrome/browser/resources/sunshine_security/app.html
+@@ -0,0 +1,66 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Sunshine Security</title>
++  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
++  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <main id="page">
++    <h1>Sunshine Security</h1>
++
++    <h2>Safe Browsing</h2>
++
++    <!-- Exactly one of these is revealed by app.js from state the browser
++         reported. They are written out rather than assembled, so nothing on
++         this page is built from a string at runtime (SEC-14), and so each one
++         is a single unit for a later translation pass. -->
++    <p class="verdict" id="verdictAbsent" hidden>
++      Safe Browsing is not part of this build. Sunshine is not checking the
++      pages you visit or the files you download against any malware or phishing
++      list, and nothing else here is doing that job in its place.
++    </p>
++    <p class="verdict" id="verdictOff" hidden>
++      Safe Browsing is part of this build but is switched off for this profile.
++      Sunshine is not checking the pages you visit or the files you download
++      against any malware or phishing list.
++    </p>
++    <p class="verdict" id="verdictUnreachable" hidden>
++      Safe Browsing is part of this build and is switched on for this profile,
++      but this build carries no Google API key, so its lookups cannot reach the
++      service they depend on. Treat this browser as unprotected against malware
++      and phishing.
++    </p>
++    <p class="verdict" id="verdictOn" hidden>
++      Safe Browsing is part of this build, is switched on for this profile, and
++      has the API key its lookups need.
++    </p>
++
++    <h3>What that is read from</h3>
++    <dl id="facts">
++      <div class="fact">
++        <dt>Compiled into this build</dt>
++        <dd><span id="buildYes" hidden>Yes</span><span id="buildNo" hidden>No</span></dd>
++      </div>
++      <div class="fact">
++        <dt>Switched on for this profile</dt>
++        <dd><span id="profileYes" hidden>Yes</span><span id="profileNo" hidden>No</span></dd>
++      </div>
++      <div class="fact">
++        <dt>Google API key configured</dt>
++        <dd><span id="keyYes" hidden>Yes</span><span id="keyNo" hidden>No</span></dd>
++      </div>
++    </dl>
++
++    <p class="note">
++      This page reads Chromium's state and states it. It turns nothing on or
++      off; Safe Browsing is changed in Settings, and the API key is a property
++      of how this browser was built.
++    </p>
++  </main>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine_security/app.ts b/chrome/browser/resources/sunshine_security/app.ts
+new file mode 100644
+index 0000000..7879061
+--- /dev/null
++++ b/chrome/browser/resources/sunshine_security/app.ts
+@@ -0,0 +1,41 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import '/strings.m.js';
++
++import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
++
++/**
++ * Reveals or hides one element that is already in the document. Nothing on
++ * this page is constructed from a string: no markup is parsed at runtime and
++ * no text is assembled, which is what keeps a privileged surface within
++ * SEC-14 and within Chromium's Trusted Types policy for WebUI.
++ */
++function reveal(elementId: string, visible: boolean) {
++  const element = document.body.querySelector<HTMLElement>('#' + elementId);
++  if (element) {
++    element.toggleAttribute('hidden', !visible);
++  }
++}
++
++document.addEventListener('DOMContentLoaded', function() {
++  const compiledIn = loadTimeData.getBoolean('safeBrowsingCompiledIn');
++  const switchedOn = loadTimeData.getBoolean('safeBrowsingPrefEnabled');
++  const keyConfigured = loadTimeData.getBoolean('googleApiKeyConfigured');
++
++  reveal('buildYes', compiledIn);
++  reveal('buildNo', !compiledIn);
++  reveal('profileYes', switchedOn);
++  reveal('profileNo', !switchedOn);
++  reveal('keyYes', keyConfigured);
++  reveal('keyNo', !keyConfigured);
++
++  // The absent build is reported before the switched-off profile, and the
++  // unreachable service before the working one, so that the page can never
++  // claim a protection that a later condition takes away. SC-11.
++  reveal('verdictAbsent', !compiledIn);
++  reveal('verdictOff', compiledIn && !switchedOn);
++  reveal('verdictUnreachable', compiledIn && switchedOn && !keyConfigured);
++  reveal('verdictOn', compiledIn && switchedOn && keyConfigured);
++});
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 9623fff..da57dc1 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -92,6 +92,7 @@ source_set("configs") {
+     "//chrome/browser/ui/webui/regional_capabilities_internals",
+     "//chrome/browser/ui/webui/saved_tab_groups_unsupported",
+     "//chrome/browser/ui/webui/segmentation_internals",
++    "//chrome/browser/ui/webui/sunshine_security",
+     "//chrome/browser/ui/webui/sync_internals",
+     "//chrome/browser/ui/webui/translate_internals",
+     "//chrome/browser/ui/webui/usb_internals",
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index a574524..20d49a6 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -53,6 +53,7 @@
+ #include "chrome/browser/ui/webui/segmentation_internals/segmentation_internals_ui.h"
+ #include "chrome/browser/ui/webui/signin_internals_ui.h"
+ #include "chrome/browser/ui/webui/subresource_filter/subresource_filter_internals_ui.h"
++#include "chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h"
+ #include "chrome/browser/ui/webui/sync_internals/sync_internals_ui.h"
+ #include "chrome/browser/ui/webui/translate_internals/translate_internals_ui.h"
+ #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
+@@ -308,6 +309,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<
+                      subresource_filter::SubresourceFilterInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SiteEngagementUIConfig>());
++  map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SyncInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TranslateInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<UsbInternalsUIConfig>());
+diff --git a/chrome/browser/ui/webui/sunshine_security/BUILD.gn b/chrome/browser/ui/webui/sunshine_security/BUILD.gn
+new file mode 100644
+index 0000000..e75878d
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine_security/BUILD.gn
+@@ -0,0 +1,24 @@
++# Copyright 2026 The Sunshine OS contributors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++source_set("sunshine_security") {
++  sources = [
++    "sunshine_security_ui.cc",
++    "sunshine_security_ui.h",
++  ]
++
++  public_deps = [ "//content/public/browser" ]
++
++  deps = [
++    "//chrome/browser/profiles:profile",
++    "//chrome/browser/resources/sunshine_security:resources",
++    "//chrome/common",
++    "//components/prefs",
++    "//components/safe_browsing:buildflags",
++    "//components/safe_browsing/core/common:safe_browsing_prefs",
++    "//content/public/common",
++    "//google_apis",
++    "//ui/webui",
++  ]
++}
+diff --git a/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc
+new file mode 100644
+index 0000000..77c5a44
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc
+@@ -0,0 +1,56 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h"
++
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/grit/sunshine_security_resources.h"
++#include "chrome/grit/sunshine_security_resources_map.h"
++#include "components/prefs/pref_service.h"
++#include "components/safe_browsing/buildflags.h"
++#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "google_apis/google_api_keys.h"
++#include "ui/webui/webui_util.h"
++
++SunshineSecurityUI::SunshineSecurityUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, chrome::kChromeUISunshineSecurityHost);
++
++  // Three separate questions, published separately because the page must never
++  // let one of them stand in for another (SC-11).
++  //
++  // 1. Is the Safe Browsing implementation in this binary at all? The build
++  //    flag is defined by components/safe_browsing/BUILD.gn from
++  //    `safe_browsing_mode` in components/safe_browsing/buildflags.gni, which
++  //    is 1 on desktop, so this is expected to be true in a Sunshine build.
++  source->AddBoolean("safeBrowsingCompiledIn",
++                     BUILDFLAG(SAFE_BROWSING_AVAILABLE));
++
++  // 2. Has the user, or policy, left it on for this profile? This is the
++  //    `safebrowsing.enabled` preference, read through the accessor that owns
++  //    it in components/safe_browsing/core/common/safe_browsing_prefs.h.
++  source->AddBoolean(
++      "safeBrowsingPrefEnabled",
++      safe_browsing::IsSafeBrowsingEnabled(*profile->GetPrefs()));
++
++  // 3. Can it reach the service it depends on? Safe Browsing is one of the
++  //    keyed Google services named by google_apis/google_api_keys.h, whose own
++  //    header states that without a key such services "may fail to work
++  //    without warning ... similar to what would happen when a network
++  //    connection is unavailable". docs/decisions/0005-google-api-keys.md
++  //    records the decision not to configure one. This is the question whose
++  //    answer makes the honest verdict "not protected" today, and it is read
++  //    from the browser rather than assumed.
++  source->AddBoolean("googleApiKeyConfigured",
++                     google_apis::HasAPIKeyConfigured());
++
++  webui::SetupWebUIDataSource(source, kSunshineSecurityResources,
++                              IDR_SUNSHINE_SECURITY_APP_HTML);
++}
++
++SunshineSecurityUI::~SunshineSecurityUI() = default;
+diff --git a/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h
+new file mode 100644
+index 0000000..fa3e0e3
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h
+@@ -0,0 +1,45 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_SECURITY_SUNSHINE_SECURITY_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_SECURITY_SUNSHINE_SECURITY_UI_H_
++
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineSecurityUI;
++
++// The Sunshine Security Center, at chrome://sunshine-security.
++//
++// Registered through content's WebUI config map rather than through a Sunshine
++// URL scheme; docs/decisions/0003-internal-scheme.md records why Sunshine
++// registers no scheme of its own, and content/public/browser/webui_config_map.h
++// CHECKs that an AddWebUIConfig() argument is a chrome:// config.
++class SunshineSecurityUIConfig
++    : public content::DefaultWebUIConfig<SunshineSecurityUI> {
++ public:
++  SunshineSecurityUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUISunshineSecurityHost) {}
++};
++
++// Reads Chromium's Safe Browsing state and states it. It decides nothing and
++// changes nothing: docs/SECURITY_CENTER_CONTRACT.md SC-9 and SC-11.
++class SunshineSecurityUI : public content::WebUIController {
++ public:
++  explicit SunshineSecurityUI(content::WebUI* web_ui);
++
++  SunshineSecurityUI(const SunshineSecurityUI&) = delete;
++  SunshineSecurityUI& operator=(const SunshineSecurityUI&) = delete;
++
++  ~SunshineSecurityUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SECURITY_SUNSHINE_SECURITY_UI_H_
+diff --git a/chrome/chrome_paks.gni b/chrome/chrome_paks.gni
+index e18c994..8d4361b 100644
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -128,6 +128,7 @@ template("chrome_extra_paks") {
+       "$root_gen_dir/chrome/glic_resources.pak",
+       "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
+       "$root_gen_dir/chrome/segmentation_internals_resources.pak",
++      "$root_gen_dir/chrome/sunshine_security_resources.pak",
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
+       "$root_gen_dir/components/autofill/core/browser/geo/autofill_alternative_state_name_map_resources.pak",
+       "$root_gen_dir/components/autofill_and_password_manager_internals_resources.pak",
+diff --git a/chrome/common/webui_url_constants.cc b/chrome/common/webui_url_constants.cc
+index 3aaa4aa..94d85c0 100644
+--- a/chrome/common/webui_url_constants.cc
++++ b/chrome/common/webui_url_constants.cc
+@@ -181,6 +181,7 @@ base::span<const base::cstring_view> ChromeURLHosts() {
+ #if !BUILDFLAG(IS_ANDROID)
+       kChromeUISuggestInternalsHost,
+ #endif
++      kChromeUISunshineSecurityHost,
+       kChromeUINTPTilesInternalsHost,
+       safe_browsing::kChromeUISafeBrowsingHost,
+       kChromeUISyncInternalsHost,
+diff --git a/chrome/common/webui_url_constants.h b/chrome/common/webui_url_constants.h
+index bc26ce3..33f9fa2 100644
+--- a/chrome/common/webui_url_constants.h
++++ b/chrome/common/webui_url_constants.h
+@@ -304,6 +304,12 @@ inline constexpr char kChromeUISplitViewNewTabPageURL[] =
+ inline constexpr char kChromeUISubresourceFilterInternalsHost[] =
+     "subresource-filter-internals";
+ inline constexpr char kChromeUISuggestInternalsHost[] = "suggest-internals";
++// The Sunshine Security Center. Sunshine registers no URL scheme of its own;
++// see docs/decisions/0003-internal-scheme.md. The host is prefixed so that it
++// cannot be mistaken for kSecuritySubPage below, which is Settings' own.
++inline constexpr char kChromeUISunshineSecurityHost[] = "sunshine-security";
++inline constexpr char kChromeUISunshineSecurityURL[] =
++    "chrome://sunshine-security/";
+ inline constexpr char kChromeUISupportToolHost[] = "support-tool";
+ inline constexpr char kChromeUISyncConfirmationHost[] = "sync-confirmation";
+ inline constexpr char kChromeUISyncConfirmationLoadingPath[] = "loading";
+diff --git a/tools/gritsettings/resource_ids.spec b/tools/gritsettings/resource_ids.spec
+index 24ed276..a1eb4c5 100644
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -825,6 +825,10 @@
+     "META": {"sizes": {"includes": [10]}},
+     "includes": [5000],
+   },
++  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/sunshine_security/resources.grd": {
++    "META": {"sizes": {"includes": [10]}},
++    "includes": [5010],
++  },
+   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/support_tool/resources.grd": {
+     "META": {"sizes": {"includes": [30]}},
+     "includes": [5020],

@@ -328,9 +328,18 @@ an implementer.
 Nothing in this document has been executed. Specifically:
 
 - No native Chromium build was produced or run.
-- No `chrome://sunshine-security` surface exists; no WebUI resource, WebUI
-  config registration, C++ interface, or provider implementation has been
-  written. The host is specified here and is registered nowhere.
+- The surface now exists **in source and has never been built**. Patch 0004
+  registers `chrome://sunshine-security` through
+  [`content/public/browser/webui_config_map.h`](https://github.com/chromium/chromium/blob/152.0.7977.42/content/public/browser/webui_config_map.h)
+  and renders SC-11 only: whether Safe Browsing is compiled in, enabled by
+  preference, and reachable. No provider, no event store, no settings — those
+  need the broker and the profile service, and both are deferred.
+- **Nothing in that patch has been compiled.** The GN and grit wiring in
+  particular is unexercised: the resource-id choice, the generated
+  `kSunshineSecurityResources` and `IDR_SUNSHINE_SECURITY_APP_HTML` names, and
+  the dependency labels were each copied from a working example at the same
+  revision and none was built. The first build is what turns this from a
+  plausible patch into a working page.
 - The two upstream facts this document reads at the pinned tag — that
   `chrome/common/webui_url_constants.h` defines `kSecuritySubPage` as `security`
   and contains no `sunshine` host — were read from the source at

@@ -28,9 +28,19 @@ APP_CSS = "chrome/browser/resources/new_tab_page/app.css"
 
 # What the pinned revision really contains, reduced to the needles S1 looks for.
 # Verified at 152.0.7977.42: the colour ID is in chrome_color_id.h and in no
-# stylesheet; both --ntp-* tokens are declared in New Tab Page CSS.
+# stylesheet; both --ntp-* tokens are declared in New Tab Page CSS. The
+# ui/color/color_id.h entry carries every enumerator the patch stack's CSS
+# resolves to -- the New Tab wordmark reads one token, the Security Center
+# reads five -- each copied from the line it occupies at that revision, so the
+# stub cannot pass a token the real header would reject.
 PINNED = {
-    "ui/color/color_id.h": "E_CPONLY(kColorPrimaryForeground)",
+    "ui/color/color_id.h": (
+        "  E_CPONLY(kColorAlertHighSeverity) \\\n"
+        "  E_CPONLY(kColorMidground) \\\n"
+        "  E_CPONLY(kColorPrimaryForeground) \\\n"
+        "  E_CPONLY(kColorSecondaryForeground) \\\n"
+        "  E_CPONLY(kColorDialogBackground) \\\n"
+    ),
     "chrome/browser/ui/color/chrome_color_id.h": "E_CPONLY(kColorNewTabPagePrimaryForeground)",
     "chrome/browser/resources/new_tab_page/app.css": "  --ntp-theme-text-shadow: none;",
     "chrome/browser/resources/new_tab_page/logo.css": "  --ntp-logo-margin-bottom: 18px;",
@@ -209,9 +219,19 @@ class DesignTokenTests(unittest.TestCase):
         )
         self.assertEqual(
             {
+                # New Tab wordmark, 0002.
                 "--color-new-tab-page-primary-foreground",
                 "--ntp-logo-margin-bottom",
                 "--ntp-theme-text-shadow",
+                # Security Center, 0004. Every one is a role binding that
+                # docs/DESIGN_SYSTEM_CONTRACT.md section 3 left unbound, and
+                # each was resolved by reading ui/color/color_id.h at the
+                # pinned revision rather than by guessing at the name pattern.
+                "--color-alert-high-severity",
+                "--color-dialog-background",
+                "--color-midground",
+                "--color-primary-foreground",
+                "--color-secondary-foreground",
             },
             set(checker.consumed_tokens(REPOSITORY_ROOT)),
         )
