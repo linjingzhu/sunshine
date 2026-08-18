@@ -96,6 +96,8 @@ FAMILIES = (
     # R1-R9 and V1-V3 -- colliding with DESIGN_SYSTEM_CONTRACT's own R series in
     # one direction, and unparseable in the other.
     "RV", "RVV",
+    # The document surface: DOC-n invariants, DOCA-n acceptance criteria.
+    "DOC", "DOCA",
 )
 
 
