@@ -42,7 +42,7 @@ index b6dab96..ecae8b7 100644
 -      .theme="${this.theme_}" ?hidden="${!this.logoEnabled_}">
 -  </ntp-logo>
 +  <div id="sunshineWordmark" role="heading" aria-level="1"
-+      aria-label="Sunshine OS"
++      aria-label="Sunchine OS"
 +      ?hidden="${!this.logoEnabled_}">SUNSHINE</div>
    ${this.ntpRealboxNextEnabled_ ? html`
      <div id="scrim"
