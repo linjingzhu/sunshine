@@ -69,6 +69,10 @@ jobs:
       - name: Verify patch stack integrity
         run: python scripts/verify_patch_integrity.py
 
+      # The overlay carries what a diff cannot, so neither guard above sees it.
+      - name: Validate the binary asset overlay
+        run: python scripts/verify_asset_overlay.py
+
       - name: Validate first-party module registry
         run: python scripts/validate_first_party_modules.py
 

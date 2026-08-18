@@ -131,6 +131,11 @@ OWN_PREFIXES = frozenset({
     # happens to be on the disk of the machine running it.
     "artifacts", "chromium", "depot_tools",
     "out", "src",
+    # The owner's source artwork, from which `downstream/assets/` is rendered.
+    # Ours despite the generic name, and a citation of `resource/icon.png` is a
+    # citation of this repository -- probing it upstream would 404 and be
+    # reported as a contract citing a file Chromium deleted.
+    "resource",
 })
 
 # A backticked path naming one concrete file: at least two segments, ordinary
@@ -420,6 +425,38 @@ def check_citations(source: str, version: str, root: Path, report: list[str]) ->
     return not dead
 
 
+def check_asset_overlay(source: str, version: str, root: Path, report: list[str]) -> bool:
+    """Every overlay destination must still be a file upstream.
+
+    The overlay replaces whole binary files by path -- see
+    `docs/decisions/0008-binary-asset-overlay.md` -- and a whole-file copy
+    cannot fail the way a patch does. `git apply` rejects a hunk whose context
+    moved; `shutil.copyfile` is happy to write anywhere. So if upstream renames
+    `chromium.ico`, nothing downstream complains: the copy lands beside the real
+    icon, the `.rc` file still names Chromium's, and the build ships Chromium's
+    icon under Sunshine's name. This is the only check that would notice.
+
+    It is an existence probe, not a comparison. Upstream's own artwork is
+    expected to differ -- replacing it is the point.
+    """
+
+    base = root / "downstream/assets"
+    destinations = sorted(
+        path.relative_to(base).as_posix() for path in base.rglob("*") if path.is_file()
+    ) if base.is_dir() else []
+    if not destinations:
+        return True
+
+    healthy = True
+    for destination in destinations:
+        if exists(source, version, destination):
+            report.append(f"  OK   overlay destination: {destination}")
+        else:
+            report.append(f"  FAIL overlay destination absent upstream: {destination}")
+            healthy = False
+    return healthy
+
+
 def check_patch_stack(source: str, version: str, root: Path, report: list[str]) -> bool:
     entries = subprocess.run(
         [sys.executable, str(root / "scripts/patch_manifest.py"), "--paths"],
@@ -509,6 +546,7 @@ def verify(source: str = "googlesource", root: Path = ROOT) -> tuple[bool, list[
             healthy = False
 
     healthy = check_citations(source, version, root, report) and healthy
+    healthy = check_asset_overlay(source, version, root, report) and healthy
     healthy = check_patch_stack(source, version, root, report) and healthy
     return healthy, report
 

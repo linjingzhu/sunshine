@@ -61,6 +61,7 @@ class PinnedUpstreamTests(unittest.TestCase):
         # cases about seams and tokens, and keeps the suite runnable offline.
         with mock.patch.object(checker, "fetch", fake_fetch(overrides)), \
              mock.patch.object(checker, "check_patch_stack", return_value=True), \
+             mock.patch.object(checker, "check_asset_overlay", return_value=True), \
              mock.patch.object(checker, "check_citations", return_value=True):
             return checker.verify()
 
@@ -662,3 +663,54 @@ class ThrottleBudgetTests(unittest.TestCase):
         ):
             with self.assertRaises(checker.UpstreamCheckError):
                 checker.exists("github", "152.0.7977.42", "base/check.h")
+
+
+class AssetOverlayDestinationTests(unittest.TestCase):
+    """The overlay's upstream half.
+
+    `PinnedUpstreamTests` stubs this check out so those cases stay offline and
+    stay about seams. That leaves the check itself untested, which matters more
+    here than for a patch: `git apply` refuses a hunk whose context moved, so a
+    patch reports an upstream restructure on its own. A file copy does not.
+    These are the cases that make the restructure loud.
+    """
+
+    def overlay(self, *destinations: str) -> Path:
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        for destination in destinations:
+            path = root / "downstream/assets" / destination
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\x00\x01")
+        return root
+
+    def test_a_destination_upstream_still_has_passes(self) -> None:
+        root = self.overlay("chrome/app/theme/chromium/win/chromium.ico")
+        report: list[str] = []
+        with mock.patch.object(checker, "exists", lambda source, version, path: True):
+            healthy = checker.check_asset_overlay("github", "152.0.7977.42", root, report)
+
+        self.assertTrue(healthy, "\n".join(report))
+        self.assertTrue(any("chromium.ico" in line and "OK" in line for line in report))
+
+    def test_a_destination_upstream_renamed_fails_and_names_it(self) -> None:
+        # The failure this exists for. Upstream moves the icon, the copy lands
+        # beside the real one, the `.rc` still names Chromium's, and the build
+        # ships Chromium's icon. Every command in the pipeline succeeds.
+        root = self.overlay("chrome/app/theme/chromium/win/chromium.ico")
+        report: list[str] = []
+        with mock.patch.object(checker, "exists", lambda source, version, path: False):
+            healthy = checker.check_asset_overlay("github", "152.0.7977.42", root, report)
+
+        self.assertFalse(healthy)
+        joined = "\n".join(report)
+        self.assertIn("chrome/app/theme/chromium/win/chromium.ico", joined)
+        self.assertIn("FAIL", joined)
+
+    def test_no_overlay_asks_upstream_nothing(self) -> None:
+        root = self.overlay()
+        report: list[str] = []
+        probe = mock.Mock(return_value=True)
+        with mock.patch.object(checker, "exists", probe):
+            self.assertTrue(checker.check_asset_overlay("github", "152.0.7977.42", root, report))
+        probe.assert_not_called()

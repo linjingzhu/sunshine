@@ -63,6 +63,8 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-7 | Open a new tab | The Sunshine wordmark occupies the logo slot; Chromium's own logo is absent | patch 0002 |
 | RV-8 | Open a new tab on a keyless build | No infobar reports missing Google API keys | patch 0003, ADR 0005 |
 | RV-9 | Search from the New Tab page | Chromium's own search handling runs; no Sunshine interposition, no forced startup URL | `verify_architecture.py` startup-URL rule, at runtime |
+| RV-10 | Look at `chrome.exe` in Explorer, on the taskbar, and as a pinned shortcut | The Sunshine icon, at every size; Chromium's blue sphere appears nowhere | ADR 0008 |
+| RV-11 | Look at `mini_installer.exe` in Explorer | The Sunshine icon | ADR 0008 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -71,6 +73,16 @@ had before the decision rather than the ones it added.
 RV-4 is the runtime half of SEC-13 that neither the source guard nor the registry
 check covers: a scheme can be registered inside the browser without touching the
 registry, and the omnibox is where a user would meet it.
+
+RV-10 and RV-11 are the runtime half of the asset overlay, and they exist because
+the overlay's failure mode is silence. `scripts/verify_asset_overlay.py` proves
+the committed icon is a valid icon and `scripts/verify_pinned_upstream.py` proves
+the destination still exists upstream, but neither can prove `rc.exe` linked it
+into the executable — a build that quietly shipped Chromium's icon would pass
+both. RV-10 asks for three sizes because Windows selects an icon entry by exact
+pixel match: Explorer's list view, the taskbar and a pinned shortcut do not all
+ask for the same one, so a single correct-looking icon is not evidence the set is
+right.
 
 ## 3. Visual
 
@@ -108,7 +120,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-9, RVV-1..RVV-3
+gate       RV-1..RV-11, RVV-1..RVV-3
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
@@ -159,7 +171,7 @@ is #15.
 
 ## 6. NOT VERIFIED
 
-- **One of twelve gates has been run.** RV-7 is recorded above. Every other
+- **One of fourteen gates has been run.** RV-7 is recorded above. Every other
   gate in sections 2 and 3 is `NOT RUN`: builds #15 and #16 succeeded and
   neither has been launched, so the codec, infobar, sandbox, isolation, scheme
   and visual gates are all still specification.

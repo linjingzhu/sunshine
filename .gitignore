@@ -1,7 +1,13 @@
-artifacts/
-chromium/
-depot_tools/
-out/
+# Anchored to the repository root, every one of them. Without the leading
+# slash, `chromium/` matches a directory of that name at any depth -- and
+# `downstream/assets/chrome/app/theme/chromium/win/chromium.ico` is one, so the
+# application icon was silently left out of its own commit. Every entry below
+# names a top-level build or checkout directory, so anchoring them costs
+# nothing and removes the whole class of accident.
+/artifacts/
+/chromium/
+/depot_tools/
+/out/
 .DS_Store
 *.pyc
 __pycache__/
