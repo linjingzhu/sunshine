@@ -1,24 +1,77 @@
 diff --git a/chrome/browser/resources/BUILD.gn b/chrome/browser/resources/BUILD.gn
-index 2f13556..f5821a3 100644
+index 2f13556..dc02f7d 100644
 --- a/chrome/browser/resources/BUILD.gn
 +++ b/chrome/browser/resources/BUILD.gn
 @@ -24,6 +24,7 @@ group("resources") {
      "glic:resources",
      "saved_tab_groups_unsupported:resources",
      "segmentation_internals:resources",
-+    "sunshine_security:resources",
++    "sunshine:resources",
      "//components/enterprise/connectors/resources",
    ]
  
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+new file mode 100644
+index 0000000..c04adb0
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -0,0 +1,47 @@
++# Copyright 2026 The Sunshine OS contributors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++#
++# Sunshine's one resource bundle. Every Sunshine WebUI surface's web assets are
++# built here, into a single grd, which is what lets
++# tools/gritsettings/resource_ids.spec and chrome/chrome_paks.gni carry one
++# Sunshine entry however many surfaces exist. See
++# docs/decisions/0007-module-contribution-seam.md, which measured the
++# alternative: a per-surface grd needs a new id range and a new pak line per
++# surface, in the two files of the seven that churn most upstream.
++#
++# A surface owns the subdirectory named after it and appends its files to the
++# lists below. That is the whole of a surface's claim on this half of the seam;
++# no upstream file is touched. build_webui() derives each resource's name from
++# grd_prefix and the file's path here, uppercased with the separators replaced
++# -- ui/webui/resources/tools/generate_grd.py, _generate_include_row -- so
++# "security/app.html" is IDR_SUNSHINE_SECURITY_APP_HTML and its resource path
++# is "security/app.html".
++#
++# A surface does not serve the bundle whole. Every surface's assets are in one
++# resource map, and a privileged page has no business serving another page's
++# files, so chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h hands
++# each surface only the entries under its own directory, with that directory
++# prefix removed.
++#
++# webui_context_type is "relative" so that one bundle can hold both chrome://
++# and chrome-untrusted:// surfaces. tools/typescript/path_mappings.py adds the
++# scheme-relative "//resources/..." mapping for every context type and a
++# scheme-qualified one only for "trusted" and "untrusted"; choosing either of
++# those would bind every surface in this bundle to that one scheme. Sunshine
++# surfaces therefore import shared WebUI resources as "//resources/...".
++
++import("//ui/webui/resources/tools/build_webui.gni")
++
++build_webui("build") {
++  grd_prefix = "sunshine"
++
++  # Extended by each surface patch.
++  static_files = [
++  ]
++  ts_files = [
++  ]
++
++  ts_deps = [ "//ui/webui/resources/js:build_ts" ]
++  webui_context_type = "relative"
++}
 diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
-index 9623fff..da57dc1 100644
+index 9623fff..d9e8f60 100644
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
 @@ -92,6 +92,7 @@ source_set("configs") {
      "//chrome/browser/ui/webui/regional_capabilities_internals",
      "//chrome/browser/ui/webui/saved_tab_groups_unsupported",
      "//chrome/browser/ui/webui/segmentation_internals",
-+    "//chrome/browser/ui/webui/sunshine_security",
++    "//chrome/browser/ui/webui/sunshine",
      "//chrome/browser/ui/webui/sync_internals",
      "//chrome/browser/ui/webui/translate_internals",
      "//chrome/browser/ui/webui/usb_internals",
@@ -42,6 +95,41 @@ index a574524..eaf087e 100644
    map.AddWebUIConfig(std::make_unique<SyncInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<TranslateInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<UsbInternalsUIConfig>());
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+new file mode 100644
+index 0000000..a501f3c
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -0,0 +1,29 @@
++# Copyright 2026 The Sunshine OS contributors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++#
++# The browser half of the Sunshine WebUI seam. chrome/browser/ui/webui/BUILD.gn
++# depends on this one target, and each surface appends its own sources and deps
++# below rather than adding a target line upstream. See
++# docs/decisions/0007-module-contribution-seam.md.
++
++source_set("sunshine") {
++  sources = [
++    "sunshine_webui_registry.h",
++    "sunshine_webui_resources.cc",
++    "sunshine_webui_resources.h",
++
++    # Extended by each surface patch.
++  ]
++
++  public_deps = [
++    "//content/public/browser",
++    "//ui/base",
++  ]
++
++  deps = [
++    "//chrome/browser/resources/sunshine:resources",
++
++    # Extended by each surface patch.
++  ]
++}
 diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
 new file mode 100644
 index 0000000..738c0e8
@@ -73,15 +161,88 @@ index 0000000..738c0e8
 +}  // namespace sunshine
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SUNSHINE_WEBUI_REGISTRY_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc
+new file mode 100644
+index 0000000..5e589f7
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc
+@@ -0,0 +1,26 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++
++#include <string>
++
++#include "chrome/grit/sunshine_resources_map.h"
++
++namespace sunshine {
++
++std::vector<webui::ResourcePath> SurfaceResources(std::string_view surface) {
++  const std::string prefix = std::string(surface) + "/";
++  std::vector<webui::ResourcePath> resources;
++  for (const webui::ResourcePath& resource : kSunshineResources) {
++    if (!std::string_view(resource.path).starts_with(prefix)) {
++      continue;
++    }
++    resources.push_back(
++        {resource.path + prefix.size(), resource.id, resource.filepath});
++  }
++  return resources;
++}
++
++}  // namespace sunshine
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h
+new file mode 100644
+index 0000000..6d8a30d
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h
+@@ -0,0 +1,35 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_SUNSHINE_WEBUI_RESOURCES_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_SUNSHINE_WEBUI_RESOURCES_H_
++
++#include <string_view>
++#include <vector>
++
++#include "ui/base/webui/resource_path.h"
++
++namespace sunshine {
++
++// The part of Sunshine's one resource bundle that belongs to |surface|, with
++// the "<surface>/" directory prefix removed.
++//
++// Every Sunshine surface is built into a single grd -- see
++// chrome/browser/resources/sunshine/BUILD.gn and
++// docs/decisions/0007-module-contribution-seam.md -- so the generated map holds
++// every surface's files under paths like "security/app.html", and passing it
++// whole to webui::SetupWebUIDataSource() would let each surface serve every
++// other surface's assets. Filtering by prefix keeps a privileged page's data
++// source to the files that page owns, and dropping the prefix keeps its URLs
++// the same as they would be if it had a grd to itself.
++//
++// webui::ResourcePath holds `const char* const path`
++// (ui/base/webui/resource_path.h), so the shortened path is a pointer into the
++// same string literal the generated map already holds: nothing is copied, and
++// the returned entries stay valid for the life of the process.
++std::vector<webui::ResourcePath> SurfaceResources(std::string_view surface);
++
++}  // namespace sunshine
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SUNSHINE_WEBUI_RESOURCES_H_
 diff --git a/chrome/chrome_paks.gni b/chrome/chrome_paks.gni
-index e18c994..8d4361b 100644
+index e18c994..9e7a644 100644
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
 @@ -128,6 +128,7 @@ template("chrome_extra_paks") {
        "$root_gen_dir/chrome/glic_resources.pak",
        "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
        "$root_gen_dir/chrome/segmentation_internals_resources.pak",
-+      "$root_gen_dir/chrome/sunshine_security_resources.pak",
++      "$root_gen_dir/chrome/sunshine_resources.pak",
        "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
        "$root_gen_dir/components/autofill/core/browser/geo/autofill_alternative_state_name_map_resources.pak",
        "$root_gen_dir/components/autofill_and_password_manager_internals_resources.pak",
@@ -173,17 +334,26 @@ index bc26ce3..9103074 100644
  #include "components/signin/public/base/signin_buildflags.h"
  #include "content/public/common/url_constants.h"
 diff --git a/tools/gritsettings/resource_ids.spec b/tools/gritsettings/resource_ids.spec
-index 24ed276..a1eb4c5 100644
+index 24ed276..73e27c5 100644
 --- a/tools/gritsettings/resource_ids.spec
 +++ b/tools/gritsettings/resource_ids.spec
-@@ -825,6 +825,10 @@
-     "META": {"sizes": {"includes": [10]}},
-     "includes": [5000],
+@@ -868,6 +868,19 @@
+    "META": {"sizes": {"includes": [10],}},
+    "includes": [5160],
    },
-+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/sunshine_security/resources.grd": {
-+    "META": {"sizes": {"includes": [10]}},
-+    "includes": [5010],
++  # Sunshine's one resource bundle: every Sunshine WebUI surface is built into
++  # a single grd, so this file carries one Sunshine entry however many surfaces
++  # exist. docs/decisions/0007-module-contribution-seam.md.
++  #
++  # 5170-5199 was chosen because no other grd in this file *starts* inside it:
++  # webui_js_error above opens the last block before it and whats_new below
++  # opens the next. Non-overlapping extents would have been the wrong test --
++  # the declared sizes here overlap freely, webui_gallery's own 5140+90 running
++  # past both of its neighbours.
++  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/sunshine/resources.grd": {
++    "META": {"sizes": {"includes": [30]}},
++    "includes": [5170],
 +  },
-   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/support_tool/resources.grd": {
-     "META": {"sizes": {"includes": [30]}},
-     "includes": [5020],
+   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/whats_new/resources.grd": {
+     "META": {"sizes": {"includes": [10]}},
+     "includes": [5200],

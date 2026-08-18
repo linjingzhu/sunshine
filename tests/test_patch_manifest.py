@@ -13,7 +13,18 @@ SCRIPT = ROOT / "scripts/patch_manifest.py"
 # `0004-sunshine-webui-seam.patch`, extended with one surface's registration
 # by `0005-sunshine-security-webui.patch`. See
 # `docs/decisions/0007-module-contribution-seam.md`.
+#
+# There are four because the seam owns four lists, one per thing upstream has
+# to be told about: which configs exist, which hosts exist, which files go into
+# Sunshine's one resource bundle, and which sources go into its one browser
+# target. The last two are `BUILD.gn` files rather than headers, and they are
+# the ones that closed the gap ADR 0007 recorded -- before them a surface still
+# had to edit `chrome/browser/resources/BUILD.gn`,
+# `chrome/browser/ui/webui/BUILD.gn`, `chrome/chrome_paks.gni` and
+# `tools/gritsettings/resource_ids.spec` for itself.
 KNOWN_EXTENDED_REGISTRIES = frozenset({
+    "chrome/browser/resources/sunshine/BUILD.gn",
+    "chrome/browser/ui/webui/sunshine/BUILD.gn",
     "chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h",
     "chrome/common/sunshine/sunshine_webui_hosts.h",
 })

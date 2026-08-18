@@ -116,32 +116,66 @@ to `ChromeURLHosts()` once. A surface extends the two Sunshine-owned registries
 those create and touches none of the three again. `0005-sunshine-security-webui.patch`
 demonstrates it: zero upstream sections, two registry-extension sections.
 
-**Four are not.** `chrome/browser/resources/BUILD.gn`,
+**Four were not, at first.** `chrome/browser/resources/BUILD.gn`,
 `chrome/browser/ui/webui/BUILD.gn`, `chrome/chrome_paks.gni` and
-`tools/gritsettings/resource_ids.spec` carry `sunshine_security`-specific lines
-inside the seam patch, because each is tied 1:1 to the surface's `grd_prefix`,
-and changing that prefix would change `IDR_SUNSHINE_SECURITY_APP_HTML`. The
-shared-grd assumption below was not resolved; it was worked around by baking
-the one surface that exists into the seam.
+`tools/gritsettings/resource_ids.spec` carried `sunshine_security`-specific
+lines inside the seam patch, because each was tied 1:1 to the surface's
+`grd_prefix`. A second surface therefore cost four upstream-file edits, not the
+zero this ADR's *Decision* section specified, and the commit that landed the
+seam claimed otherwise before this section was written.
 
-**So a second surface costs four upstream-file edits, not zero, and not the
-one this ADR's fallback predicted.** The seam's genericity stops at the
-registration and host halves. Any claim that a second surface is now free is
-wrong, and one was made in the commit that landed the seam before this section
-was written.
+**The resource half has since been reworked to match the Decision.** The four
+are now generic:
 
-The resource half is therefore still open work, not a solved problem: either a
-shared grd that several surfaces can populate, or an accepted per-surface cost
-in four files, recorded as a decision rather than as a workaround discovered
-during implementation.
+- The seam's own `BUILD.gn` under `chrome/browser/resources/sunshine` is one
+  `build_webui()` target with `grd_prefix = "sunshine"`, and every surface is a
+  subdirectory of it. So there is one grd, one pak, one `resource_ids.spec`
+  entry (`5170`, sized 30) and one `chrome_paks.gni` line, forever.
+- The seam's own `BUILD.gn` under `chrome/browser/ui/webui/sunshine` is one
+  `source_set`, and `chrome/browser/ui/webui/BUILD.gn` depends on that one
+  target.
+- A surface does not serve the shared bundle whole. The seam's
+  `sunshine_webui_resources.h` hands each surface only the entries under its
+  own directory, with the directory prefix removed, so its URLs are what they
+  would be if it had a grd to itself.
+
+`IDR_SUNSHINE_SECURITY_APP_HTML` survived the change unaltered, because
+`ui/webui/resources/tools/generate_grd.py` builds a resource's name from the
+`grd_prefix` and the file's path together: `"sunshine"` plus
+`"security/app.html"` is the same identifier `"sunshine_security"` plus
+`"app.html"` was.
+
+**A second surface now costs zero upstream-file edits, and that was measured
+rather than asserted.** A throwaway `0006-probe.patch` adding a second surface
+using only the seam's own mechanisms — files under
+`chrome/browser/resources/sunshine/<name>/` and
+`chrome/browser/ui/webui/sunshine/<name>/`, plus one line in each of the seam's
+four registries — was appended to the series. `scripts/patch_manifest.py`
+reported the same **12 upstream (exclusive)** targets as without it, and
+`scripts/verify_pinned_upstream.py` applied all six patches cleanly to
+152.0.7977.42. The probe was then deleted.
 
 ## NOT VERIFIED
 
 - Neither the seam nor the surface patch has been compiled. `verify_pinned_upstream.py`
   confirms all five patches apply cleanly to 152.0.7977.42; that is not the
   same as GN accepting the registry targets or `rc.exe` linking the resources.
-- That a single grd can serve several independent WebUI surfaces remains
-  untested, and is now the specific question the resource half is blocked on.
+  The probe above proves the seam's *cost*, which is a property of the patch
+  stack, and proves nothing about the build.
+- That a single grd can serve several independent WebUI surfaces is now the
+  shape the stack is written in, and is still unbuilt. What was checked is that
+  nothing upstream forbids it: `ui/webui/resources/tools/build_webui.gni`
+  places no constraint on a target's file paths, and
+  `ui/webui/resources/tools/generate_grd.py` derives each resource's name and
+  path from `grd_prefix` and the file path together, so surfaces in sibling
+  subdirectories cannot collide. That grit, GN and `rc.exe` agree is unobserved.
+- A single grd serving both a `chrome://` and a `chrome-untrusted://` surface
+  is the same question one layer up, and the answer found in source is
+  `webui_context_type`. `tools/typescript/path_mappings.py` adds the
+  scheme-relative `//resources/...` mapping for every context type and adds a
+  scheme-qualified one only for `trusted` and `untrusted`; the shared target
+  therefore sets `relative`, and Sunshine surfaces import shared WebUI
+  resources scheme-relatively. No untrusted surface exists to test it on.
 - Whether `ChromeURLHosts()` accepts a loop over a Sunshine-owned list was
   checked against the pinned source during implementation and reworked into a
   `base::NoDestructor<std::vector<...>>` append; that it compiles is still

@@ -336,9 +336,10 @@ Nothing in this document has been executed. Specifically:
   need the broker and the profile service, and both are deferred.
 - **Nothing in that patch has been compiled.** The GN and grit wiring in
   particular is unexercised: the resource-id choice, the generated
-  `kSunshineSecurityResources` and `IDR_SUNSHINE_SECURITY_APP_HTML` names, and
-  the dependency labels were each copied from a working example at the same
-  revision and none was built. The first build is what turns this from a
+  `kSunshineResources` map and `IDR_SUNSHINE_SECURITY_APP_HTML` name, the
+  prefix filter that gives this surface only its own share of the shared
+  bundle, and the dependency labels were each copied from or read against a
+  working example at the same revision, and none was built. The first build is what turns this from a
   plausible patch into a working page.
 - The two upstream facts this document reads at the pinned tag — that
   `chrome/common/webui_url_constants.h` defines `kSecuritySubPage` as `security`

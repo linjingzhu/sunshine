@@ -137,6 +137,12 @@ DOCA-1 and DOCA-2 are the two a guard can enforce as soon as the surface exists.
   how Chromium uses it for its own untrusted surfaces. It has not been compiled
   or run here, and the seam it would sit on is itself unbuilt and uncompiled.
 - Whether one grd can serve both a `chrome://` and a `chrome-untrusted://`
-  surface is unknown, and it bears directly on ADR 0007's resource half.
+  surface is unbuilt, not unknown. ADR 0007's resource half is now one shared
+  grd, and the scheme question it turns on is `webui_context_type`:
+  `tools/typescript/path_mappings.py` adds the scheme-relative
+  `//resources/...` mapping for every context type and a scheme-qualified one
+  only for `trusted` and `untrusted`, so the shared target sets `relative` and
+  surfaces import shared WebUI resources scheme-relatively. That is read from
+  the pinned sources; no untrusted surface has been built on it.
 - No claim is made about performance, about how large a project can be, or about
   what happens to a document larger than memory.

@@ -85,9 +85,9 @@ class RealStackTests(unittest.TestCase):
         # If this ever returns nothing, the reset has quietly become a no-op and
         # the next build on a warm workspace fails the way #18 did.
         created = self.created()
-        self.assertIn("chrome/browser/resources/sunshine_security/app.css", created)
+        self.assertIn("chrome/browser/resources/sunshine/security/app.css", created)
         self.assertIn(
-            "chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc", created
+            "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.cc", created
         )
 
     def test_nothing_the_stack_creates_is_also_an_upstream_target(self):

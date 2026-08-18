@@ -1,31 +1,24 @@
-diff --git a/chrome/browser/resources/sunshine_security/BUILD.gn b/chrome/browser/resources/sunshine_security/BUILD.gn
-new file mode 100644
-index 0000000..110b7ec
---- /dev/null
-+++ b/chrome/browser/resources/sunshine_security/BUILD.gn
-@@ -0,0 +1,17 @@
-+# Copyright 2026 The Sunshine OS contributors
-+# Use of this source code is governed by a BSD-style license that can be
-+# found in the LICENSE file.
-+
-+import("//ui/webui/resources/tools/build_webui.gni")
-+
-+build_webui("build") {
-+  grd_prefix = "sunshine_security"
-+
-+  static_files = [
-+    "app.css",
-+    "app.html",
-+  ]
-+  ts_files = [ "app.ts" ]
-+  ts_deps = [ "//ui/webui/resources/js:build_ts" ]
-+  webui_context_type = "trusted"
-+}
-diff --git a/chrome/browser/resources/sunshine_security/app.css b/chrome/browser/resources/sunshine_security/app.css
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index c04adb0..d93bde6 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -38,8 +38,11 @@ build_webui("build") {
+ 
+   # Extended by each surface patch.
+   static_files = [
++    "security/app.css",
++    "security/app.html",
+   ]
+   ts_files = [
++    "security/app.ts",
+   ]
+ 
+   ts_deps = [ "//ui/webui/resources/js:build_ts" ]
+diff --git a/chrome/browser/resources/sunshine/security/app.css b/chrome/browser/resources/sunshine/security/app.css
 new file mode 100644
 index 0000000..5e1fdc4
 --- /dev/null
-+++ b/chrome/browser/resources/sunshine_security/app.css
++++ b/chrome/browser/resources/sunshine/security/app.css
 @@ -0,0 +1,81 @@
 +/* Copyright 2026 The Sunshine OS contributors
 + * Use of this source code is governed by a BSD-style license that can be
@@ -108,11 +101,11 @@ index 0000000..5e1fdc4
 +  line-height: 1.6;
 +  margin: 2rem 0 0;
 +}
-diff --git a/chrome/browser/resources/sunshine_security/app.html b/chrome/browser/resources/sunshine_security/app.html
+diff --git a/chrome/browser/resources/sunshine/security/app.html b/chrome/browser/resources/sunshine/security/app.html
 new file mode 100644
 index 0000000..18424e2
 --- /dev/null
-+++ b/chrome/browser/resources/sunshine_security/app.html
++++ b/chrome/browser/resources/sunshine/security/app.html
 @@ -0,0 +1,66 @@
 +<!doctype html>
 +<html dir="$i18n{textdirection}" lang="$i18n{language}">
@@ -180,11 +173,11 @@ index 0000000..18424e2
 +  <script type="module" src="app.js"></script>
 +</body>
 +</html>
-diff --git a/chrome/browser/resources/sunshine_security/app.ts b/chrome/browser/resources/sunshine_security/app.ts
+diff --git a/chrome/browser/resources/sunshine/security/app.ts b/chrome/browser/resources/sunshine/security/app.ts
 new file mode 100644
-index 0000000..7879061
+index 0000000..e1000e0
 --- /dev/null
-+++ b/chrome/browser/resources/sunshine_security/app.ts
++++ b/chrome/browser/resources/sunshine/security/app.ts
 @@ -0,0 +1,41 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
@@ -192,7 +185,7 @@ index 0000000..7879061
 +
 +import '/strings.m.js';
 +
-+import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
++import {loadTimeData} from '//resources/js/load_time_data.js';
 +
 +/**
 + * Reveals or hides one element that is already in the document. Nothing on
@@ -227,45 +220,24 @@ index 0000000..7879061
 +  reveal('verdictUnreachable', compiledIn && switchedOn && !keyConfigured);
 +  reveal('verdictOn', compiledIn && switchedOn && keyConfigured);
 +});
-diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
-index 738c0e8..2cf796f 100644
---- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
-+++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
-@@ -13,11 +13,13 @@
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index a501f3c..962a315 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -14,6 +14,8 @@ source_set("sunshine") {
+     "sunshine_webui_resources.h",
  
- #include <memory>
+     # Extended by each surface patch.
++    "security/sunshine_security_ui.cc",
++    "security/sunshine_security_ui.h",
+   ]
  
-+#include "chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h"
- #include "content/public/browser/webui_config_map.h"
+   public_deps = [
+@@ -25,5 +27,13 @@ source_set("sunshine") {
+     "//chrome/browser/resources/sunshine:resources",
  
- namespace sunshine {
- 
- inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
-+  map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
- }
- 
- }  // namespace sunshine
-diff --git a/chrome/browser/ui/webui/sunshine_security/BUILD.gn b/chrome/browser/ui/webui/sunshine_security/BUILD.gn
-new file mode 100644
-index 0000000..e75878d
---- /dev/null
-+++ b/chrome/browser/ui/webui/sunshine_security/BUILD.gn
-@@ -0,0 +1,24 @@
-+# Copyright 2026 The Sunshine OS contributors
-+# Use of this source code is governed by a BSD-style license that can be
-+# found in the LICENSE file.
-+
-+source_set("sunshine_security") {
-+  sources = [
-+    "sunshine_security_ui.cc",
-+    "sunshine_security_ui.h",
-+  ]
-+
-+  public_deps = [ "//content/public/browser" ]
-+
-+  deps = [
+     # Extended by each surface patch.
 +    "//chrome/browser/profiles:profile",
-+    "//chrome/browser/resources/sunshine_security:resources",
 +    "//chrome/common",
 +    "//components/prefs",
 +    "//components/safe_browsing:buildflags",
@@ -273,23 +245,23 @@ index 0000000..e75878d
 +    "//content/public/common",
 +    "//google_apis",
 +    "//ui/webui",
-+  ]
-+}
-diff --git a/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc
+   ]
+ }
+diff --git a/chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.cc b/chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.cc
 new file mode 100644
-index 0000000..77c5a44
+index 0000000..edd14cd
 --- /dev/null
-+++ b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.cc
-@@ -0,0 +1,56 @@
++++ b/chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.cc
+@@ -0,0 +1,59 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
-+#include "chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h"
++#include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
 +
 +#include "chrome/browser/profiles/profile.h"
-+#include "chrome/grit/sunshine_security_resources.h"
-+#include "chrome/grit/sunshine_security_resources_map.h"
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
 +#include "components/prefs/pref_service.h"
 +#include "components/safe_browsing/buildflags.h"
 +#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
@@ -332,16 +304,19 @@ index 0000000..77c5a44
 +  source->AddBoolean("googleApiKeyConfigured",
 +                     google_apis::HasAPIKeyConfigured());
 +
-+  webui::SetupWebUIDataSource(source, kSunshineSecurityResources,
++  // Every Sunshine surface is built into one resource bundle; this asks
++  // for the "security/" part of it, served from the root of this host.
++  // chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h.
++  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("security"),
 +                              IDR_SUNSHINE_SECURITY_APP_HTML);
 +}
 +
 +SunshineSecurityUI::~SunshineSecurityUI() = default;
-diff --git a/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h
+diff --git a/chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h b/chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h
 new file mode 100644
 index 0000000..fa3e0e3
 --- /dev/null
-+++ b/chrome/browser/ui/webui/sunshine_security/sunshine_security_ui.h
++++ b/chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h
 @@ -0,0 +1,45 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
@@ -388,6 +363,24 @@ index 0000000..fa3e0e3
 +};
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SECURITY_SUNSHINE_SECURITY_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index 738c0e8..adaf8ce 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -13,11 +13,13 @@
+ 
+ #include <memory>
+ 
++#include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
+ #include "content/public/browser/webui_config_map.h"
+ 
+ namespace sunshine {
+ 
+ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
++  map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
+ }
+ 
+ }  // namespace sunshine
 diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
 index c2ba0df..d77e441 100644
 --- a/chrome/common/sunshine/sunshine_webui_hosts.h

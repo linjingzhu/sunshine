@@ -449,11 +449,12 @@ The counts match at seven and the comparison is still not flattering to a naive
 reading, in both directions.
 
 ADR 0007's seven were `resource_ids.spec`, `chrome_paks.gni`,
-`webui_url_constants.h`/`.cc`, `chrome_web_ui_configs.cc` and two `BUILD.gn`s —
-and the ADR's own "What was actually built" section records that only three of
-them became generic, leaving a second surface costing four upstream edits rather
-than the zero its fallback predicted. The seven were expensive because they
-recur: every new surface met them again.
+`webui_url_constants.h`/`.cc`, `chrome_web_ui_configs.cc` and two `BUILD.gn`s.
+The ADR's own "What was actually built" section records that only three became
+generic at first, leaving a second surface costing four upstream edits; the
+resource half has since been reworked into one shared grd and all seven are
+generic, at the cost of a seam that had to be designed twice. The seven were
+expensive because they recur: every new surface met them again.
 
 The gesture seven are a different shape. Five of them are one-line additive
 entries into functions and files that are, structurally, lists — and a second
