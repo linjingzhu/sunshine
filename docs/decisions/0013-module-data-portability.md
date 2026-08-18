@@ -293,13 +293,41 @@ rewrite whose size nobody can state in advance. This is the same argument as
 the absence of a boundary to attach the feature to.
 
 **What this does not achieve, stated plainly.** An iPad host application still
-has to be written; portable assets do not host themselves. A module whose
-capability is native — anything reaching the tab strip, the omnibox, session
-history, or gestures — has no iPad counterpart to port to, and this rule does
-not give it one. What ports under this rule is the class of module whose
-substance is a surface and its data: documents, notes, readers. Sunshine the
-browser does not go to the iPad under any reading of this ADR; some of its
-modules might.
+has to be written; portable assets do not host themselves. This rule makes the
+assets host-agnostic and nothing more.
+
+**What this paragraph first got wrong.** It said Sunshine the browser does not
+go to the iPad under any reading, and that some of its modules might. The owner
+answered that modules arriving without the browser is not the product — a
+document module alone on an iPad is a notes app, not Sunshine, because the
+integration *is* the thing — and that is correct, and it exposes an error in
+the reasoning rather than a difference of preference.
+
+The error was assessing portability by the engine instead of by where this
+product's value sits. Sort what Sunshine has built or specified by layer and
+almost none of it is engine-level: branding, the New Tab wordmark, the security
+surface, the document surface, the command palette and workspaces are all above
+the engine; gestures are an input-layer interpretation that a host reimplements;
+only ADR 0004's codec selection and ADR 0005's Safe Browsing posture reach below
+it. iOS forbids a third-party engine, so a Sunshine there would render with
+WebKit — which is what Chrome, Edge, Brave and Firefox all already do on iOS,
+and users call those browsers. What such a shell forfeits is engine-level
+differentiation, and that is not where this product competes.
+
+So an iOS Sunshine is a *smaller* loss than this paragraph claimed: the same
+modules, palette, workspaces and documents, with a different renderer. What it
+is not is cheap. It is a second product with a second UI codebase to maintain,
+sharing only the `components/` data layer and these web assets, and the patch
+stack that carries the desktop work is worth nothing there. Whether that is
+built remains §4.2's question and this ADR still does not answer it.
+
+What does change is the weight of the rules above. They stop being preparation
+for moving a few modules and become the precondition for moving the product at
+all: two hosts running the same modules is exactly what a host-agnostic asset
+and a separated data layer are for. §4.4's suggestion that someone look again
+at ADR 0006 gets heavier for the same reason — a defined module format is the
+thing that lets one module run in a Chromium host and a WKWebView host without
+being written twice.
 
 ## 3. Where these rules meet the document surface contract
 
