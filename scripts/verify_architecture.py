@@ -41,7 +41,7 @@ REQUIRED_NEW_TAB_MARKERS = (
     "chrome/browser/resources/new_tab_page/app.html",
     "chrome/browser/resources/new_tab_page/app.css",
     'id="sunshineWordmark"',
-    'aria-label="Sunshine OS"',
+    'aria-label="Sunchine OS"',
     # The wordmark occupies the native logo slot, so it must keep the two
     # Chromium-owned behaviours that slot carries: the logo visibility state and
     # the theme-controlled spacing below it.
