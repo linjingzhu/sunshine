@@ -93,6 +93,54 @@ class PlatformHonestyTests(unittest.TestCase):
         self.assertFalse(result.failed)
 
 
+class VersionResourceCheckTests(unittest.TestCase):
+    """The check that replaced a launching one, and why.
+
+    Launching `chrome.exe` on the build machine broke the next build: a browser
+    left running by build #20's verification held `chrome_elf.dll` open, and
+    build #21 died on `lld-link: permission denied`. On Windows the exit code
+    cannot tell "printed a version and exited" from "launched the browser and
+    handed off", so there was no safe way to keep it. Reading the binary is
+    what remains, and it is not nothing -- VERSIONINFO is written by rc.exe
+    from the branding this project patches.
+    """
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.out = Path(self.directory.name)
+        self.addCleanup(self.directory.cleanup)
+        (self.out / "chrome.exe").write_bytes(b"x" * 1024)
+
+    def test_off_windows_is_unavailable_not_a_pass(self) -> None:
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "linux"):
+            built.check_version_resource(self.out, result)
+        self.assertTrue(result.unavailable)
+        self.assertFalse(result.failed)
+
+    def test_a_missing_binary_reports_nothing_new(self) -> None:
+        """`check_artifacts` already failed on this."""
+
+        (self.out / "chrome.exe").unlink()
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "win32"):
+            built.check_version_resource(self.out, result)
+        self.assertEqual([], result.rows)
+
+    def test_the_check_never_starts_a_process(self) -> None:
+        """The property build #21 paid for. `verify_installed_build` must not
+        import subprocess or launch anything: the build machine is also the
+        only CI, and a browser it starts holds its own DLLs open until the next
+        build fails to link them."""
+
+        source = (REPOSITORY_ROOT / "scripts" / "verify_installed_build.py").read_text(
+            encoding="utf-8"
+        )
+        for forbidden in ("import subprocess", "subprocess.run", "Popen", "os.system"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
+
 class InvocationTests(unittest.TestCase):
     def test_no_workspace_and_no_argument_is_not_a_pass(self) -> None:
         with mock.patch.dict(built.os.environ, {}, clear=True):

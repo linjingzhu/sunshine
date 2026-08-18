@@ -145,6 +145,94 @@ def check_no_registered_scheme(result: Result) -> None:
             result.record(PASSED, f"{scheme}:// is not registered", "SEC-13")
 
 
+def check_version_resource(out: Path, result: Result) -> None:
+    """Read the version Windows will show for `chrome.exe`, without running it.
+
+    An earlier version of this check launched `chrome.exe --version`, and it
+    was wrong twice over. First it required console output, which a Windows GUI
+    subsystem binary never writes to a redirected pipe, so build #20 reported
+    FAIL on a browser that was fine. Then the deeper problem surfaced: on
+    Windows the exit code cannot distinguish "printed its version and exited"
+    from "launched the browser and the stub handed off", because both return 0
+    immediately. Build #21 proved which one had been happening --
+    `lld-link: failed to write output './chrome_elf.dll': permission denied`,
+    because a browser started by the previous run's verification was still
+    alive and holding its own DLL open.
+
+    So the build machine must not start the browser it just built. What is left
+    is reading the binary, which is genuinely worth doing: `VERSIONINFO` is
+    written by `rc.exe` from the branding this project patches, so a correct
+    version string is evidence that the resource pipeline ran end to end and
+    that patch 0001's BRANDING reached the artifact. That is the same pipeline
+    the icon overlay depends on.
+
+    **What no longer has an automated answer.** Whether the browser starts at
+    all is now a manual gate (RV-1 and after), and that is the honest position
+    rather than a gap: the only way to answer it here was to run a browser on
+    the machine that is also the only CI, which breaks the next build.
+    """
+
+    if sys.platform != "win32":
+        result.record(
+            UNAVAILABLE,
+            "chrome.exe carries a version resource",
+            f"needs Windows; this is {sys.platform}",
+        )
+        return
+
+    chrome = out / "chrome.exe"
+    if not chrome.is_file():
+        # check_artifacts already recorded the failure; restating it here would
+        # be noise.
+        return
+
+    import ctypes  # noqa: PLC0415 -- Windows-only path
+    from ctypes import wintypes  # noqa: PLC0415
+
+    version_dll = ctypes.WinDLL("version")
+    path = str(chrome)
+
+    size = version_dll.GetFileVersionInfoSizeW(path, None)
+    if not size:
+        result.record(
+            FAILED,
+            "chrome.exe carries a version resource",
+            "no VERSIONINFO -- rc.exe did not write one, or the link dropped it",
+        )
+        return
+
+    buffer = ctypes.create_string_buffer(size)
+    if not version_dll.GetFileVersionInfoW(path, 0, size, buffer):
+        result.record(FAILED, "chrome.exe carries a version resource", "VERSIONINFO unreadable")
+        return
+
+    value = ctypes.c_void_p()
+    length = wintypes.UINT()
+    if not version_dll.VerQueryValueW(
+        buffer, "\\", ctypes.byref(value), ctypes.byref(length)
+    ) or not length.value:
+        result.record(FAILED, "chrome.exe carries a version resource", "no fixed-info block")
+        return
+
+    # VS_FIXEDFILEINFO: dwSignature, dwStrucVersion, then the four 16-bit
+    # version fields packed as two DWORDs, most significant word first.
+    fixed = ctypes.cast(value, ctypes.POINTER(wintypes.DWORD * 4)).contents
+    if fixed[0] != 0xFEEF04BD:
+        result.record(FAILED, "chrome.exe carries a version resource", "bad VS_FIXEDFILEINFO signature")
+        return
+
+    most, least = fixed[2], fixed[3]
+    version = f"{most >> 16}.{most & 0xFFFF}.{least >> 16}.{least & 0xFFFF}"
+    if version.startswith("0.0.0"):
+        result.record(
+            FAILED,
+            "chrome.exe carries a version resource",
+            f"version reads {version} -- the build did not stamp one",
+        )
+        return
+    result.record(PASSED, "chrome.exe carries a version resource", version)
+
+
 def resolve_out(explicit: str | None) -> Path | None:
     if explicit:
         return Path(explicit)
@@ -175,6 +263,7 @@ def main() -> int:
     check_artifacts(out, result)
     check_build_arguments(out, result)
     check_no_registered_scheme(result)
+    check_version_resource(out, result)
 
     print(f"Built browser at {out}")
     print(result.report())

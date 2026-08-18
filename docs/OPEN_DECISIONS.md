@@ -28,9 +28,31 @@ direction sees the same thing.
 | What behaviour is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | handoff §11, `docs/DOWNLOAD_SAFETY.md` | download release |
 | What is the default profile and data deletion and backup policy? | handoff §11 | persistence release |
 | Is partial extension compatibility acceptable for v1? | handoff §11 | Stage 1 architecture gate |
-| How does content reach the document surface — authored in the shell, or imported from files the user picks? The second is either outside SEC-8 (one-shot, no path retained, no handle held) or exactly what SEC-8 defers; that reading decides whether a file-broker contract has to come first. | `docs/DOCUMENT_SURFACE_CONTRACT.md` §4 | the first document surface |
+| How does content reach the document surface — authored in the shell, or imported from files the user picks? The second is either outside SEC-8 (one-shot, no path retained, no handle held) or exactly what SEC-8 defers; that reading decides whether a file-broker contract has to come first. **Still open. Implementation of Reading A has been started ahead of the answer — see the note below.** | `docs/DOCUMENT_SURFACE_CONTRACT.md` §4, `docs/decisions/0009-document-surface-ingress-options.md` | the first document surface |
 | What is the Chromium roll cadence? A roll costs a patch-stack rebase, re-verification of 204 cited paths, and a 6 h 31 min build on the project's only machine, which is also its only CI. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §8 | security update posture |
 | When, if ever, is Sunshine distributed? The answer gates code signing and auto-update, and re-opens ADR 0004 (codec licensing) and ADR 0005 (no Safe Browsing) together. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §9 | distribution |
+
+### Note — document surface ingress is being built before it is decided
+
+`docs/decisions/0009-document-surface-ingress-options.md` says its own Status is
+not "Accepted" and that this row "stays open until the product owner reads this
+and says which." Implementation of Reading A — content authored or pasted in the
+privileged shell — was nevertheless started, on a Manager decision, and that is
+recorded here rather than left for someone to discover from the patch stack.
+
+The reasoning, so it can be overruled on its merits: the owner's standing
+instruction is that a browser they can actually use has to come out of this, and
+Reading A is the only option buildable today — Reading B needs a file-broker
+contract that does not exist. ADR 0009 recommends A as the smaller first step
+for the same reason, and its §5 establishes that A does not foreclose B: import
+becomes an additional way in, not a replacement, because both readings converge
+on the same stored-document model.
+
+**What this note does not claim.** It does not settle the row. If the owner's
+answer is B-first, the shell-authoring path is a surface that shipped early
+rather than work that has to be undone, and the P0 stays open until they say so.
+The one outcome this avoids is the document set claiming the question is open
+while the code has quietly answered it.
 
 ## P1 — shapes the work, does not stop it
 

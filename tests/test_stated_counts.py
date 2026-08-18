@@ -702,6 +702,7 @@ class RealRepositoryTests(unittest.TestCase):
                 "docs/ACCEPTANCE_SUITES.md",
                 "docs/EXTENSION_MIME_CONTRACT.md",
                 "docs/PROFILE_ONBOARDING_CONTRACT.md",
+                "docs/ROADMAP_NATIVE_COMMAND_EXPANSION.md",
                 "docs/TELEMETRY_CONTRACT.md",
             },
             documents,

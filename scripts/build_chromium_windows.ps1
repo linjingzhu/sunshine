@@ -77,6 +77,33 @@ $gnArgs = @(
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 Set-Content -Path (Join-Path $out "args.gn") -Value $gnArgs -Encoding utf8
 
+# A process still running from a previous build holds its own binaries open,
+# and Windows refuses to overwrite an open file. Build #21 died on
+# `lld-link: failed to write output './chrome_elf.dll': permission denied`
+# because a `chrome.exe` started by the previous run's verification step was
+# still alive. The verification step no longer launches anything, but a build
+# that cannot recover from a stale process is one crashed browser away from
+# needing manual cleanup on a machine nobody is sitting at.
+#
+# Scoped to this output directory on purpose. It matches by executable path, so
+# a Chrome, an Edge, or a Sunshine build the owner is using from anywhere else
+# on the machine is not touched -- only processes running the artifacts this
+# script is about to overwrite.
+$stale = Get-Process -ErrorAction SilentlyContinue |
+  Where-Object {
+    $_.Path -and $_.Path.StartsWith($out, [StringComparison]::OrdinalIgnoreCase)
+  }
+if ($stale) {
+  Write-Host "Stopping $($stale.Count) stale process(es) holding files in $out."
+  $stale | ForEach-Object {
+    Write-Host "  $($_.ProcessName) (pid $($_.Id)) -- $($_.Path)"
+    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+  }
+  # Windows releases the file handles asynchronously; linking immediately after
+  # the kill can still hit the lock.
+  Start-Sleep -Seconds 3
+}
+
 Push-Location $src
 try {
   gn gen "out/Sunshine"
