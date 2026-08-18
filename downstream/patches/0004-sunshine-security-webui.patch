@@ -131,14 +131,14 @@ index 0000000..18424e2
 +<head>
 +  <meta charset="utf-8">
 +  <meta name="color-scheme" content="light dark">
-+  <title>Sunchine Security</title>
++  <title>Sunshine Security</title>
 +  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 +  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
 +  <link rel="stylesheet" href="app.css">
 +</head>
 +<body>
 +  <main id="page">
-+    <h1>Sunchine Security</h1>
++    <h1>Sunshine Security</h1>
 +
 +    <h2>Safe Browsing</h2>
 +
@@ -147,13 +147,13 @@ index 0000000..18424e2
 +         this page is built from a string at runtime (SEC-14), and so each one
 +         is a single unit for a later translation pass. -->
 +    <p class="verdict" id="verdictAbsent" hidden>
-+      Safe Browsing is not part of this build. Sunchine is not checking the
++      Safe Browsing is not part of this build. Sunshine is not checking the
 +      pages you visit or the files you download against any malware or phishing
 +      list, and nothing else here is doing that job in its place.
 +    </p>
 +    <p class="verdict" id="verdictOff" hidden>
 +      Safe Browsing is part of this build but is switched off for this profile.
-+      Sunchine is not checking the pages you visit or the files you download
++      Sunshine is not checking the pages you visit or the files you download
 +      against any malware or phishing list.
 +    </p>
 +    <p class="verdict" id="verdictUnreachable" hidden>

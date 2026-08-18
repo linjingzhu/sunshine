@@ -71,7 +71,7 @@ class ArchitectureVerifierTests(unittest.TestCase):
             "downstream/patches/0002-sunshine-new-tab.patch",
             "chrome/browser/resources/new_tab_page/app.html\n"
             "chrome/browser/resources/new_tab_page/app.css\n"
-            '<div id="sunshineWordmark" aria-label="Sunchine OS"\n'
+            '<div id="sunshineWordmark" aria-label="Sunshine OS"\n'
             '    ?hidden="${!this.logoEnabled_}">SUNSHINE</div>\n'
             "margin-bottom: var(--ntp-logo-margin-bottom, 38px);\n"
         )
