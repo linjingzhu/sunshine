@@ -73,6 +73,59 @@ Do not use this workspace for manual Chromium edits you want to keep.
 
 Leave it blank on a dedicated runner. On a machine that is also in daily use, keep two to four threads free — on a 12-core runner, `8` keeps the desktop responsive and costs roughly half again the compile time. Running the runner process at below-normal priority helps further.
 
+## When a job sits in `queued`
+
+A run that shows `queued` with no `Set up job` line has not reached a machine.
+Nothing is wrong with the workflow: GitHub has no runner to give it. The usual
+cause is that the machine slept — the runner is a process, and a sleeping
+Windows box runs no processes.
+
+This happened for seven hours on 2026-08-18, with run `32049595199` waiting the
+whole time, so it is written down rather than rediscovered.
+
+**Diagnose first.** In an elevated PowerShell:
+
+```powershell
+Get-Service "actions.runner.*" | Select-Object Name, Status
+Get-Process Runner.Listener -ErrorAction SilentlyContinue
+```
+
+- A service listed and `Running`, or a `Runner.Listener` process: the runner is
+  alive and the problem is elsewhere — check the queued run's labels against the
+  runner's.
+- A service listed and `Stopped`: `Start-Service <name>`.
+- Neither: the runner was running interactively in a window that has since
+  closed. Start it from its own directory, `C:\actions-runner`, with `.\run.cmd`.
+
+**Then fix the cause rather than the symptom.** An interactive runner dies with
+its window and with every sign-out. Installing it as a service survives both,
+and is a change to the machine — take it deliberately:
+
+```powershell
+cd C:\actions-runner
+.\svc.cmd install
+.\svc.cmd start
+```
+
+**A service still does not survive sleep.** Nothing in the runner keeps a
+machine awake, so a build queued overnight needs the machine configured not to
+sleep on mains power:
+
+```powershell
+powercfg /change standby-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0
+powercfg /requests
+```
+
+The last command shows what is currently holding the machine awake, which is
+worth reading before and after: a build holds nothing, so without these settings
+a six-hour compile on an idle desktop will be interrupted by the desktop.
+
+**Confirm.** The repository's Actions settings list the runner as `Idle` when it
+is connected, and a queued run starts within about thirty seconds of that. Do
+not treat the service starting as confirmation — confirm from the queued run
+moving.
+
 ## Workflow
 
 Run **Native Chromium Windows Build** manually after a downstream patch PR is merged:
