@@ -165,7 +165,25 @@ def check_chrome_launches(out: Path, result: Result) -> None:
     built with the right arguments, and still unable to run. A person watching
     a blank screen after double-clicking the installer cannot tell that story
     apart from a genuinely broken build; this check can, because it captures
-    the real exit code and output instead of a closed window.
+    the real exit code instead of a closed window.
+
+    **What it deliberately does not assert.** An earlier version of this check
+    required `--version` to print something, and failed build #20 -- a build
+    whose `chrome.exe` was fine. `chrome.exe` is linked as a Windows GUI
+    subsystem binary, so when it is launched with its stdout redirected to a
+    pipe it writes nothing there; the absence of output is normal and carries
+    no information about whether the browser works. Requiring it meant a
+    working browser reported FAIL, which is the kind of false positive that
+    ends with a guard deleted rather than a bug fixed. Output is now recorded
+    when it happens to arrive and is never required.
+
+    What remains is still worth the subprocess, because each of the three
+    surviving conditions is a real failure this project has either hit or has
+    no other way to see: the process cannot start at all (antivirus, a missing
+    DLL beside it), it never exits (a startup deadlock), or it exits nonzero
+    (a crash before the version path). Exit zero from a real process launch is
+    the signal; it is not much, and it is more than every other check here can
+    offer, all of which would pass on a binary that cannot run.
     """
 
     if sys.platform != "win32":
@@ -212,18 +230,18 @@ def check_chrome_launches(out: Path, result: Result) -> None:
     if completed.returncode != 0:
         result.record(
             FAILED,
-            "chrome.exe launches and reports its version",
+            "chrome.exe starts and exits cleanly",
             f"exit code {completed.returncode}: {output or '(no output)'}",
         )
         return
-    if not output:
-        result.record(
-            FAILED,
-            "chrome.exe launches and reports its version",
-            "exited 0 but printed nothing -- not the version-print code path",
-        )
-        return
-    result.record(PASSED, "chrome.exe launches and reports its version", output)
+    # A GUI-subsystem binary writes nothing to a redirected pipe, so `output`
+    # is usually empty on a perfectly good build. Reported when present, never
+    # required -- see the docstring.
+    result.record(
+        PASSED,
+        "chrome.exe starts and exits cleanly",
+        output or "exit 0, no console output (GUI subsystem)",
+    )
 
 
 def resolve_out(explicit: str | None) -> Path | None:

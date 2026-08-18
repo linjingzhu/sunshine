@@ -95,11 +95,15 @@ class PlatformHonestyTests(unittest.TestCase):
 
 
 class LaunchCheckTests(unittest.TestCase):
-    """`chrome.exe --version` is the one check that exercises real process
+    """Launching `chrome.exe` is the one check that exercises real process
     startup rather than reading a file or a registry key. These pin the
     failure shapes that all leave every artifact on disk, at a plausible
     size, and still unable to run -- the exact gap between "the build
     succeeded" and "a person can use the browser."
+
+    They also pin the shape that is *not* a failure. The check first shipped
+    requiring console output and failed build #20, a build whose browser was
+    fine; the cases below keep both halves of that lesson.
     """
 
     def setUp(self) -> None:
@@ -121,6 +125,22 @@ class LaunchCheckTests(unittest.TestCase):
         self.assertTrue(result.unavailable)
         self.assertFalse(result.failed)
 
+    def test_exit_zero_with_no_output_passes(self) -> None:
+        """The regression this pins, and the reason the check was rewritten.
+
+        `chrome.exe` is a Windows GUI subsystem binary: launched with its
+        stdout redirected to a pipe it writes nothing there. An earlier
+        version of this check required output and failed build #20, whose
+        browser was fine. A guard that fails a working build is worse than no
+        guard, because it gets deleted rather than believed.
+        """
+
+        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with mock.patch.object(built.subprocess, "run", return_value=completed):
+            result = self.run_check()
+        self.assertFalse(result.failed)
+        self.assertEqual(built.PASSED, result.rows[0][0])
+
     def test_a_missing_binary_reports_nothing_new(self) -> None:
         """`check_artifacts` already failed on this; a second, identically
         worded failure here would just be noise."""
@@ -129,13 +149,16 @@ class LaunchCheckTests(unittest.TestCase):
         result = self.run_check()
         self.assertEqual([], result.rows)
 
-    def test_a_clean_version_print_passes(self) -> None:
+    def test_output_is_reported_when_it_does_arrive(self) -> None:
+        """Not required, but not discarded either: on a platform or a future
+        build where the version does reach the pipe, it belongs in the log."""
+
         completed = subprocess.CompletedProcess([], 0, stdout="Sunshine OS 152.0.7977.42\n", stderr="")
         with mock.patch.object(built.subprocess, "run", return_value=completed):
             result = self.run_check()
         self.assertFalse(result.failed)
         self.assertIn(
-            (built.PASSED, "chrome.exe launches and reports its version", "Sunshine OS 152.0.7977.42"),
+            (built.PASSED, "chrome.exe starts and exits cleanly", "Sunshine OS 152.0.7977.42"),
             result.rows,
         )
 
@@ -162,12 +185,6 @@ class LaunchCheckTests(unittest.TestCase):
             result = self.run_check()
         self.assertTrue(result.failed)
         self.assertIn("could not start", result.rows[0][2])
-
-    def test_exit_zero_with_no_output_is_not_the_version_path(self) -> None:
-        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-        with mock.patch.object(built.subprocess, "run", return_value=completed):
-            result = self.run_check()
-        self.assertTrue(result.failed)
 
 
 class InvocationTests(unittest.TestCase):
