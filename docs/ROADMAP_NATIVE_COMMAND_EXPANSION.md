@@ -13,15 +13,15 @@ registry entry is created, changed, or proposed by this document. No product
 decision is made here; every place a command's shape depends on an open P0 is
 cited and left open.
 
-**On the seam itself.** `downstream/patches/series` holds five patches today —
+**On the seam itself.** `downstream/patches/series` holds six patches today —
 `0001-sunshine-branding`, `0002-sunshine-new-tab`,
 `0003-sunshine-no-missing-api-key-warning`, `0004-sunshine-webui-seam`,
-`0005-sunshine-security-webui`. The seam described in
-`docs/decisions/0007-module-contribution-seam.md` is now the fourth of those,
-and the security surface it was designed for has been renumbered behind it —
+`0005-sunshine-security-webui`, `0006-sunshine-document-webui`. The seam
+described in `docs/decisions/0007-module-contribution-seam.md` is now the
+fourth of those, and the two surfaces built on it have been added behind it —
 which is the seam doing exactly what the ADR said it would: a surface patch
 that once edited seven upstream files now appends to a registry the seam
-created.
+created, and the second such patch edits no upstream file at all.
 
 What the seam has *not* had is a compile. Everything below is sequencing
 against a mechanism verified in source and against the pinned revision, not
@@ -180,10 +180,11 @@ contracted in `docs/SECURITY_CENTER_CONTRACT.md`) and
 reached by direct navigation to their host, the same way `chrome://settings`
 is; neither has, or per its contract needs, a command-palette entry the way
 `browser.print` does. Confirming this was not a guess: `first_party/registry.json`
-lists two modules (`sunshine.new_tab`, `sunshine.workspace`) and neither is
-`sunshine.security` or `sunshine.document` — the security surface that
-already compiled has no module manifest entry at all yet, a gap distinct from
-and prior to the command-registry question.
+lists three modules (`sunshine.document`, `sunshine.new_tab`,
+`sunshine.workspace`), none of which declares a command entrypoint, and
+`sunshine.security` is still absent — the security surface that already
+compiled has no module manifest entry at all yet, a gap distinct from and
+prior to the command-registry question.
 
 The practical consequence: **the seam does not have twenty-some
 WebUI-surface-shaped commands waiting to be unblocked by it.** It has exactly

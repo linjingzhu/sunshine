@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "id": "sunshine.document",
+  "display_name": "Sunshine Documents",
+  "owner": "sunshine",
+  "kind": "surface",
+  "lifecycle": "profile",
+  "status": "prepared",
+  "entrypoints": [
+    {
+      "type": "chromium_webui",
+      "target": "chrome://sunshine-document"
+    }
+  ],
+  "capabilities": [],
+  "data": [
+    {
+      "owner": "sunshine",
+      "scope": "profile",
+      "access": "write",
+      "retention": "persistent"
+    }
+  ],
+  "security": {
+    "remote_content": false,
+    "requires_user_activation": true,
+    "profile_modes": [
+      "regular"
+    ],
+    "network": {
+      "access": "deny",
+      "allow": []
+    },
+    "filesystem": {
+      "access": "none"
+    },
+    "credentials": {
+      "direct_access": false
+    }
+  },
+  "verification": {
+    "native_build": "pending",
+    "runtime": "pending",
+    "visual": "pending"
+  }
+}
