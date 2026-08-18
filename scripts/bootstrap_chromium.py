@@ -83,6 +83,42 @@ def patch_paths(patch_path: pathlib.Path) -> set[str]:
     return paths
 
 
+def patch_created_paths(patch_path: pathlib.Path) -> set[str]:
+    """Repository paths a unified diff *adds*, headed `--- /dev/null`.
+
+    These are the paths that survive a reset, and knowing which they are is what
+    lets the reset stay surgical. `git checkout --force` reverts modifications to
+    tracked files; a file the patch stack created is untracked, so git has no
+    opinion about it and leaves it exactly where the last build put it. The next
+    `git apply` then refuses the whole patch with `already exists in working
+    directory`.
+
+    `git clean` would remove them, and also `out/Sunshine` -- hours of
+    incremental build, deleted to fix a seven-file problem. So the stack's own
+    declaration of what it creates is the list, and nothing outside it is
+    touched.
+    """
+
+    paths: set[str] = set()
+    lines = patch_path.read_text().splitlines()
+    for index, line in enumerate(lines):
+        match = re.match(r"^\+\+\+ b/(.+)$", line)
+        if match and index and lines[index - 1].rstrip() == "--- /dev/null":
+            paths.add(match.group(1))
+    return paths
+
+
+def remove_created_paths(src: pathlib.Path, patch_names: list[str]) -> None:
+    """Delete the files the stack creates, so the stack can create them again."""
+
+    for patch_name in patch_names:
+        for path in sorted(patch_created_paths(ROOT / "downstream/patches" / patch_name)):
+            target = src / path
+            if target.is_file():
+                target.unlink()
+                print(f"reset: {path}")
+
+
 def overlay_assets() -> dict[str, pathlib.Path]:
     """Chromium-relative destination -> the repository file that replaces it.
 
@@ -253,6 +289,12 @@ def main() -> int:
     if args.reset:
         sync += ["--force", "--reset"]
     run(*sync, cwd=workspace)
+
+    # Before the first `git apply --check`, not after a failure. A patch that
+    # creates files is all-or-nothing: `git apply` rejects the entire patch when
+    # one target already exists, so the seven files patch 0004 adds stopped
+    # build #18 before a single object compiled.
+    remove_created_paths(src, patch_names)
 
     for patch_name in patch_names:
         patch_path = ROOT / "downstream/patches" / patch_name
