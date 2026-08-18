@@ -80,11 +80,30 @@ def patch_sections(text: str) -> list[tuple[str, bool]]:
 
 
 def patch_targets(root: Path, entries: list[str]) -> dict[str, list[str]]:
+    """Exclusive ownership per target, except where the stack itself created it.
+
+    A path this stack creates is Sunshine's own file. Once created, later
+    patches in the series may extend it -- the shape a contribution seam
+    needs, where each surface patch appends one line to a registry file a
+    seam patch created, rather than touching upstream again. See
+    `docs/decisions/0007-module-contribution-seam.md`, which measured the
+    alternative: a second surface patch collided with the first on all seven
+    upstream files a naive contribution point touches.
+
+    Exclusivity still holds in the two cases where sharing would be a defect
+    rather than a pattern: two patches independently *creating* the same path
+    (almost certainly a mistake, not a seam), and any path this stack never
+    creates at all -- an ordinary upstream file, which stays unique to the one
+    patch carrying the diff against it.
+    """
+
     owners: dict[str, list[str]] = defaultdict(list)
+    creators: dict[str, list[str]] = defaultdict(list)
     patch_dir = root / "downstream/patches"
     for entry in entries:
         text = (patch_dir / entry).read_text(encoding="utf-8")
-        targets = {target for target, _created in patch_sections(text)}
+        sections = patch_sections(text)
+        targets = {target for target, _created in sections}
         if not targets:
             raise ManifestError(f"patch has no tracked targets: {entry}")
         for target in targets:
@@ -92,8 +111,20 @@ def patch_targets(root: Path, entries: list[str]) -> dict[str, list[str]]:
             if path.is_absolute() or ".." in path.parts:
                 raise ManifestError(f"invalid patch target in {entry}: {target}")
             owners[target].append(entry)
+        for target, created in sections:
+            if created:
+                creators[target].append(entry)
 
-    overlaps = {path: patches for path, patches in owners.items() if len(patches) > 1}
+    duplicated_creation = {path: patches for path, patches in creators.items() if len(patches) > 1}
+    if duplicated_creation:
+        raise ManifestError(f"patch target ownership overlaps: {duplicated_creation}")
+
+    created_by_the_stack = set(creators)
+    overlaps = {
+        path: patches
+        for path, patches in owners.items()
+        if len(patches) > 1 and path not in created_by_the_stack
+    }
     if overlaps:
         raise ManifestError(f"patch target ownership overlaps: {overlaps}")
     return dict(sorted(owners.items()))
@@ -142,9 +173,11 @@ def main() -> int:
         print("\n".join(upstream_targets()))
     else:
         created = created_paths(ROOT, read_manifest(ROOT))
+        extended = sum(1 for path, patches in owners.items() if path in created and len(patches) > 1)
         print(
-            f"Patch manifest passed: {len(owners)} exclusive targets, "
-            f"{len(owners) - len(created)} of them upstream and {len(created)} added."
+            f"Patch manifest passed: {len(owners)} target(s), "
+            f"{len(owners) - len(created)} upstream (exclusive) and {len(created)} created "
+            f"({extended} extended by a later patch)."
         )
     return 0
 

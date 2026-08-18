@@ -19,6 +19,115 @@ def load_manifest():
     return module
 
 
+class SeamExtensionTests(unittest.TestCase):
+    """`docs/decisions/0007-module-contribution-seam.md`: a path this stack
+    creates is Sunshine's own file, and once created a later patch may extend
+    it -- the shape needed for a second surface patch to register itself in a
+    seam patch's registry file without re-touching upstream.
+    """
+
+    def setUp(self) -> None:
+        self.module = load_manifest()
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.patch_dir = self.root / "downstream/patches"
+        self.patch_dir.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def write(self, name: str, target: str) -> None:
+        (self.patch_dir / name).write_text(
+            f"diff --git a/{target} b/{target}\n"
+            f"--- a/{target}\n"
+            f"+++ b/{target}\n"
+            "@@ -1 +1 @@\n-old\n+new\n",
+            encoding="utf-8",
+        )
+
+    def write_new_file(self, name: str, target: str) -> None:
+        (self.patch_dir / name).write_text(
+            f"diff --git a/{target} b/{target}\n"
+            "new file mode 100644\n"
+            "index 0000000..1111111\n"
+            "--- /dev/null\n"
+            f"+++ b/{target}\n"
+            "@@ -0,0 +1 @@\n+new\n",
+            encoding="utf-8",
+        )
+
+    def series(self, *entries: str) -> None:
+        (self.patch_dir / "series").write_text("\n".join(entries) + "\n", encoding="utf-8")
+
+    def test_a_created_registry_file_may_be_extended_by_a_later_patch(self) -> None:
+        """The seam creates the registry; each surface patch appends to it."""
+
+        self.write_new_file("0001-seam.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.write("0002-security-surface.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.series("0001-seam.patch", "0002-security-surface.patch")
+
+        owners = self.module.validate(self.root)
+        self.assertEqual(
+            ["0001-seam.patch", "0002-security-surface.patch"],
+            owners["chrome/browser/ui/webui/sunshine/registry.cc"],
+        )
+
+    def test_a_third_patch_may_extend_the_same_registry_too(self) -> None:
+        self.write_new_file("0001-seam.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.write("0002-security-surface.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.write("0003-workspace-surface.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.series("0001-seam.patch", "0002-security-surface.patch", "0003-workspace-surface.patch")
+
+        owners = self.module.validate(self.root)
+        self.assertEqual(3, len(owners["chrome/browser/ui/webui/sunshine/registry.cc"]))
+
+    def test_two_patches_independently_creating_the_same_path_still_conflicts(self) -> None:
+        """Extension is allowed; two origins for one path is still a mistake."""
+
+        self.write_new_file("0001-one.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.write_new_file("0002-two.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.series("0001-one.patch", "0002-two.patch")
+        with self.assertRaisesRegex(self.module.ManifestError, "overlaps"):
+            self.module.validate(self.root)
+
+    def test_upstream_files_still_reject_a_second_surface_naively_built(self) -> None:
+        """The regression this refinement must not introduce.
+
+        Reproduces the collision `docs/decisions/0007-module-contribution-seam.md`
+        recorded: two surface patches, each modifying the same seven upstream
+        files directly (the shape before a seam exists), must still conflict.
+        Only paths the stack itself creates lose their exclusivity -- these
+        seven do not.
+        """
+
+        shared_upstream = (
+            "chrome/common/webui_url_constants.h",
+            "chrome/common/webui_url_constants.cc",
+            "chrome/browser/ui/webui/chrome_web_ui_configs.cc",
+            "chrome/browser/ui/webui/BUILD.gn",
+            "chrome/browser/resources/BUILD.gn",
+            "chrome/chrome_paks.gni",
+            "tools/gritsettings/resource_ids.spec",
+        )
+        names = [f"security-surface-{i}" for i in range(len(shared_upstream))] + [
+            f"workspace-surface-{i}" for i in range(len(shared_upstream))
+        ]
+        entries = [f"{number:04d}-{name}.patch" for number, name in enumerate(names, start=1)]
+        for entry, target in zip(entries, list(shared_upstream) * 2):
+            self.write(entry, target)
+        self.series(*entries)
+        with self.assertRaisesRegex(self.module.ManifestError, "overlaps"):
+            self.module.validate(self.root)
+
+    def test_the_summary_line_reports_extension_separately_from_creation(self) -> None:
+        self.write_new_file("0001-seam.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.write("0002-surface.patch", "chrome/browser/ui/webui/sunshine/registry.cc")
+        self.write("0003-branding.patch", "chrome/app/BRANDING")
+        self.series("0001-seam.patch", "0002-surface.patch", "0003-branding.patch")
+        owners = self.module.validate(self.root)
+        self.assertEqual(2, len(owners))
+
+
 class PatchManifestTests(unittest.TestCase):
     def setUp(self) -> None:
         self.module = load_manifest()
