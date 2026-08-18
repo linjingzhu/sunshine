@@ -103,13 +103,46 @@ the restructure is mechanical rather than a fresh decision.
 - A surface can be reverted by removing one patch, without touching upstream
   edits that other surfaces depend on.
 
+## What was actually built
+
+The seam landed as `0004-sunshine-webui-seam.patch`, and it is weaker than the
+fallback this ADR named. Recorded here rather than in a commit message,
+because the gap changes what the next surface costs.
+
+**Three of the seven files are now generic.** `chrome_web_ui_configs.cc` calls
+one `sunshine::RegisterWebUIConfigs(map)`; `webui_url_constants.h` includes one
+Sunshine-owned header; `webui_url_constants.cc` appends a Sunshine-owned list
+to `ChromeURLHosts()` once. A surface extends the two Sunshine-owned registries
+those create and touches none of the three again. `0005-sunshine-security-webui.patch`
+demonstrates it: zero upstream sections, two registry-extension sections.
+
+**Four are not.** `chrome/browser/resources/BUILD.gn`,
+`chrome/browser/ui/webui/BUILD.gn`, `chrome/chrome_paks.gni` and
+`tools/gritsettings/resource_ids.spec` carry `sunshine_security`-specific lines
+inside the seam patch, because each is tied 1:1 to the surface's `grd_prefix`,
+and changing that prefix would change `IDR_SUNSHINE_SECURITY_APP_HTML`. The
+shared-grd assumption below was not resolved; it was worked around by baking
+the one surface that exists into the seam.
+
+**So a second surface costs four upstream-file edits, not zero, and not the
+one this ADR's fallback predicted.** The seam's genericity stops at the
+registration and host halves. Any claim that a second surface is now free is
+wrong, and one was made in the commit that landed the seam before this section
+was written.
+
+The resource half is therefore still open work, not a solved problem: either a
+shared grd that several surfaces can populate, or an accepted per-surface cost
+in four files, recorded as a decision rather than as a workaround discovered
+during implementation.
+
 ## NOT VERIFIED
 
-- Patch 0004 has never been compiled, so every upstream mechanism this ADR
-  builds on is assumed rather than observed.
-- That a single grd can serve several independent WebUI surfaces is the load
-  bearing assumption of the resource half, and it is unverified. If it cannot,
-  the seam still removes six of the seven collisions and `resource_ids.spec`
-  keeps one entry per surface.
-- Whether `ChromeURLHosts()` accepts a loop over a Sunshine-owned list, rather
-  than literal entries, was not checked against the pinned source.
+- Neither the seam nor the surface patch has been compiled. `verify_pinned_upstream.py`
+  confirms all five patches apply cleanly to 152.0.7977.42; that is not the
+  same as GN accepting the registry targets or `rc.exe` linking the resources.
+- That a single grd can serve several independent WebUI surfaces remains
+  untested, and is now the specific question the resource half is blocked on.
+- Whether `ChromeURLHosts()` accepts a loop over a Sunshine-owned list was
+  checked against the pinned source during implementation and reworked into a
+  `base::NoDestructor<std::vector<...>>` append; that it compiles is still
+  unobserved.

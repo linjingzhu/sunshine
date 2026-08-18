@@ -126,21 +126,44 @@ device-independent pixels.
 
 | Property | Rule |
 |---|---|
-| Activation distance | `abs(dx) >= D`, where `D` is set by the sensitivity setting |
+| Activation distance | `abs(dx) >= D`, where `D` is the user-set activation distance below |
 | Direction resolution | `abs(dx) >= 2 * abs(dy)`; otherwise the direction is ambiguous |
 | Direction | `dx < 0` is left; `dx > 0` is right |
 | Time limit | None. The gesture ends when the button is released or a cancellation condition occurs |
 | Re-entry | Once `Recognised`, the gesture does not revert if the pointer returns towards the origin |
 
-| Sensitivity | `D` |
-|---|---|
-| Low | 48 px |
-| Standard (default) | 32 px |
-| High | 20 px |
+`D` is a number of device-independent pixels the user sets directly. It
+defaults to **200 px** and accepts any value in **[20, 600]**.
 
-These three values are the contract's starting point. They may be revised from
-the telemetry in section 7; the `2:1` direction ratio and the release-time
-evaluation are not tunable without amending this document.
+| Property | Value |
+|---|---|
+| Default `D` | 200 px |
+| Accepted range | 20 px – 600 px |
+| Out-of-range input | Clamped to the nearest bound; never rejected with an error |
+
+**Why a number and not three named levels.** This contract first specified an
+enum — low 48 px, standard 32 px, high 20 px — and the product owner reports
+that 32 px was, in practice, uncomfortable to use: at that distance an ordinary
+right-click that drifts a few millimetres reads as a gesture, so the menu the
+user wanted is replaced by a navigation they did not. The failure is not that
+32 px was the wrong constant. It is that the right constant depends on pointer
+speed, screen density, and grip, and no three-value enum contains every user's
+answer. A direct value moves that judgement to the person holding the mouse.
+
+200 px is the default because it is far enough that no plausible click-drift
+reaches it, which is the failure the owner actually hit. It is deliberately
+much larger than the old `standard`: a threshold that is too high wastes a
+deliberate movement, while one that is too low steals a context menu, and only
+the second silently does the wrong thing.
+
+The range bounds exist so the setting cannot make the feature incoherent. Below
+20 px a gesture is indistinguishable from a click; above 600 px it cannot be
+completed on a small window at all. Both bounds clamp rather than reject,
+because a settings field that refuses a number is a worse experience than one
+that quietly honours the nearest legal value.
+
+The `2:1` direction ratio and the release-time evaluation are not tunable
+without amending this document.
 
 ### 3.3 Cancellation reasons
 
@@ -183,7 +206,7 @@ non-gesture routes before the binding ships.
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `gestures.enabled` | boolean | `true` | Master switch. When `false`, no press enters `Tracking` and no gesture telemetry is recorded |
-| `gestures.sensitivity` | enum: low, standard, high | `standard` | Selects the activation distance `D` in section 3.2 |
+| `gestures.activation_distance` | integer, device-independent pixels | `200` | The activation distance `D` in section 3.2. Accepts 20–600; a value outside that range is clamped to the nearest bound, not refused |
 | `gestures.trail.visible` | boolean | `true` | Whether the recognition trail is drawn. Purely presentational; it does not affect recognition, thresholds, or dispatch |
 | `gestures.binding.back.enabled` | boolean | `true` | Enables the drag-left binding |
 | `gestures.binding.forward.enabled` | boolean | `true` | Enables the drag-right binding |
@@ -254,8 +277,9 @@ Further requirements:
 - The trail conveys no information that is not otherwise available; nothing
   depends on perceiving it, and it is not the only feedback that a command ran.
 - Recognition thresholds must be reachable by users with reduced pointer
-  precision: the low-sensitivity setting exists for that reason, not only for
-  users who dislike accidental activation.
+  precision. A user-set activation distance serves that need better than a
+  fixed enum did, but only if the range reaches far enough down: 20 px is the
+  lower bound for this reason, not merely as a nominal floor.
 - Gesture recognition must not interfere with assistive-technology pointer
   emulation; where such input is indistinguishable from a drag, the suppression
   conditions in section 3.1 apply unchanged.
@@ -302,8 +326,9 @@ The §2 invariants are numbered separately and are cited as invariants.
     records exactly one unavailable event.
 14. **GA-14. Settings.** With gestures disabled, or with the back binding
     disabled, behaviour is byte-for-byte the ordinary right-click path;
-    sensitivity changes the measured activation distance to the value in section
-    3.2.
+    setting `gestures.activation_distance` changes the measured activation
+    distance to that value, and a value outside 20-600 is clamped rather than
+    refused (section 3.2).
 15. **GA-15. Trail.** Disabling the trail changes nothing except the trail;
     recognition and dispatch are unaffected, and the trail never appears in
     captured page content.
