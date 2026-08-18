@@ -1,6 +1,7 @@
 """Static contract tests for the resource-intensive Windows Chromium build."""
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -112,6 +113,25 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn('gn gen "out/Sunshine"', script)
         self.assertNotIn("--args=", script)
 
+    def test_a_compile_failure_prints_the_compiler_diagnostic(self) -> None:
+        """siso keeps the failing command's output out of stdout.
+
+        Run 10 reached the compile, ran 17.5 minutes, and failed one of 66,739
+        steps. The log recorded `1 steps failed: exit=1` and nothing else --
+        no target, no source file, no compiler message -- because siso had
+        written all of it to out/Sunshine/siso_output on the runner. A compile
+        failure that cannot be read from the log cannot be fixed from the log.
+        """
+
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("siso_output", script)
+        self.assertIn("siso_failed_commands.bat", script)
+
+        # The dump has to precede the throw, or `throw` ends the script first.
+        dump = script.index("siso_output")
+        failure = script.index('throw "Chromium compilation failed."')
+        self.assertLess(dump, failure)
+
     def test_compile_parallelism_is_capped_when_asked(self) -> None:
         """The runner is also the owner's workstation, so it must stay usable."""
 
@@ -122,6 +142,126 @@ class WindowsBuildContractTests(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("ninja_jobs:", workflow)
         self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
+
+
+class SelfHostedGuardTests(unittest.TestCase):
+    """The self-hosted guard is not a fallback any more -- it is the only CI.
+
+    It replaced a hosted guard that could not be allocated a runner for a full
+    day, which made the repository's verification depend on an account
+    allowance it cannot influence. The rules below are what keep a guard that
+    now stands alone from quietly checking less than the repository contains.
+
+    Parsed with the standard library on purpose: a YAML dependency here would
+    make the guard's own tests need a package the guard does not install.
+    """
+
+    GUARD = WORKFLOW_DIR / "architecture-guard-self-hosted.yml"
+
+    RUN_STEP = re.compile(r"^\s+run: (.+)$", re.MULTILINE)
+    USES_STEP = re.compile(r"^\s+uses: (.+)$", re.MULTILINE)
+
+    # Scripts that are checks. `bootstrap_chromium.py` and `workspace_model.py`
+    # are not -- one is build tooling, the other is a model the checks read.
+    GUARD_PREFIXES = ("verify_", "validate_")
+    GUARD_NAMES = ("patch_manifest.py", "trace_invariants.py", "compile_check.py")
+
+    def _commands(self, path: Path) -> list[str]:
+        """Single-line `run:` values. A `run: |` block yields "|", not a command."""
+
+        found = [line.strip() for line in self.RUN_STEP.findall(path.read_text(encoding="utf-8"))]
+        return [command for command in found if command != "|"]
+
+    def test_no_workflow_downloads_a_third_party_action(self) -> None:
+        """`uses:` is fetched from codeload.github.com during `Set up job`.
+
+        This account is rate-limited there. Build runs 13 and 14 both failed
+        with HTTP 429 after three retries, before any step of ours executed --
+        so an action is not a convenience the job can degrade without, it is a
+        remote dependency that can kill the job outright. git and python are
+        already required on this machine by the Chromium build itself.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
+            with self.subTest(workflow=workflow.name):
+                self.assertEqual(
+                    [],
+                    self.USES_STEP.findall(workflow.read_text(encoding="utf-8")),
+                    f"{workflow.name} depends on an action download",
+                )
+
+    def test_some_workflow_runs_every_check_the_repository_has(self) -> None:
+        """A guard script that no workflow invokes is a check nobody runs.
+
+        Enumerated from disk rather than listed here, so adding
+        `scripts/verify_something.py` without wiring it in fails immediately
+        instead of passing silently for as long as nobody notices.
+
+        Both workflows count. `verify_installed_build.py` reads the build
+        output, so it belongs to the build job rather than the guard job --
+        running it where no browser exists would report NOT AVAILABLE for
+        everything it is for.
+        """
+
+        commands = " ".join(self._commands(self.GUARD) + self._commands(WORKFLOW))
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            name = script.name
+            if not (name.startswith(self.GUARD_PREFIXES) or name in self.GUARD_NAMES):
+                continue
+            with self.subTest(script=name):
+                self.assertIn(name, commands, f"{name} is never run by the guard")
+
+        self.assertIn("unittest discover -s tests", commands)
+
+    def test_every_check_step_invokes_python_directly(self) -> None:
+        """The runner is a Windows workstation. A check that needs a bash which
+        happens to be on its PATH fails for a reason unrelated to what it is
+        checking. The checkout step is the one exception and is a `run: |`
+        block, so it is not among the single-line commands.
+        """
+
+        for command in self._commands(self.GUARD):
+            self.assertTrue(command.startswith("python"), command)
+
+    def test_the_guard_is_dispatch_only(self) -> None:
+        """Asserted separately from the fork rule because this is the single
+        property that makes running a guard on a physical machine safe."""
+
+        text = self.GUARD.read_text(encoding="utf-8")
+        self.assertIn("on:\n  workflow_dispatch:\n", text)
+        for event in ("pull_request", "push:", "schedule:"):
+            with self.subTest(event=event):
+                self.assertNotIn(f"  {event}", text)
+
+    def test_the_checkout_step_leaves_no_credential_on_disk(self) -> None:
+        """The runner is a physical machine that outlives the job.
+
+        The token travels in the fetch URL, which lives only in that process's
+        arguments. `git remote add` or an `extraheader` config would write it
+        into `.git/config`, where it would remain after the job ended.
+        """
+
+        for workflow in (self.GUARD, WORKFLOW):
+            with self.subTest(workflow=workflow.name):
+                text = workflow.read_text(encoding="utf-8")
+                self.assertIn("git fetch", text)
+                self.assertNotIn("git remote add", text)
+                self.assertNotIn("extraheader", text)
+                self.assertNotIn("git config", text)
+
+
+class InstallerDeliveryTests(unittest.TestCase):
+    """The runner is the owner's own machine, so the installer is already where
+    it needs to be when the build ends. Uploading it to GitHub storage, which a
+    private repository is billed for, and downloading it back to the machine
+    that produced it, is cost with no delivery.
+    """
+
+    def test_the_build_reports_the_installer_instead_of_uploading_it(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("upload-artifact", text)
+        self.assertIn("sunshine-installer-windows-x64.exe", text)
+        self.assertIn("size-report.json", text)
 
 
 if __name__ == "__main__":

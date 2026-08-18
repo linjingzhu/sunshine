@@ -220,3 +220,145 @@ def close_workspace_atomic(
             for tab in tabs
         ),
     )
+
+
+# --- Availability predicates -------------------------------------------------
+#
+# Side-effect free answers to "may this command be offered?", returning None when
+# it may and the reason token the surface shows the user when it may not. See the
+# The `guard` field could not serve this purpose: it held the operation, not a
+# predicate, so asking a command whether it was available performed it.
+
+
+def can_close_workspace(catalog: Catalog, closed_workspace_id: str) -> str | None:
+    """Closing needs a distinct destination in the same profile to receive tabs."""
+
+    known = catalog.by_id()
+    if closed_workspace_id not in known:
+        return "workspace_not_found"
+    if len(known) < 2:
+        return "no_destination_workspace"
+    return None
+
+
+def can_move_tabs(catalog: Catalog, destination_workspace_id: str) -> str | None:
+    """Tabs can only move to a workspace that exists."""
+
+    if destination_workspace_id not in catalog.by_id():
+        return "no_destination_workspace"
+    return None
+
+
+# --- Window-local workspace state --------------------------------------------
+#
+# `workspace.switch` is specified to restore a workspace's last active tab, and
+# nothing stored it. The catalog holds id/profile/name/colour/order, and window
+# extra-data held only the active workspace, so the behaviour was specified with
+# no owner.
+#
+# It belongs in *window* session extra-data, not the catalog: the catalog is
+# profile-wide, so two windows showing the same workspace would overwrite each
+# other's idea of where the user was. The reference is a durable Sunshine UUID,
+# never a runtime id, which does not survive restart.
+#
+# This stores a pointer into Chromium's tabs. It does not shadow them: if the
+# pointer no longer resolves, the answer is Chromium's own restored active tab.
+
+
+WINDOW_STATE_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class WindowWorkspaceState:
+    """One window's workspace selection and where it left off in each."""
+
+    schema_version: int
+    active_workspace_id: str
+    last_active_tab: Mapping[str, str]
+
+
+def parse_window_state(payload: Mapping[str, object]) -> WindowWorkspaceState:
+    """Fail closed on damaged window extra-data rather than guessing."""
+
+    if not isinstance(payload, Mapping):
+        raise WorkspaceModelError("window state must be a mapping")
+    version = payload.get("schema_version")
+    if version != WINDOW_STATE_SCHEMA_VERSION:
+        raise UnknownSchemaError(f"unsupported window state schema: {version!r}")
+
+    active = canonical_uuid(payload.get("active_workspace_id"), "active_workspace_id")
+
+    raw = payload.get("last_active_tab", {})
+    if not isinstance(raw, Mapping):
+        raise WorkspaceModelError("last_active_tab must be a mapping")
+    resolved: dict[str, str] = {}
+    for workspace_id, tab_uuid in raw.items():
+        resolved[canonical_uuid(workspace_id, "last_active_tab key")] = canonical_uuid(
+            tab_uuid, "last_active_tab value"
+        )
+    return WindowWorkspaceState(WINDOW_STATE_SCHEMA_VERSION, active, resolved)
+
+
+def record_active_tab(
+    state: WindowWorkspaceState, workspace_id: str, tab_uuid: str
+) -> WindowWorkspaceState:
+    """Remember where the user is in `workspace_id`, for this window only."""
+
+    updated = dict(state.last_active_tab)
+    updated[canonical_uuid(workspace_id, "workspace_id")] = canonical_uuid(tab_uuid, "tab_uuid")
+    return WindowWorkspaceState(state.schema_version, state.active_workspace_id, updated)
+
+
+def resolve_switch_target(
+    state: WindowWorkspaceState, workspace_id: str, tabs: Iterable[NativeTab]
+) -> str | None:
+    """The tab `workspace.switch` should activate, or None to let Chromium choose.
+
+    None is a real answer, not a failure: on a first visit, after the remembered
+    tab is closed, or when it has moved to another workspace, Chromium's own
+    restored active tab is correct and Sunshine must not override it.
+
+    Membership is re-checked here rather than trusted from the record. A tab
+    moved to another workspace still matches by UUID, and activating it would
+    project a tab the target workspace does not contain.
+    """
+
+    remembered = state.last_active_tab.get(workspace_id)
+    if remembered is None:
+        return None
+    for tab in tabs:
+        if tab.sunshine_tab_uuid == remembered and tab.workspace_id == workspace_id:
+            return remembered
+    return None
+
+
+def prune_window_state(state: WindowWorkspaceState, catalog: Catalog) -> WindowWorkspaceState:
+    """Drop entries for workspaces that no longer exist.
+
+    Without this a closed workspace's entry outlives it, and a later workspace
+    reusing that UUID is not possible, so the entry simply accumulates.
+    """
+
+    known = catalog.by_id()
+    kept = {w: t for w, t in state.last_active_tab.items() if w in known}
+    if len(kept) == len(state.last_active_tab):
+        return state
+    return WindowWorkspaceState(state.schema_version, state.active_workspace_id, kept)
+
+
+def persistable_window_state(
+    state: WindowWorkspaceState | None, *, off_the_record: bool
+) -> dict[str, object] | None:
+    """Serialize window workspace state, or None when it must stay in memory.
+
+    Incognito and Guest windows keep it in memory only. A per-workspace record of
+    the last page the user was reading is browsing history by another name.
+    """
+
+    if state is None or off_the_record:
+        return None
+    return {
+        "schema_version": state.schema_version,
+        "active_workspace_id": state.active_workspace_id,
+        "last_active_tab": dict(sorted(state.last_active_tab.items())),
+    }

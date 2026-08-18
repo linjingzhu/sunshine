@@ -83,6 +83,47 @@ def patch_paths(patch_path: pathlib.Path) -> set[str]:
     return paths
 
 
+def overlay_assets() -> dict[str, pathlib.Path]:
+    """Chromium-relative destination -> the repository file that replaces it.
+
+    The mapping is the directory layout: `downstream/assets/` mirrors the
+    Chromium tree, so nothing has to be declared twice and the two halves cannot
+    drift apart. `scripts/verify_asset_overlay.py` is the guard on the contents;
+    this is only the reader.
+    """
+
+    base = ROOT / "downstream/assets"
+    if not base.is_dir():
+        return {}
+    return {
+        path.relative_to(base).as_posix(): path
+        for path in sorted(base.rglob("*"))
+        if path.is_file()
+    }
+
+
+def apply_overlay(src: pathlib.Path) -> None:
+    """Copy the binary assets the patch stack cannot carry.
+
+    After the patches, deliberately. A patch that edited the same path would
+    have its edit discarded here, which is why `verify_asset_overlay.py` refuses
+    that overlap outright rather than leaving the order to decide it.
+
+    Every destination must already exist. Chromium reads these by fixed path
+    from `.rc` files, so writing one that upstream does not have produces a file
+    nothing compiles and a build that silently keeps the old icon.
+    """
+
+    for destination, source in overlay_assets().items():
+        target = src / destination
+        if not target.exists():
+            raise SystemExit(
+                f"overlay destination is not in the Chromium checkout: {destination}"
+            )
+        shutil.copyfile(source, target)
+        print(f"overlay: {destination}")
+
+
 def dirty_paths(src: pathlib.Path) -> set[str]:
     output = subprocess.run(
         (executable("git"), "status", "--porcelain=v1", "-z"),
@@ -103,7 +144,7 @@ def dirty_paths(src: pathlib.Path) -> set[str]:
 
 
 def patch_stack_is_applied(src: pathlib.Path, patch_names: list[str]) -> bool:
-    expected_paths: set[str] = set()
+    expected_paths: set[str] = set(overlay_assets())
     for patch_name in patch_names:
         patch_path = ROOT / "downstream/patches" / patch_name
         expected_paths.update(patch_paths(patch_path))
@@ -217,6 +258,8 @@ def main() -> int:
         patch_path = ROOT / "downstream/patches" / patch_name
         run("git", "apply", "--check", str(patch_path), cwd=src)
         run("git", "apply", str(patch_path), cwd=src)
+
+    apply_overlay(src)
 
     print(f"Sunshine Chromium checkout ready at {src}")
     return 0

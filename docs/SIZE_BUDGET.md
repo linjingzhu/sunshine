@@ -13,7 +13,12 @@ Sunshine OS remains a complete browser. Size work must not remove sandboxing, si
 | First-run profile | New user data before browsing | Measure and regress-test |
 | Cache after use | Browsing data, media, and service caches | User-visible limit and cleanup policy required |
 
-These are investigation thresholds, not promised release sizes. The first native macOS release build establishes the baseline.
+These are investigation thresholds, not promised release sizes. The first native
+**Windows** release build establishes the baseline. This said macOS, which
+contradicted `.ai/CORE.md` — Windows is the default build platform and a macOS
+build is not performed unless the user asks — and `docs/PERFORMANCE_BUDGET.md`
+depends on the two budgets sharing a reference platform, since a size and a
+speed measured on different machines cannot be traded against each other.
 
 ## Required release configuration
 

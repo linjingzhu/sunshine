@@ -151,69 +151,81 @@ rendering, never become a recovery source, and never cross profile boundaries.
 All tests use a temporary Chromium profile and local test-server URLs. They must
 not depend on live websites or synchronization services.
 
+`BH-` is the prefix for these tests. Each group restarts at 1, so the group
+carries a letter and the ordinal is unchanged: test 3 of *Back, forward, and
+recently closed* is `BH-C3`. The letters run `A` to `E` in the order the groups
+appear below.
+
 ### Bookmark CRUD and search
 
-1. Create two folders and bookmarks with duplicate titles but different URLs.
-2. Verify both native nodes, parent folders, URLs, titles, and ordering.
-3. Rename one bookmark, change its URL, move it across folders, and reorder it.
-4. Search separately by old title, new title, hostname, and URL fragment;
-   verify only native matching results and correct folder context.
-5. Delete one bookmark and verify native observers update the surface.
-6. Exercise native undo if the implemented surface advertises undo.
-7. Restart the browser and verify the final tree exactly once—no duplicates and
-   no deleted node resurrection.
+1. **BH-A1.** Create two folders and bookmarks with duplicate titles but
+   different URLs.
+2. **BH-A2.** Verify both native nodes, parent folders, URLs, titles, and
+   ordering.
+3. **BH-A3.** Rename one bookmark, change its URL, move it across folders, and
+   reorder it.
+4. **BH-A4.** Search separately by old title, new title, hostname, and URL
+   fragment; verify only native matching results and correct folder context.
+5. **BH-A5.** Delete one bookmark and verify native observers update the
+   surface.
+6. **BH-A6.** Exercise native undo if the implemented surface advertises undo.
+7. **BH-A7.** Restart the browser and verify the final tree exactly once—no
+   duplicates and no deleted node resurrection.
 
 ### Global history CRUD, search, and clear
 
-1. Navigate two tabs through distinct local URLs with controlled titles and
-   timestamps; include two visits to one URL.
-2. Verify the active tab's back/forward list contains only its own navigation
-   entries while global history contains visits from both tabs.
-3. Search by title and URL with a bounded time range and deterministic order.
-4. Open a result and verify normal navigation without a duplicate
+1. **BH-B1.** Navigate two tabs through distinct local URLs with controlled
+   titles and timestamps; include two visits to one URL.
+2. **BH-B2.** Verify the active tab's back/forward list contains only its own
+   navigation entries while global history contains visits from both tabs.
+3. **BH-B3.** Search by title and URL with a bounded time range and
+   deterministic order.
+4. **BH-B4.** Open a result and verify normal navigation without a duplicate
    Sunshine-generated visit.
-5. Delete the selected URL/visit scope through the native API; verify observers
-   and a fresh query no longer return the deleted scope.
-6. Clear a controlled time range; verify records outside the range remain.
-7. Restart and verify remaining history persists and deleted/cleared records do
-   not return.
+5. **BH-B5.** Delete the selected URL/visit scope through the native API; verify
+   observers and a fresh query no longer return the deleted scope.
+6. **BH-B6.** Clear a controlled time range; verify records outside the range
+   remain.
+7. **BH-B7.** Restart and verify remaining history persists and deleted/cleared
+   records do not return.
 
 ### Back, forward, and recently closed
 
-1. Navigate A → B → C in one tab and X → Y in a second tab.
-2. Verify back/forward act only on the active tab and do not rewrite global
-   history directly.
-3. Close the A/B/C tab, invoke native reopen-closed, and verify its navigation
-   stack is restored.
-4. Clear global history and verify the expected native behavior of the current
-   live tab stack separately; never claim that clearing history is equivalent
-   to erasing the tab's in-memory navigation controller.
-5. Restart and test native session-restore behavior under the configured
-   startup preference separately from global history persistence.
+1. **BH-C1.** Navigate A → B → C in one tab and X → Y in a second tab.
+2. **BH-C2.** Verify back/forward act only on the active tab and do not rewrite
+   global history directly.
+3. **BH-C3.** Close the A/B/C tab, invoke native reopen-closed, and verify its
+   navigation stack is restored.
+4. **BH-C4.** Clear global history and verify the expected native behavior of
+   the current live tab stack separately; never claim that clearing history is
+   equivalent to erasing the tab's in-memory navigation controller.
+5. **BH-C5.** Restart and test native session-restore behavior under the
+   configured startup preference separately from global history persistence.
 
 ### Privacy and isolation
 
-1. Create bookmark/history fixtures in Profile A and different fixtures in
-   Profile B; verify no cross-profile results or mutations.
-2. Visit unique URLs in incognito, close all incognito windows, and verify they
-   are absent from regular history, recently closed persistence, New Tab data,
-   and any Sunshine-owned files.
-3. Disable history saving using the supported preference/policy and verify
-   Sunshine does not create a fallback record.
-4. Run with no account bookmark roots and verify local bookmarks remain fully
-   functional without synthetic account nodes.
+1. **BH-D1.** Create bookmark/history fixtures in Profile A and different
+   fixtures in Profile B; verify no cross-profile results or mutations.
+2. **BH-D2.** Visit unique URLs in incognito, close all incognito windows, and
+   verify they are absent from regular history, recently closed persistence, New
+   Tab data, and any Sunshine-owned files.
+3. **BH-D3.** Disable history saving using the supported preference/policy and
+   verify Sunshine does not create a fallback record.
+4. **BH-D4.** Run with no account bookmark roots and verify local bookmarks
+   remain fully functional without synthetic account nodes.
 
 ### Storage and failure safety
 
-1. Assert the implementation references native factories/models/services and
-   adds no independent persistence dependency or schema.
-2. Simulate native mutation failure or service unavailability; the UI reports
-   failure and removes optimistic transient state.
-3. Cleanly restart after queued writes and verify persistence.
-4. Terminate during a bookmark write in a test fixture and verify Chromium's
-   supported recovery behavior without reading backup files directly.
-5. Run Chromium's relevant bookmark, history, session, profile-isolation, and
-   browser tests for the pinned revision.
+1. **BH-E1.** Assert the implementation references native
+   factories/models/services and adds no independent persistence dependency or
+   schema.
+2. **BH-E2.** Simulate native mutation failure or service unavailability; the UI
+   reports failure and removes optimistic transient state.
+3. **BH-E3.** Cleanly restart after queued writes and verify persistence.
+4. **BH-E4.** Terminate during a bookmark write in a test fixture and verify
+   Chromium's supported recovery behavior without reading backup files directly.
+5. **BH-E5.** Run Chromium's relevant bookmark, history, session,
+   profile-isolation, and browser tests for the pinned revision.
 
 ## Completion gate
 

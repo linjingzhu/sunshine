@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""Hold Sunshine-authored web assets to the rules a privileged surface needs.
+
+Sunshine's web assets are not ordinary page content. They are patched into
+Chromium's own WebUI, which runs at a privilege level no website has, so the
+usual "it is first-party, it is fine" reasoning is exactly backwards: being
+first-party is what makes a mistake here expensive.
+
+    SEC-14  no dynamically constructed code, and no remote resource, in a
+            Sunshine-authored web asset
+
+Two families, both decidable from source.
+
+**Dynamic code.** `eval`, `new Function`, and the string forms of `setTimeout`
+and `setInterval` turn data into code. So does assigning to `innerHTML`, which
+is why Chromium's WebUI enforces Trusted Types and would reject it at runtime --
+this check moves that rejection to review time, where it is cheap.
+
+**Remote resources.** A privileged surface that loads a script, stylesheet or
+font from the network has handed its privilege to whoever controls that host,
+and to anyone who can intercept the connection. Sunshine's surfaces ship with
+the browser and have no reason to fetch anything.
+
+Enforces: SEC-14, SECA-9.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+
+SEARCHED = ("first_party", "downstream")
+GUARD_PREFIXES = ("verify_", "validate_", "test_")
+WEB_SUFFIXES = (".ts", ".js", ".css", ".html")
+
+# A patch is mostly upstream. Only added lines are Sunshine's, and the file the
+# hunk targets decides whether the added lines are a web asset at all.
+PATCH_FILE = re.compile(r"^\+\+\+ b/(.+)$")
+
+DYNAMIC_CODE = (
+    (re.compile(r"\beval\s*\("), "eval() turns data into code"),
+    (re.compile(r"\bnew\s+Function\s*\("), "new Function() turns data into code"),
+    (re.compile(r"\bset(?:Timeout|Interval)\s*\(\s*[\"']"), "a string timer body is eval by another name"),
+    (re.compile(r"\.innerHTML\s*="), "innerHTML assignment; Chromium WebUI enforces Trusted Types"),
+    (re.compile(r"\.outerHTML\s*="), "outerHTML assignment; Chromium WebUI enforces Trusted Types"),
+    (re.compile(r"document\.write\s*\("), "document.write() parses a string as markup"),
+)
+
+# A remote URL anywhere in a web asset. `chrome://` and `chrome-untrusted://`
+# are Chromium's own internal surfaces and are not remote; `data:` is inline.
+REMOTE_URL = re.compile(r"""["'(\s](https?://[^"'\s)]+)""")
+ALLOWED_REMOTE_CONTEXT = re.compile(r"^\s*(?://|/\*|\*|#|<!--)")
+
+
+def _is_guard(path: Path) -> bool:
+    return path.name.startswith(GUARD_PREFIXES)
+
+
+def web_assets(root: Path) -> list[tuple[str, str]]:
+    """(label, text) for every Sunshine-authored web asset.
+
+    Patch files contribute only their added lines, and only for hunks whose
+    target file is itself a web asset -- an added line in a `.cc` file is not
+    JavaScript however much it looks like it.
+    """
+
+    assets: list[tuple[str, str]] = []
+    for directory in SEARCHED:
+        base = root / directory
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or _is_guard(path):
+                continue
+            if path.suffix in WEB_SUFFIXES:
+                assets.append((path.relative_to(root).as_posix(), path.read_text(encoding="utf-8")))
+            elif path.suffix == ".patch":
+                assets.extend(patch_web_assets(path, path.relative_to(root).as_posix()))
+    return assets
+
+
+def patch_web_assets(path: Path, label: str) -> list[tuple[str, str]]:
+    collected: dict[str, list[str]] = {}
+    target: str | None = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        header = PATCH_FILE.match(line)
+        if header:
+            candidate = header.group(1)
+            target = candidate if candidate.endswith(WEB_SUFFIXES) else None
+            continue
+        if target and line.startswith("+"):
+            collected.setdefault(target, []).append(line[1:])
+    return [(f"{label} -> {name}", "\n".join(lines)) for name, lines in collected.items()]
+
+
+def check(root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    for label, text in web_assets(root):
+        for number, line in enumerate(text.splitlines(), start=1):
+            for pattern, why in DYNAMIC_CODE:
+                if pattern.search(line):
+                    failures.append(f"{label}:{number}: {why} (SEC-14)")
+            # A URL inside a comment is documentation, not a load. The patch
+            # stack cites upstream files by URL in its own comments, and a rule
+            # that fired on those would be deleted the first week.
+            if ALLOWED_REMOTE_CONTEXT.match(line):
+                continue
+            for url in REMOTE_URL.findall(line):
+                failures.append(f"{label}:{number}: loads a remote resource {url!r} (SEC-14)")
+    return failures
+
+
+def main() -> int:
+    failures = check()
+    if failures:
+        print("\n".join(failures), file=sys.stderr)
+        return 1
+    print("Web asset security check passed: no dynamic code, no remote resource.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -64,6 +64,15 @@ jobs:
       - name: Validate exclusive patch ownership
         run: python scripts/patch_manifest.py
 
+      # Before anything reads what the patches mean: a malformed hunk header
+      # fails at `git apply` time on the build runner, hours into a queue.
+      - name: Verify patch stack integrity
+        run: python scripts/verify_patch_integrity.py
+
+      # The overlay carries what a diff cannot, so neither guard above sees it.
+      - name: Validate the binary asset overlay
+        run: python scripts/verify_asset_overlay.py
+
       - name: Validate first-party module registry
         run: python scripts/validate_first_party_modules.py
 
@@ -76,6 +85,9 @@ jobs:
       - name: Verify the build cannot acquire an account identity
         run: python scripts/verify_account_freedom.py
 
+      - name: Verify Chromium's sandbox and site isolation are intact
+        run: python scripts/verify_chromium_security_invariants.py
+
       - name: Verify Sunshine interposes on nothing Chromium owns
         run: python scripts/verify_no_interposition.py
 
@@ -84,6 +96,21 @@ jobs:
 
       - name: Verify Sunshine-authored CSS against the design system
         run: python scripts/verify_design_tokens.py
+
+      - name: Verify Sunshine-authored web assets execute and load nothing remote
+        run: python scripts/verify_web_asset_security.py
+
+      - name: Verify the open-decisions index agrees with its sources
+        run: python scripts/verify_decision_index.py
+
+      - name: Verify stated counts still match the repository
+        run: python scripts/verify_stated_counts.py
+
+      - name: Verify the acceptance index's own claims resolve
+        run: python scripts/verify_acceptance_claims.py
+
+      - name: Verify runtime-verification evidence
+        run: python scripts/verify_verification_evidence.py
 
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py

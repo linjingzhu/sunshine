@@ -1,3 +1,10 @@
+---
+doc_id: ai-project-context
+version: 1.0.0
+canonical_path: .ai/PROJECT_CONTEXT.md
+updated: 2026-08-16
+---
+
 # Sunshine OS Project Context
 
 ## Authoritative product constraints

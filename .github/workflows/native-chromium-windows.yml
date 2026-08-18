@@ -1,5 +1,15 @@
 name: Native Chromium Windows Build
 
+# No `uses:` anywhere. Actions are downloaded from codeload.github.com during
+# `Set up job`, and this account is rate-limited there: runs 13 and 14 both
+# died with HTTP 429 after three retries, before any step of ours executed.
+# The runner is the owner's own machine and already has git and python for the
+# Chromium build itself.
+#
+# The installer is not uploaded as an artifact for the same reason, and for a
+# second one: the runner *is* the owner's machine, so uploading 122 MB to
+# GitHub storage -- which is billed on a private repository -- only to download
+# it back to the machine that produced it is cost with no delivery.
 on:
   workflow_dispatch:
     inputs:
@@ -25,8 +35,20 @@ jobs:
     timeout-minutes: 1440
 
     steps:
+      # The token reaches git through the remote URL rather than `.git/config`,
+      # so it is not left on disk afterwards.
       - name: Check out Sunshine downstream
-        uses: actions/checkout@v4
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Test-Path ".git")) { git init -q . }
+          git fetch --no-tags --depth=1 "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git" $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+          git checkout -q --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
+          git clean -qffd
 
       - name: Build pinned native Chromium
         shell: pwsh
@@ -35,12 +57,23 @@ jobs:
           SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}
         run: ./scripts/build_chromium_windows.ps1
 
-      - name: Upload unsigned internal test installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: sunshine-chromium-windows-x64-unsigned
-          path: |
-            artifacts/windows-x64/sunshine-installer-windows-x64.exe
-            artifacts/windows-x64/size-report.json
-          if-no-files-found: error
-          retention-days: 14
+      # The first check in this project that reads the output rather than the
+      # source: artifacts, the configuration the build actually used, and what
+      # Windows believes about URL schemes.
+      - name: Verify the built browser matches the contracts
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: python scripts/verify_installed_build.py
+
+      # Where the installer is, rather than a copy of it. The build script has
+      # already written it to the runner's own disk.
+      - name: Report the installer location
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $directory = Join-Path $env:GITHUB_WORKSPACE "artifacts\windows-x64"
+          $installer = Join-Path $directory "sunshine-installer-windows-x64.exe"
+          if (-not (Test-Path $installer)) { throw "expected installer is missing: $installer" }
+          $megabytes = [math]::Round((Get-Item $installer).Length / 1MB, 1)
+          Write-Host "Installer ($megabytes MB): $installer"
+          Get-Content (Join-Path $directory "size-report.json")

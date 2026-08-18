@@ -9,7 +9,15 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXCLUDED_NAMES = {"package.json", "electron-builder.yml", "electron-builder.yaml"}
-EXCLUDED_TEXT = ("from \"electron\"", "require(\"electron\")", "electron-builder", "WebContentsView")
+# `WebContentsView` was here and has been removed deliberately. It is the name of
+# a real Chromium type in content/, which this repository is a downstream of and
+# is entitled to name -- a side panel or split-view patch reaches that layer
+# directly. The wrapper runtime's class of the same name cannot be used without
+# importing the runtime, which the markers below already catch, so the entry
+# added no detection and would have failed the build on legitimate upstream
+# terminology. `test_a_wrapper_view_class_is_still_caught_by_its_import` and
+# `test_the_chromium_type_of_the_same_name_is_allowed` pin both halves of that.
+EXCLUDED_TEXT = ("from \"electron\"", "require(\"electron\")", "electron-builder")
 # Wrapper-runtime API and configuration names. Unlike EXCLUDED_TEXT these also
 # appear in prose specifications, which is how a wrapper architecture survived in
 # an active handoff document while the code tree was already clean. Plain
@@ -100,10 +108,19 @@ def main() -> int:
         relative = path.relative_to(ROOT)
         if not path.is_file() or any(part in IGNORED_PARTS for part in relative.parts):
             continue
+        # Reported with forward slashes on every platform. The first run of
+        # this guard on the Windows build runner failed four of its own tests
+        # -- they assert `src/legacy-wrapper.js` and the guard emitted
+        # `src\legacy-wrapper.js` -- which is a real defect in the report, not
+        # in the tests: a path in a failure message is quoted into commits,
+        # issues and search, and it must not change shape with the machine that
+        # happened to run the check. Every other guard in `scripts/` already
+        # uses `as_posix()`; this one was the exception.
+        reported = relative.as_posix()
         if path.resolve() == pathlib.Path(__file__).resolve():
             continue
         if path.name in EXCLUDED_NAMES:
-            failures.append(f"excluded wrapper manifest: {relative}")
+            failures.append(f"excluded wrapper manifest: {reported}")
             continue
         try:
             text = path.read_text()
@@ -111,14 +128,14 @@ def main() -> int:
             continue
         for marker in EXCLUDED_TEXT:
             if marker in text:
-                failures.append(f"excluded runtime marker {marker!r}: {relative}")
+                failures.append(f"excluded runtime marker {marker!r}: {reported}")
         for marker in EXCLUDED_DESIGN_TEXT:
             if marker in text:
-                failures.append(f"excluded wrapper-runtime design marker {marker!r}: {relative}")
+                failures.append(f"excluded wrapper-runtime design marker {marker!r}: {reported}")
         if relative.parts[0] in DOCUMENTATION_ROOTS:
             continue
         if GOOGLE_STARTUP_URL in text:
-            failures.append(f"hardcoded Google startup URL: {relative}")
+            failures.append(f"hardcoded Google startup URL: {reported}")
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1

@@ -11,6 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PATCH_NAME = re.compile(r"^(\d{4})-[a-z0-9][a-z0-9-]*\.patch$")
+SOURCE_LINE = re.compile(r"^--- (?:a/(.+)|/dev/null)$")
 TARGET_LINE = re.compile(r"^\+\+\+ b/(.+)$")
 
 
@@ -53,12 +54,56 @@ def read_manifest(root: Path) -> list[str]:
     return entries
 
 
+def patch_sections(text: str) -> list[tuple[str, bool]]:
+    """(target path, whether the patch creates it) for each file section.
+
+    A section headed `--- /dev/null` adds a file that upstream does not have.
+    That distinction has to survive to the caller: the target is still owned
+    exclusively, and still may not be claimed by a second patch, but it is not
+    an upstream path and must never be asked of the pinned revision. Fetching
+    it would 404, and a 404 on a path the stack *creates* would be reported as
+    a missing upstream file -- the same false accusation
+    `scripts/verify_pinned_upstream.py` documents at length for its citation
+    check.
+    """
+
+    sections: list[tuple[str, bool]] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        target = TARGET_LINE.match(line)
+        if not target:
+            continue
+        previous = SOURCE_LINE.match(lines[index - 1]) if index else None
+        created = previous is not None and previous.group(1) is None
+        sections.append((target.group(1), created))
+    return sections
+
+
 def patch_targets(root: Path, entries: list[str]) -> dict[str, list[str]]:
+    """Exclusive ownership per target, except where the stack itself created it.
+
+    A path this stack creates is Sunshine's own file. Once created, later
+    patches in the series may extend it -- the shape a contribution seam
+    needs, where each surface patch appends one line to a registry file a
+    seam patch created, rather than touching upstream again. See
+    `docs/decisions/0007-module-contribution-seam.md`, which measured the
+    alternative: a second surface patch collided with the first on all seven
+    upstream files a naive contribution point touches.
+
+    Exclusivity still holds in the two cases where sharing would be a defect
+    rather than a pattern: two patches independently *creating* the same path
+    (almost certainly a mistake, not a seam), and any path this stack never
+    creates at all -- an ordinary upstream file, which stays unique to the one
+    patch carrying the diff against it.
+    """
+
     owners: dict[str, list[str]] = defaultdict(list)
+    creators: dict[str, list[str]] = defaultdict(list)
     patch_dir = root / "downstream/patches"
     for entry in entries:
         text = (patch_dir / entry).read_text(encoding="utf-8")
-        targets = {match.group(1) for line in text.splitlines() if (match := TARGET_LINE.match(line))}
+        sections = patch_sections(text)
+        targets = {target for target, _created in sections}
         if not targets:
             raise ManifestError(f"patch has no tracked targets: {entry}")
         for target in targets:
@@ -66,11 +111,43 @@ def patch_targets(root: Path, entries: list[str]) -> dict[str, list[str]]:
             if path.is_absolute() or ".." in path.parts:
                 raise ManifestError(f"invalid patch target in {entry}: {target}")
             owners[target].append(entry)
+        for target, created in sections:
+            if created:
+                creators[target].append(entry)
 
-    overlaps = {path: patches for path, patches in owners.items() if len(patches) > 1}
+    duplicated_creation = {path: patches for path, patches in creators.items() if len(patches) > 1}
+    if duplicated_creation:
+        raise ManifestError(f"patch target ownership overlaps: {duplicated_creation}")
+
+    created_by_the_stack = set(creators)
+    overlaps = {
+        path: patches
+        for path, patches in owners.items()
+        if len(patches) > 1 and path not in created_by_the_stack
+    }
     if overlaps:
         raise ManifestError(f"patch target ownership overlaps: {overlaps}")
     return dict(sorted(owners.items()))
+
+
+def created_paths(root: Path, entries: list[str]) -> set[str]:
+    """Targets the stack creates rather than modifies."""
+
+    patch_dir = root / "downstream/patches"
+    created: set[str] = set()
+    for entry in entries:
+        text = (patch_dir / entry).read_text(encoding="utf-8")
+        created.update(target for target, is_new in patch_sections(text) if is_new)
+    return created
+
+
+def upstream_targets(root: Path = ROOT) -> list[str]:
+    """The targets that must already exist at the pinned revision."""
+
+    entries = read_manifest(root)
+    owners = patch_targets(root, entries)
+    created = created_paths(root, entries)
+    return [path for path in owners if path not in created]
 
 
 def validate(root: Path = ROOT) -> dict[str, list[str]]:
@@ -79,7 +156,12 @@ def validate(root: Path = ROOT) -> dict[str, list[str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--paths", action="store_true", help="print upstream target paths")
+    parser.add_argument(
+        "--paths",
+        action="store_true",
+        help="print the target paths that must exist at the pinned revision; "
+        "paths the stack creates are excluded, because they do not",
+    )
     args = parser.parse_args()
     try:
         owners = validate()
@@ -88,9 +170,15 @@ def main() -> int:
         return 1
 
     if args.paths:
-        print("\n".join(owners))
+        print("\n".join(upstream_targets()))
     else:
-        print(f"Patch manifest passed: {len(owners)} exclusive upstream targets.")
+        created = created_paths(ROOT, read_manifest(ROOT))
+        extended = sum(1 for path, patches in owners.items() if path in created and len(patches) > 1)
+        print(
+            f"Patch manifest passed: {len(owners)} target(s), "
+            f"{len(owners) - len(created)} upstream (exclusive) and {len(created)} created "
+            f"({extended} extended by a later patch)."
+        )
     return 0
 
 

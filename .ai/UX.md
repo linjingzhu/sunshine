@@ -1,3 +1,10 @@
+---
+doc_id: ai-ux
+version: 1.0.0
+canonical_path: .ai/UX.md
+updated: 2026-08-13
+---
+
 # UX and Runtime Verification
 
 User-facing functionality is complete only when it is understandable, discoverable, and behaves as intended—not merely when it compiles.

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "sunshine.workspace",
   "display_name": "Sunshine Workspaces",
   "owner": "sunshine",
@@ -7,24 +7,68 @@
   "lifecycle": "profile",
   "status": "prepared",
   "entrypoints": [
-    {"type": "native_command", "target": "workspace.create"},
-    {"type": "native_command", "target": "workspace.switch"},
-    {"type": "native_command", "target": "workspace.tab.move"},
-    {"type": "native_command", "target": "workspace.close"}
+    {
+      "type": "native_command",
+      "target": "workspace.create"
+    },
+    {
+      "type": "native_command",
+      "target": "workspace.switch"
+    },
+    {
+      "type": "native_command",
+      "target": "workspace.tab.move"
+    },
+    {
+      "type": "native_command",
+      "target": "workspace.close"
+    }
   ],
   "capabilities": [
-    {"name": "chromium.tabs.strip_model", "access": "read"},
-    {"name": "chromium.sessions.tab_extra_data", "access": "write"}
+    {
+      "name": "chromium.tabs.strip_model",
+      "access": "read"
+    },
+    {
+      "name": "chromium.sessions.tab_extra_data",
+      "access": "write"
+    }
   ],
   "data": [
-    {"owner": "sunshine", "scope": "profile", "access": "write", "retention": "persistent"},
-    {"owner": "chromium", "scope": "tab", "access": "write", "retention": "persistent"}
+    {
+      "owner": "sunshine",
+      "scope": "profile",
+      "access": "write",
+      "retention": "persistent"
+    },
+    {
+      "owner": "chromium",
+      "scope": "tab",
+      "access": "write",
+      "retention": "persistent"
+    }
   ],
   "security": {
     "remote_content": false,
-    "network_access": false,
-    "profile_modes": ["regular", "incognito"],
-    "requires_user_activation": true
+    "requires_user_activation": true,
+    "profile_modes": [
+      "regular",
+      "incognito"
+    ],
+    "network": {
+      "access": "deny",
+      "allow": []
+    },
+    "filesystem": {
+      "access": "none"
+    },
+    "credentials": {
+      "direct_access": false
+    }
   },
-  "verification": {"native_build": "pending", "runtime": "pending", "visual": "pending"}
+  "verification": {
+    "native_build": "pending",
+    "runtime": "pending",
+    "visual": "pending"
+  }
 }

@@ -1,3 +1,10 @@
+---
+doc_id: ai-entry-claude
+version: 1.0.0
+canonical_path: CLAUDE.md
+updated: 2026-08-13
+---
+
 # Claude Code — Repository Entry
 
 Act as the **Primary Engineering Manager** for user requests unless the user or a parent agent explicitly assigns you a Worker or Reviewer role.

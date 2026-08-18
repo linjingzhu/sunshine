@@ -104,6 +104,46 @@ class ArchitectureVerifierTests(unittest.TestCase):
         self.assertIn("excluded runtime marker", stderr)
         self.assertIn("src/legacy-wrapper.js", stderr)
 
+    def test_a_wrapper_view_class_is_still_caught_by_its_import(self) -> None:
+        """Removing the bare class name must not weaken detection.
+
+        The wrapper runtime's view class cannot be constructed without importing
+        the runtime, so the import markers carry the detection on their own.
+        """
+
+        excluded_import = "from \"" + "electron" + "\""
+        self._write(
+            "src/wrapper-shell.js",
+            excluded_import + " {WebContentsView};\n"
+            "const view = new WebContentsView({});\n",
+        )
+
+        result, _, stderr = self._run()
+
+        self.assertEqual(1, result)
+        self.assertIn("excluded runtime marker", stderr)
+        self.assertIn("src/wrapper-shell.js", stderr)
+
+    def test_the_chromium_type_of_the_same_name_is_allowed(self) -> None:
+        """`WebContentsView` is a real type in Chromium's content/ layer.
+
+        This repository is a downstream of Chromium and a side panel or
+        split-view patch reaches that layer directly. Rejecting the name failed
+        the build on legitimate upstream terminology while adding no detection,
+        which is why it is no longer an excluded marker.
+        """
+
+        self._write(
+            "docs/SOME_CONTRACT.md",
+            "The panel is hosted by the native `WebContentsView` rather than a\n"
+            "second view hierarchy owned by Sunshine.\n",
+        )
+
+        result, stdout, stderr = self._run()
+
+        self.assertEqual(0, result, stderr)
+        self.assertIn("Architecture check passed", stdout)
+
     def test_wrapper_runtime_design_in_a_specification_fails(self) -> None:
         """The guard must read specifications, not only code.
 
@@ -430,3 +470,44 @@ class ChromiumBootstrapTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportPortabilityTests(unittest.TestCase):
+    """A path in a failure message must not change shape with the machine.
+
+    The first run of the guard suite on the Windows build runner failed four
+    of these tests. They assert `src/legacy-wrapper.js`; the guard emitted
+    `src\\legacy-wrapper.js`, because `Path.relative_to` keeps the platform
+    separator and the message interpolated it directly. Nothing was wrong with
+    the tests: a path quoted into a commit message, an issue, or a search has
+    to be the same string on every platform, and this repository's checks run
+    on Linux in development and Windows in CI.
+
+    Every other guard already used `as_posix()`. This rule is here so the next
+    one does too, and so the next discovery is not another CI run.
+    """
+
+    GUARDS = sorted((REPOSITORY_ROOT / "scripts").glob("verify_*.py")) + sorted(
+        (REPOSITORY_ROOT / "scripts").glob("validate_*.py")
+    )
+
+    def test_a_guard_that_takes_a_relative_path_reports_it_as_posix(self) -> None:
+        for guard in self.GUARDS:
+            source = guard.read_text(encoding="utf-8")
+            if "relative_to(" not in source:
+                continue
+            with self.subTest(guard=guard.name):
+                self.assertTrue(
+                    "as_posix()" in source,
+                    f"{guard.name} builds a relative path but never normalises its "
+                    "separators, so its report changes shape on Windows",
+                )
+
+    def test_the_rule_covers_something(self) -> None:
+        """A rule that applies to no file passes for the wrong reason."""
+
+        covered = [
+            guard.name for guard in self.GUARDS
+            if "relative_to(" in guard.read_text(encoding="utf-8")
+        ]
+        self.assertGreaterEqual(len(covered), 3, covered)

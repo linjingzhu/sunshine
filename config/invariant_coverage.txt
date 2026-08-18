@@ -1,0 +1,76 @@
+# Contract invariants a test or tool claims to enforce, one per line.
+#
+# A test claims an invariant by writing `Enforces: XX-N` in its docstring. Once
+# claimed and listed here, removing the check fails the build; adding is free.
+# Ratchet up freely, ratchet down on purpose.
+#
+# What this number is not: a coverage percentage. Most invariants in this
+# contract set govern what a running browser does -- what happens to a hidden
+# pane, what the omnibox commits, what a provider verdict may not relax -- and
+# no offline suite can establish those. The ones listed here are the subset that
+# a source, registry or patch check can actually decide.
+#
+# Five checks that were enforced but uncounted are now listed. They had no
+# stable identifier to cite -- the acceptance criteria were bare ordinals, and
+# PERFORMANCE_BUDGET's P1..P6 collided with the P0/P1/P2 priority labels every
+# contract uses. The acceptance lists were given per-document prefixes and the
+# budgets became PB-1..PB-6, with every ordinal preserved through the rename, so
+# SIDE_PANEL 12.9 is SPA-9 and the same check now cites something durable.
+#
+# Still uncounted: the bare-ordinal *invariant* lists (TAB_LIFECYCLE 13.2,
+# TAB_WORKSPACE_SPLIT 1-12, GESTURE section 2), and TAB_LIFECYCLE section 15,
+# which is a section rather than a criterion. ACCEPTANCE_SUITES section 9
+# records the remainder as a defect in the contract set.
+#
+# Bare-ordinal lists that remain uncitable, and are therefore not counted at
+# all: BROWSER_UTILITIES_CONTRACT's *Invariants* section 1-22 (distinct from its
+# BUA-1..BUA-22 acceptance criteria, which are prefixed), and
+# SESSION_PROFILE_CONTRACT's per-section rule lists. Converting either needs a
+# new family registered in `scripts/trace_invariants.py`, so it is a decision
+# rather than a cleanup.
+#
+# SEC-1 and SEC-2 are the sandbox and site-isolation boundaries. Nothing in this
+# repository mentioned either until the guard that claims them was written, so
+# their count going from zero to two is the whole of the protection, not an
+# improvement on an earlier version of it.
+
+AT-1
+AT-9
+AT-12
+CPA-9
+OMA-20
+OS-9
+PB-5
+SC-8
+SC-11
+SCA-13
+SEC-1
+SEC-2
+SEC-4
+SEC-5
+SEC-6
+SEC-7
+SEC-8
+SEC-13
+SEC-14
+SECA-7
+SECA-8
+SECA-9
+SECA-10
+SECA-11
+SPA-9
+PO-A1
+PO-A2
+PO-A3
+S1
+S2
+S3
+S4
+S5
+S6
+S7
+S8
+S9
+S10
+S11
+S12

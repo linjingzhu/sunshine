@@ -1,3 +1,10 @@
+---
+doc_id: ai-repository
+version: 1.0.0
+canonical_path: .ai/REPOSITORY.md
+updated: 2026-08-13
+---
+
 # Repository and Merge Policy
 
 ## Repository mode

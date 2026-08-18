@@ -21,6 +21,12 @@ DATA_OWNERS = {"chromium", "sunshine"}
 DATA_SCOPES = {"browser", "profile", "window", "tab"}
 DATA_ACCESS = {"read", "write"}
 DATA_RETENTION = {"none", "session", "persistent"}
+NETWORK_ACCESS = {"deny", "allowlist"}
+FILESYSTEM_ACCESS = {"none", "user_selected"}
+# A concrete host. No scheme, no path, no wildcard: `*.com` and `*` are the
+# shapes SEC-6 exists to keep out of a manifest, and a scheme or path here would
+# mean the allowlist was being read as a URL matcher, which it is not.
+HOST = re.compile(r"^(?!-)[a-z0-9-]+(?:\.(?!-)[a-z0-9-]+)+$")
 
 
 class ModuleValidationError(ValueError):
@@ -33,8 +39,8 @@ def registered_paths(root: Path = ROOT) -> list[Path]:
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ModuleValidationError(f"cannot read module registry: {error}") from error
-    if not isinstance(registry, dict) or registry.get("schema_version") != 1:
-        raise ModuleValidationError("registry schema_version must be 1")
+    if not isinstance(registry, dict) or registry.get("schema_version") != 2:
+        raise ModuleValidationError("registry schema_version must be 2")
     entries = registry.get("modules")
     if not isinstance(entries, list) or not entries:
         raise ModuleValidationError("registry modules must be a non-empty list")
@@ -53,9 +59,71 @@ def registered_paths(root: Path = ROOT) -> list[Path]:
         paths.append(path)
     inventory = set((root / "first_party/modules").glob("*/module.json"))
     if set(paths) != inventory:
-        missing = sorted(str(path.relative_to(root)) for path in inventory - set(paths))
+        missing = sorted(path.relative_to(root).as_posix() for path in inventory - set(paths))
         raise ModuleValidationError(f"unregistered module manifests: {missing}")
     return paths
+
+
+
+def validate_security(security: object, source: str) -> None:
+    """The module security contract -- SEC-5, SEC-6, SEC-7, SEC-8.
+
+    Schema 2 replaced the `network_access` boolean with a structured
+    declaration, and added the filesystem and credential statements that
+    `docs/SECURITY_ARCHITECTURE_CONTRACT.md` requires every module to make.
+    They are stated per module rather than assumed globally because a manifest
+    that is silent about credentials reads the same as one that was never asked.
+
+    `allowlist` and `user_selected` are expressible and currently refused. The
+    schema has to carry the shape before a broker exists, or every module would
+    need editing on the day one arrives; refusing them keeps the guarantee that
+    no module reaches the network or the disk in the meantime.
+    """
+
+    keys = {"remote_content", "requires_user_activation", "profile_modes",
+            "network", "filesystem", "credentials"}
+    if not isinstance(security, dict) or set(security) != keys:
+        raise ModuleValidationError(f"{source}: invalid security declaration")
+
+    for flag in ("remote_content", "requires_user_activation"):
+        if not isinstance(security[flag], bool):
+            raise ModuleValidationError(f"{source}: security flags must be booleans")
+    if security["remote_content"]:
+        raise ModuleValidationError(f"{source}: first-party privileged surfaces cannot host remote content")
+
+    modes = security["profile_modes"]
+    if not isinstance(modes, list) or not modes or not set(modes) <= PROFILE_MODES:
+        raise ModuleValidationError(f"{source}: invalid profile modes")
+
+    network = security["network"]
+    if not isinstance(network, dict) or set(network) != {"access", "allow"}:
+        raise ModuleValidationError(f"{source}: invalid network declaration")
+    if network["access"] not in NETWORK_ACCESS:
+        raise ModuleValidationError(f"{source}: network access must be one of {sorted(NETWORK_ACCESS)}")
+    allow = network["allow"]
+    if not isinstance(allow, list) or any(not isinstance(host, str) for host in allow):
+        raise ModuleValidationError(f"{source}: network allow must be a list of hosts")
+    if network["access"] == "deny" and allow:
+        raise ModuleValidationError(f"{source}: network access is deny but hosts are listed")
+    for host in allow:
+        if not HOST.fullmatch(host):
+            raise ModuleValidationError(f"{source}: not a concrete host: {host!r}")
+    if network["access"] == "allowlist":
+        raise ModuleValidationError(f"{source}: network access requires a future host-allowlist contract")
+
+    filesystem = security["filesystem"]
+    if not isinstance(filesystem, dict) or set(filesystem) != {"access"}:
+        raise ModuleValidationError(f"{source}: invalid filesystem declaration")
+    if filesystem["access"] not in FILESYSTEM_ACCESS:
+        raise ModuleValidationError(f"{source}: filesystem access must be one of {sorted(FILESYSTEM_ACCESS)}")
+    if filesystem["access"] == "user_selected":
+        raise ModuleValidationError(f"{source}: scoped file access requires a future file-broker contract")
+
+    credentials = security["credentials"]
+    if not isinstance(credentials, dict) or set(credentials) != {"direct_access"}:
+        raise ModuleValidationError(f"{source}: invalid credentials declaration")
+    if credentials["direct_access"] is not False:
+        raise ModuleValidationError(f"{source}: a module never receives a credential directly")
 
 
 def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
@@ -65,8 +133,8 @@ def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
     unknown = sorted(manifest.keys() - required)
     if missing or unknown:
         raise ModuleValidationError(f"{source}: missing={missing}, unknown={unknown}")
-    if manifest["schema_version"] != 1:
-        raise ModuleValidationError(f"{source}: schema_version must be 1")
+    if manifest["schema_version"] != 2:
+        raise ModuleValidationError(f"{source}: schema_version must be 2")
     module_id = manifest["id"]
     if not isinstance(module_id, str) or not ID_PATTERN.fullmatch(module_id):
         raise ModuleValidationError(f"{source}: invalid Sunshine module id")
@@ -115,20 +183,7 @@ def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
         if (data["owner"] not in DATA_OWNERS or data["scope"] not in DATA_SCOPES
                 or data["access"] not in DATA_ACCESS or data["retention"] not in DATA_RETENTION):
             raise ModuleValidationError(f"{source}: invalid data ownership or lifetime")
-    security = manifest["security"]
-    security_keys = {"remote_content", "network_access", "profile_modes", "requires_user_activation"}
-    if not isinstance(security, dict) or set(security) != security_keys:
-        raise ModuleValidationError(f"{source}: invalid security declaration")
-    if security["remote_content"]:
-        raise ModuleValidationError(f"{source}: first-party privileged surfaces cannot host remote content")
-    for flag in ("remote_content", "network_access", "requires_user_activation"):
-        if not isinstance(security[flag], bool):
-            raise ModuleValidationError(f"{source}: security flags must be booleans")
-    if security["network_access"]:
-        raise ModuleValidationError(f"{source}: network access requires a future host-allowlist contract")
-    modes = security["profile_modes"]
-    if not isinstance(modes, list) or not modes or not set(modes) <= PROFILE_MODES:
-        raise ModuleValidationError(f"{source}: invalid profile modes")
+    validate_security(manifest["security"], source)
     verification = manifest["verification"]
     if not isinstance(verification, dict) or set(verification) != {"native_build", "runtime", "visual"}:
         raise ModuleValidationError(f"{source}: invalid verification declaration")
@@ -146,7 +201,7 @@ def validate(root: Path = ROOT) -> int:
     targets: set[str] = set()
     for path in registered_paths(root):
         manifest = json.loads(path.read_text(encoding="utf-8"))
-        module_id, module_targets = validate_manifest(manifest, str(path.relative_to(root)))
+        module_id, module_targets = validate_manifest(manifest, path.relative_to(root).as_posix())
         if module_id in ids:
             raise ModuleValidationError(f"duplicate module id: {module_id}")
         overlap = targets & module_targets

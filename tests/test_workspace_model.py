@@ -3,6 +3,7 @@
 from copy import deepcopy
 import unittest
 
+from scripts import workspace_model
 from scripts.workspace_model import (
     DEFAULT_WORKSPACE_ID,
     NativeTab,
@@ -175,3 +176,103 @@ class CloseWorkspaceTransactionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WindowWorkspaceStateTests(unittest.TestCase):
+    """`workspace.switch` is specified to restore a workspace's last active tab.
+
+    Nothing stored it: the catalog holds id/profile/name/colour/order, and window
+    extra-data held only the active workspace. The behaviour was specified with
+    no owner, which is worse than unimplemented -- it reads as done.
+    """
+
+    W1 = "11111111-1111-4111-8111-111111111111"
+    W2 = "22222222-2222-4222-8222-222222222222"
+    T1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    T2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+    def state(self, last=None):
+        return workspace_model.WindowWorkspaceState(1, self.W1, last or {})
+
+    def tab(self, uuid, workspace):
+        return workspace_model.NativeTab("r-" + uuid[:4], uuid, workspace)
+
+    def test_a_remembered_tab_is_restored(self) -> None:
+        state = self.state({self.W2: self.T1})
+        target = workspace_model.resolve_switch_target(state, self.W2, [self.tab(self.T1, self.W2)])
+        self.assertEqual(self.T1, target)
+
+    def test_no_memory_defers_to_chromium(self) -> None:
+        """None is an answer, not a failure: on a first visit Chromium's own
+        restored active tab is correct and Sunshine must not override it."""
+
+        self.assertIsNone(
+            workspace_model.resolve_switch_target(self.state(), self.W2, [self.tab(self.T1, self.W2)])
+        )
+
+    def test_a_closed_remembered_tab_defers_to_chromium(self) -> None:
+        state = self.state({self.W2: self.T1})
+        self.assertIsNone(
+            workspace_model.resolve_switch_target(state, self.W2, [self.tab(self.T2, self.W2)])
+        )
+
+    def test_a_tab_that_moved_workspace_is_not_activated(self) -> None:
+        """The defect this check exists for.
+
+        A moved tab still matches by UUID. Trusting the record would project a
+        tab the target workspace does not contain, so membership is re-checked
+        against the live projection rather than believed.
+        """
+
+        state = self.state({self.W2: self.T1})
+        self.assertIsNone(
+            workspace_model.resolve_switch_target(state, self.W2, [self.tab(self.T1, self.W1)])
+        )
+
+    def test_state_is_window_local_not_profile_wide(self) -> None:
+        """Two windows on one workspace must not overwrite each other.
+
+        Recording in one window returns a new state; the other window's state is
+        untouched, which is what makes the record window-local in practice and
+        not merely by intent.
+        """
+
+        first = self.state({self.W2: self.T1})
+        second = self.state({self.W2: self.T2})
+        updated = workspace_model.record_active_tab(first, self.W2, self.T2)
+        self.assertEqual(self.T2, updated.last_active_tab[self.W2])
+        self.assertEqual(self.T1, first.last_active_tab[self.W2])
+        self.assertEqual(self.T2, second.last_active_tab[self.W2])
+
+    def test_off_the_record_windows_persist_nothing(self) -> None:
+        """A per-workspace record of the last page read is browsing history."""
+
+        self.assertIsNone(
+            workspace_model.persistable_window_state(self.state({self.W2: self.T1}), off_the_record=True)
+        )
+        self.assertIsNotNone(
+            workspace_model.persistable_window_state(self.state({self.W2: self.T1}), off_the_record=False)
+        )
+
+    def test_entries_for_retired_workspaces_are_pruned(self) -> None:
+        catalog = workspace_model.parse_catalog(
+            {
+                "schema_version": 1,
+                "workspaces": [{"id": self.W1, "name": "One", "color": "blue", "order": 0}],
+            }
+        )
+        pruned = workspace_model.prune_window_state(self.state({self.W1: self.T1, self.W2: self.T2}), catalog)
+        self.assertEqual({self.W1: self.T1}, dict(pruned.last_active_tab))
+
+    def test_damaged_window_state_fails_closed(self) -> None:
+        good = self.W1
+        for payload in (
+            {"schema_version": 2, "active_workspace_id": good},
+            {"schema_version": 1, "active_workspace_id": "not-a-uuid"},
+            {"schema_version": 1, "active_workspace_id": good, "last_active_tab": {"bad": good}},
+            {"schema_version": 1, "active_workspace_id": good, "last_active_tab": {good: "bad"}},
+            {"schema_version": 1, "active_workspace_id": good, "last_active_tab": []},
+        ):
+            with self.subTest(payload=payload):
+                with self.assertRaises(workspace_model.WorkspaceModelError):
+                    workspace_model.parse_window_state(payload)

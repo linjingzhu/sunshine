@@ -1,0 +1,166 @@
+"""Tests for the web asset and URL scheme guards.
+
+Both guards exist because a decision had been taken and never enforced. ADR 0003
+settled that Sunshine registers no URL scheme; nothing checked it, and a later
+architecture proposal introduced `sunshine-module://` as the default module
+origin without anything objecting. The web asset rules were never written down
+at all.
+
+Every case injects the violation. A guard that has only ever seen a clean tree
+is indistinguishable from one whose patterns do not match.
+"""
+
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
+
+import verify_first_party_surfaces as surfaces  # noqa: E402
+import verify_web_asset_security as assets  # noqa: E402
+
+
+class TreeTestCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.addCleanup(self.directory.cleanup)
+
+    def write(self, relative: str, text: str) -> None:
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
+class SchemeRegistrationTests(TreeTestCase):
+    """Enforces: SEC-13."""
+
+    def failures(self) -> list[str]:
+        found: list[str] = []
+        surfaces.check_no_scheme_registration(self.root, found)
+        return found
+
+    def test_a_sunshine_scheme_is_rejected(self) -> None:
+        self.write("first_party/registry.json", '{"origin": "sunshine://home/"}')
+        self.assertTrue(any("SEC-13" in failure for failure in self.failures()))
+
+    def test_the_module_origin_scheme_a_later_proposal_introduced_is_rejected(self) -> None:
+        """`sunshine-module://<id>/` was proposed as the default module origin."""
+
+        self.write("first_party/modules/dev/module.json", '{"entry": "sunshine-module://dev-os/"}')
+        self.assertTrue(any("sunshine-module" in failure for failure in self.failures()))
+
+    def test_registering_a_scheme_in_a_patch_is_rejected(self) -> None:
+        self.write("downstream/patches/0009-x.patch", "\n".join([
+            "--- a/url/url_util.cc",
+            "+++ b/url/url_util.cc",
+            "@@ -1,2 +1,3 @@",
+            '+  url::AddStandardScheme("sunshine", url::SCHEME_WITH_HOST);',
+        ]))
+        self.assertTrue(any("AddStandardScheme" in failure for failure in self.failures()))
+
+    def test_the_windows_registry_protocol_value_is_rejected(self) -> None:
+        """A scheme registered with the OS is the form ADR 0003 cared most about."""
+
+        self.write("config/installer.json", '{"HKCR\\\\sunshine": {"URL Protocol": ""}}')
+        self.assertTrue(any("URL Protocol" in failure for failure in self.failures()))
+
+    def test_chromium_schemes_are_not_sunshine_registering_anything(self) -> None:
+        self.write("first_party/registry.json", "\n".join([
+            '{"a": "chrome://sunshine-security/",',
+            ' "b": "chrome-untrusted://preview/",',
+            ' "c": "https://api.example.com",',
+            ' "d": "devtools://devtools/"}',
+        ]))
+        self.assertEqual([], self.failures())
+
+    def test_upstream_context_in_a_patch_is_not_sunshine_authored(self) -> None:
+        """Context lines are upstream's, and upstream registers many schemes."""
+
+        self.write("downstream/patches/0009-x.patch", "\n".join([
+            "--- a/url/url_util.cc",
+            "+++ b/url/url_util.cc",
+            "@@ -1,3 +1,4 @@",
+            '   url::AddStandardScheme("isolated-app", url::SCHEME_WITH_HOST);',
+            "+// Sunshine comment",
+        ]))
+        self.assertEqual([], self.failures())
+
+
+class WebAssetSecurityTests(TreeTestCase):
+    """Enforces: SEC-14."""
+
+    def failures(self) -> list[str]:
+        return assets.check(self.root)
+
+    def test_dynamic_code_forms_are_rejected(self) -> None:
+        for snippet in (
+            "const f = eval(input);",
+            "const f = new Function('return 1');",
+            "setTimeout('doThing()', 10);",
+            "setInterval(\"tick()\", 10);",
+            "element.innerHTML = value;",
+            "element.outerHTML = value;",
+            "document.write(value);",
+        ):
+            with self.subTest(snippet=snippet):
+                self.write("first_party/modules/x/app.ts", snippet)
+                self.assertTrue(
+                    any("SEC-14" in failure for failure in self.failures()), snippet
+                )
+
+    def test_a_remote_script_is_rejected(self) -> None:
+        self.write("first_party/modules/x/index.html", '<script src="https://cdn.example.com/a.js"></script>')
+        self.assertTrue(any("remote resource" in failure for failure in self.failures()))
+
+    def test_a_remote_font_in_css_is_rejected(self) -> None:
+        self.write("first_party/modules/x/app.css", "@font-face { src: url(https://fonts.example.com/a.woff2); }")
+        self.assertTrue(any("remote resource" in failure for failure in self.failures()))
+
+    def test_a_url_in_a_comment_is_documentation_not_a_load(self) -> None:
+        """The patch stack cites upstream files by URL in its own comments.
+
+        A rule that fired on those would be deleted the first week, which is a
+        worse outcome than the rule not existing.
+        """
+
+        self.write("first_party/modules/x/app.ts", "\n".join([
+            "// See https://github.com/chromium/chromium/blob/152.0.7977.42/base/check.h",
+            "/* https://example.com/spec */",
+            "const value = 1;",
+        ]))
+        self.assertEqual([], self.failures())
+
+    def test_added_lines_in_a_non_web_file_are_not_scanned(self) -> None:
+        """An added line in a .cc file is not JavaScript, however it looks."""
+
+        self.write("downstream/patches/0009-x.patch", "\n".join([
+            "--- a/chrome/browser/thing.cc",
+            "+++ b/chrome/browser/thing.cc",
+            "@@ -1,2 +1,3 @@",
+            '+  // eval( is discussed here, and https://example.com is cited',
+        ]))
+        self.assertEqual([], self.failures())
+
+    def test_an_added_line_in_a_patched_web_asset_is_scanned(self) -> None:
+        self.write("downstream/patches/0009-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,2 +1,3 @@",
+            "+    this.container.innerHTML = payload;",
+        ]))
+        self.assertTrue(any("innerHTML" in failure for failure in self.failures()))
+
+
+class RepositoryIsCleanTests(unittest.TestCase):
+    def test_the_repository_passes_both_guards_today(self) -> None:
+        self.assertEqual([], assets.check(REPOSITORY_ROOT))
+        found: list[str] = []
+        surfaces.check_no_scheme_registration(REPOSITORY_ROOT, found)
+        self.assertEqual([], found)
+
+
+if __name__ == "__main__":
+    unittest.main()

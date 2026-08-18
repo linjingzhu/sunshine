@@ -105,23 +105,26 @@ build plus UI tests can run.
 Use Chromium test fixtures or a local test server; tests must not depend on a
 live reputation service or public website.
 
-1. **Normal file regression**
+`DSA-` is the prefix for these tests, and the ordinals are unchanged: test 6 is
+`DSA-6`, so a citation written before this revision still resolves.
+
+1. **DSA-1. Normal file regression**
    - Given a `NOT_DANGEROUS` download, the standard row and standard actions are
      unchanged.
    - No Sunshine warning, review step, or block appears.
 
-2. **Danger classification preservation**
+2. **DSA-2. Danger classification preservation**
    - Parameterize representative dangerous, suspicious, insecure, blocked, and
      scan-required danger types.
    - Assert the downstream presentation does not mutate `GetDangerType()` and
      does not change `DownloadCommands::IsCommandEnabled()` results.
 
-3. **Security subpage routing**
+3. **DSA-3. Security subpage routing**
    - Given a model whose Chromium security info reports `HasSubpage()`, clicking
      the download row opens the security subpage rather than the file.
    - Given a normal model with no subpage, ordinary open behavior remains.
 
-4. **Provenance values**
+4. **DSA-4. Provenance values**
    - Same original and final HTTPS URL: show one sanitized origin.
    - Redirected URL: expose original and final origins without claiming either
      is the file author.
@@ -131,26 +134,26 @@ live reputation service or public website.
    - Internationalized hostname: use Chromium URL formatting and spoof checks;
      do not hand-roll Unicode conversion.
 
-5. **Action safety**
+5. **DSA-5. Action safety**
    - A disabled keep/open/scan action remains absent or disabled.
    - Merely opening or dismissing the warning does not execute any terminal
      action.
    - A user action is passed through `DownloadCommands`, not directly to the
      `DownloadItem`.
 
-6. **Warning telemetry contract**
+6. **DSA-6. Warning telemetry contract**
    - Showing a dangerous warning records `SHOWN` on the correct surface once.
    - Proceed, discard, keep, cancel, scan, and learn-more record their matching
      existing Chromium action without introducing URLs or filenames into the
      event payload.
 
-7. **Accessibility and localization**
+7. **DSA-7. Accessibility and localization**
    - Provenance is included in the accessible name or description of the
      warning/review content.
    - Labels are localized and remain usable at 200% zoom, narrow width, light
      theme, dark theme, keyboard-only navigation, and screen-reader focus.
 
-8. **Patch and build gate**
+8. **DSA-8. Patch and build gate**
    - The complete downstream patch series applies in order to
      `refs/tags/152.0.7977.42`.
    - Native Chromium compilation and the relevant unit/browser/view tests pass.

@@ -1,19 +1,51 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "sunshine.new_tab",
   "display_name": "Sunshine New Tab",
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",
   "status": "prepared",
-  "entrypoints": [{"type": "chromium_webui_overlay", "target": "chrome://new-tab-page"}],
-  "capabilities": [{"name": "chromium.new_tab.presentation", "access": "decorate"}],
-  "data": [{"owner": "chromium", "scope": "profile", "access": "read", "retention": "none"}],
+  "entrypoints": [
+    {
+      "type": "chromium_webui_overlay",
+      "target": "chrome://new-tab-page"
+    }
+  ],
+  "capabilities": [
+    {
+      "name": "chromium.new_tab.presentation",
+      "access": "decorate"
+    }
+  ],
+  "data": [
+    {
+      "owner": "chromium",
+      "scope": "profile",
+      "access": "read",
+      "retention": "none"
+    }
+  ],
   "security": {
     "remote_content": false,
-    "network_access": false,
-    "profile_modes": ["regular"],
-    "requires_user_activation": false
+    "requires_user_activation": false,
+    "profile_modes": [
+      "regular"
+    ],
+    "network": {
+      "access": "deny",
+      "allow": []
+    },
+    "filesystem": {
+      "access": "none"
+    },
+    "credentials": {
+      "direct_access": false
+    }
   },
-  "verification": {"native_build": "pending", "runtime": "pending", "visual": "pending"}
+  "verification": {
+    "native_build": "pending",
+    "runtime": "pending",
+    "visual": "pending"
+  }
 }

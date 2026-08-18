@@ -141,6 +141,174 @@ reaches it, delete the guard and assert the behavior that is actually
 guaranteed.
 Confidence: medium.
 
+### 2026-08-17 — Replacing an upstream element means sweeping every reference to it
+Area: downstream patch stack.
+Evidence: `0002-sunshine-new-tab.patch` replaced `<ntp-logo id="logo">` in the
+template and changed nothing else. `app.ts` referenced the logo in four places.
+One was fatal (`lit-element-invalid-interface` failed the first build that ever
+reached compilation); the other three were silent -- an unused type import, an
+inert allowlist that would have removed the wordmark from the accessibility tree
+whenever the composebox opened, and a click metric that would have stopped
+recording.
+Impact: the visible failure was the least damaging of the four. Fixing only what
+CI names would have shipped the other three.
+Recommended future behavior: when a patch removes or renames an upstream DOM id,
+element or symbol, grep the whole owning component for the old name and decide
+each hit explicitly -- carry it over, or drop it on purpose. Verify against the
+pinned sources, not from memory.
+Confidence: high.
+
+### 2026-08-17 — Check a token against the file that defines it, not one that uses it
+Area: verification design.
+Evidence: a CI step was added asserting `--color-new-tab-page-primary-foreground`
+appears in `app.css`. It does not, at any revision: Chromium emits
+`--color-new-tab-page-*` from the colour IDs in `chrome_color_id.h` and serves
+them through `chrome://theme`. `kColorNewTabPagePrimaryForeground` exists at
+152.0.7977.42, so the check would have failed the build on a valid token.
+Impact: a guard that is wrong about its evidence is worse than no guard; it
+spends the team's trust and pushes toward "fixing" correct code.
+Recommended future behavior: before asserting a dependency exists, establish
+where that kind of dependency is *defined*. Absence from a consumer is not
+absence. Prove the check fails for the right reason before relying on it.
+Confidence: high.
+
+### 2026-08-17 — A build tool's summary line is not its diagnostic
+Area: build pipeline.
+Evidence: the first build to reach compilation ran 17.5 minutes, completed
+11,820 of 66,739 steps, and reported the failure in full as `1 steps failed:
+exit=1`. siso writes the failing command and compiler output to
+`out/Sunshine/siso_output`, which stays on the runner. The cause was
+undiagnosable from CI's only artefact until the failure path was changed to dump
+that file; the very next run named the target, the file and the error.
+Impact: one wasted cycle per failure, and a standing temptation to guess.
+Recommended future behavior: when adopting a build tool, find out where it puts
+failure detail and surface it from the failure path before the first real
+failure. Treat "the log does not say why" as a defect in the pipeline.
+Confidence: high.
+
+### 2026-08-17 — Verify an environment's reach per host, not once
+Area: execution environment.
+Evidence: `chromium.googlesource.com` is refused by egress policy (proxy
+`connect_rejected`, 403 to CONNECT), which was correctly reported as blocking.
+The conclusion "this session cannot read pinned upstream sources" did not follow:
+`raw.githubusercontent.com` serves the same revision and is reachable. That
+single fact turned an open question into a resolved one and let every
+network-dependent CI check run locally while hosted runners were unavailable.
+Impact: an over-broad capability claim stalls work that is actually possible.
+Recommended future behavior: state blocked *hosts*, not blocked *capabilities*,
+and look for another host serving the same artefact before recording a blocker.
+Confidence: high.
+
+### 2026-08-17 — Distinguish "the job failed" from "the job never ran"
+Area: CI triage.
+Evidence: four architecture-guard runs failed in 2-3 seconds with `runner_id: 0`,
+no steps, 0 ms billable and no downloadable log, across two commits and a manual
+re-run, while the self-hosted build ran normally on the same commits. That
+signature is runner allocation, not a test result.
+Impact: treating it as a code failure invites speculative fixes to code that was
+never executed; treating it as flake invites endless re-runs.
+Recommended future behavior: before diagnosing a red check, confirm it executed --
+duration, assigned runner, recorded steps, billable time. Zero on all four means
+the answer is outside the repository.
+Confidence: high.
+
+### 2026-08-17 — Check what the pinned revision already ships before designing it
+Area: domain ownership.
+Evidence: Sunshine's split-view model re-derives Chromium's native split tabs,
+which exist at the pinned tag as `SplitTabVisualData`, `SplitTabData`,
+`SplitTabCollection` and `MultiContentsView` -- down to the same default ratio of
+0.5 and the same two orientations. The duplication was undetectable from the
+repository alone, because nothing here recorded what upstream had gained.
+Impact: a shipped model, a module, three registered commands and a contract all
+rest on work Chromium already did. ADR 0002 says to use Chromium's tabs.
+Recommended future behavior: before contracting a browser feature, retrieve the
+pinned revision's own headers for it. Absence of a feature in this repository is
+not evidence of absence upstream, and Chromium gains features between pins.
+Confidence: high.
+
+### 2026-08-17 — Name a field for what it does, or it will be believed
+Area: command registry.
+Evidence: the registry field called `guard` holds, for every Sunshine-owned
+command, the model function that performs the operation -- it is called with full
+execution inputs and refuses by raising. Two waves read the name and assumed a
+side-effect-free predicate. One of them recorded "commands take no parameters" as
+a project fact; three of the five guards already require undeclared arguments.
+Impact: a palette rendering 27 rows by consulting guards would execute up to 27
+operations. The mistaken fact was then propagated into a wave report.
+Recommended future behavior: when a schema field is introduced, assert its
+contract in the validator, not only its resolvability. `validate_commands.py`
+checked that each guard resolved and was callable, which every operation also
+satisfies.
+Confidence: high.
+
+### 2026-08-17 — A parallel wave is the cheapest adversarial review available here
+Area: execution strategy.
+Evidence: cross-agent review has been NOT AVAILABLE in every wave. Four workers
+given independent contracts found, between them, three defects in already-shipped
+work that Manager review had passed: the split-tabs duplication, the guard
+misnaming, and a section stating no commands were registered in the same wave
+that registered eleven.
+Impact: the defects were found by workers reading shipped material as input to
+their own task, not by anyone reviewing it.
+Recommended future behavior: give each worker an explicit instruction to report
+anything wrong in the repository content it reads, and treat that channel as the
+review the process otherwise lacks.
+Confidence: medium.
+
+### 2026-08-17 — A guard that cannot fail is not a guard
+Area: verification design.
+Evidence: three tools built today each caught something on their first run only
+because they were written with injected-violation tests. The design-system check
+found `font-weight: 650` outside the allowed set and a fluid band the
+declaration never stated. The invariant tracer caught two identifiers invented
+by the Manager, and separately was found to be counting its own test fixtures as
+real enforcement. The surface check was found to pass when the class it guards
+was deleted, because the identifier survived in type annotations.
+Impact: every one of those would have shipped as a green check asserting nothing.
+Recommended future behavior: for each rule, write the input that must make it
+fail before trusting the input that makes it pass. Assert definitions, not names.
+Confidence: high.
+
+### 2026-08-17 — Count what is enforced, not what is declared
+Area: contract hygiene.
+Evidence: twenty-nine contracts declared 142 numbered invariants against zero
+enforced. Nothing was wrong with any individual document; the ratio simply
+compounded, because a wave that writes a contract is faster than one that writes
+a check. Ten criteria the contracts had themselves marked offline-decidable sat
+unimplemented until someone measured the gap.
+Impact: a declared invariant reads like a guarantee, and a set of them reads like
+a verified system.
+Recommended future behavior: keep the enforced count visible and ratcheted. When
+a contract declares a criterion it calls offline-decidable, implementing it is
+the next wave's work, not a later one's.
+Confidence: high.
+
+### 2026-08-17 — An identifier a tool cannot cite cannot be counted
+Area: contract hygiene.
+Evidence: criteria numbered as bare ordinals -- `12.9`, `13`, `14.9` -- have real
+checks that cannot be tracked, and `PERFORMANCE_BUDGET`'s budgets P1..P6 collide
+with the P0/P1/P2 priority labels every contract uses, so admitting that family
+would turn every priority label into an invariant.
+Impact: enforcement exists and is invisible, which is indistinguishable from
+absence when planning.
+Recommended future behavior: give every numbered list a stable prefix at the
+moment it is created, distinct from the priority vocabulary. Renumbering later
+means sweeping every cross-reference.
+Confidence: high.
+
+### 2026-08-17 — Answering a question in one document does not close it in the others
+Area: process.
+Evidence: three P0 decisions were answered by new contracts -- the telemetry
+sink, profile onboarding ownership, the popup and permission clauses -- and all
+three stayed open in `ACCEPTANCE_SUITES` and elsewhere, reading as blocking work
+that was not blocked.
+Impact: a stale open question costs more than an unrecorded one, because it is
+planned around.
+Recommended future behavior: settling a decision is two edits -- the answer, and
+a strike-through in every document that asked. `docs/OPEN_DECISIONS.md` is the
+index that makes the second edit findable.
+Confidence: high.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:

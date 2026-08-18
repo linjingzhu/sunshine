@@ -1,3 +1,10 @@
+---
+doc_id: ai-manager-playbook
+version: 1.0.0
+canonical_path: .ai/memory/MANAGER_PLAYBOOK.md
+updated: 2026-08-13
+---
+
 # Portable Manager Playbook
 
 Purpose: carry **generalized development strategy experience** across projects without carrying project-specific code assumptions.
@@ -66,4 +73,4 @@ Confidence:
 - low / medium / high
 ```
 
-When moving this playbook to a new project, preserve only reusable lessons. Project-specific paths and workarounds belong in `PROJECT_LESSONS.md`.
+When moving this playbook to a new project, preserve only reusable lessons. Project-specific paths and workarounds belong in `.ai/memory/PROJECT_LESSONS.md`.

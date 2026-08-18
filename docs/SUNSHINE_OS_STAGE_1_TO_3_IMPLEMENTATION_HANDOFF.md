@@ -26,8 +26,15 @@ The browser must remain a full, unrestricted, stable Chromium browser before it 
 | Tabs, history, bookmarks, downloads | Universal Object Store |
 | Profiles, security mediation, local persistence | NAS sync and cloud storage |
 | Gestures, session restore, workspaces, split view | AI assistant / automation |
-| Installed external web apps | `sunshine://` production App SDK |
+| Installed external web apps | Production App SDK for third-party apps |
 | Command architecture | Full Three.js / spatial application UI |
+
+The excluded App SDK row named its scheme until
+`docs/decisions/0003-internal-scheme.md` settled that Sunshine registers no URL
+scheme, internally or with any operating system. The exclusion is unchanged and
+is now broader than a scheme: no third-party or dynamically installed app route
+is addressable at all in Stage 1–3, and privileged first-party surfaces must not
+share a namespace with such routes even if an SDK is built later.
 
 ### 1.3 Web App and SaaS principle
 
@@ -37,8 +44,17 @@ Sunshine Web Apps must be designed as products that can later operate independen
 Shared domain/API/data model
       ├─ Independent SaaS: https://j-os.app
       ├─ Independent SaaS: https://bookos.app
-      └─ Sunshine integrated client: sunshine://j-os
+      └─ Sunshine integrated client: same domain and data model, addressing undecided
 ```
+
+The third line named a Sunshine-scheme route until
+`docs/decisions/0003-internal-scheme.md`, which settles that Sunshine registers
+no URL scheme. An integrated client therefore has no address of its own, and
+this document does not invent one: whether such a client is ever built, and how
+it would be reached, is the open P1 in that ADR. The principle is unaffected —
+the diagram's point is that one domain and data model serves both the SaaS and
+the integrated form — but the address in it was never implementable, and the
+line must not be read as authorising a scheme in order to make it so.
 
 Sunshine Browser may provide privileged integration later, but it must not become the only host for an app's business logic or data model.
 
@@ -137,7 +153,7 @@ must never weaken a Chromium security default to make a feature easier.
 Every user-visible action is a command identifier. UI affordances resolve a
 command rather than calling browser internals directly.
 
-`first_party/commands.json` is the authoritative list. It records, for each command, the owner, availability predicate, telemetry event, and error results this rule requires. Do not restate the list here or in a feature contract. An earlier copy in this section kept a split-view "toggle" command alive long after the split-view contract had replaced it with `view.split.open`, `view.split.swap`, and `view.split.close`; a reader could not tell which list was current.
+`first_party/commands.json` is the authoritative list. It records, for each command, the owner, availability predicate, telemetry event, and error results this rule requires. Do not restate the list here or in a feature contract. An earlier copy in this section kept a split-view "toggle" command alive long after the split-view contract had replaced it; a reader could not tell which list was current. Those replacements have since been retired too, because Chromium owns splits at the pinned revision -- which is the same failure one turn later, and the reason the list lives in one place.
 
 A Sunshine-owned command is claimed by exactly one module, through a `native_command` entrypoint in that module's manifest. Chromium-owned commands such as `browser.back` carry no Sunshine implementation; Sunshine only surfaces them.
 
@@ -283,9 +299,21 @@ Input                 Result
 github.com            navigate to https://github.com
 https://github.com    navigate unchanged
 localhost:3000        navigate (development-safe rule)
-sunshine://settings   internal route request
+chrome://settings     internal page (handled scheme, navigates)
 material design       search with configured provider
 ```
+
+The fourth row named a Sunshine-scheme route and called it an "internal route
+request". `docs/decisions/0003-internal-scheme.md` settles that Sunshine
+registers no scheme, so that text would be an unregistered scheme: it classifies
+as `UNKNOWN` and is **searched**, sending the internal route name to the
+configured search provider. The row was replaced rather than renamed because its
+asserted behaviour was never obtainable, and internal pages — including the
+Security Center at `chrome://sunshine-security` — are reached under Chromium's
+existing internal scheme, which the replacement row shows.
+
+This table remains a sketch and is superseded in detail by section 3 of
+`docs/OMNIBOX_CONTRACT.md`, which corrects several of the remaining rows.
 
 Classify conservatively. Invalid or ambiguous input must produce a search rather
 than an unsafe inferred navigation. Classification and URL normalization stay in
@@ -328,9 +356,9 @@ calling WebUI origin, and no handler is reachable from ordinary web content.
 
 ### 5.6 Stage 1 security requirements
 
-1. Deny arbitrary `window.open`; route approved popup/new-window requests through a policy handler.
-2. Validate all navigation schemes. Only explicitly supported internal schemes may receive privileged handling.
-3. Use a permission request handler with a default-deny policy until the user has a per-origin decision.
+1. ~~Deny arbitrary `window.open`; route approved popup/new-window requests through a policy handler.~~ **Withdrawn.** Chromium already blocks popups without a user gesture, and a Sunshine handler in front of it is a second owner for a decision the browser makes — the defect this specification forbids everywhere else. `docs/PERMISSION_POLICY.md` holds the inherited behaviour.
+2. Validate all navigation schemes. Only explicitly supported internal schemes may receive privileged handling. Sunshine registers no scheme of its own; see `docs/decisions/0003-internal-scheme.md`.
+3. ~~Use a permission request handler with a default-deny policy until the user has a per-origin decision.~~ **Withdrawn.** `docs/PERMISSION_POLICY.md` sets every capability to `ASK` and keeps Chromium's native prompt, including its anti-abuse and quiet-prompt behaviour. Default-deny sounds stricter and is worse: it denies before the user is asked, so the user never gets the decision this clause says they should have, and it discards years of upstream abuse handling. The contract governs.
 4. Warn before opening executable or script-like downloads; flag extension/MIME mismatch.
 5. Log security-relevant download decisions with provenance and user action.
 6. Separate Sunshine profile OAuth from logging into Google inside a normal browser tab.
@@ -427,7 +455,13 @@ Implement Find in Page, zoom/reset, print, save page, view source, inspect, and 
 
 ### 6.7 Security Center and threat protection
 
-Provide `sunshine://security` with unsafe-site attempts, risky downloads, extension warnings, active site permissions, certificate warnings, and recent security events.
+Provide `chrome://sunshine-security` with unsafe-site attempts, risky downloads, extension warnings, active site permissions, certificate warnings, and recent security events.
+
+This section required the surface under a Sunshine-owned scheme until
+`docs/decisions/0003-internal-scheme.md` settled that no such scheme is
+registered. The surface, its contents, and its Stage 2 requirement are unchanged;
+only the route is. It is a privileged internal page contributed as a WebUI
+config, and `docs/SECURITY_CENTER_CONTRACT.md` is authoritative for it.
 
 ```text
 ThreatProtectionProvider.CheckUrl(url, profile_id) -> {
@@ -514,7 +548,19 @@ Initial panel modules: tabs, bookmarks, history, downloads. Later AI/apps are ex
 
 Profiles isolate cookies, site storage, extension set, history policy, and settings policy.
 
-Installed external web apps are still normal websites with a browser-managed launch experience. They must be clearly distinguished from future `sunshine://` native apps.
+Installed external web apps are still normal websites with a browser-managed launch experience. They must be clearly distinguished from future Sunshine native apps.
+
+That distinction was drawn here by URL scheme.
+`docs/decisions/0003-internal-scheme.md` settles that Sunshine registers no
+scheme, so future native apps have no address of their own and the scheme cannot
+be the discriminator. What must be distinguished is unchanged and the rule is
+now stricter than a spelling: an installed web app is remote content and gets
+the browser's ordinary web privileges, whatever chrome surrounds its launch,
+while a first-party native surface is compiled in and privileged. No UI may
+present the first as the second. How native apps are addressed, if they are ever
+built, is undecided and is not settled by this document — see the P1 in ADR 0003
+and `docs/SIDE_PANEL_CONTRACT.md` §9, where an Apps panel is deferred for the
+same reason.
 
 ### 7.8 Command palette
 

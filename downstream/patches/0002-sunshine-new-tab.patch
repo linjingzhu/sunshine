@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/resources/new_tab_page/app.css
-index dc7ebed..af5276f 100644
+index d9d32b0..355c621 100644
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
 @@ -180,6 +180,23 @@ cr-most-visited {
@@ -13,8 +13,8 @@ index dc7ebed..af5276f 100644
 +     letter-space; letting it flip leaves the wordmark a full letter-space
 +     off-centre. */
 +  direction: ltr;
-+  font-size: clamp(2rem, 6vw, 3.5rem);
-+  font-weight: 650;
++  font-size: clamp(2rem, 6vw, 3.5rem); /* fluid 533px-933px at a 16px root */
++  font-weight: 600;
 +  letter-spacing: 0.18em;
 +  line-height: 1;
 +  margin-bottom: var(--ntp-logo-margin-bottom, 38px);
@@ -27,7 +27,7 @@ index dc7ebed..af5276f 100644
    margin-bottom: var(--ntp-logo-margin-bottom, 38px);
  }
 diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/resources/new_tab_page/app.html
-index c4ce4e5..f4f5c51 100644
+index b6dab96..ecae8b7 100644
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
 @@ -28,13 +28,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
@@ -47,3 +47,41 @@ index c4ce4e5..f4f5c51 100644
    ${this.ntpRealboxNextEnabled_ ? html`
      <div id="scrim"
          @click="${this.onScrimClick_}"
+diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
+index 838385f..17bfad6 100644
+--- a/chrome/browser/resources/new_tab_page/app.ts
++++ b/chrome/browser/resources/new_tab_page/app.ts
+@@ -50,7 +50,6 @@ import {CustomizeButtonsProxy} from './customize_buttons_proxy.js';
+ import {CustomizeChromeSection} from './customize_chrome.mojom-webui.js';
+ import {CustomizeDialogPage} from './customize_dialog_types.js';
+ import type {IframeElement} from './iframe.js';
+-import type {LogoElement} from './logo.js';
+ import {recordBoolean, recordDuration, recordEnumeration, recordLinearValue, recordLoadDuration, recordSparseValueWithPersistentHash} from './metrics_utils.js';
+ import {ParentTrustedDocumentProxy} from './modules/microsoft_auth_frame_connector.js';
+ import type {PageCallbackRouter, PageHandlerRemote, Theme} from './new_tab_page.mojom-webui.js';
+@@ -133,7 +132,7 @@ const MSAL_IFRAME_ORIGIN = 'chrome-untrusted://ntp-microsoft-auth';
+ const VOICE_QUERY_LENGTH_LIMIT = 120;
+ const VOICE_IDLE_TIMEOUT_MS = 8000;
+ const COMPOSEBOX_INERT_ALLOWLIST = [
+-  '#logo',
++  '#sunshineWordmark',
+   '#searchboxContainer',
+ ];
+ 
+@@ -178,7 +177,6 @@ export interface AppElement {
+   $: {
+     customizeButtons: CustomizeButtonsElement,
+     oneGoogleBarClipPath: HTMLElement,
+-    logo: LogoElement,
+     searchbox: NtpSearchboxElement,
+     composebox: NtpComposeboxElement,
+     undoToast: CrToastElement,
+@@ -1591,7 +1589,7 @@ export class AppElement extends AppElementBase {
+     }
+     for (const target of e.composedPath()) {
+       switch (target) {
+-        case $$(this, 'ntp-logo'):
++        case $$(this, '#sunshineWordmark'):
+           recordClick(NtpElement.LOGO);
+           return;
+         case $$(this, 'ntp-searchbox'):

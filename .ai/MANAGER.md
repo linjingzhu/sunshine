@@ -1,3 +1,10 @@
+---
+doc_id: ai-manager
+version: 1.2.0
+canonical_path: .ai/MANAGER.md
+updated: 2026-08-17
+---
+
 # Primary Engineering Manager
 
 The Manager owns the transformation of the user's idea into a verified product result.
@@ -152,3 +159,9 @@ Record repository-specific observations in `.ai/memory/PROJECT_LESSONS.md`.
 Only record generalized strategy lessons in `.ai/memory/MANAGER_PLAYBOOK.md` when evidence is reusable beyond this repository. Keep lessons compact and evidence-labeled.
 
 Never rewrite CORE/REVIEW/REPOSITORY quality rules as an optimization.
+
+## Communication budget
+
+Compressed between agents; at length only from the Manager, only to the user.
+Mission Packets carry constraints and acceptance, not motivation. The rules,
+the escalation exceptions and the report shapes are in `.ai/REPORTING.md`.

@@ -1,49 +1,215 @@
 {
-  "schema_version": 1,
-  "surfaces": ["bookmark", "browser", "tab", "view", "workspace"],
+  "schema_version": 2,
+  "surfaces": [
+    "bookmark",
+    "browser",
+    "tab",
+    "workspace"
+  ],
   "commands": [
     {
       "id": "bookmark.toggle",
       "summary": "Add or remove the active tab's URL from bookmarks.",
       "owner": "chromium",
       "availability": "The active tab has a bookmarkable URL.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.BookmarkToggle",
-      "errors": ["unbookmarkable_scheme"]
+      "errors": [
+        "unbookmarkable_scheme"
+      ]
     },
     {
       "id": "browser.back",
       "summary": "Navigate the active tab to its previous entry.",
       "owner": "chromium",
       "availability": "The active tab has a previous navigation entry.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.BrowserBack",
       "errors": []
+    },
+    {
+      "id": "browser.devtools.open",
+      "summary": "Open developer tools attached to the active tab.",
+      "owner": "chromium",
+      "availability": "The active tab hosts a debuggable target and policy permits it.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserDevtoolsOpen",
+      "errors": [
+        "devtools_disabled_by_policy",
+        "undebuggable_target"
+      ]
+    },
+    {
+      "id": "browser.find.close",
+      "summary": "Dismiss the find bar and clear the native find selection.",
+      "owner": "chromium",
+      "availability": "The active tab has a find session.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserFindClose",
+      "errors": [
+        "no_active_find_session"
+      ]
+    },
+    {
+      "id": "browser.find.next",
+      "summary": "Advance to the next match in the active tab's find session.",
+      "owner": "chromium",
+      "availability": "The active tab has a find session.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserFindNext",
+      "errors": [
+        "no_active_find_session"
+      ]
+    },
+    {
+      "id": "browser.find.open",
+      "summary": "Open the native find bar for the active tab and focus its input.",
+      "owner": "chromium",
+      "availability": "The active tab hosts findable contents.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserFindOpen",
+      "errors": [
+        "find_unavailable_for_contents"
+      ]
+    },
+    {
+      "id": "browser.find.previous",
+      "summary": "Return to the previous match in the active tab's find session.",
+      "owner": "chromium",
+      "availability": "The active tab has a find session.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserFindPrevious",
+      "errors": [
+        "no_active_find_session"
+      ]
     },
     {
       "id": "browser.forward",
       "summary": "Navigate the active tab to its next entry.",
       "owner": "chromium",
       "availability": "The active tab has a forward navigation entry.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.BrowserForward",
       "errors": []
+    },
+    {
+      "id": "browser.page.save",
+      "summary": "Open Chromium's save-page picker for the active tab.",
+      "owner": "chromium",
+      "availability": "The active tab hosts a savable scheme and policy permits it.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserPageSave",
+      "errors": [
+        "save_disabled_by_policy",
+        "unsavable_scheme"
+      ]
+    },
+    {
+      "id": "browser.print",
+      "summary": "Open Chromium's print preview for the active tab.",
+      "owner": "chromium",
+      "availability": "The active tab hosts printable contents and policy permits it.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserPrint",
+      "errors": [
+        "printing_disabled_by_policy",
+        "unprintable_contents"
+      ]
     },
     {
       "id": "browser.reload",
       "summary": "Reload the active tab, or stop a load in progress.",
       "owner": "chromium",
       "availability": "A tab is active.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.BrowserReload",
       "errors": []
+    },
+    {
+      "id": "browser.view_source",
+      "summary": "Open the view-source document for the active tab's current entry.",
+      "owner": "chromium",
+      "availability": "The active tab has a navigation entry on a viewable scheme.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserViewSource",
+      "errors": [
+        "unsupported_scheme",
+        "no_navigation_entry"
+      ]
+    },
+    {
+      "id": "browser.zoom.in",
+      "summary": "Increase the active tab's zoom to the next native level.",
+      "owner": "chromium",
+      "availability": "The active tab is below Chromium's maximum zoom level.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserZoomIn",
+      "errors": [
+        "zoom_limit_reached",
+        "zoom_fixed_for_contents"
+      ]
+    },
+    {
+      "id": "browser.zoom.out",
+      "summary": "Decrease the active tab's zoom to the previous native level.",
+      "owner": "chromium",
+      "availability": "The active tab is above Chromium's minimum zoom level.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserZoomOut",
+      "errors": [
+        "zoom_limit_reached",
+        "zoom_fixed_for_contents"
+      ]
+    },
+    {
+      "id": "browser.zoom.reset",
+      "summary": "Return the active tab's origin to the profile default zoom level.",
+      "owner": "chromium",
+      "availability": "The active tab's origin has a zoom level set.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.BrowserZoomReset",
+      "errors": [
+        "zoom_fixed_for_contents"
+      ]
     },
     {
       "id": "tab.close",
       "summary": "Close the target tab and activate an adjacent one.",
       "owner": "chromium",
       "availability": "A closable tab is targeted.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.TabClose",
       "errors": []
     },
@@ -52,7 +218,9 @@
       "summary": "Open a copy of the target tab beside it.",
       "owner": "chromium",
       "availability": "A tab is targeted.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.TabDuplicate",
       "errors": []
     },
@@ -60,17 +228,23 @@
       "id": "tab.group.create",
       "summary": "Group the selected tabs using Chromium's native tab groups.",
       "owner": "chromium",
-      "availability": "At least one tab is selected in one window.",
-      "guard": null,
+      "availability": "At least one tab is selected.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.TabGroupCreate",
-      "errors": ["selection_spans_windows"]
+      "errors": [
+        "selection_spans_windows"
+      ]
     },
     {
       "id": "tab.group.ungroup",
       "summary": "Remove the selected tabs from their group without closing them.",
       "owner": "chromium",
       "availability": "Every selected tab belongs to a group.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.TabGroupUngroup",
       "errors": []
     },
@@ -79,41 +253,10 @@
       "summary": "Open a New Tab Page in the active window.",
       "owner": "chromium",
       "availability": "A browser window is open.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.TabNew",
-      "errors": []
-    },
-    {
-      "id": "view.split.close",
-      "summary": "Dissolve the split and return the surviving tab to the normal view.",
-      "owner": "sunshine.split_view",
-      "availability": "The active window has a split layout.",
-      "guard": "scripts.split_view_model:close_pane",
-      "telemetry": "Sunshine.Command.ViewSplitClose",
-      "errors": ["unknown_pane"]
-    },
-    {
-      "id": "view.split.open",
-      "summary": "Place two distinct active-workspace tabs into two panes.",
-      "owner": "sunshine.split_view",
-      "availability": "Two distinct tabs share the active workspace and one profile.",
-      "guard": "scripts.split_view_model:open_split",
-      "telemetry": "Sunshine.Command.ViewSplitOpen",
-      "errors": [
-        "same_tab_in_both_panes",
-        "tab_outside_active_workspace",
-        "panes_span_profiles",
-        "unsupported_orientation",
-        "ratio_out_of_range"
-      ]
-    },
-    {
-      "id": "view.split.swap",
-      "summary": "Exchange the two panes' positions without navigating or reloading.",
-      "owner": "sunshine.split_view",
-      "availability": "The active window has a split layout.",
-      "guard": "scripts.split_view_model:swap_panes",
-      "telemetry": "Sunshine.Command.ViewSplitSwap",
       "errors": []
     },
     {
@@ -121,36 +264,62 @@
       "summary": "Retire a workspace, transferring every one of its tabs at once.",
       "owner": "sunshine.workspace",
       "availability": "A second workspace exists in the same profile to receive the tabs.",
-      "guard": "scripts.workspace_model:close_workspace_atomic",
+      "implementation": "scripts.workspace_model:close_workspace_atomic",
+      "predicate": "scripts.workspace_model:can_close_workspace",
+      "unavailable_reasons": [
+        "no_destination_workspace",
+        "workspace_not_found"
+      ],
       "telemetry": "Sunshine.Command.WorkspaceClose",
-      "errors": ["workspace_missing", "destination_not_distinct", "group_spans_workspaces"]
+      "errors": [
+        "workspace_missing",
+        "destination_not_distinct",
+        "group_spans_workspaces"
+      ]
     },
     {
       "id": "workspace.create",
       "summary": "Create an empty workspace in the active profile with a New Tab.",
       "owner": "sunshine.workspace",
       "availability": "A profile is active.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.WorkspaceCreate",
-      "errors": ["name_rejected", "colour_unsupported"]
+      "errors": [
+        "name_rejected",
+        "colour_unsupported"
+      ]
     },
     {
       "id": "workspace.switch",
       "summary": "Project the selected workspace and restore its last active tab.",
       "owner": "sunshine.workspace",
       "availability": "The selected workspace exists in the window's profile.",
-      "guard": null,
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
       "telemetry": "Sunshine.Command.WorkspaceSwitch",
-      "errors": ["workspace_missing"]
+      "errors": [
+        "workspace_missing"
+      ]
     },
     {
       "id": "workspace.tab.move",
       "summary": "Transfer tabs to another workspace while keeping their native state.",
       "owner": "sunshine.workspace",
       "availability": "The destination workspace exists in the same profile.",
-      "guard": "scripts.workspace_model:move_tabs_atomic",
+      "implementation": "scripts.workspace_model:move_tabs_atomic",
+      "predicate": "scripts.workspace_model:can_move_tabs",
+      "unavailable_reasons": [
+        "no_destination_workspace"
+      ],
       "telemetry": "Sunshine.Command.WorkspaceTabMove",
-      "errors": ["workspace_missing", "stale_tab", "group_spans_workspaces"]
+      "errors": [
+        "workspace_missing",
+        "stale_tab",
+        "group_spans_workspaces"
+      ]
     }
   ]
 }
