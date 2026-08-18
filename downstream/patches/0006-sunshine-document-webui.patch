@@ -275,10 +275,10 @@ index 0000000..1108c01
 +</html>
 diff --git a/chrome/browser/resources/sunshine/document/app.ts b/chrome/browser/resources/sunshine/document/app.ts
 new file mode 100644
-index 0000000..55d7672
+index 0000000..6576656
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document/app.ts
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,288 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -395,7 +395,7 @@ index 0000000..55d7672
 +  const contents = required<HTMLOListElement>('contents');
 +  contents.replaceChildren();
 +
-+  nodes.forEach((node, index) => {
++  nodes.forEach((node) => {
 +    const parentOption = document.createElement('option');
 +    parentOption.value = node.id;
 +    parentOption.textContent = node.title;
@@ -407,7 +407,6 @@ index 0000000..55d7672
 +    entry.className = 'entry';
 +    // Six indents are declared in app.css; deeper nodes keep the last one.
 +    entry.dataset['depth'] = String(Math.min(node.depth, 5));
-+    entry.dataset['nodeId'] = node.id;
 +    entry.setAttribute('aria-current', String(node.id === state.nodeId));
 +
 +    const title = document.createElement('span');
@@ -425,17 +424,22 @@ index 0000000..55d7672
 +    });
 +    item.appendChild(entry);
 +    contents.appendChild(item);
-+
-+    if (node.id === state.nodeId) {
-+      required('position').textContent =
-+          'Reading ' + String(index + 1) + ' of ' + String(nodes.length);
-+    }
 +  });
 +
 +  reveal('noNodes', nodes.length === 0);
-+  if (state.nodeId === '') {
-+    required('position').textContent =
-+        nodes.length === 0 ? '' : 'Nothing selected';
++
++  // Where the selected section sits in the reading order. This is a count of
++  // positions in the depth-first traversal, not a page count: nothing here
++  // divides a document into pages, and nothing stored is rewritten to produce
++  // it (DOC-4).
++  const position = nodes.findIndex((node) => node.id === state.nodeId);
++  if (nodes.length === 0) {
++    required('position').textContent = '';
++  } else if (position < 0) {
++    required('position').textContent = 'Nothing selected';
++  } else {
++    required('position').textContent = 'Reading ' + String(position + 1) +
++        ' of ' + String(nodes.length) + ' in reading order';
 +  }
 +}
 +
@@ -854,10 +858,10 @@ index 962a315..9af4cf9 100644
  }
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc
 new file mode 100644
-index 0000000..481da5c
+index 0000000..4a5a4a7
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,62 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -866,6 +870,7 @@ index 0000000..481da5c
 +
 +#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
 +#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_contents.h"
 +#include "content/public/browser/web_ui.h"
 +#include "content/public/browser/web_ui_data_source.h"
 +#include "services/network/public/mojom/content_security_policy.mojom.h"
@@ -2018,10 +2023,10 @@ index 0000000..f83ffc7
 +#endif  // COMPONENTS_SUNSHINE_DOCUMENT_ORDER_KEY_H_
 diff --git a/components/sunshine/document/project_store.cc b/components/sunshine/document/project_store.cc
 new file mode 100644
-index 0000000..f134a28
+index 0000000..c151868
 --- /dev/null
 +++ b/components/sunshine/document/project_store.cc
-@@ -0,0 +1,276 @@
+@@ -0,0 +1,296 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -2081,9 +2086,13 @@ index 0000000..f134a28
 +
 +ProjectStore::~ProjectStore() {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  if (writer_->HasPendingWrite()) {
-+    writer_->DoScheduledWrite();
-+  }
++  // Nothing to flush. base/files/important_file_writer.h requires that "there
++  // are no pending writes at the moment of destruction", and there never are:
++  // every mutation calls WriteNow() rather than ScheduleWrite(), so the write
++  // is already on its way to the blocking sequence before the mutator returns.
++  // The batching ScheduleWrite() buys is not worth the flush-on-shutdown
++  // question it opens, for a store a person edits by hand a few times a
++  // minute.
 +}
 +
 +void ProjectStore::Load(base::OnceClosure loaded) {
@@ -2154,6 +2163,13 @@ index 0000000..f134a28
 +
 +base::Uuid ProjectStore::CreateProject(const std::string& title) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  // Nothing is written before the file has been read. A mutation applied to an
++  // empty in-memory model would be saved over a store whose contents are still
++  // arriving, and the read would then merge into a file that had already been
++  // overwritten. Every mutator below refuses for the same reason.
++  if (!loaded_) {
++    return base::Uuid();
++  }
 +  Project project;
 +  // Random, not sequential. Section 2.3 of ADR 0013 rules out an
 +  // auto-increment counter as identity precisely because a per-device sequence
@@ -2171,6 +2187,9 @@ index 0000000..f134a28
 +                                    const base::Uuid& parent,
 +                                    const std::string& title) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!loaded_) {
++    return base::Uuid();
++  }
 +  Project* project = FindProjectMutable(project_id);
 +  if (!project) {
 +    return base::Uuid();
@@ -2207,6 +2226,9 @@ index 0000000..f134a28
 +                                   const base::Uuid& node_id,
 +                                   const std::string& body) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!loaded_) {
++    return false;
++  }
 +  Project* project = FindProjectMutable(project_id);
 +  if (!project) {
 +    return false;
@@ -2265,6 +2287,9 @@ index 0000000..f134a28
 +
 +bool ProjectStore::DeleteProject(const base::Uuid& project_id) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!loaded_) {
++    return false;
++  }
 +  for (auto project = projects_.begin(); project != projects_.end();
 +       ++project) {
 +    if (project->id == project_id) {
