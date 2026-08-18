@@ -34,8 +34,24 @@ produced it. It reads the output rather than the source:
 | `args.gn` contains `is_official_build`, `is_debug=false`, `proprietary_codecs=true`, `ffmpeg_branding="Chrome"` | ADR 0004 |
 | `args.gn` contains no sandbox- or isolation-disabling switch | SEC-1, SEC-2 |
 | Windows registers no `sunshine`, `sunshine-module` or `sunshineos` URL protocol | SEC-13 |
+| `chrome.exe` carries a non-zero `VERSIONINFO` resource | patch 0001, resource pipeline |
 
-The last one is the reason this runs on Windows rather than in the guard job.
+The version-resource row reads the binary rather than running it, and that
+restriction was bought at the cost of two builds. A launch check shipped here
+briefly: it first required console output that a Windows GUI subsystem binary
+never writes to a redirected pipe, failing build #20 on a browser that was
+fine, and then build #21 died at `lld-link: failed to write output
+'./chrome_elf.dll': permission denied` because the browser that check had
+started was still running and holding its own DLL open. On Windows an exit code
+of 0 cannot distinguish "printed a version and exited" from "launched the
+browser and the stub handed off", so there was no version of it worth keeping.
+
+**Whether the browser starts is therefore a manual gate, not an automated
+one.** That is a real limit and it is stated rather than papered over: the only
+machine that can answer it is the one that is also the only CI, and a browser
+started there breaks the next build.
+
+The registry row is the reason this runs on Windows rather than in the guard job.
 SEC-13 is enforced in source by `scripts/verify_first_party_surfaces.py`; this
 checks the layer where a registration would actually matter — what the operating
 system believes. A source check cannot see a scheme registered by an installer.

@@ -25,7 +25,6 @@ import argparse
 import os
 from pathlib import Path
 import re
-import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,102 +145,92 @@ def check_no_registered_scheme(result: Result) -> None:
             result.record(PASSED, f"{scheme}:// is not registered", "SEC-13")
 
 
-def check_chrome_launches(out: Path, result: Result) -> None:
-    """The one check that answers "does this actually run," not just "does the
-    configuration that produced it look right."
+def check_version_resource(out: Path, result: Result) -> None:
+    """Read the version Windows will show for `chrome.exe`, without running it.
 
-    Every other check in this file reads a file or a registry key -- evidence
-    that is consistent with a browser that works, but also consistent with one
-    that is missing a resource, links against a DLL that is not beside it, or
-    is silently killed the instant it starts. `chrome.exe --version` is the
-    cheapest code path that exercises real process startup: it initializes
-    enough of the binary to print its own version string, then exits, without
-    opening a window, touching a profile directory, or needing the sandbox this
-    project will not weaken to get a faster smoke test.
+    An earlier version of this check launched `chrome.exe --version`, and it
+    was wrong twice over. First it required console output, which a Windows GUI
+    subsystem binary never writes to a redirected pipe, so build #20 reported
+    FAIL on a browser that was fine. Then the deeper problem surfaced: on
+    Windows the exit code cannot distinguish "printed its version and exited"
+    from "launched the browser and the stub handed off", because both return 0
+    immediately. Build #21 proved which one had been happening --
+    `lld-link: failed to write output './chrome_elf.dll': permission denied`,
+    because a browser started by the previous run's verification was still
+    alive and holding its own DLL open.
 
-    This is also the only check positioned to catch what a build machine's own
-    antivirus or SmartScreen might do to an unsigned, freshly compiled binary --
-    a class of failure that leaves every artifact on disk, at a plausible size,
-    built with the right arguments, and still unable to run. A person watching
-    a blank screen after double-clicking the installer cannot tell that story
-    apart from a genuinely broken build; this check can, because it captures
-    the real exit code instead of a closed window.
+    So the build machine must not start the browser it just built. What is left
+    is reading the binary, which is genuinely worth doing: `VERSIONINFO` is
+    written by `rc.exe` from the branding this project patches, so a correct
+    version string is evidence that the resource pipeline ran end to end and
+    that patch 0001's BRANDING reached the artifact. That is the same pipeline
+    the icon overlay depends on.
 
-    **What it deliberately does not assert.** An earlier version of this check
-    required `--version` to print something, and failed build #20 -- a build
-    whose `chrome.exe` was fine. `chrome.exe` is linked as a Windows GUI
-    subsystem binary, so when it is launched with its stdout redirected to a
-    pipe it writes nothing there; the absence of output is normal and carries
-    no information about whether the browser works. Requiring it meant a
-    working browser reported FAIL, which is the kind of false positive that
-    ends with a guard deleted rather than a bug fixed. Output is now recorded
-    when it happens to arrive and is never required.
-
-    What remains is still worth the subprocess, because each of the three
-    surviving conditions is a real failure this project has either hit or has
-    no other way to see: the process cannot start at all (antivirus, a missing
-    DLL beside it), it never exits (a startup deadlock), or it exits nonzero
-    (a crash before the version path). Exit zero from a real process launch is
-    the signal; it is not much, and it is more than every other check here can
-    offer, all of which would pass on a binary that cannot run.
+    **What no longer has an automated answer.** Whether the browser starts at
+    all is now a manual gate (RV-1 and after), and that is the honest position
+    rather than a gap: the only way to answer it here was to run a browser on
+    the machine that is also the only CI, which breaks the next build.
     """
 
     if sys.platform != "win32":
         result.record(
             UNAVAILABLE,
-            "chrome.exe launches and reports its version",
+            "chrome.exe carries a version resource",
             f"needs Windows; this is {sys.platform}",
         )
         return
 
     chrome = out / "chrome.exe"
     if not chrome.is_file():
-        # check_artifacts already recorded this as FAILED; recorded again here
-        # would just restate it, and there is nothing to launch.
+        # check_artifacts already recorded the failure; restating it here would
+        # be noise.
         return
 
-    try:
-        completed = subprocess.run(
-            [str(chrome), "--version"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
+    import ctypes  # noqa: PLC0415 -- Windows-only path
+    from ctypes import wintypes  # noqa: PLC0415
+
+    version_dll = ctypes.WinDLL("version")
+    path = str(chrome)
+
+    size = version_dll.GetFileVersionInfoSizeW(path, None)
+    if not size:
         result.record(
             FAILED,
-            "chrome.exe launches and reports its version",
-            "did not exit within 30s -- hung, or waiting on something interactive",
-        )
-        return
-    except OSError as error:
-        # The shape a real-time antivirus quarantine or a SmartScreen block
-        # takes: the file is on disk (check_artifacts passed) but the OS
-        # refuses to start it. WinError 5 is access denied; WinError 1260 is
-        # "blocked by your organization's policy."
-        result.record(
-            FAILED,
-            "chrome.exe launches and reports its version",
-            f"process could not start: {error}",
+            "chrome.exe carries a version resource",
+            "no VERSIONINFO -- rc.exe did not write one, or the link dropped it",
         )
         return
 
-    output = (completed.stdout + completed.stderr).strip()
-    if completed.returncode != 0:
+    buffer = ctypes.create_string_buffer(size)
+    if not version_dll.GetFileVersionInfoW(path, 0, size, buffer):
+        result.record(FAILED, "chrome.exe carries a version resource", "VERSIONINFO unreadable")
+        return
+
+    value = ctypes.c_void_p()
+    length = wintypes.UINT()
+    if not version_dll.VerQueryValueW(
+        buffer, "\\", ctypes.byref(value), ctypes.byref(length)
+    ) or not length.value:
+        result.record(FAILED, "chrome.exe carries a version resource", "no fixed-info block")
+        return
+
+    # VS_FIXEDFILEINFO: dwSignature, dwStrucVersion, then the four 16-bit
+    # version fields packed as two DWORDs, most significant word first.
+    fixed = ctypes.cast(value, ctypes.POINTER(wintypes.DWORD * 4)).contents
+    if fixed[0] != 0xFEEF04BD:
+        result.record(FAILED, "chrome.exe carries a version resource", "bad VS_FIXEDFILEINFO signature")
+        return
+
+    most, least = fixed[2], fixed[3]
+    version = f"{most >> 16}.{most & 0xFFFF}.{least >> 16}.{least & 0xFFFF}"
+    if version.startswith("0.0.0"):
         result.record(
             FAILED,
-            "chrome.exe starts and exits cleanly",
-            f"exit code {completed.returncode}: {output or '(no output)'}",
+            "chrome.exe carries a version resource",
+            f"version reads {version} -- the build did not stamp one",
         )
         return
-    # A GUI-subsystem binary writes nothing to a redirected pipe, so `output`
-    # is usually empty on a perfectly good build. Reported when present, never
-    # required -- see the docstring.
-    result.record(
-        PASSED,
-        "chrome.exe starts and exits cleanly",
-        output or "exit 0, no console output (GUI subsystem)",
-    )
+    result.record(PASSED, "chrome.exe carries a version resource", version)
 
 
 def resolve_out(explicit: str | None) -> Path | None:
@@ -274,7 +263,7 @@ def main() -> int:
     check_artifacts(out, result)
     check_build_arguments(out, result)
     check_no_registered_scheme(result)
-    check_chrome_launches(out, result)
+    check_version_resource(out, result)
 
     print(f"Built browser at {out}")
     print(result.report())

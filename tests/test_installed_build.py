@@ -8,7 +8,6 @@ execute. Each of those must be distinguishable from a pass.
 
 from pathlib import Path
 import sys
-import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -94,16 +93,16 @@ class PlatformHonestyTests(unittest.TestCase):
         self.assertFalse(result.failed)
 
 
-class LaunchCheckTests(unittest.TestCase):
-    """Launching `chrome.exe` is the one check that exercises real process
-    startup rather than reading a file or a registry key. These pin the
-    failure shapes that all leave every artifact on disk, at a plausible
-    size, and still unable to run -- the exact gap between "the build
-    succeeded" and "a person can use the browser."
+class VersionResourceCheckTests(unittest.TestCase):
+    """The check that replaced a launching one, and why.
 
-    They also pin the shape that is *not* a failure. The check first shipped
-    requiring console output and failed build #20, a build whose browser was
-    fine; the cases below keep both halves of that lesson.
+    Launching `chrome.exe` on the build machine broke the next build: a browser
+    left running by build #20's verification held `chrome_elf.dll` open, and
+    build #21 died on `lld-link: permission denied`. On Windows the exit code
+    cannot tell "printed a version and exited" from "launched the browser and
+    handed off", so there was no safe way to keep it. Reading the binary is
+    what remains, and it is not nothing -- VERSIONINFO is written by rc.exe
+    from the branding this project patches.
     """
 
     def setUp(self) -> None:
@@ -112,79 +111,34 @@ class LaunchCheckTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         (self.out / "chrome.exe").write_bytes(b"x" * 1024)
 
-    def run_check(self):
-        result = built.Result()
-        with mock.patch.object(built.sys, "platform", "win32"):
-            built.check_chrome_launches(self.out, result)
-        return result
-
     def test_off_windows_is_unavailable_not_a_pass(self) -> None:
         result = built.Result()
         with mock.patch.object(built.sys, "platform", "linux"):
-            built.check_chrome_launches(self.out, result)
+            built.check_version_resource(self.out, result)
         self.assertTrue(result.unavailable)
         self.assertFalse(result.failed)
 
-    def test_exit_zero_with_no_output_passes(self) -> None:
-        """The regression this pins, and the reason the check was rewritten.
-
-        `chrome.exe` is a Windows GUI subsystem binary: launched with its
-        stdout redirected to a pipe it writes nothing there. An earlier
-        version of this check required output and failed build #20, whose
-        browser was fine. A guard that fails a working build is worse than no
-        guard, because it gets deleted rather than believed.
-        """
-
-        completed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
-        with mock.patch.object(built.subprocess, "run", return_value=completed):
-            result = self.run_check()
-        self.assertFalse(result.failed)
-        self.assertEqual(built.PASSED, result.rows[0][0])
-
     def test_a_missing_binary_reports_nothing_new(self) -> None:
-        """`check_artifacts` already failed on this; a second, identically
-        worded failure here would just be noise."""
+        """`check_artifacts` already failed on this."""
 
         (self.out / "chrome.exe").unlink()
-        result = self.run_check()
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "win32"):
+            built.check_version_resource(self.out, result)
         self.assertEqual([], result.rows)
 
-    def test_output_is_reported_when_it_does_arrive(self) -> None:
-        """Not required, but not discarded either: on a platform or a future
-        build where the version does reach the pipe, it belongs in the log."""
+    def test_the_check_never_starts_a_process(self) -> None:
+        """The property build #21 paid for. `verify_installed_build` must not
+        import subprocess or launch anything: the build machine is also the
+        only CI, and a browser it starts holds its own DLLs open until the next
+        build fails to link them."""
 
-        completed = subprocess.CompletedProcess([], 0, stdout="Sunshine OS 152.0.7977.42\n", stderr="")
-        with mock.patch.object(built.subprocess, "run", return_value=completed):
-            result = self.run_check()
-        self.assertFalse(result.failed)
-        self.assertIn(
-            (built.PASSED, "chrome.exe starts and exits cleanly", "Sunshine OS 152.0.7977.42"),
-            result.rows,
+        source = (REPOSITORY_ROOT / "scripts" / "verify_installed_build.py").read_text(
+            encoding="utf-8"
         )
-
-    def test_a_nonzero_exit_fails(self) -> None:
-        completed = subprocess.CompletedProcess([], 1, stdout="", stderr="fatal error\n")
-        with mock.patch.object(built.subprocess, "run", return_value=completed):
-            result = self.run_check()
-        self.assertTrue(result.failed)
-        self.assertIn("exit code 1", result.rows[0][2])
-
-    def test_a_hang_fails_rather_than_blocking_forever(self) -> None:
-        with mock.patch.object(
-            built.subprocess, "run", side_effect=built.subprocess.TimeoutExpired(cmd="chrome.exe", timeout=30)
-        ):
-            result = self.run_check()
-        self.assertTrue(result.failed)
-        self.assertIn("30s", result.rows[0][2])
-
-    def test_a_blocked_launch_fails_with_the_os_error(self) -> None:
-        """The shape a real-time antivirus quarantine or SmartScreen block
-        takes: the file exists, but the OS refuses to start it."""
-
-        with mock.patch.object(built.subprocess, "run", side_effect=OSError(5, "Access is denied")):
-            result = self.run_check()
-        self.assertTrue(result.failed)
-        self.assertIn("could not start", result.rows[0][2])
+        for forbidden in ("import subprocess", "subprocess.run", "Popen", "os.system"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
 
 
 class InvocationTests(unittest.TestCase):
