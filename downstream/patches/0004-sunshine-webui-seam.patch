@@ -166,7 +166,7 @@ new file mode 100644
 index 0000000..5e589f7
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,33 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -183,11 +183,18 @@ index 0000000..5e589f7
 +  const std::string prefix = std::string(surface) + "/";
 +  std::vector<webui::ResourcePath> resources;
 +  for (const webui::ResourcePath& resource : kSunshineResources) {
-+    if (!std::string_view(resource.path).starts_with(prefix)) {
++    const std::string_view path(resource.path);
++    if (!path.starts_with(prefix)) {
 +      continue;
 +    }
++    // substr(), not `resource.path + prefix.size()`. Chromium builds this
++    // directory with -Wunsafe-buffer-usage promoted to an error by /WX, and
++    // raw pointer arithmetic is exactly what that warning rejects; build #22
++    // failed here on nothing else. The tail of a NUL-terminated string
++    // literal is itself NUL-terminated, so data() is a valid `const char*`
++    // for ResourcePath, which holds the pointer without copying.
 +    resources.push_back(
-+        {resource.path + prefix.size(), resource.id, resource.filepath});
++        {path.substr(prefix.size()).data(), resource.id, resource.filepath});
 +  }
 +  return resources;
 +}
