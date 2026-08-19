@@ -24,8 +24,16 @@ name: Architecture Guard (hosted)
 # `python3` do not already provide, and keeping both workflows to the same
 # idiom means they cannot drift into checking different things for reasons
 # nobody chose.
+#
+# `push` is safe here in a way it is not on the self-hosted guard, and the
+# difference is the runner rather than the trigger: a hosted runner is a
+# disposable container GitHub allocates, so running a branch's code on it
+# exposes no machine. It also fixes the practical problem, which is that
+# `workflow_dispatch` alone requires the workflow to exist on the default
+# branch before it can be dispatched at all.
 on:
   workflow_dispatch:
+  push:
 
 permissions:
   contents: read
