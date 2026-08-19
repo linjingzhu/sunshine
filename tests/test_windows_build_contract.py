@@ -144,6 +144,58 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
 
 
+class RunnerEncodingTests(unittest.TestCase):
+    """Every file a tool reads is read as UTF-8, explicitly.
+
+    `Path.read_text()` with no encoding uses the process's locale encoding.
+    On the machine that is this project's only CI -- a Korean Windows
+    workstation -- that is `cp949`, not UTF-8, and the difference is not
+    academic: build run `32250667556` died on
+    `UnicodeDecodeError: 'cp949' codec can't decode byte 0xe2`, which was an em
+    dash inside a comment in `0007-sunshine-modules-webui.patch`.
+
+    The quieter half is the reason this is a test rather than a fix. The same
+    reader had been mis-decoding `0006-sunshine-document-webui.patch` for as
+    long as it existed -- a section sign there is `0xC2 0xA7`, which `cp949`
+    accepts and turns into a different character entirely. It happened to be
+    harmless because the mangled text was in a comment rather than in a
+    `+++ b/` line. A defect that fails loudly is the lucky case; this rule is
+    about the one that does not.
+
+    Every prose file in this repository is UTF-8 and several deliberately
+    contain typographic punctuation, so "avoid non-ASCII" is not the fix and
+    never was.
+    """
+
+    def test_no_tool_reads_a_file_in_the_locale_encoding(self) -> None:
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            text = script.read_text(encoding="utf-8")
+            with self.subTest(script=script.name):
+                self.assertNotIn(
+                    ".read_text()",
+                    text,
+                    f"{script.name} reads a file in the locale encoding; "
+                    'pass encoding="utf-8"',
+                )
+
+    def test_no_tool_writes_a_file_in_the_locale_encoding(self) -> None:
+        """The same hazard in the other direction, and the more damaging one:
+        a file written in `cp949` is corrupt on disk rather than merely
+        misread."""
+
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            text = script.read_text(encoding="utf-8")
+            for index, line in enumerate(text.splitlines(), start=1):
+                if ".write_text(" not in line:
+                    continue
+                with self.subTest(script=script.name, line=index):
+                    self.assertIn(
+                        "encoding=",
+                        line,
+                        f"{script.name}:{index} writes a file in the locale encoding",
+                    )
+
+
 class SelfHostedGuardTests(unittest.TestCase):
     """The self-hosted guard is not a fallback any more -- it is the only CI.
 
