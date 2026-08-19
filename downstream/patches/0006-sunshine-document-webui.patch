@@ -66,10 +66,10 @@ index d93bde6..1892558 100644
  }
 diff --git a/chrome/browser/resources/sunshine/document/app.css b/chrome/browser/resources/sunshine/document/app.css
 new file mode 100644
-index 0000000..85595a7
+index 0000000..e530a24
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document/app.css
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,221 @@
 +/* Copyright 2026 The Sunshine OS contributors
 + * Use of this source code is governed by a BSD-style license that can be
 + * found in the LICENSE file.
@@ -91,9 +91,19 @@ index 0000000..85595a7
 +  margin: 0;
 +}
 +
++/* The reading column. `.row` below already lays out in flex; this is the same
++ * mechanism turned vertical, and it exists so the frame at the bottom can take
++ * whatever height the controls above it leave. `min-height` rather than
++ * `height`, so the column is at least the window and grows past it when the
++ * controls need more room, and `border-box` so the padding is inside that
++ * height instead of forcing a scrollbar on every window. */
 +#page {
++  box-sizing: border-box;
++  display: flex;
++  flex-direction: column;
 +  margin: 0 auto;
 +  max-width: 60rem;
++  min-height: 100vh;
 +  padding: 2rem 1.5rem;
 +}
 +
@@ -196,12 +206,59 @@ index 0000000..85595a7
 +  line-height: 1.33;
 +}
 +
++/* The pane is the frame. It takes the column's remaining height and gives it
++ * back as the window changes; the floor is stated in viewport units for the
++ * same reason, so that a short window scrolls the column rather than crushing
++ * the pane down to an iframe's intrinsic 150px. */
++#pane {
++  display: flex;
++  flex: 1 1 auto;
++  min-height: 60vh;
++  position: relative;
++}
++
++/* No border, no radius and no height of its own. A document is not a widget on
++ * this page: a box drawn around it would be Sunshine claiming the edge of
++ * something it does not own. */
 +#reader {
-+  border: 1px solid var(--color-midground);
-+  border-radius: 0.25rem;
-+  display: block;
-+  height: 28rem;
-+  width: 100%;
++  border: 0;
++  flex: 1 1 auto;
++}
++
++/* Floating over the frame's top corner, inset far enough along the inline axis
++ * to clear a document's own vertical scrollbar rather than sit on top of it. */
++#readerActions {
++  display: flex;
++  gap: 0.5rem;
++  inset-block-start: 0.5rem;
++  inset-inline-end: 1.5rem;
++  position: absolute;
++}
++
++/* Dimmed and semi-transparent, and dimmed with `opacity` over the surface and
++ * outline roles patch 0004 already bound -- not with a literal colour carrying
++ * an alpha channel, which would be Sunshine deciding a colour (contract §1,
++ * §2.1). Everything else is inherited from the `button` rule above.
++ *
++ * Full strength on hover and on `:focus-visible`, so a control that is being
++ * used is never the dim one; the focus ring itself comes from the
++ * `:focus-visible` rule above, which is where this surface states it. */
++.overlay {
++  align-items: center;
++  display: flex;
++  opacity: 0.4;
++  padding: 0.25rem;
++}
++
++.overlay:hover,
++.overlay:focus-visible {
++  opacity: 1;
++}
++
++/* Nothing selected is nothing to reload and nothing to download. */
++.overlay[disabled] {
++  cursor: default;
++  opacity: 0.2;
 +}
 +
 +.empty {
@@ -236,10 +293,10 @@ index 0000000..85595a7
 +}
 diff --git a/chrome/browser/resources/sunshine/document/app.html b/chrome/browser/resources/sunshine/document/app.html
 new file mode 100644
-index 0000000..1108c01
+index 0000000..b6f2e60
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document/app.html
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,112 @@
 +<!doctype html>
 +<html dir="$i18n{textdirection}" lang="$i18n{language}">
 +<head>
@@ -311,18 +368,53 @@ index 0000000..1108c01
 +    </div>
 +    <!-- The one place project content is rendered. The frame is Chromium's own
 +         untrusted scheme; Sunshine registers no scheme (SEC-13, ADR 0003). -->
-+    <iframe id="reader" title="Document content"
-+            src="chrome-untrusted://sunshine-document-content/"></iframe>
++    <div id="pane">
++      <!-- These two controls are the shell's and stay in the shell. They are
++           drawn over the frame, never inside it, for two reasons that hold
++           independently. A control inside the frame would be the frame naming
++           an operation, which DOC-2 forbids outright. And a control inside the
++           frame would be indistinguishable from one the document drew itself:
++           here it sits in the privileged document above the iframe, where the
++           document underneath can neither intercept its clicks nor restyle it
++           nor cover it. Nothing about them changes what the frame receives --
++           still one bare string, still no reply.
++
++           The icons are inline markup served with this page. Nothing builds an
++           element from a string at runtime (SEC-14). -->
++      <div id="readerActions">
++        <button id="refreshDocument" class="overlay" type="button" disabled
++                aria-label="Reload this section into the reading frame"
++                title="Reload this section into the reading frame">
++          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
++               focusable="false">
++            <path d="M8 3A5 5 0 1 1 5.5 3.67" fill="none"
++                  stroke="currentColor" stroke-width="1.5"></path>
++            <path d="M7.23 2.67 6.1 4.71 4.9 2.63Z" fill="currentColor"></path>
++          </svg>
++        </button>
++        <button id="downloadDocument" class="overlay" type="button" disabled
++                aria-label="Download this section as an HTML file"
++                title="Download this section as an HTML file">
++          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
++               focusable="false">
++            <path d="M8 2.5v7M4.8 6.8 8 10l3.2-3.2M3 13h10" fill="none"
++                  stroke="currentColor" stroke-width="1.5"></path>
++          </svg>
++        </button>
++      </div>
++      <iframe id="reader" title="Document content"
++              src="chrome-untrusted://sunshine-document-content/"></iframe>
++    </div>
 +  </main>
 +  <script type="module" src="app.js"></script>
 +</body>
 +</html>
 diff --git a/chrome/browser/resources/sunshine/document/app.ts b/chrome/browser/resources/sunshine/document/app.ts
 new file mode 100644
-index 0000000..6576656
+index 0000000..1cac417
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document/app.ts
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,355 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -353,6 +445,13 @@ index 0000000..6576656
 + * listened to. Readiness comes from the iframe's own `load` event, which is a
 + * fact about the element rather than a claim by its content.
 + *
++ * The two controls floating over the frame belong to this file for the same
++ * reason. Reload re-reads through the `ReadDocument` call the selection
++ * already uses and posts the result on; download hands the string this file is
++ * already holding to Chromium's download flow. Neither adds a Mojo method,
++ * neither writes a path, and neither puts a control inside the frame -- which
++ * would have been the frame naming an operation, the thing DOC-2 rules out.
++ *
 + * Everything it asks of its host goes through `documentHost` (./host.ts), per
 + * section 2.5 of docs/decisions/0013-module-data-portability.md.
 + */
@@ -366,6 +465,9 @@ index 0000000..6576656
 +  nodeId: string;
 +  readerReady: boolean;
 +  pending: string|null;
++  // The body last sent to the frame. Held so that downloading needs no second
++  // read and no second Mojo call: it is the same string, unchanged.
++  body: string;
 +}
 +
 +const state: State = {
@@ -374,7 +476,14 @@ index 0000000..6576656
 +  nodeId: '',
 +  readerReady: false,
 +  pending: null,
++  body: '',
 +};
++
++/** Whether a section is selected, and so whether there is anything to act
++ * on. */
++function selected(): boolean {
++  return state.projectId !== '' && state.nodeId !== '';
++}
 +
 +function required<T extends HTMLElement>(id: string): T {
 +  const element = document.body.querySelector<T>('#' + id);
@@ -402,6 +511,7 @@ index 0000000..6576656
 + * else; see the DOC-2 note above.
 + */
 +function showInReader(body: string) {
++  state.body = body;
 +  const frame = required<HTMLIFrameElement>('reader');
 +  if (!state.readerReady || !frame.contentWindow) {
 +    state.pending = body;
@@ -485,6 +595,53 @@ index 0000000..6576656
 +    required('position').textContent = 'Reading ' + String(position + 1) +
 +        ' of ' + String(nodes.length) + ' in reading order';
 +  }
++
++  required<HTMLButtonElement>('refreshDocument').disabled = !selected();
++  required<HTMLButtonElement>('downloadDocument').disabled = !selected();
++}
++
++/**
++ * Reads the selected section again and sends what comes back to the frame.
++ *
++ * The recovery path when a document did not render, and the one place DOC-4 is
++ * visible rather than asserted: the same `ReadDocument` call the selection
++ * uses returns the same bytes, because nothing between the store and the frame
++ * rewrites them. The editor is left alone -- this reloads the frame, and an
++ * unsaved edit is not the store's answer to overwrite it with.
++ */
++function reloadIntoReader() {
++  if (!selected()) {
++    return;
++  }
++  void documentHost.readDocument(state.projectId, state.nodeId)
++      .then(showInReader);
++}
++
++/**
++ * Hands the selected section to the user as an HTML file.
++ *
++ * Chromium's own download flow does the writing. Nothing here opens, names or
++ * touches a path, and no Mojo method was added to make it possible: the string
++ * is the one this file already sent to the frame, wrapped in a blob whose URL
++ * lives exactly as long as the click. That is the posture
++ * docs/SECURITY_CENTER_CONTRACT.md SC-9 takes for the security centre -- the
++ * surface performs no mutation of its own; the Chromium flow that owns the
++ * operation executes it.
++ *
++ * The file is named for what it is, never for the node it came from. A node
++ * names a document Sunshine stores and never a location on disk (DOC-6), and
++ * deriving a filename from a title is exactly the step that would make it one.
++ */
++function downloadDocument() {
++  if (!selected()) {
++    return;
++  }
++  const url = URL.createObjectURL(new Blob([state.body], {type: 'text/html'}));
++  const link = document.createElement('a');
++  link.href = url;
++  link.download = 'document.html';
++  link.click();
++  URL.revokeObjectURL(url);
 +}
 +
 +function render() {
@@ -605,6 +762,8 @@ index 0000000..6576656
 +
 +  required('previous').addEventListener('click', () => step(-1));
 +  required('next').addEventListener('click', () => step(1));
++  required('refreshDocument').addEventListener('click', reloadIntoReader);
++  required('downloadDocument').addEventListener('click', downloadDocument);
 +}
 +
 +document.addEventListener('DOMContentLoaded', () => {
@@ -752,10 +911,10 @@ index 0000000..a9cc900
 +};
 diff --git a/chrome/browser/resources/sunshine/document_content/app.css b/chrome/browser/resources/sunshine/document_content/app.css
 new file mode 100644
-index 0000000..6da8a13
+index 0000000..6601cdb
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document_content/app.css
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,44 @@
 +/* Copyright 2026 The Sunshine OS contributors
 + * Use of this source code is governed by a BSD-style license that can be
 + * found in the LICENSE file.
@@ -778,7 +937,17 @@ index 0000000..6da8a13
 + * The user agent's colours, under the color-scheme this page declares, are the
 + * honest ones for content that is not Sunshine's.
 + *
-+ * What is left is layout, in rem, on the section 6.2 scale. */
++ * The second reason binds harder now that a document owns the whole frame
++ * rather than a box inside it. Once the pane is the document, the only thing
++ * still distinguishing it from the shell around it is the origin boundary; a
++ * frame that lent it the browser's palette would erase the last visible
++ * difference between Sunshine's chrome and someone's file.
++ *
++ * What is left is layout, in rem, on the section 6.2 scale, and it describes
++ * the empty state alone. A document that arrives replaces the document
++ * element, the link to this stylesheet with it, so nothing here reaches a real
++ * document: its padding, its scrolling and its type are its own. Nothing in
++ * this frame fits, paginates or otherwise rewrites what was stored (DOC-4). */
 +
 +body {
 +  margin: 0;
@@ -790,23 +959,12 @@ index 0000000..6da8a13
 +  margin: 0;
 +  padding: 1rem;
 +}
-+
-+/* A document is arbitrary markup and may be wider than the frame. It scrolls
-+ * inside the frame rather than being rewritten to fit: pagination and fitting
-+ * are presentation, and the stored document is never altered for either
-+ * (DOC-4). */
-+#content {
-+  font-size: 1rem;
-+  line-height: 1.5;
-+  overflow-x: auto;
-+  padding: 1rem;
-+}
 diff --git a/chrome/browser/resources/sunshine/document_content/app.html b/chrome/browser/resources/sunshine/document_content/app.html
 new file mode 100644
-index 0000000..f6b22d7
+index 0000000..f8b8801
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document_content/app.html
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,18 @@
 +<!doctype html>
 +<html dir="$i18n{textdirection}" lang="$i18n{language}">
 +<head>
@@ -816,20 +974,21 @@ index 0000000..f6b22d7
 +  <link rel="stylesheet" href="app.css">
 +</head>
 +<body>
-+  <!-- Sunshine's own text, present in the document from the start and only
-+       revealed or hidden. Everything else in this page arrives by postMessage
-+       from chrome://sunshine-document and is placed inside #content. -->
++  <!-- The whole of this page is the empty state. Sunshine's own text, served
++       as markup rather than assembled at runtime (SEC-14), and captured by
++       app.js before the first document arrives. There is no container here to
++       place a document in: a document replaces this document element, this
++       <head> with it, so the page becomes the document. -->
 +  <p id="placeholder">Select a section to read it.</p>
-+  <main id="content"></main>
 +  <script type="module" src="app.js"></script>
 +</body>
 +</html>
 diff --git a/chrome/browser/resources/sunshine/document_content/app.ts b/chrome/browser/resources/sunshine/document_content/app.ts
 new file mode 100644
-index 0000000..1c7cab4
+index 0000000..46269a5
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document_content/app.ts
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,116 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -855,41 +1014,82 @@ index 0000000..1c7cab4
 + * not by anything here: a document referencing a remote image shows the image
 + * as absent because the load is refused, and nothing in this file inspects or
 + * rewrites the document to make that true.
++ *
++ * What it renders is a document, not an extract of one. The document that
++ * arrives replaces this page's document element outright, so its own <head>
++ * applies -- its <style>, its <meta> -- and so do its <body>'s own attributes.
++ * The frame lends it no container, no padding and no palette. The page becomes
++ * the document.
 + */
 +
 +/** The only origin whose messages are read. */
 +const SHELL_ORIGIN = 'chrome://sunshine-document';
 +
 +/**
-+ * Replaces the rendered document.
++ * The page as served, captured once, before anything can replace it.
 + *
-+ * `DOMParser` rather than an assignment to `innerHTML`. The two differ in a
-+ * way that matters here: a script element produced by `DOMParser` is marked
-+ * "already started" by the HTML fragment parsing rules, so it never runs when
-+ * it is adopted into this document, and no string on this page is ever handed
-+ * to the HTML parser of the live document. It also keeps this file within
-+ * SEC-14 and within Chromium's Trusted Types policy for WebUI, which is what
-+ * scripts/verify_web_asset_security.py checks for at review time.
++ * The empty state is Sunshine's own sentence, and SEC-14 forbids assembling
++ * markup from strings at runtime. Capturing the served page is what makes both
++ * halves possible: a document owns the whole frame when there is one, and
++ * there is still something to put back when there is not.
 + *
-+ * Only the parsed body is adopted. A document's own <head> -- its title, its
-+ * meta elements, its links -- is not this frame's to apply.
++ * Restoring a clone cannot re-run this module. The HTML Standard's cloning
++ * steps for `script` elements "are to set copy's already started to node's
++ * already started", so the flag is carried into every copy; this element's
++ * already started was set to true by "prepare the script element" before
++ * app.js was fetched, and that algorithm's first step is "If el's already
++ * started is true, then return". A restored clone therefore holds a script
++ * that is inert the moment it is inserted, and no script element is removed
++ * from the capture to make that true.
++ *
++ * A module script is deferred, so the parser has finished by the time this
++ * line runs and the capture is the whole page rather than a prefix of it.
++ */
++const emptyDocument = document.documentElement.cloneNode(true) as HTMLElement;
++
++/**
++ * Replaces this page with the document it was sent.
++ *
++ * `document.replaceChild` on the document element, rather than appending a
++ * parsed body into a container: a document's <head> is part of the document,
++ * and a frame that dropped it would be showing a stripped copy of what the
++ * user stored. Three security properties survive that change, each held by a
++ * different mechanism, and none of them by this function's care:
++ *
++ * - **Nothing parsed here can run.** Still `DOMParser`, never `innerHTML`: no
++ *   string on this page is ever handed to the live document's HTML parser. A
++ *   `script` element `DOMParser` produces is already started -- the parsed
++ *   document has no browsing context, so scripting is disabled for it, and
++ *   "prepare the script element" sets already started to true before it
++ *   returns for that reason -- and `document.importNode` clones, so the
++ *   cloning steps carry that flag onto the copy adopted here. This is also
++ *   what keeps the file inside SEC-14 and Chromium's Trusted Types policy for
++ *   WebUI, which scripts/verify_web_asset_security.py checks at review time.
++ *
++ * - **The policy does not move.** This frame's content security policy is
++ *   delivered in the response headers its data source sets, in
++ *   sunshine_document_content_ui.cc. None of it is written in this page's
++ *   markup, so replacing the markup relaxes nothing and DOC-5 holds for the
++ *   replacement exactly as it held for the page replaced.
++ *
++ * - **The frame keeps listening.** The `message` listener below is registered
++ *   on `window`, not on `document` and not on any element inside it.
++ *   Replacing the document element mutates the tree inside the document; it
++ *   replaces neither the document nor the global object the listener sits on.
++ *   The next document arrives by the same path this one did.
 + */
 +function render(html: string) {
-+  const target = document.body.querySelector<HTMLElement>('#content');
-+  const placeholder = document.body.querySelector<HTMLElement>('#placeholder');
-+  if (!target || !placeholder) {
-+    return;
-+  }
-+
-+  target.replaceChildren();
-+  placeholder.toggleAttribute('hidden', html !== '');
 +  if (html === '') {
++    // Sunshine's own page, as it was served. Nothing is built from a string.
++    document.replaceChild(
++        emptyDocument.cloneNode(true), document.documentElement);
 +    return;
 +  }
 +
 +  const parsed = new DOMParser().parseFromString(html, 'text/html');
-+  const adopted = document.importNode(parsed.body, true);
-+  target.append(...Array.from(adopted.childNodes));
++  document.replaceChild(
++      document.importNode(parsed.documentElement, true),
++      document.documentElement);
 +}
 +
 +window.addEventListener('message', (event: MessageEvent) => {
