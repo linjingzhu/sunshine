@@ -48,11 +48,13 @@ guessed is a defect nobody will find until the build.
 | 8 | What is its dependency tree? | Direct dependencies with versions, and which ones reach the network or the DOM in ways 2 and 3 cover. |
 | 9 | How is it styled? | Framework, palette, whether colours are literal or tokenised, whether font sizes are px or relative. |
 | 10 | What tests exist and do they pass now? | Run them. Record the number. This is the baseline the port must not silently lose. |
+| 11 | **Is there a backend, and what language is it?** | A local server, a packaged runtime, a database engine, a scheduler. Name the language and how it is shipped. |
 
-## 2. Phase 1 — Three decisions, before any code moves
+## 2. Phase 1 — Five decisions, before any code moves
 
-These change everything downstream, and two of them are the owner's, not the
-agent's. Put them in `PORTING_DECISIONS.md` with the answer and who gave it.
+These change everything downstream, and three of them are the owner's, not the
+agent's — the network, the secrets, and anything that would make the manifest
+claim authority. Put them in `PORTING_DECISIONS.md` with the answer and who gave it.
 
 ### 1. Identity
 
@@ -76,7 +78,28 @@ From inventory question 2, sort every URL into:
 | Analytics and telemetry | **Delete.** `docs/SECURITY_ARCHITECTURE_CONTRACT.md` is why; there is no version of this that survives review. |
 | The app's own API | The owner's decision. Recorded, argued, and on the manifest — or the port stops here until there is an answer. |
 
-### 3. Whose data is it, and where does it live?
+### 3. Where does the backend go?
+
+The first draft of this guide did not ask, because it assumed a web app that is
+only a web app. **A packaged runtime does not survive the port**: a Sunshine
+module is compiled into the browser (`docs/decisions/0006-module-execution-model.md`),
+and a Chromium build contains no Python, no Node and no second executable.
+
+If inventory question 11 found a backend, it has exactly three futures, and the
+choice is architectural rather than a detail:
+
+| | What it means | When it is right |
+| --- | --- | --- |
+| **Reimplement it** in `components/sunshine/<name>/`, behind a Mojo interface | C++ that depends on neither `//chrome` nor `//content`, per ADR 0013 §2.1. Chromium's own `//sql` is there for a database. | The default. It is the only future that is actually a module. |
+| **Keep it as a companion process** the browser talks to | The module becomes a page pointed at `127.0.0.1`. | Almost never — §9 names this as the anti-pattern it is. Localhost is still network, it ships a second binary, and nothing about it is a module. |
+| **Move it into the page** as TypeScript | Storage becomes browser storage; anything the backend did with credentials or cross-origin requests cannot follow. | Small backends that only shuffle local data. |
+
+**Stage the work around what the backend does, not around its files.** A
+backend that both stores data and calls an external service is two problems: the
+storage half can usually be reimplemented immediately, and the external half is
+blocked on decisions in §2.2 and §2.4 that are the owner's.
+
+### 4. Whose data is it, and where does it live?
 
 From inventory question 5. `browser`-scoped, `profile`-scoped and remote are
 three different answers with three different manifests. **Sunshine holds no
@@ -87,6 +110,25 @@ the reasoning generalises to any module.
 If the app currently writes files by path, that is not a detail to fix later:
 it is a capability the module will not have, and the replacement has to be
 designed before the code is moved.
+
+### 5. Does anything it does need a secret?
+
+If the app calls a service with an API key, a token or a password, **the module
+will not hold it.** `docs/SECURITY_ARCHITECTURE_CONTRACT.md` SEC-7 is already
+decided and already enforced by
+`scripts/validate_first_party_modules.py`:
+
+> A module never receives a credential. It requests an operation; the broker
+> holds the secret.
+
+`docs/decisions/0011-ai-credential-broker.md` shapes what such a broker would
+be and is explicit that it is a proposal, not something that exists. So an app
+whose function depends on a keyed external service is, today, **blocked on an
+unbuilt subsystem** — and the honest plan is to stage that part out rather than
+to smuggle a key into the module.
+
+An app that already runs without its keys — in a stub, demo or offline mode —
+has been handed the boundary for free. That mode is the first stage.
 
 ## 3. Phase 2 — Delete the chrome the shell now owns
 
