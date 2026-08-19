@@ -74,10 +74,21 @@ def validate_security(security: object, source: str) -> None:
     They are stated per module rather than assumed globally because a manifest
     that is silent about credentials reads the same as one that was never asked.
 
-    `allowlist` and `user_selected` are expressible and currently refused. The
-    schema has to carry the shape before a broker exists, or every module would
-    need editing on the day one arrives; refusing them keeps the guarantee that
-    no module reaches the network or the disk in the meantime.
+    `allowlist` and `user_selected` were expressible and refused outright,
+    "pending a contract". `docs/decisions/0016-relaxations-for-porting.md` is
+    where that ended: the refusal was a placeholder for work nobody had done
+    rather than a security position, so the contracts were written and the
+    refusals lifted. `docs/HOST_ALLOWLIST_CONTRACT.md` and
+    `docs/FILE_BROKER_CONTRACT.md` now carry the terms, and what is checkable
+    in a manifest is checked below.
+
+    **This is weaker in kind than what it replaces**, and ADR 0016 says so: a
+    value that cannot be declared cannot be misused, and a value that is checked
+    can be. The compensation is that the terms are specific and tested rather
+    than described, and that neither capability exists in the browser yet -- a
+    manifest may now claim them, and nothing acts on the claim.
+
+    Enforces: SEC-5, SEC-6, SEC-7, SEC-8, HA-2, HA-4, HA-5.
     """
 
     keys = {"remote_content", "requires_user_activation", "profile_modes",
@@ -108,20 +119,31 @@ def validate_security(security: object, source: str) -> None:
     for host in allow:
         if not HOST.fullmatch(host):
             raise ModuleValidationError(f"{source}: not a concrete host: {host!r}")
-    if network["access"] == "allowlist":
-        raise ModuleValidationError(f"{source}: network access requires a future host-allowlist contract")
+    # HA-4. `allowlist` with nothing on it is not a narrower allowlist, it is a
+    # module that should have said `deny` -- and the difference matters because
+    # the module home shows the user what a module may reach.
+    if network["access"] == "allowlist" and not allow:
+        raise ModuleValidationError(
+            f"{source}: network access is allowlist with no hosts; declare deny instead"
+        )
 
     filesystem = security["filesystem"]
     if not isinstance(filesystem, dict) or set(filesystem) != {"access"}:
         raise ModuleValidationError(f"{source}: invalid filesystem declaration")
     if filesystem["access"] not in FILESYSTEM_ACCESS:
         raise ModuleValidationError(f"{source}: filesystem access must be one of {sorted(FILESYSTEM_ACCESS)}")
-    if filesystem["access"] == "user_selected":
-        raise ModuleValidationError(f"{source}: scoped file access requires a future file-broker contract")
+    # `user_selected` is admitted by docs/FILE_BROKER_CONTRACT.md. Nothing else
+    # about it is decidable from a manifest: the contract's terms are about a
+    # grant, and a manifest declares only that the module may ask for one.
+    # FB-9 -- declaring the capability is not holding it.
 
     credentials = security["credentials"]
     if not isinstance(credentials, dict) or set(credentials) != {"direct_access"}:
         raise ModuleValidationError(f"{source}: invalid credentials declaration")
+    # SEC-7, and HA-5 with it: reaching a host is not authenticating to one, so
+    # an allowlist does not become an exemption from this. The rule below is
+    # unconditional, which is what makes HA-5 unreachable rather than merely
+    # unviolated -- `tests/test_first_party_modules.py` pins that.
     if credentials["direct_access"] is not False:
         raise ModuleValidationError(f"{source}: a module never receives a credential directly")
 

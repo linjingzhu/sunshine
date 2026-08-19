@@ -103,6 +103,8 @@ FAMILIES = (
     # Module apps -- the projects that mount as modules: MA-n invariants,
     # MAA-n acceptance criteria.
     "MA", "MAA",
+    # The two capabilities ADR 0016 unblocked: host allowlist and file broker.
+    "HA", "HAA", "FB", "FBA",
 )
 
 

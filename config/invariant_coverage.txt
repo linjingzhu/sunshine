@@ -74,3 +74,12 @@ S9
 S10
 S11
 S12
+# ADR 0016 lifted two blanket refusals and replaced them with terms. HA-2 (a
+# host is concrete), HA-4 (an empty allowlist is a module that meant deny) and
+# HA-5 (reaching a host is not authenticating to one) are what
+# validate_first_party_modules.py checks in their place. HA-5 is unreachable
+# while SEC-7 is unconditional, and a test pins that rather than leaving it to
+# be noticed if SEC-7 ever moves.
+HA-2
+HA-4
+HA-5
