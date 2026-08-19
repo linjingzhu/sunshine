@@ -54,14 +54,54 @@ deferred with its subject.
 | --- | --- | --- |
 | DOC-1 | Project content renders only in the untrusted frame. No Sunshine-authored code inserts project markup into the privileged document. | O |
 | DOC-2 | The frame receives content, never capability. The shell sends documents; the frame sends back nothing that can name a resource, a path, or an operation. | B |
-| DOC-3 | A project is profile-scoped data Sunshine owns. No path outside the profile directory is read or written. | O |
+| DOC-3 | A project is profile-scoped data Sunshine owns. Sunshine reads and writes no path outside the profile directory. Handing content to a user-driven flow Chromium owns is not such a write: Sunshine supplies bytes and never learns, chooses, or retains a destination. | O |
+| DOC-8 | The handoff in DOC-3 stays a handoff. Sunshine may not accept a destination path, remember one, reuse one, or write without the user asking each time. Any of those is filesystem access and belongs to SEC-8, not here. | O |
 | DOC-4 | Pagination is presentation. The stored document is never rewritten to paginate, so what is read back is what was stored. | B |
 | DOC-5 | The frame reaches no network. A project referencing a remote resource shows it as absent rather than fetching it. | B |
 | DOC-6 | The hierarchy is data, not a filesystem. A node names a document Sunshine stores; it never names a location on disk. | O |
 | DOC-7 | Deleting a project deletes its documents. No content outlives the project that owned it. | D |
 
-DOC-1 and DOC-6 are the two that a check can decide from source today. DOC-3 is
-decidable once the storage code exists. The rest need the browser.
+DOC-1 and DOC-6 are the two that a check can decide from source today. DOC-3
+and DOC-8 are decidable once the storage code exists. The rest need the
+browser.
+
+### Why DOC-3 draws the line where it does
+
+The first wording was "no path outside the profile directory is read or
+written", and the download control added to the reading pane broke it on a
+literal reading while leaving its purpose untouched. What DOC-3 exists to
+prevent is Sunshine holding ambient authority over the user's filesystem —
+reading a documents folder, writing where it likes, remembering somewhere it
+wrote before. A download is none of those. Sunshine hands Chromium a string and
+learns nothing: not where the file went, not whether it was kept, not enough to
+read it back. The same posture `docs/SECURITY_CENTER_CONTRACT.md` SC-9 takes —
+the surface performs no mutation of its own; the Chromium flow that owns the
+operation executes it.
+
+So the wording moved and the permission did not. `first_party/modules/sunshine-document/module.json`
+still declares `filesystem: none`, and that is not a technicality being dodged:
+the schema's other value is `user_selected`, which means the module holds a
+scoped, expiring grant to a path a user picked. This module holds no grant and
+receives no path. **Declaring authority one does not have is as much a defect as
+exercising authority one was not given**, and a manifest is read by people
+auditing what a module can do.
+
+DOC-8 exists because the distinction is easy to erode one convenience at a
+time. "Save to this folder", "remember where I saved last", "export whenever I
+save" are each a small step from a download and each one a genuine filesystem
+capability. Naming the boundary while the code is four lines long costs
+nothing; naming it after those features exist means removing them.
+
+**This reasoning is symmetric, and that matters for a question already open.**
+`docs/OPEN_DECISIONS.md` carries a P0 on how content *enters* this surface, and
+`docs/decisions/0009-document-surface-ingress-options.md` frames its Reading B
+as turning on exactly this point — whether importing from a file the user picks
+is outside SEC-8 or is the thing SEC-8 defers. If handing content out through a
+Chromium flow while retaining nothing is not filesystem access, then taking
+content in the same way — a picker the user drives, read once, no path kept — is
+not either, by the same argument and not by a separate concession. That does not
+settle the P0, which is the owner's, but it does mean the two directions cannot
+honestly be decided apart.
 
 SEC-14 already forbids `eval`, dynamic code, and remote resources in any
 Sunshine-authored web asset, and it applies to both halves of this surface. It
