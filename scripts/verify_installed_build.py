@@ -67,6 +67,11 @@ ICON_ASSET = "downstream/assets/chrome/app/theme/chromium/win/chromium.ico"
 RT_ICON = 3
 RT_GROUP_ICON = 14
 
+# Not an icon type. It is the control: `check_version_resource` reads
+# chrome.exe's VERSIONINFO through an entirely different API and it passes, so
+# a resource enumeration that cannot see RT_VERSION is not reading the binary.
+RT_VERSION = 16
+
 # The three layouts an icon takes on its way into a binary. An `.ico` file is an
 # `ICONDIR` followed by `ICONDIRENTRY` records that point at image payloads by
 # *file offset*; a PE holds the same header as a `GRPICONDIR` whose entries end
@@ -434,6 +439,26 @@ def read_icon_resources(path: Path) -> tuple[int, bytes, dict[int, bytes]] | Non
 
         groups = ids(RT_GROUP_ICON)
         if not groups:
+            # "No icon in this binary" and "this enumeration is not working"
+            # are different findings, and only the first is this check's to
+            # make. The distinction is already drawn one level down, for the
+            # two not-found error codes; it has to be drawn here too, because
+            # an enumeration that silently visits nothing returns TRUE and
+            # looks exactly like an absent resource.
+            #
+            # RT_VERSION settles it. `check_version_resource` reads chrome.exe's
+            # VERSIONINFO through `version.dll` -- a different API, no
+            # enumeration -- and reports the version, so the resource is there.
+            # If this code cannot see it either, the fault is here, and
+            # reporting a missing icon would be reporting our own defect as the
+            # build's.
+            if not ids(RT_VERSION):
+                raise IconResourceError(
+                    f"{path.name}: this check found no RT_VERSION either, and the "
+                    "version resource is demonstrably present -- so it is not "
+                    "reading the binary's resource table and cannot speak to the "
+                    "icon either way"
+                )
             return None
         # Windows shows the application the *lowest-numbered* group icon, which
         # in Chromium's `chrome/app/chrome_exe.rc` is `IDR_MAINFRAME`. That is
@@ -523,8 +548,9 @@ def check_icon_resource(out: Path, result: Result, reader=None) -> None:
         result.record(
             FAILED,
             name,
-            "chrome.exe declares no RT_GROUP_ICON at all -- rc.exe linked no "
-            "application icon, so the resource pipeline did not run",
+            "chrome.exe carries RT_VERSION but no RT_GROUP_ICON -- the "
+            "resource table is being read, and there is no application icon "
+            "in it, so rc.exe linked none",
         )
         return
 

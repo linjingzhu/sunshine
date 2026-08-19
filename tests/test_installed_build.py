@@ -244,15 +244,53 @@ class IconResourceCheckTests(unittest.TestCase):
     def test_a_binary_with_no_icon_resource_fails_and_names_the_cause(self) -> None:
         """The silent failure ADR 0008 describes, in its purest form.
 
-        No `RT_GROUP_ICON` means `rc.exe` linked no application icon at all, so
-        the message says that rather than reporting a comparison that could not
-        be made.
+        `None` from the reader now means something stronger than it did: the
+        reader only returns it once RT_VERSION has been found, so the message
+        may say the table was read and held no icon. Before that control
+        existed the same `None` also covered "the enumeration saw nothing at
+        all", and build #27 is where that ambiguity cost a run -- the check
+        told the build it had shipped no icon when it could not yet tell that
+        from its own enumeration failing.
         """
 
         result = self.run_check(lambda path: None)
         self.assertTrue(result.failed, result.report())
         self.assertIn("RT_GROUP_ICON", result.report())
-        self.assertIn("rc.exe", result.report())
+        self.assertIn("RT_VERSION", result.report())
+
+    def test_an_enumeration_that_reads_nothing_is_not_a_missing_icon(self) -> None:
+        """The distinction the control draws, from the consumer's side.
+
+        A reader that cannot read raises rather than returning `None`, and the
+        failure names the check rather than the build. Both are FAIL -- neither
+        is a pass -- but they send whoever reads the log to different files.
+        """
+
+        def broken(path):
+            raise built.IconResourceError(
+                f"{path.name}: this check found no RT_VERSION either, and the "
+                "version resource is demonstrably present -- so it is not "
+                "reading the binary's resource table and cannot speak to the "
+                "icon either way"
+            )
+
+        result = self.run_check(broken)
+        self.assertTrue(result.failed, result.report())
+        self.assertIn("not reading the binary's resource table", result.report())
+        self.assertNotIn("rc.exe linked none", result.report())
+
+    def test_the_control_type_is_the_one_the_other_check_proves(self) -> None:
+        """RT_VERSION is the control precisely because `check_version_resource`
+        reads it through `version.dll` and passes. If that check were ever
+        removed the control would lose its warrant, so the two are pinned
+        together here rather than left to a comment."""
+
+        self.assertEqual(16, built.RT_VERSION)
+        source = (REPOSITORY_ROOT / "scripts" / "verify_installed_build.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def check_version_resource", source)
+        self.assertIn("GetFileVersionInfoSizeW", source)
 
     def test_a_group_naming_an_absent_icon_fails(self) -> None:
         group, directory, icons = self.resources(self.images)

@@ -247,6 +247,28 @@ none, so a single build result cannot discharge both. Advancing either field
 needs a decision about what `native_build` asserts for a module with no native
 code yet, which is a product question rather than an evidence question.
 
+**Build #27 compiled the module home and the bookmark bar button.** Run
+`32252703932`, commit `8a30d5a`: `Build Succeeded: 1161 steps` in 23m10s, and
+`mini_installer.exe` was produced. That is the first native build containing
+patches 0007 and 0008, so it is the first evidence that the fourth surface
+compiles, that one grd can serve four surfaces, and that the bookmark bar
+change is valid against the pinned `bookmark_bar_view.cc`. Every prior claim
+about those patches was `git apply` succeeding, which is placement and not a
+compiler.
+
+**The same run failed its verification step, on the icon.**
+`verify_installed_build.py` reported `chrome.exe` carrying no `RT_GROUP_ICON`.
+That is either a real finding — the application icon never reached the binary,
+which would also mean RV-10 fails — or a defect in the check, whose ctypes
+enumeration had never executed anywhere until that run. It could not tell those
+apart, so it said the stronger thing, and saying the stronger thing was wrong.
+
+The check now reads `RT_VERSION` as a control before concluding anything:
+`check_version_resource` reads chrome.exe's VERSIONINFO through `version.dll`
+and passes, so a resource enumeration that cannot see `RT_VERSION` is not
+reading the binary and must say so about itself rather than about the build.
+**Which of the two it is, is not yet known** and the next run decides it.
+
 ### Evidence
 
 ```text
