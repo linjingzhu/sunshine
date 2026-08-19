@@ -256,6 +256,8 @@ class PinnedUpstreamTests(unittest.TestCase):
                 "chrome/browser/resources/sunshine/shell/app.ts",
                 "chrome/browser/resources/sunshine/shell/mount.ts",
                 "chrome/browser/resources/sunshine/shell/mount_port.ts",
+                "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom",
+                "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h",
             },
             created & cited,
         )
