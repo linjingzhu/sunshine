@@ -200,8 +200,8 @@ workstation.
 | No `chrome.send`; Mojo for anything the browser must answer | Any bridge borrowed from a Chromium sample. |
 | No import of `//resources/js/cr.js` | Upstream's eslint rejects it and says to use Mojo. Suppressing the rule is not the fix. |
 | eslint runs *inside* the build | Interfaces use `;` between members, other type literals use `,`; no `public` modifier; `as` not `<T>`; `interface` not `type`; `T[]` not `Array<T>`; every import carries its extension. Property *names* are not checked, so `snake_case` manifest fields survive. |
-| Colour comes from Chromium's tokens, no literal and no fallback | Any hardcoded palette. Map each colour to a token or raise it as a decision — `docs/MODULE_SHELL_CONTRACT.md` §7 is the worked example. |
-| Type scale in rem: 0.75, 0.875, 1, 1.25, 1.5, 2 | Every px font size. `scripts/verify_design_tokens.py` fails them outright. |
+| Colour comes from Chromium's tokens, no literal and no fallback | Any hardcoded palette. Map each colour to a token, or *derive* one: §2.2(3) permits `color-mix()` over a Chromium reference, so a hover wash, a dimmed rule or a tint of the accent ports without an exception. Only a literal hue needs a decision — `docs/MODULE_SHELL_CONTRACT.md` §7 is the worked example. |
+| Type scale in rem: 0.6875, 0.75, 0.875, 1, 1.25, 1.5, 2 | Every px font size. `scripts/verify_design_tokens.py` fails them outright. 0.6875rem is `label-xs`, the smallest step, and is for identifiers rather than prose. |
 | Motion needs a `prefers-reduced-motion` escape | Any transition or animation. |
 | Files are read as UTF-8 explicitly | Tooling that reads in the locale encoding. The only CI is a Korean Windows machine. |
 

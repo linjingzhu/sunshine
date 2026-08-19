@@ -50,7 +50,7 @@ Everything below follows from that split.
 | --- | --- | --- |
 | Top nav bar, duplicated ×9 | **Deleted.** It is B and C — the dock and the tab list, which the shell draws. | The nine menu items become the module's tab list *content*, supplied once through the host port. Nine copies of chrome become zero. |
 | Theme toggle | **Deleted.** | Chromium's own theming already follows the OS and the browser. `docs/MODULE_SHELL_CONTRACT.md` §7 covers the colour rules. |
-| `theme.css` / `theme.js` light-dark tokens | **Deleted**, replaced by Chromium's token pipeline. | The app's tokens are the right *idea* — they are simply the wrong source. |
+| `theme.css` / `theme.js` light-dark tokens | **Deleted**, replaced by Chromium's token pipeline. | The app's tokens are the right *idea* — they are simply the wrong source. A token derived from a Chromium reference through `color-mix()` is admitted, so most of the palette's *structure* survives; only its literal hues do not. |
 | 8–9 Jinja2 templates | One surface, `chrome://sunshine-marketpick`, mounted in the shell's D region. | Jinja2 renders on a server that no longer exists; the templates become static HTML plus TypeScript that fills them from the host port. |
 | Flask routes | Methods on one Mojo interface. | `docs/decisions/0013-module-data-portability.md` §2.5: one named host interface per module. |
 | Flask business logic | `components/sunshine/marketpick/` | C++ depending on neither `//chrome` nor `//content`, the same arrangement `components/sunshine/document/` already uses. |

@@ -54,7 +54,8 @@ Both ports hit the same short list. Classified:
 | `filesystem.access: user_selected` refused by the validator | Dev OS's session directory | **Revise** — §3.2 |
 | SEC-7, a module never holds a credential | Both | **Keep** — §5 |
 | No module-initiated process execution | Dev OS's terminal | **Decide, not revise** — §4.1 |
-| Colour and type from Chromium's pipeline only | Both | **Revise in principle, not yet in code** — §4.2 |
+| The type scale has no step for an 11px line | The module shell's own path text | **Revise** — §3.3 |
+| Colour resolves through Chromium's pipeline only | Both | **Revise in principle, not yet in code** — §4.2 |
 | No markup assignment from module data | Dev OS's whole view layer | **Keep** — §5 |
 | A module is compiled in, not loaded | Both | **Keep** — §5 |
 | The shell owns A, B, C's frame and D's header | Both | **Keep** — §5 |
@@ -94,7 +95,25 @@ cannot widen or outlive the grant. `DOC-3` and `DOC-8` survive intact — they
 forbid Sunshine holding ambient authority over the disk, and a grant the user
 made to one place, which expires, is not ambient.
 
-Both amendments are enforced rather than asserted:
+#### 3.3 Type — a step the scale was missing
+
+`docs/DESIGN_SYSTEM_CONTRACT.md` §6.2 fixes font sizes to a scale whose smallest
+step was `0.75rem`. The owner's own `Module shell layout rules` asks for an 11px
+mono path line, so the module shell rendered it at 12px and
+`docs/MODULE_SHELL_CONTRACT.md` §7 recorded the substitution as a deviation.
+
+That is not the outside and it is not Chromium's limit. It is a gap in a scale
+this project wrote, found by this project's own design, so the scale gains
+`label-xs` — `0.6875rem`, 11px at the default root size — and
+`scripts/verify_design_tokens.py` admits it as the new smallest step.
+
+**The unit does not move.** `rem` is in the contract because `px` ignores the
+user's browser font-size setting and breaks WCAG 1.4.4. That is an
+accessibility property, not house style, and it sits outside this ADR's
+boundary. Adding a step keeps every property the scale had; permitting `px`
+would keep none of them.
+
+The first two amendments are enforced rather than asserted:
 `scripts/validate_first_party_modules.py` now checks the contracts' checkable
 terms instead of refusing the values outright, and
 `tests/test_first_party_modules.py` injects each violation.
@@ -119,25 +138,37 @@ vocabulary, and the broker constructs the invocation.** `resumeSession(id)`, not
 a command. That deserves its own ADR, argued on its own terms, and this one does
 not pre-empt it.
 
-#### 4.2 Colour and type
+#### 4.2 Colour
 
 `docs/DESIGN_SYSTEM_CONTRACT.md` §2.1 and §2.3 admit no colour that does not
-resolve through Chromium's pipeline, and §6.2 admits no font size off a rem
-scale. Both ported apps have their own palettes; the module shell already
-records the conflict in `docs/MODULE_SHELL_CONTRACT.md` §7.
+resolve through Chromium's pipeline, and both ported apps have their own
+palettes.
 
-**This is inside the boundary** — it protects nothing from the outside and is
-not Chromium's limit. It is house style, and house style is exactly what bends
-for a port.
+**First, a correction to how this was reported.** An earlier reading of the
+rule — repeated in `docs/MODULE_SHELL_CONTRACT.md` §7 and in the drafting of
+this ADR — treated the colour rules as blocking a port outright. They are
+narrower than that. §2.2(3) permits composing a Chromium reference through
+`color-mix()`, and `scripts/verify_design_tokens.py` implements exactly that:
+`color-mix()` is absent from its literal-colour detection on purpose. A derived
+value — a hover wash, a dimmed separator, a tint of the accent — is expressible
+today, needs no amendment, and covers most of what a ported palette is actually
+made of. Both port plans should be read with that in mind.
 
-It is not amended here because the right relaxation is not "allow hex". The
-value the rule protects is real and is not aesthetic: a palette that resolves
-through the theme follows dark mode, high contrast and the user's own settings,
-and a hardcoded one stops. The amendment worth making is therefore *a module may
-declare its own tokens, provided they derive from the theme rather than replace
-it* — which needs a design, a guard change, and a decision about what a module
-may declare. Naming it here so it is not lost; it is the next amendment, not
-this one.
+What remains refused is the literal: `#0f62fe` names a colour rather than
+deriving one. **That much is inside the boundary** — a hex value protects
+nothing from the outside and is not Chromium's limit — but it is not amended
+here, because the right relaxation is not "allow hex". The value the rule
+protects is real and is not aesthetic: a palette that resolves through the theme
+follows dark mode, high contrast and the user's own settings, and a hardcoded
+one stops.
+
+The amendment worth making is therefore *a module may declare its own tokens,
+provided they derive from the theme rather than replace it* — which needs a
+design, a guard change, and a decision about what a module may declare. Given
+the correction above, it is also a smaller amendment than it looked: the
+composition machinery already exists, and what is missing is a module's right to
+name its own derived tokens. Naming it here so it is not lost; it is the next
+amendment, not this one.
 
 ### 5. What stays, and why the boundary keeps it
 
@@ -171,12 +202,22 @@ this one.
   claim it cannot back. That is a real loss of safety-by-impossibility, and it
   is replaced by safety-by-check — weaker in kind, which is why §3's terms are
   checkable and tested rather than described.
+- §3.3 is the one amendment here that is implemented end to end: the scale, the
+  guard and the module shell's path text all moved together, so the deviation
+  `docs/MODULE_SHELL_CONTRACT.md` §7 recorded is closed rather than restated.
+- §4.2's correction narrows both port plans. Neither is blocked by the colour
+  rules to the degree they say; what each loses is its exact hues, not its
+  ability to express a palette.
 
 ## NOT VERIFIED
 
-- **Nothing in §3 is implemented in the browser.** The validator accepts the
-  declarations; no code fetches a host or opens a file on a module's behalf,
-  and no build has run.
+- **Nothing in §3.1 or §3.2 is implemented in the browser.** The validator
+  accepts the declarations; no code fetches a host or opens a file on a
+  module's behalf.
+- §3.3's `label-xs` is checked by `scripts/verify_design_tokens.py` and applied
+  in the module shell patch, but **no build has rendered it**. That 0.6875rem
+  resolves to 11px is arithmetic; that the line is legible at 11px in the
+  shipped font is not, and it needs the eye of the person who drew it.
 - The contracts in §3 were written against Sunshine's own rules and the two
   port plans, not against a working implementation of either broker. Their
   terms are therefore reasoned, and the first implementation should expect to

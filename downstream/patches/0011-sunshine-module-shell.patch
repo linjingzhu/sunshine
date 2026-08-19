@@ -272,7 +272,7 @@ index 0000000..9445254
 +.path {
 +  color: var(--color-secondary-foreground);
 +  font-family: monospace;
-+  font-size: 0.75rem;
++  font-size: 0.6875rem;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;

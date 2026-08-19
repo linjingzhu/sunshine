@@ -70,24 +70,6 @@ operation. A rule each module re-implements is a rule each module gets subtly
 wrong. Regions the browser draws are identical by construction rather than by
 discipline.
 
-### What the shell does not provide
-
-The source drawing proposes, as its own next step, standardising four body
-templates — table, console, document, canvas. **The shell does not ship them,
-and the owner settled that.**
-
-They would sit in D's body, and D's body is the module's. A browser that
-supplied the templates would own the shape of every module's work area, which
-is the line §1 draws and the reason it is drawn there. The consistency argument
-cuts the other way here too: a table layout is not an exit, so a module getting
-it slightly wrong costs a little polish, while a module unable to lay out its
-own work costs the module.
-
-If four templates turn out to be worth sharing, they are a library that module
-apps import — versioned with the apps, replaceable by an app that needs
-something else — and not a region the shell draws. That keeps the boundary in
-§1 intact.
-
 ## 2. Geometry
 
 Machine-readable: `scripts/verify_shell_geometry.py` reads this table and the
@@ -202,15 +184,31 @@ fallback, so that a theme change reaches the surface and a missing token fails
 visibly. The shell therefore uses tokens, and looks like the drawing only to
 the extent the active theme resembles Carbon.
 
-To follow the drawing exactly, the design-system contract has to change first —
-and the cost is not the hex values, it is that a hardcoded palette stops
-following the user's theme, including dark mode and high contrast.
+**What the rule actually forbids is narrower than it first reads.** §2.2(3)
+permits composing a Chromium reference through `color-mix()`, so a derived
+value — a hover wash, a dimmed separator, a tint of the accent — is expressible
+today and needs no amendment. The drawing's `rgba(141,141,141,.12)` hover is a
+mix of a token toward transparency, and that shape is admitted. What is refused
+is the *literal*: `#0f62fe` names a colour instead of deriving one, and a
+literal stops following the user's theme, including dark mode and high
+contrast.
+
+So the shell is not blocked from the drawing's structure of colour, only from
+its exact hues. Reproducing those requires the design-system contract to change
+first, and the cost of that change is the one just named.
 
 **Type.** The drawing specifies `14px/600` for the header title and `11px mono`
-for the path. The design system's scale is in rem, with 0.75 as its smallest
-step, and `scripts/verify_design_tokens.py` fails a `px` font size outright.
-The shell uses `0.875rem` and `0.75rem`, which are the nearest steps — 14px and
-12px at the default root size. **The path text is therefore 12px, not 11px.**
+for the path. The design system's scale is in rem, and
+`scripts/verify_design_tokens.py` fails a `px` font size outright, so the shell
+declares steps rather than the drawing's pixel values.
+
+The path was rendered at 12px until
+`docs/decisions/0016-relaxations-for-porting.md`, because 0.75rem was the
+scale's smallest step and there was nothing nearer. That was a gap in the
+scale rather than a disagreement with the drawing, so the scale gained
+`label-xs` — 0.6875rem, 11px at the default root size — and the shell now uses
+it. Header title `0.875rem`, path `0.6875rem`: **both match the drawing at the
+default root size, and both still scale with the user's font-size setting.**
 
 ## 8. NOT VERIFIED
 
