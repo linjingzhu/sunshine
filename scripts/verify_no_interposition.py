@@ -328,6 +328,42 @@ PARSER_SYMBOLS = (
 NAVIGATION_SYMBOLS = ("LoadURLWithParams", "OpenURLFromTab", "OpenURLParams", "NavigateParams",
                       "location.assign(", "location.replace(", "location.href =", "window.open(")
 
+# The one navigation OS-9 is not about.
+#
+# OS-9 forbids *accepting a string and navigating to it*: text crossing from a
+# surface into the browser without taking the classification path typed text
+# takes. A `GURL` built in place from one of Sunshine's own compile-time host
+# constants accepts nothing. There is no string to classify -- the value is
+# fixed when the browser is compiled, it is one of the hosts
+# `chrome/common/sunshine/sunshine_webui_hosts.h` declares, and the omnibox
+# already offers the same hosts by name through `kSunshineWebUIHosts`.
+#
+# This exemption was added for `downstream/patches/0008-sunshine-module-home-button.patch`,
+# whose bookmark bar button opens `chrome://sunshine-modules`. Narrowing a
+# security check to admit new code is the wrong instinct and it is worth saying
+# why this is not that: the check was broader than the invariant it enforces,
+# and the gap showed up the first time a Sunshine file navigated anywhere at
+# all. The rule is deliberately the narrowest one that closes it.
+#
+# What still fails, and is covered by tests: a variable, a parameter, a
+# concatenation such as `base::StrCat({kChromeUISunshineModulesURL, rest})`, a
+# constant that is not one of Sunshine's, and every JavaScript form -- the
+# closing parenthesis has to follow the constant immediately, in the same
+# statement as the navigation.
+CLASSIFIED_NAVIGATION = re.compile(r"GURL\(chrome::kChromeUISunshine[A-Za-z0-9]*URL\)")
+
+
+def _navigation_is_classified(text: str, index: int) -> bool:
+    """Whether the navigation at `index` targets a Sunshine host constant.
+
+    The statement is read from the symbol to the next `;`, so a constant
+    appearing elsewhere in the file cannot vouch for an unrelated navigation.
+    """
+
+    end = text.find(";", index)
+    statement = text[index:end if end != -1 else len(text)]
+    return bool(CLASSIFIED_NAVIGATION.search(statement))
+
 # PB-5. `setTimeout` is absent on purpose: one-shot is legitimate and a
 # self-rearming one is not distinguishable from it by any pattern worth
 # defending. The repeating and idle-triggered forms are unambiguous.
@@ -372,8 +408,14 @@ def check_no_second_parser(root: Path, failures: list[str]) -> None:
                 if symbol in text:
                     failures.append(f"{label}: {symbol!r} is {description}")
         for symbol in NAVIGATION_SYMBOLS:
-            if symbol in text:
-                failures.append(f"{label}: {symbol!r} navigates from an unclassified string (OS-9)")
+            index = text.find(symbol)
+            while index != -1:
+                if not _navigation_is_classified(text, index):
+                    failures.append(
+                        f"{label}: {symbol!r} navigates from an unclassified string (OS-9)"
+                    )
+                    break
+                index = text.find(symbol, index + len(symbol))
         schemes = {match.lower() for match in SCHEME_LITERAL.findall(text)}
         if len(schemes) >= 2:
             failures.append(f"{label}: scheme table over {sorted(schemes)}")

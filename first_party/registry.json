@@ -2,7 +2,9 @@
   "schema_version": 2,
   "modules": [
     "first_party/modules/sunshine-document/module.json",
+    "first_party/modules/sunshine-modules/module.json",
     "first_party/modules/sunshine-new-tab/module.json",
+    "first_party/modules/sunshine-security/module.json",
     "first_party/modules/sunshine-workspace/module.json"
   ]
 }

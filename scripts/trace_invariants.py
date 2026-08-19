@@ -98,6 +98,8 @@ FAMILIES = (
     "RV", "RVV",
     # The document surface: DOC-n invariants, DOCA-n acceptance criteria.
     "DOC", "DOCA",
+    # The module home: MH-n invariants, MHA-n acceptance criteria.
+    "MH", "MHA",
 )
 
 

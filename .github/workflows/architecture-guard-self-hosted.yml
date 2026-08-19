@@ -103,6 +103,9 @@ jobs:
       - name: Verify the open-decisions index agrees with its sources
         run: python scripts/verify_decision_index.py
 
+      - name: Verify the module home is served the registry first_party/ declares
+        run: python scripts/verify_module_registry_sync.py
+
       - name: Verify stated counts still match the repository
         run: python scripts/verify_stated_counts.py
 

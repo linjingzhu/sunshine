@@ -114,6 +114,11 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-18 | Delete a project that had documents, then reopen the surface | The project and every document of it are gone | DOC-7, DOCA-6 |
 | RV-19 | With a section open, press refresh, then download | Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document | DOC-3, DOC-8 |
 | RV-20 | Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px | Left goes back, right goes forward, and the short drag shows the context menu instead. **Cannot run: no gesture recogniser exists** — see below | GESTURE contract §3.2 |
+| RV-21 | Show the bookmark bar and look at its leading edge | One Sunshine button sits there, left of the saved tab group button, tooltip "Sunshine modules". Its glyph is not the grid the tab group button uses | ADR 0014 §5, patch 0008 |
+| RV-22 | Click that button, then ctrl-click it | The first opens `chrome://sunshine-modules` in the current tab; the second opens it in a new background tab. Disposition follows the modifier, as it does for every other button on this bar | ADR 0014 §2 |
+| RV-23 | On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json` | The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either | patch 0007, `verify_module_registry_sync.py` |
+| RV-24 | Select each module in the left column | Its declared network, filesystem and credential values are the manifest's own words, and a value other than `deny`/`none`/no is the one that stands out | MODULE HOME §2 |
+| RV-25 | Narrow the window until the bookmark bar overflows its buttons | The Sunshine button keeps its place at the leading edge and is never drawn over the button beside it | patch 0008, `GetMinimumSize()` |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -182,6 +187,8 @@ set is right and reaching the shell, and it is not something section 1 can do.
 | RVV-1 | New Tab at 533 px, 768 px and 933 px width | The wordmark scales fluidly and does not clip or wrap |
 | RVV-2 | New Tab in light and dark | Both use the design-system tokens; neither hardcodes a colour |
 | RVV-3 | Keyboard-only traversal of the New Tab page | Focus is visible at every stop and reaches the search field |
+| RVV-4 | The bookmark bar's Sunshine button in light and dark | The glyph resolves `kColorBookmarkButtonIcon` in both, the same as the overflow button beside it; it is never a fixed colour that survives the theme change |
+| RVV-5 | Keyboard-only traversal of the bookmark bar | The Sunshine button is the first stop, matching where it is drawn — the child order in `Init()` is the focus order |
 
 `docs/DESIGN_SYSTEM_CONTRACT.md` owns the token rules; RVV-2 checks that the built
 page actually resolves them, which `scripts/verify_design_tokens.py` cannot do
@@ -211,7 +218,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-20, RVV-1..RVV-3
+gate       RV-1..RV-25, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
