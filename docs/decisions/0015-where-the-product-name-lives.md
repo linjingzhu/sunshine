@@ -75,30 +75,46 @@ like nothing in particular. **The rule is a property of the text, not of a list
 of identifiers**, and the guard is what established that — before the build, not
 after.
 
-### 3. What deliberately still says Chromium
+### 3. The direct-launch scheme: neither name
 
-Two constants in `chrome/install_static/chromium_install_modes.h` were left
-alone on purpose.
-
-**`direct_launch_url_scheme = "chromium"`.** Renaming this to `"sunshine"`
-would register a `sunshine:` URL protocol with Windows —
+`direct_launch_url_scheme` was the one constant with no good rename. Setting it
+to `"sunshine"` registers a `sunshine:` URL protocol with Windows —
 `docs/decisions/0003-internal-scheme.md` settled that Sunshine registers no
 scheme of its own, SEC-13 states it, and `scripts/verify_installed_build.py`
-checks `HKCR\sunshine` on the machine for exactly this. The rename would have
-turned a green check red, and the check would have been right. Leaving it means
-Sunshine claims a scheme named after upstream, which is its own small
-dishonesty; both are recorded rather than one being quietly preferred.
+checks `HKCR\sunshine` on the machine for exactly this. Leaving it as
+`"chromium"` means claiming a protocol named after upstream.
 
-**`kSafeBrowsingName = "chromium"`.** This identifies the client to Google's
-Safe Browsing service. ADR 0005 records that no API key is configured, so the
-browser never reaches that service and the string is never sent. Renaming it
-would be a change with no observable effect and a non-zero chance of one.
+**Upstream supports a third answer, and it is the right one here.** The value
+is set to the empty string. `chrome/install_static/install_modes_unittest.cc`
+states the contract in as many words — *"Every mode must specify a direct launch
+URL scheme; empty string is okay"* — and two shipped modes already use it:
+Google Chrome's secondary install modes and Chrome for Testing.
+`chrome/installer/setup/uninstall.cc` shows what it means, guarding its
+`Software\Classes\<scheme>` cleanup with a non-empty check: **an empty value
+means no scheme is registered at all.**
 
-The Active Setup GUID and the toast activator CLSID are also unchanged, so they
-still collide with a real Chromium install. With the install directories now
-separate, that collision is narrow — Active Setup and toast activation — and
-inventing GUIDs is a change this ADR does not need to make to answer the
-question it was opened for.
+So Sunshine registers nothing, which is what ADR 0003 requires, rather than
+choosing between a forbidden name and a borrowed one. This was found because
+the owner asked for *every* name to be Sunshine; the honest answer to that
+question turned out to be "this one is not a name, it is a registration, and
+Sunshine makes none".
+
+**`kSafeBrowsingName` is now `"sunshine"`.** It identifies the client to
+Google's Safe Browsing service, and ADR 0005 records that no API key is
+configured, so it is never sent. That makes the change free — and it means that
+if a key is ever configured, the browser introduces itself as what it is rather
+than as upstream.
+
+The Active Setup GUID and the toast activator CLSID are unchanged, so they still
+collide with a real Chromium install. With the install directories now separate
+that collision is narrow — Active Setup and toast activation — and inventing
+GUIDs is a change this ADR does not need to make.
+
+**What is left saying Chromium in that file** is its copyright header, its
+comments, and the `CHROMIUM_INDEX` enumerator, which
+`chrome/installer/util/prebuild/create_string_rc` requires to stay in sync with
+upstream's own indices. None of those is a name anyone sees; renaming an
+enumerator would be renaming code.
 
 ## Consequences
 
@@ -127,3 +143,11 @@ question it was opened for.
   browser proves the browser does.
 - No claim is made about the macOS or Linux name. `MAC_BUNDLE_ID` was set by
   patch 0001 and neither platform is built here.
+- **The binaries keep upstream's file names.** `chrome.exe`, `chrome.dll`,
+  `chrome_elf.dll` and `chrome_proxy.exe` are unchanged, and `chrome` is the
+  codebase's name for them rather than a brand — Google Chrome ships
+  `chrome.exe` too. Renaming them reaches GN output names, the mini_installer
+  archive, the DLL that `chrome_elf` is loaded by name, and the constants in
+  `chrome/common/chrome_constants.cc`; it is a large change with a real chance
+  of a broken link, and the names appear only in Task Manager and the install
+  folder. Recorded as a decision, not an oversight.

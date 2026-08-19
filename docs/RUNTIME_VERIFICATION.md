@@ -122,6 +122,8 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-26 | Install, then look at the install directory, the Start menu entry, the taskbar item and Windows' Default Apps list | All four say Sunshine. In particular the install directory is `%LOCALAPPDATA%\Sunshine\Application`, not `Chromium` — which is where a machine with real Chromium on it would have collided | ADR 0015 §1 |
 | RV-27 | Open the app menu, About, and the default-browser prompt | Every one names Sunshine. About still credits **The Chromium Authors** and the copyright is unchanged — that is correct and is what patch 0010 protects | ADR 0015 §2 |
 | RV-28 | With a real Chromium or Chrome also installed, install Sunshine and use both | Neither replaces the other's files or profile, and the taskbar shows them as two applications | ADR 0015 §1, §3 |
+| RV-29 | After installing, look for the profile: `%LOCALAPPDATA%\Sunshine\User Data` | It exists and holds the profile. `%LOCALAPPDATA%\Chromium` is untouched — which on a machine with real Chromium is that browser's profile, and was the same directory before this change | ADR 0015 §1 |
+| RV-30 | Check `HKCR` for a `chromium` and a `sunshine` key after installing | Neither is registered as a URL protocol. The empty `direct_launch_url_scheme` means the installer writes no `Software\Classes\<scheme>` entry at all | ADR 0015 §3, SEC-13 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -221,7 +223,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-28, RVV-1..RVV-5
+gate       RV-1..RV-30, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
