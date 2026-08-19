@@ -100,6 +100,9 @@ FAMILIES = (
     "DOC", "DOCA",
     # The module home: MH-n invariants, MHA-n acceptance criteria.
     "MH", "MHA",
+    # Module apps -- the projects that mount as modules: MA-n invariants,
+    # MAA-n acceptance criteria.
+    "MA", "MAA",
 )
 
 
