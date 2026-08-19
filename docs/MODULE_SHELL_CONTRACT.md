@@ -42,10 +42,32 @@ only content is empty"* — and every ownership question below follows from it.
 | Region | Owner | Why it lands there |
 | --- | --- | --- |
 | **A** module bar | **Browser, wholly** | It exists when no module is loaded. Its toggle collapses B and C, which are not the module's to collapse. Its state is explicitly shell-global. A module that could move or remove it could hide the way out of itself. |
-| **B** module dock | **Browser, wholly** | It lists *every* module. No single module can render it without knowing its siblings, and switching modules has to keep working when the current one is broken — which it cannot if the current one draws the switcher. |
+| **B** module dock | **Browser, wholly** | It lists *every* module. No single module can render it without knowing its siblings, and switching modules has to keep working when the current one is broken — which it cannot if the current one draws the switcher. Its foot carries the shell's own controls, described below. |
 | **C** tab list | **Browser frame, module content** | Width, collapse, splitter, persistence and selection rendering are the shell's; which tabs exist, their names and icons are the module's. |
 | **D** body | **Browser header, module body** | The source drawing is explicit: the 40px header is *"모듈이 바꿀 수 없음"* — the module cannot change it. Everything below it is the module's. |
 | **E** aux panel | **Browser container, module content** | One container, six roles, switched by the shell. What renders inside a role is the module's — and may belong to a *different* module than D's. |
+
+### What sits at B's foot
+
+Two controls, both the shell's own, neither supplied by any module {D} so MS-1
+is untouched:
+
+| Control | |
+| --- | --- |
+| **Names** | Switches the dock between its two widths. Shell-global, per §5. |
+| **Register** | Goes to the module home's registration section. |
+
+**Register is a destination, not an action.** A Sunshine module is compiled
+into the browser (`docs/decisions/0006-module-execution-model.md`), so nothing
+in this window can install one, and a control that implied otherwise would be
+lying about the browser it is part of {D} the sentence
+`docs/MODULE_HOME_CONTRACT.md` §1 already applies to that page. It is at the
+very bottom of B because that is where a person looks for *add*, and what they
+find there is the answer to the question they were about to ask rather than a
+button that cannot keep its promise.
+
+It is an anchor rather than a button with script: one destination, no state,
+and middle-clicking it does what a person expects.
 
 ### Why the line is there and not somewhere else
 

@@ -49,6 +49,34 @@ putting it among the modules would make the page disagree with the registry
 about how many there are (MH-5). When a module declares a mount, the route to
 *it* is the shell's dock, which is the shell's job and not this page's.
 
+### The registration section, and why it is prose
+
+`downstream/patches/0014-sunshine-module-registration-entry.patch` adds a
+section to the overview, `#registration`, and makes it the destination of the
+**Register** control at the foot of the module shell's dock.
+
+The owner asked for a button that registers a module. **There is no such act to
+perform.** A module is compiled in, so registration is four things that happen
+before this browser exists: a manifest is written, the manifest is validated,
+the browser is built, and the module is then in the list. A button that
+appeared to do it at run time would be the exact failure §1 names — a control
+lying about the browser it is part of.
+
+So the control exists and goes somewhere, and the somewhere says what
+registration is. That is a real gap closed: nothing in the browser previously
+answered *how does a module come to be here*, and the question is the first one
+a person asks after seeing a list of five.
+
+The section is written out in `app.html` rather than built by `app.ts`. Nothing
+in it comes from the registry, so **MH-4 is untouched by construction** rather
+than by care, and it mutates nothing, so MH-1 holds as well.
+
+Its last paragraph states the trade rather than hiding it: adding a module
+needs a build, and what that buys is that no module ever arrived later from
+somewhere else. `docs/decisions/0016-relaxations-for-porting.md` §5 kept that
+rule for the same reason and said so in one line — *loadable modules are a
+supply chain, and a supply chain is an outside.*
+
 ## 2. Invariants
 
 Class **O** is decidable offline. **B** needs the built browser.
@@ -128,3 +156,5 @@ enforced yet; MHA-3 is close to free, because the surface is a plain
 - **The shell link has not been followed.** It is a written-out anchor to a
   surface that exists in the patch stack and has never been built, so what a
   person arrives at is a skeleton with no module mounted in it.
+- **The Register control has not been pressed.** Neither the dock's anchor nor
+  the section it points at has been rendered by a browser. RV-38 is the gate.
