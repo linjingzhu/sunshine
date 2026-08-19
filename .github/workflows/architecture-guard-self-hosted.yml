@@ -112,6 +112,9 @@ jobs:
       - name: Verify the module shell matches its geometry contract
         run: python scripts/verify_shell_geometry.py
 
+      - name: Verify every reference in the patch stack resolves
+        run: python scripts/verify_patch_references.py
+
       - name: Verify stated counts still match the repository
         run: python scripts/verify_stated_counts.py
 

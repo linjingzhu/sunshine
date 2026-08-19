@@ -70,6 +70,24 @@ operation. A rule each module re-implements is a rule each module gets subtly
 wrong. Regions the browser draws are identical by construction rather than by
 discipline.
 
+### What the shell does not provide
+
+The source drawing proposes, as its own next step, standardising four body
+templates — table, console, document, canvas. **The shell does not ship them,
+and the owner settled that.**
+
+They would sit in D's body, and D's body is the module's. A browser that
+supplied the templates would own the shape of every module's work area, which
+is the line §1 draws and the reason it is drawn there. The consistency argument
+cuts the other way here too: a table layout is not an exit, so a module getting
+it slightly wrong costs a little polish, while a module unable to lay out its
+own work costs the module.
+
+If four templates turn out to be worth sharing, they are a library that module
+apps import — versioned with the apps, replaceable by an app that needs
+something else — and not a region the shell draws. That keeps the boundary in
+§1 intact.
+
 ## 2. Geometry
 
 Machine-readable: `scripts/verify_shell_geometry.py` reads this table and the
