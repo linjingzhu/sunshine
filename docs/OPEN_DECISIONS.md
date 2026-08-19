@@ -31,6 +31,7 @@ direction sees the same thing.
 | How does content reach the document surface — authored in the shell, or imported from files the user picks? The second is either outside SEC-8 (one-shot, no path retained, no handle held) or exactly what SEC-8 defers; that reading decides whether a file-broker contract has to come first. **Still open. Implementation of Reading A has been started ahead of the answer — see the note below.** | `docs/DOCUMENT_SURFACE_CONTRACT.md` §4, `docs/decisions/0009-document-surface-ingress-options.md` | the first document surface |
 | What is the Chromium roll cadence? A roll costs a patch-stack rebase, re-verification of 204 cited paths, and a 6 h 31 min build on the project's only machine, which is also its only CI. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §8 | security update posture |
 | When, if ever, is Sunshine distributed? The answer gates code signing and auto-update, and re-opens ADR 0004 (codec licensing) and ADR 0005 (no Safe Browsing) together. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §9 | distribution |
+| May a broker spawn a child process under the pinned revision's sandbox policy? If it may not, no first-party module can run a tool, a Git surface cannot exist as a module in any form, and R2 of the file-broker requirements is unsatisfiable. | `docs/FILE_BROKER_CONTRACT.md` §5 Q1 | the file broker, and every module that needs a tool |
 
 ### Note — document surface ingress is being built before it is decided
 
@@ -58,6 +59,7 @@ while the code has quietly answered it.
 
 Recorded in their owning documents; named here so they are not rediscovered.
 
+- File broker: hardened invocation or honest consent, given that a granted directory's own configuration and hooks execute programs (measured)? destructive-operation classification, or a separately-granted destructive capability? does a grant survive a restart? is credential delegation per-operation or per-grant? — `docs/FILE_BROKER_CONTRACT.md` §5
 - Split view: enable `kSplitViewHorizontal` (stacked)? enable `kSplitViewTabRestore`? what happens when one member of a split moves workspace? may a workspace contain a split in the MVP? — `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md`, `docs/ADVANCED_TABS_CONTRACT.md`
 - Can a workspace span multiple windows? — handoff §11, and it gates three other answers
 - On returning to a workspace whose tabs were discarded: restore one tab or all? — `docs/TAB_LIFECYCLE_CONTRACT.md`
