@@ -334,8 +334,57 @@ def _icon_directory(
     return found
 
 
-def read_icon_resources(path: Path) -> tuple[int, bytes, dict[int, bytes]] | None:
-    """`(lowest RT_GROUP_ICON id, its bytes, {RT_ICON id: bytes})`, or None.
+def resource_name(value: int) -> int | str:
+    """Decode one name as `EnumResourceNames` hands it over.
+
+    The callback receives `LPWSTR`, and Windows overloads it: a value below
+    0x10000 *is* the integer id, anything else is a pointer to a wide string.
+    `MAKEINTRESOURCE` is that overload written down.
+
+    Build #27 and #28 were spent on the half of this that was missing. The
+    first version kept only the integers and said so -- "`.rc` files can use
+    [string names], this project's icons do not" -- and chrome.exe's icons are
+    exactly the case that assumption excluded. `chrome/app/chrome_exe.rc`
+    writes `IDR_MAINFRAME ICON "theme\\chromium\\win\\chromium.ico"`, and
+    `IDR_MAINFRAME` is defined nowhere it includes: `chrome_exe_resource.h`
+    holds only Visual Studio's APSTUDIO boilerplate. An undefined identifier in
+    a `.rc` file is a *string* name, so every icon in chrome.exe is named
+    "IDR_MAINFRAME", "IDR_X001_APP_LIST" and so on. Dropping the strings
+    dropped all of them, and the check then reported the browser as having no
+    application icon.
+    """
+
+    if value < 0x10000:
+        return value
+
+    import ctypes  # noqa: PLC0415 -- reading a wide string at an address
+
+    return ctypes.wstring_at(value)
+
+
+def application_icon_name(names: list[int | str]) -> int | str:
+    """The one Windows shows for the application.
+
+    `chrome/app/chrome_exe.rc` states the rule it is written to satisfy: the
+    application icon "should have the lowest ID, be placed first, and its
+    resource name should be alphabetically less than the name of any other icon
+    resource". Two orderings, because a name is either an integer or a string;
+    integer names sort before string names, and within a kind the rule is the
+    obvious one.
+
+    For chrome.exe every icon name is a string, so this returns
+    "IDR_MAINFRAME" -- alphabetically before "IDR_X001_APP_LIST" and the rest.
+    That is the icon `downstream/assets/` replaces and the only one this check
+    speaks for.
+    """
+
+    return min(names, key=lambda name: (isinstance(name, str), name))
+
+
+def read_icon_resources(
+    path: Path,
+) -> tuple[int | str, bytes, dict[int | str, bytes]] | None:
+    """`(application RT_GROUP_ICON name, its bytes, {RT_ICON name: bytes})`, or None.
 
     None means the binary carries no `RT_GROUP_ICON` at all. Windows-only; every
     caller reaches this behind the same platform gate the other checks use.
@@ -391,25 +440,24 @@ def read_icon_resources(path: Path) -> tuple[int, bytes, dict[int, bytes]] | Non
         )
 
     try:
-        def ids(resource_type: int) -> list[int]:
-            """Integer resource ids of one type.
+        def ids(resource_type: int) -> list[int | str]:
+            """Every resource name of one type, integer or string.
 
             The callback takes the name as `c_void_p` deliberately. An integer
             id arrives as a small value in a pointer-shaped argument, and a
-            prototype declaring `LPCWSTR` would have `ctypes` dereference `101`.
-            Names above 0xFFFF are real strings; `.rc` files can use them, this
-            project's icons do not, and one that appeared would be skipped
-            rather than misread.
+            prototype declaring `LPCWSTR` would have `ctypes` dereference
+            `101`. `resource_name()` applies the overload and explains what
+            keeping only the integers cost.
             """
 
-            found: list[int] = []
+            found: list[int | str] = []
             callback = ctypes.WINFUNCTYPE(
                 wintypes.BOOL, wintypes.HMODULE, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p
             )
 
             def visit(_module, _type, name, _parameter):
-                if name is not None and name < 0x10000:
-                    found.append(int(name))
+                if name is not None:
+                    found.append(resource_name(int(name)))
                 return True
 
             ctypes.set_last_error(0)
@@ -427,8 +475,17 @@ def read_icon_resources(path: Path) -> tuple[int, bytes, dict[int, bytes]] | Non
                     )
             return found
 
-        def resource(resource_type: int, identifier: int) -> bytes:
-            handle = kernel32.FindResourceW(module, identifier, resource_type)
+        def resource(resource_type: int, identifier: int | str) -> bytes:
+            # `FindResourceW` takes the same overloaded `LPCWSTR`: an integer
+            # id passes as the value, a string name as a pointer to it. The
+            # cast is written out rather than left to ctypes' argument
+            # conversion, so that which one is happening is visible here.
+            located = (
+                ctypes.cast(ctypes.c_wchar_p(identifier), ctypes.c_void_p)
+                if isinstance(identifier, str)
+                else ctypes.c_void_p(identifier)
+            )
+            handle = kernel32.FindResourceW(module, located, resource_type)
             if not handle:
                 raise IconResourceError(f"{path.name} lost resource {resource_type}/{identifier}")
             size = kernel32.SizeofResource(module, handle)
@@ -460,10 +517,11 @@ def read_icon_resources(path: Path) -> tuple[int, bytes, dict[int, bytes]] | Non
                     "icon either way"
                 )
             return None
-        # Windows shows the application the *lowest-numbered* group icon, which
-        # in Chromium's `chrome/app/chrome_exe.rc` is `IDR_MAINFRAME`. That is
-        # the one the overlay replaces and the only one this check speaks for.
-        group = min(groups)
+        # `application_icon_name()` carries the rule and why it is not simply
+        # the lowest number. For chrome.exe it selects "IDR_MAINFRAME", which
+        # is the icon the overlay replaces and the only one this check speaks
+        # for.
+        group = application_icon_name(groups)
         return group, resource(RT_GROUP_ICON, group), {
             identifier: resource(RT_ICON, identifier) for identifier in ids(RT_ICON)
         }

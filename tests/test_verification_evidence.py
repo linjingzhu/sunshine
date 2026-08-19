@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 import trace_invariants as tracer  # noqa: E402
 import validate_first_party_modules as modules  # noqa: E402
 import verify_verification_evidence as guard  # noqa: E402
+import verify_pinned_upstream as upstream_module  # noqa: E402
 
 CONTRACT = """# Security architecture
 
@@ -388,6 +389,59 @@ class DerivedShapeTests(unittest.TestCase):
 
         self.assertEqual({"SEC-1", "SEC-2"}, tracer._identifiers("SEC-1, SEC-2"))
         self.assertEqual({"PB-2a"}, tracer._identifiers("PB-2a"))
+
+
+class UpstreamPathReferenceTests(unittest.TestCase):
+    """A gate may name the Chromium file it is about.
+
+    Every backticked path in the document must exist, which is right for the
+    repository's own files and impossible for Chromium's: this guard is offline
+    and `chrome/` is not in the working tree. Requiring it anyway would have
+    meant RV-10's cause -- found in `chrome/app/chrome_exe.rc`, where an
+    undefined `IDR_MAINFRAME` makes the icon resource names strings -- could not
+    be written down beside the gate it explains.
+
+    Upstream paths are not unchecked. `verify_pinned_upstream.py` reads every
+    path cited anywhere in `docs/` and asks whether it exists at the pinned
+    revision, which is the question worth asking about an upstream file.
+    """
+
+    def setUp(self) -> None:
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.root = Path(directory)
+        (self.root / "docs").mkdir()
+        self.document = self.root / guard.DOCUMENT
+        self.document.parent.mkdir(parents=True, exist_ok=True)
+
+    def write(self, body: str) -> list[str]:
+        self.document.write_text(body, encoding="utf-8")
+        _, failures = guard.check(self.root)
+        return failures
+
+    def test_a_chromium_path_is_left_to_the_guard_that_can_check_it(self) -> None:
+        failures = self.write("Cause: `chrome/app/chrome_exe.rc`.\n")
+        self.assertEqual(
+            [], [f for f in failures if "chrome_exe.rc" in f], failures
+        )
+
+    def test_a_repository_path_that_does_not_exist_still_fails(self) -> None:
+        """The exemption is by prefix, and `scripts/` is ours."""
+
+        failures = self.write("See `scripts/verify_nothing_at_all.py`.\n")
+        self.assertTrue(
+            any("verify_nothing_at_all.py" in f for f in failures), failures
+        )
+
+    def test_the_prefixes_are_the_shared_ones(self) -> None:
+        """Two lists would drift. This is the same set
+        `verify_pinned_upstream.py` uses to decide the same question."""
+
+        self.assertIs(guard.upstream.OWN_PREFIXES, upstream_module.OWN_PREFIXES)
+        for ours in ("scripts", "docs", "downstream", "first_party", "tests", "config"):
+            self.assertIn(ours, guard.upstream.OWN_PREFIXES)
+        self.assertNotIn("chrome", guard.upstream.OWN_PREFIXES)
+        self.assertNotIn("components", guard.upstream.OWN_PREFIXES)
 
 
 class RepositoryStateTests(unittest.TestCase):

@@ -241,6 +241,27 @@ class IconResourceCheckTests(unittest.TestCase):
         self.assertTrue(result.failed, result.report())
         self.assertIn(f"{size}px", result.report())
 
+    def test_a_string_named_group_passes(self) -> None:
+        """chrome.exe's real shape. Every icon in it is named, not numbered, so
+        a check that only handled integer names could not pass on the browser
+        it exists to check -- which is what builds #27 and #28 showed."""
+
+        result = self.run_check(
+            lambda path: self.resources(self.images, group="IDR_MAINFRAME")
+        )
+        self.assertFalse(result.failed, result.report())
+        self.assertIn(built.PASSED, [status for status, _, _ in result.rows])
+
+    def test_a_string_named_group_carrying_the_wrong_icon_still_fails(self) -> None:
+        """The name is how the resource is found; it must not soften what is
+        compared once it is."""
+
+        wrong = [(size, bytes(len(payload))) for size, payload in self.images]
+        result = self.run_check(
+            lambda path: self.resources(wrong, group="IDR_MAINFRAME")
+        )
+        self.assertTrue(result.failed, result.report())
+
     def test_a_binary_with_no_icon_resource_fails_and_names_the_cause(self) -> None:
         """The silent failure ADR 0008 describes, in its purest form.
 
@@ -364,6 +385,85 @@ class IconDirectoryParserTests(unittest.TestCase):
             "<BBBBHHIH", 48, 48, 0, 0, 1, 32, 4026, 7
         )
         self.assertEqual([(48, 7)], built.group_icon_entries(data))
+
+
+class ResourceNameTests(unittest.TestCase):
+    """The overload that cost two builds.
+
+    `EnumResourceNames` hands a name over as `LPWSTR` and overloads it: below
+    0x10000 the value *is* the id, above it the value is a pointer to a wide
+    string. The first version of the reader kept only the integers, on the
+    stated assumption that "this project's icons do not" use string names.
+
+    chrome.exe's icons are exactly that case. `chrome/app/chrome_exe.rc` writes
+    `IDR_MAINFRAME ICON "theme\\chromium\\win\\chromium.ico"`, and
+    `IDR_MAINFRAME` is defined in none of the three headers that file includes
+    -- `chrome_exe_resource.h` carries only Visual Studio's APSTUDIO
+    boilerplate. An undefined identifier in a `.rc` file is a string name, so
+    every icon in chrome.exe has one, and dropping the strings dropped all of
+    them. Build #28 reported a browser with no application icon.
+
+    Both halves are tested here because both can be: reading a wide string at
+    an address is not a Windows-only operation.
+    """
+
+    def test_a_small_value_is_the_id_itself(self) -> None:
+        self.assertEqual(1, built.resource_name(1))
+        self.assertEqual(101, built.resource_name(101))
+        self.assertEqual(0xFFFF, built.resource_name(0xFFFF))
+
+    def test_a_large_value_is_a_pointer_to_a_name(self) -> None:
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer("IDR_MAINFRAME")
+        address = ctypes.addressof(buffer)
+        self.assertGreaterEqual(address, 0x10000)
+        self.assertEqual("IDR_MAINFRAME", built.resource_name(address))
+
+    def test_the_boundary_belongs_to_the_string_side(self) -> None:
+        """0x10000 is the first value Windows treats as a pointer, and the
+        integer ids stop one below it."""
+
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer("X")
+        self.assertIsInstance(built.resource_name(ctypes.addressof(buffer)), str)
+        self.assertIsInstance(built.resource_name(0xFFFF), int)
+
+
+class ApplicationIconSelectionTests(unittest.TestCase):
+    """Which of several group icons Windows shows for the application.
+
+    `chrome/app/chrome_exe.rc` states the rule it is written to satisfy: the
+    application icon "should have the lowest ID, be placed first, and its
+    resource name should be alphabetically less than the name of any other icon
+    resource". `min()` over integers implemented half of that, and chrome.exe
+    is the half it did not implement.
+    """
+
+    def test_chrome_exes_own_names_select_the_main_frame(self) -> None:
+        """The real set, from chrome_exe.rc at the pinned revision."""
+
+        names = [
+            "IDR_X001_APP_LIST",
+            "IDR_MAINFRAME",
+            "IDR_X003_INCOGNITO",
+            "IDR_X006_HTML_DOC",
+            "IDR_X007_PDF_DOC",
+        ]
+        self.assertEqual("IDR_MAINFRAME", built.application_icon_name(names))
+
+    def test_integer_names_still_select_the_lowest(self) -> None:
+        self.assertEqual(101, built.application_icon_name([203, 101, 150]))
+
+    def test_an_integer_name_outranks_a_string_one(self) -> None:
+        """"Lowest ID" comes first in the rule, so a numbered icon wins over a
+        named one however the name sorts."""
+
+        self.assertEqual(101, built.application_icon_name(["AAA_FIRST", 101]))
+
+    def test_a_single_name_is_the_answer(self) -> None:
+        self.assertEqual("ONLY", built.application_icon_name(["ONLY"]))
 
 
 class InvocationTests(unittest.TestCase):

@@ -263,11 +263,34 @@ which would also mean RV-10 fails — or a defect in the check, whose ctypes
 enumeration had never executed anywhere until that run. It could not tell those
 apart, so it said the stronger thing, and saying the stronger thing was wrong.
 
-The check now reads `RT_VERSION` as a control before concluding anything:
+The check reads `RT_VERSION` as a control before concluding anything:
 `check_version_resource` reads chrome.exe's VERSIONINFO through `version.dll`
 and passes, so a resource enumeration that cannot see `RT_VERSION` is not
 reading the binary and must say so about itself rather than about the build.
-**Which of the two it is, is not yet known** and the next run decides it.
+
+**Build #28 answered it: the control passed and the icon was still not found**
+— `chrome.exe carries RT_VERSION but no RT_GROUP_ICON`. Which narrowed the
+question to one place, and the answer was in `chrome/app/chrome_exe.rc`.
+
+That file writes `IDR_MAINFRAME ICON "theme\chromium\win\chromium.ico"`, and
+`IDR_MAINFRAME` is defined in none of the three headers it includes —
+`chrome_exe_resource.h` holds only Visual Studio's APSTUDIO boilerplate. **An
+undefined identifier in a `.rc` file is a string resource name.** So every icon
+in chrome.exe is named, not numbered, and the reader kept only the integer
+names, on a written assumption that "this project's icons do not" use strings.
+It dropped all of them, then reported the browser as having no application
+icon.
+
+Two pure functions now carry the parts that were wrong, and both are tested off
+Windows: `resource_name()` applies the `MAKEINTRESOURCE` overload instead of
+discarding half of it, and `application_icon_name()` implements the rule
+`chrome_exe.rc` states — "the lowest ID … and its resource name should be
+alphabetically less than the name of any other icon resource" — where `min()`
+over integers had implemented only the first half.
+
+**RV-10 is still NOT RUN and this does not touch it.** Whether the icon in the
+binary is Sunshine's is what the next run decides; whether it *looks* right at
+three sizes is a person's job either way.
 
 ### Evidence
 

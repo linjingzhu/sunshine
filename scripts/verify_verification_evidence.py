@@ -59,6 +59,7 @@ MODULES = "first_party/modules"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import trace_invariants as tracer  # noqa: E402
 import validate_first_party_modules as modules  # noqa: E402
+import verify_pinned_upstream as upstream  # noqa: E402
 
 # `## 2. Manual -- the runtime gate`. The number is what section 6 of the
 # document refers to its own sections by, so it is what failures name too.
@@ -376,6 +377,17 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
         for token in BACKTICKED.findall(line):
             if "://" in token or "/" not in token:
                 continue  # a URL a gate tells a person to type, or not a path
+            if token.split("/", 1)[0] not in upstream.OWN_PREFIXES:
+                # A Chromium path, not one of ours. It is not skipped, it is
+                # checked elsewhere: `scripts/verify_pinned_upstream.py` reads
+                # every path cited anywhere in `docs/` and asks whether it
+                # exists at the pinned revision, which is the only question
+                # worth asking about an upstream file and the one this guard
+                # cannot answer offline. Requiring it in the working tree would
+                # mean a gate could never name the upstream source it is about
+                # -- and RV-10's cause was found in `chrome/app/chrome_exe.rc`,
+                # which is exactly such a name.
+                continue
             references += 1
             if not (root / token).exists():
                 failures.append(f"{DOCUMENT}:{number}: names `{token}`, which does not exist")
