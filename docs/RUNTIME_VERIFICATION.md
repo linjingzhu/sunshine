@@ -119,6 +119,9 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-23 | On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json` | The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either | patch 0007, `verify_module_registry_sync.py` |
 | RV-24 | Select each module in the left column | Its declared network, filesystem and credential values are the manifest's own words, and a value other than `deny`/`none`/no is the one that stands out | MODULE HOME §2 |
 | RV-25 | Narrow the window until the bookmark bar overflows its buttons | The Sunshine button keeps its place at the leading edge and is never drawn over the button beside it | patch 0008, `GetMinimumSize()` |
+| RV-26 | Install, then look at the install directory, the Start menu entry, the taskbar item and Windows' Default Apps list | All four say Sunshine. In particular the install directory is `%LOCALAPPDATA%\Sunshine\Application`, not `Chromium` — which is where a machine with real Chromium on it would have collided | ADR 0015 §1 |
+| RV-27 | Open the app menu, About, and the default-browser prompt | Every one names Sunshine. About still credits **The Chromium Authors** and the copyright is unchanged — that is correct and is what patch 0010 protects | ADR 0015 §2 |
+| RV-28 | With a real Chromium or Chrome also installed, install Sunshine and use both | Neither replaces the other's files or profile, and the taskbar shows them as two applications | ADR 0015 §1, §3 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -218,7 +221,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-25, RVV-1..RVV-5
+gate       RV-1..RV-28, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

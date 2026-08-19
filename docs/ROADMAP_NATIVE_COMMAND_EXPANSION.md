@@ -13,11 +13,12 @@ registry entry is created, changed, or proposed by this document. No product
 decision is made here; every place a command's shape depends on an open P0 is
 cited and left open.
 
-**On the seam itself.** `downstream/patches/series` holds eight patches today —
+**On the seam itself.** `downstream/patches/series` holds ten patches today —
 `0001-sunshine-branding`, `0002-sunshine-new-tab`,
 `0003-sunshine-no-missing-api-key-warning`, `0004-sunshine-webui-seam`,
 `0005-sunshine-security-webui`, `0006-sunshine-document-webui`,
-`0007-sunshine-modules-webui`, `0008-sunshine-module-home-button`. The seam
+`0007-sunshine-modules-webui`, `0008-sunshine-module-home-button`,
+`0009-sunshine-windows-install-identity`, `0010-sunshine-product-strings`. The seam
 described in `docs/decisions/0007-module-contribution-seam.md` is now the
 fourth of those, and the two surfaces built on it have been added behind it —
 which is the seam doing exactly what the ADR said it would: a surface patch

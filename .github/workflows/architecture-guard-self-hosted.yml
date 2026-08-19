@@ -106,6 +106,9 @@ jobs:
       - name: Verify the module home is served the registry first_party/ declares
         run: python scripts/verify_module_registry_sync.py
 
+      - name: Verify the product rename is only the product rename
+        run: python scripts/verify_branding_substitution.py
+
       - name: Verify stated counts still match the repository
         run: python scripts/verify_stated_counts.py
 
