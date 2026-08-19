@@ -36,7 +36,7 @@ It was asked for, and the answer is arithmetic rather than preference.
 
 | | This build needs | A GitHub-hosted standard runner offers |
 | --- | --- | --- |
-| Free disk | 180 GB | ~14 GB, ~45 GB after deleting the image's unused toolchains |
+| Free disk | 180 GB | 36 GB after deleting the image's unused toolchains, measured |
 | Cores | 12, for the six-hour figure below | 4 |
 | Wall clock | ~6 h at 12 cores, so ~18 h at 4 | 6 h, a hard per-job ceiling |
 
@@ -54,10 +54,22 @@ the owner's.
 ### What does run on a hosted runner
 
 `.github/workflows/patch-apply-hosted.yml` clones `src` alone at the pinned
-revision -- one revision deep, no DEPS, no submodules, a few gigabytes -- and
-applies the whole stack to it. Every upstream file the stack touches is under
-`chrome/` or `tools/`, so the dependency tree a compile would need is never
-fetched, and the job finishes in minutes.
+revision -- one revision deep, no DEPS, no submodules -- and applies the whole
+stack to it. Every upstream file the stack touches is under `chrome/` or
+`tools/`, so the dependency tree a compile would need is never fetched.
+
+Measured on run 1, `5899580`:
+
+| | |
+| --- | --- |
+| `src` at `152.0.7977.42` | 6.8 GB, 497,194 files |
+| Clone | 5 min 50 s |
+| Applying all thirteen patches | under one second |
+| Whole job | 6 min 53 s |
+| Free disk left | 29 GB |
+
+The clone is the job. The thing the job exists to do costs nothing, which is
+the argument for running it on every push that touches a patch.
 
 It answers the one question no offline guard can. `verify_patch_integrity.py`
 checks each hunk's arithmetic, `verify_patch_references.py` replays hunks
@@ -70,6 +82,17 @@ the build machine, and build #18 died there twenty minutes in.
 **It is not a build and does not stand in for one.** A stack that applies can
 still fail on eslint, on `gn`, or in the compiler. What it removes is the class
 of failure that used to cost a whole build slot to discover.
+
+### What run 1 established
+
+Patches 0009 to 0013 had never touched a real Chromium tree. They apply.
+
+It also confirmed a count that had only ever been asserted.
+`scripts/patch_manifest.py` reports 16 upstream files exclusively owned by the
+stack; after applying, `git status` in the checkout listed exactly those 16 as
+modified, plus the four Sunshine directories the stack creates and nothing
+else. The manifest's model of what this project touches upstream is now
+git's answer as well as its own.
 
 ## Authenticate to googlesource before the first sync
 
