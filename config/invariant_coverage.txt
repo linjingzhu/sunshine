@@ -83,3 +83,21 @@ S12
 HA-2
 HA-4
 HA-5
+
+# The module shell. MS-4 has been enforced by verify_shell_geometry.py since
+# the shell landed and was never counted: "MS" was not a family
+# trace_invariants.py knew, so the claim parsed to nothing and both ends read
+# as consistent. Adding the family is what surfaced it.
+MS-4
+
+# The module mount port -- the host port every port plan was blocked on.
+# verify_module_mount.py decides the eight that are decidable from source;
+# MM-9 and MM-10 need the browser and are RV-35 and RV-36.
+MM-1
+MM-2
+MM-3
+MM-4
+MM-5
+MM-6
+MM-7
+MM-8

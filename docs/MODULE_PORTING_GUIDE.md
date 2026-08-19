@@ -181,6 +181,13 @@ list, the title and path for D's header, at most three header actions, the
 dirty flag, and which panel role is wanted. **No paths, no handles, no URLs to
 navigate to, no callbacks into browser internals** (`MA-2`).
 
+The shell half of that list is now written down and implemented:
+`docs/MODULE_MOUNT_CONTRACT.md` names every message and
+`chrome/browser/resources/sunshine/shell/mount_port.ts` is the file to copy
+into the app. Copy it -- do not import it, which would be `MA-1` broken by the
+very file that declares `MA-1`. §7 of that contract is the four things a module
+app has to do.
+
 Writing three implementations is not over-engineering here — it is the only way
 to find out whether the boundary is real. `MA-3` asks for two hosts before the
 port is considered done, and the reason is in `docs/decisions/0013-module-data-portability.md`:
@@ -275,10 +282,12 @@ fails on eslint has told you nothing you could not have learned in a minute.
 - **No project has been ported with this guide.** It is derived from building
   the shell and the surfaces in this repository, not from a completed port, so
   the phase order is reasoned rather than measured.
-- **The host port has no Sunshine implementation yet.** Phase 3 describes a
-  boundary that `docs/MODULE_APP_GUIDE.md` §8 records as an argument rather
-  than a measurement. A port reaching Phase 3 today will be the first user of
-  it and should expect to define it rather than consume it.
+- **The host port exists and has never carried a message.**
+  `docs/MODULE_MOUNT_CONTRACT.md` defines it and
+  `downstream/patches/0012-sunshine-module-mount.patch` implements the shell's
+  half, so Phase 3 now has a shape to target rather than one to invent. But no
+  module declares a mount, nothing has been built, and the first port to arrive
+  is still the port that finds out what is wrong with it.
 - The eslint rules in §5 were read from the configuration at the pinned
   revision and confirmed against patches that have built. They are not a
   substitute for running the build.

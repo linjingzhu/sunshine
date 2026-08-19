@@ -253,6 +253,14 @@ Every item here cost this project a build.
 - **The second host does not exist.** MA-3 asks for one and none is available:
   ADR 0013 records the iPad position, and no shell implements it. Until one
   does, the port boundary is an argument rather than a measurement.
+- **The shell port is defined and unexercised.**
+  `docs/MODULE_MOUNT_CONTRACT.md` and
+  `downstream/patches/0012-sunshine-module-mount.patch` supply what §1's
+  diagram called the host port, for the shell's half: the tab list, the header,
+  the actions and the panel role. No module declares a mount, so none of it has
+  carried a message. The data half of a port -- a module's own Mojo interface,
+  as in `chrome/browser/resources/sunshine/document/host.ts` -- is per module
+  and is still the app's to declare.
 - No check enforces any MA invariant. §1 says which three could be decided from
   source once there is an app to read.
 - The eslint rules in §6 were read from the configuration at the pinned revision

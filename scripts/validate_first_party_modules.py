@@ -27,6 +27,14 @@ FILESYSTEM_ACCESS = {"none", "user_selected"}
 # shapes SEC-6 exists to keep out of a manifest, and a scheme or path here would
 # mean the allowlist was being read as a URL matcher, which it is not.
 HOST = re.compile(r"^(?!-)[a-z0-9-]+(?:\.(?!-)[a-z0-9-]+)+$")
+# The one URL a manifest may carry, and the only shape it may carry it in.
+# `chrome-untrusted://` is Chromium's scheme rather than one Sunshine registers
+# (SEC-13, ADR 0003), a bare host, and the root path -- no query, no fragment,
+# no deeper path. The shell re-checks this at run time in
+# `chrome/browser/resources/sunshine/shell/mount_port.ts`; the two are compared
+# by `scripts/verify_module_mount.py` so that neither can drift into being the
+# lenient one.
+CONTENT_URL = re.compile(r"^chrome-untrusted://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/$")
 
 
 class ModuleValidationError(ValueError):
@@ -148,11 +156,40 @@ def validate_security(security: object, source: str) -> None:
         raise ModuleValidationError(f"{source}: a module never receives a credential directly")
 
 
+def validate_mount(mount: object, kind: str, source: str) -> None:
+    """A module's declaration that the shell can mount it.
+
+    Enforces: MM-1, MM-2.
+
+    Optional, and most modules will not carry it: a service has no UI to mount
+    and `docs/MODULE_SHELL_CONTRACT.md` section 1 still requires the dock to
+    list it. What this checks is that a module which *does* claim to be
+    mountable claims it in the one shape the shell accepts, because a mistyped
+    URL that reached the shell would be a navigation nobody wrote.
+    """
+
+    if not isinstance(mount, dict) or set(mount) != {"content_url"}:
+        raise ModuleValidationError(f"{source}: invalid mount declaration")
+    url = mount["content_url"]
+    if not isinstance(url, str) or not CONTENT_URL.fullmatch(url):
+        raise ModuleValidationError(
+            f"{source}: mount content_url must be chrome-untrusted://<host>/ : {url!r}"
+        )
+    # MM-2. A service is a module with no surface of its own; letting one
+    # declare a mount would put something in D that nothing in the registry
+    # says exists.
+    if kind != "surface":
+        raise ModuleValidationError(f"{source}: only a surface module may declare a mount")
+
+
 def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
     required = {"schema_version", "id", "display_name", "owner", "kind", "lifecycle", "status",
                 "entrypoints", "capabilities", "data", "security", "verification"}
+    # Optional keys are listed rather than tolerated: an unknown key is still a
+    # defect, and this is the set that stops being unknown.
+    optional = {"mount"}
     missing = sorted(required - manifest.keys())
-    unknown = sorted(manifest.keys() - required)
+    unknown = sorted(manifest.keys() - required - optional)
     if missing or unknown:
         raise ModuleValidationError(f"{source}: missing={missing}, unknown={unknown}")
     if manifest["schema_version"] != 2:
@@ -168,6 +205,8 @@ def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
         raise ModuleValidationError(f"{source}: invalid kind or lifecycle")
     if manifest["status"] not in STATUSES:
         raise ModuleValidationError(f"{source}: invalid status")
+    if "mount" in manifest:
+        validate_mount(manifest["mount"], manifest["kind"], source)
     entrypoints = manifest["entrypoints"]
     if not isinstance(entrypoints, list) or not entrypoints:
         raise ModuleValidationError(f"{source}: entrypoints must be a non-empty list")

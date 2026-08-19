@@ -105,6 +105,12 @@ FAMILIES = (
     "MA", "MAA",
     # The two capabilities ADR 0016 unblocked: host allowlist and file broker.
     "HA", "HAA", "FB", "FBA",
+    # The module shell's regions and the port that mounts into them: MS-n and
+    # MM-n. "MS" was missing until the mount work, which is exactly the failure
+    # the comment above describes -- verify_shell_geometry.py had claimed MS-4
+    # since the shell landed, and the claim was neither counted nor rejected,
+    # because an unparsed token is absent rather than refused.
+    "MS", "MM",
 )
 
 

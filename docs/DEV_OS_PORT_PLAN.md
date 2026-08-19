@@ -182,6 +182,8 @@ shell around an empty middle.
   been checked against Dev OS's code.
 - The region mapping in §3 and the questions in §4 are reasoned from
   descriptions of screens, not from the screens.
-- The host port that Stage 1 depends on has no implementation —
-  `docs/MODULE_APP_GUIDE.md` §8 records it as an argument rather than a
-  measurement.
+- The host port that Stage 1 depends on exists and has carried no message.
+  `docs/MODULE_MOUNT_CONTRACT.md` defines it and
+  `downstream/patches/0012-sunshine-module-mount.patch` implements the shell's
+  half, so the six nav items and the `shell()` deletion in §3 now have a shape
+  to target. Nothing has been built and no module declares a mount.

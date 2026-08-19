@@ -250,7 +250,14 @@ class PinnedUpstreamTests(unittest.TestCase):
         created = checker.stack_created_paths(REPOSITORY_ROOT)
         cited = set(checker.cited_paths(REPOSITORY_ROOT))
         self.assertEqual(
-            {"chrome/common/sunshine/sunshine_webui_hosts.h"}, created & cited
+            {
+                "chrome/common/sunshine/sunshine_webui_hosts.h",
+                "chrome/browser/resources/sunshine/document/host.ts",
+                "chrome/browser/resources/sunshine/shell/app.ts",
+                "chrome/browser/resources/sunshine/shell/mount.ts",
+                "chrome/browser/resources/sunshine/shell/mount_port.ts",
+            },
+            created & cited,
         )
 
     def test_section_stops_at_the_closing_brace(self) -> None:

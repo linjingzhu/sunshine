@@ -214,11 +214,14 @@ default root size, and both still scale with the user's font-size setting.**
 
 - **Nothing here has been built into a running browser.** The patch applies to
   a fresh checkout of the pinned revision; that is placement, not behaviour.
-- **No module is mounted in it.** The content regions render the shell's own
-  empty states, because the host port in `docs/MODULE_APP_GUIDE.md` §1 has no
-  implementation yet. So MS-3 is satisfied trivially — there is no module
-  content to keep out of the document — and it will need re-checking when there
-  is.
+- **No module is mounted in it.** The mount port exists —
+  `docs/MODULE_MOUNT_CONTRACT.md` and
+  `downstream/patches/0012-sunshine-module-mount.patch` — and no module
+  declares a mount, so the content regions still render the shell's own empty
+  states. MS-3 is therefore satisfied by two things at once: the frame that
+  would hold module content, and the absence of any module content to put in
+  it. Only the first survives the first port, and that is when it needs
+  re-checking.
 - MS-5 through MS-8 need the browser and a person. They are RV-31 to RV-34.
 - The nine states were transcribed from the drawing by reading it. No automated
   check compares this document to that PDF, and none can.

@@ -149,10 +149,12 @@ difference will matter:
   relayed. No file, no route, no schema and no dependency has been read.
 - The C++ rewrite in §3 is an architecture, not an estimate. Its size is
   unknown and §7 says so.
-- The host port that §3 and §5 depend on has no implementation —
-  `docs/MODULE_APP_GUIDE.md` §8 records it as an argument rather than a
-  measurement. A Marketpick port would be its first user and should expect to
-  define it.
+- The host port that §3 and §5 depend on exists and has carried no message.
+  `docs/MODULE_MOUNT_CONTRACT.md` defines it and
+  `downstream/patches/0012-sunshine-module-mount.patch` implements the shell's
+  half; the nine menu items become one `describe` message. Nothing has been
+  built and no module declares a mount, so a Marketpick port is still its first
+  user and should expect to find something wrong with it.
 - `//sql` is named because Chromium provides it and `components/sunshine/`
   already holds a model layer with the required dependency direction. No
   Sunshine module uses it yet.

@@ -128,6 +128,8 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-32 | Narrow the window past the clamp with all four regions open | E collapses first, then C. D never goes below 480px while visible, and B never changes | MS-5 |
 | RV-33 | Set a tab width in one module, switch modules, switch back; then toggle the bar and the dock and switch modules | The tab width returns per module. The bar toggle and the dock width do not change when the module does | MS-7 |
 | RV-34 | Drag each splitter, release outside the window, and double-click it | Live resize with no ghost line; the width persists where the pointer left it; double-click returns the default | shell contract §4 |
+| RV-35 | With a module mounted, open E, then close it, and look at the frame count in `chrome://process-internals` | Closing E destroys its frame. A module does not keep running behind a region the user has put away | MM-9 |
+| RV-36 | Switch from one mounted module to another and back | The second module's frame replaces the first rather than reusing it: nothing of the first module's document survives into the second, and returning to it starts it again | MM-10 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -227,7 +229,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-34, RVV-1..RVV-5
+gate       RV-1..RV-36, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
@@ -348,7 +350,7 @@ is #15.
 
 ## 6. NOT VERIFIED
 
-- **One of twenty-three gates has been run.** RV-7 is recorded above. Every other
+- **One of forty-one gates has been run.** RV-7 is recorded above. Every other
   gate in sections 2 and 3 is `NOT RUN`: builds #15 and #16 succeeded and
   neither has been launched, so the codec, infobar, sandbox, isolation, scheme
   and visual gates are all still specification.
