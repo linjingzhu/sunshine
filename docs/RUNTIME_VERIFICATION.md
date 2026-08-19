@@ -288,9 +288,34 @@ discarding half of it, and `application_icon_name()` implements the rule
 alphabetically less than the name of any other icon resource" — where `min()`
 over integers had implemented only the first half.
 
-**RV-10 is still NOT RUN and this does not touch it.** Whether the icon in the
-binary is Sunshine's is what the next run decides; whether it *looks* right at
-three sizes is a person's job either way.
+**Build #29 passed it.** Run `32258004069`, commit `edf6636`:
+
+```text
+PASS  chrome.exe carries the Sunshine icon -- application icon is group
+      IDR_MAINFRAME; 16px, 32px, 48px, 256px match ADR 0008
+Built browser matches the contracts.
+```
+
+Two things are now established that were not before. **`rc.exe` did link
+Sunshine's icon** — all four images in the binary are byte-identical to the
+committed `.ico`, so the asset overlay reaches the artifact and ADR 0008's gap
+is closed on the automated side. And the group it found is named
+`IDR_MAINFRAME`, a *string*, which is the same fact that had made the check
+report nothing for two builds.
+
+So both earlier failures were the check's, not the build's. The icon had been
+correct since it was committed; nothing about the browser changed between #28
+and #29.
+
+This is also the first run in which `scripts/verify_installed_build.py` exits 0
+against a build containing the module home and the bookmark bar button.
+
+**RV-10 is still NOT RUN and none of this touches it.** Bytes are identical to
+themselves whether the artwork is right or wrong, and Windows picks an entry by
+exact pixel match and caches what it picked — so whether the icon *looks*
+correct in Explorer's list view, on the taskbar and as a pinned shortcut is an
+observation only a person can make. RV-11 gains nothing here at all:
+`mini_installer.exe` carries a separate overlay file that no check reads.
 
 ### Evidence
 
