@@ -100,11 +100,18 @@ not have. Each of those is a real requirement someone will eventually bring, and
 each should arrive with the case that justifies it rather than being built now
 against a guess.
 
-**Whether the icon actually reached the binaries is not yet known.** The overlay
-is verified in source and against the pinned revision; that the built
-`chrome.exe` carries it is a class-B question, decidable only from a build.
-`scripts/verify_installed_build.py` is where that check belongs and it does not
-have one yet.
+**Whether the icon actually reached the binaries was not knowable in source.**
+The overlay is verified in source and against the pinned revision; that the
+built `chrome.exe` carries it is a class-B question, decidable only from a
+build. `scripts/verify_installed_build.py` now answers it for `chrome.exe`: it
+maps the binary as a data file, takes the lowest-numbered `RT_GROUP_ICON` —
+`IDR_MAINFRAME`, the one Windows shows for an application — and requires the
+images it resolves to be the images this overlay's `.ico` holds. It compares
+image payloads and not whole files, because `rc.exe` necessarily rewrites the
+directory; and not the size set, because the size set was copied from upstream
+and so is shared with the very icon a silent failure would ship.
+`mini_installer.exe` is not read, and neither binary's *appearance* is
+established by this — `docs/RUNTIME_VERIFICATION.md` RV-10 and RV-11 keep that.
 
 ## Alternatives considered
 

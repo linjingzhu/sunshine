@@ -7,6 +7,7 @@ execute. Each of those must be distinguishable from a pass.
 """
 
 from pathlib import Path
+import struct
 import sys
 import tempfile
 import unittest
@@ -139,6 +140,192 @@ class VersionResourceCheckTests(unittest.TestCase):
         for forbidden in ("import subprocess", "subprocess.run", "Popen", "os.system"):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+
+class IconResourceCheckTests(unittest.TestCase):
+    """RV-10's automatable half: did `rc.exe` link the icon the overlay supplies?
+
+    ADR 0008 named this gap and left it open -- the overlay is verified in
+    source and against the pinned revision, and neither can see whether the copy
+    reached the resource compiler. A build shipping Chromium's blue sphere under
+    Sunshine's name passes every other guard in the repository.
+
+    The linked side is synthesised here rather than taken from a real binary.
+    The committed `.ico` is read as the expected side and never written to: the
+    fixtures below rebuild its images into the `GRPICONDIR` + `RT_ICON` shape a
+    PE holds, which is exactly the transformation the check has to see through.
+    That the two forms are *not* byte-identical is the reason the check compares
+    payloads instead of files, and `test_a_matching_build_passes` is what proves
+    the transformation alone does not read as a mismatch.
+    """
+
+    COMMITTED = "downstream/assets/chrome/app/theme/chromium/win/chromium.ico"
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.out = Path(self.directory.name)
+        self.addCleanup(self.directory.cleanup)
+        (self.out / "chrome.exe").write_bytes(b"x" * 1024)
+        self.images = built.ico_images((REPOSITORY_ROOT / self.COMMITTED).read_bytes())
+
+    @staticmethod
+    def resources(images, group=101, first_id=1):
+        """The committed images in the shape a PE carries them.
+
+        `rc.exe` splits the file: each image becomes an `RT_ICON` of its own and
+        the directory is rewritten with resource ids where the file had offsets.
+        The ids here start at 1 rather than matching anything real, which is the
+        point -- nothing in the comparison may depend on them.
+        """
+
+        entries = b""
+        icons = {}
+        for index, (size, payload) in enumerate(images):
+            identifier = first_id + index
+            # 0 means 256 in a one-byte width field, going out as it came in.
+            entries += struct.pack(
+                "<BBBBHHIH", size % 256, size % 256, 0, 0, 1, 32, len(payload), identifier
+            )
+            icons[identifier] = payload
+        return group, struct.pack("<HHH", 0, 1, len(images)) + entries, icons
+
+    def run_check(self, reader):
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "win32"):
+            built.check_icon_resource(self.out, result, reader=reader)
+        return result
+
+    def test_off_windows_is_unavailable_not_a_pass(self) -> None:
+        result = built.Result()
+        with mock.patch.object(built.sys, "platform", "linux"):
+            built.check_icon_resource(self.out, result, reader=lambda path: None)
+        self.assertTrue(result.unavailable)
+        self.assertFalse(result.failed)
+
+    def test_a_missing_binary_reports_nothing_new(self) -> None:
+        """`check_artifacts` already failed on this, as with the version check."""
+
+        (self.out / "chrome.exe").unlink()
+        self.assertEqual([], self.run_check(lambda path: None).rows)
+
+    def test_a_matching_build_passes(self) -> None:
+        result = self.run_check(lambda path: self.resources(self.images))
+        self.assertFalse(result.failed, result.report())
+        self.assertIn(built.PASSED, [status for status, _, _ in result.rows])
+
+    def test_a_binary_carrying_a_different_icon_fails(self) -> None:
+        """The failure the check exists for, and the reason it is not a size check.
+
+        The stand-in for Chromium's own icon declares the *same four sizes* --
+        16, 32, 48 and 256 -- because `verify_asset_overlay.py` took that set
+        from upstream rather than choosing it. So the size set cannot tell the
+        two icons apart, and only the image data can.
+        """
+
+        other = [(size, bytes(len(payload))) for size, payload in self.images]
+        self.assertEqual(
+            [size for size, _ in self.images], [size for size, _ in other],
+            "the fixture must differ in image data alone",
+        )
+        result = self.run_check(lambda path: self.resources(other))
+        self.assertTrue(result.failed, result.report())
+        self.assertIn("linked a different icon", result.report())
+
+    def test_one_altered_image_fails_and_the_size_is_named(self) -> None:
+        """A partial overlay -- three sizes replaced, one left as Chromium's."""
+
+        damaged = list(self.images)
+        size, payload = damaged[2]
+        damaged[2] = (size, bytes([payload[0] ^ 0xFF]) + payload[1:])
+        result = self.run_check(lambda path: self.resources(damaged))
+        self.assertTrue(result.failed, result.report())
+        self.assertIn(f"{size}px", result.report())
+
+    def test_a_binary_with_no_icon_resource_fails_and_names_the_cause(self) -> None:
+        """The silent failure ADR 0008 describes, in its purest form.
+
+        No `RT_GROUP_ICON` means `rc.exe` linked no application icon at all, so
+        the message says that rather than reporting a comparison that could not
+        be made.
+        """
+
+        result = self.run_check(lambda path: None)
+        self.assertTrue(result.failed, result.report())
+        self.assertIn("RT_GROUP_ICON", result.report())
+        self.assertIn("rc.exe", result.report())
+
+    def test_a_group_naming_an_absent_icon_fails(self) -> None:
+        group, directory, icons = self.resources(self.images)
+        icons.pop(max(icons))
+        result = self.run_check(lambda path: (group, directory, icons))
+        self.assertTrue(result.failed, result.report())
+        self.assertIn("does not carry", result.report())
+
+    def test_a_group_directory_that_is_not_one_fails(self) -> None:
+        result = self.run_check(lambda path: (101, b"not a directory", {}))
+        self.assertTrue(result.failed, result.report())
+
+    def test_the_committed_icon_and_the_linked_form_are_not_byte_identical(self) -> None:
+        """Why a whole-file comparison would fail on a correct build.
+
+        This is the premise of the docstring's argument, asserted rather than
+        stated: the same images, correctly linked, produce a directory that
+        differs from the file's.
+        """
+
+        _, directory, _ = self.resources(self.images)
+        committed = (REPOSITORY_ROOT / self.COMMITTED).read_bytes()
+        self.assertNotEqual(committed[: len(directory)], directory)
+
+    def test_the_lowest_numbered_group_is_the_one_checked(self) -> None:
+        """`chrome_exe.rc` declares five icons; Windows shows the application
+        the lowest-numbered one, which is `IDR_MAINFRAME`. The reader picks it,
+        and the pass row names the group so the choice is visible in the log."""
+
+        result = self.run_check(lambda path: self.resources(self.images, group=101))
+        self.assertIn("group 101", result.report())
+
+
+class IconDirectoryParserTests(unittest.TestCase):
+    """The two layouts, parsed by one walk. Neither parser interprets an image."""
+
+    def test_the_committed_icon_declares_the_four_upstream_sizes(self) -> None:
+        images = built.ico_images(
+            (REPOSITORY_ROOT / IconResourceCheckTests.COMMITTED).read_bytes()
+        )
+        self.assertEqual([16, 32, 48, 256], sorted(size for size, _ in images))
+
+    def test_a_zero_width_entry_reads_as_256(self) -> None:
+        """One byte cannot hold 256, so the format writes 0. The committed
+        icon's largest entry is exactly that, and reading it as 0px would make
+        every comparison against it wrong in the same direction."""
+
+        payload = b"image"
+        data = struct.pack("<HHH", 0, 1, 1) + struct.pack(
+            "<BBBBHHII", 0, 0, 0, 0, 1, 32, len(payload), 6 + 16
+        ) + payload
+        self.assertEqual([(256, payload)], built.ico_images(data))
+
+    def test_a_directory_that_is_not_an_icon_is_rejected(self) -> None:
+        with self.assertRaises(built.IconResourceError):
+            built.ico_images(struct.pack("<HHH", 0, 2, 1) + bytes(16))
+
+    def test_an_entry_pointing_past_the_end_is_rejected(self) -> None:
+        data = struct.pack("<HHH", 0, 1, 1) + struct.pack(
+            "<BBBBHHII", 16, 16, 0, 0, 1, 32, 4096, 22
+        )
+        with self.assertRaises(built.IconResourceError):
+            built.ico_images(data)
+
+    def test_an_empty_directory_is_rejected(self) -> None:
+        with self.assertRaises(built.IconResourceError):
+            built.group_icon_entries(struct.pack("<HHH", 0, 1, 0))
+
+    def test_a_group_entry_yields_a_resource_id_not_an_offset(self) -> None:
+        data = struct.pack("<HHH", 0, 1, 1) + struct.pack(
+            "<BBBBHHIH", 48, 48, 0, 0, 1, 32, 4026, 7
+        )
+        self.assertEqual([(48, 7)], built.group_icon_entries(data))
 
 
 class InvocationTests(unittest.TestCase):

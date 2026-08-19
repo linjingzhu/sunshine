@@ -35,6 +35,7 @@ produced it. It reads the output rather than the source:
 | `args.gn` contains no sandbox- or isolation-disabling switch | SEC-1, SEC-2 |
 | Windows registers no `sunshine`, `sunshine-module` or `sunshineos` URL protocol | SEC-13 |
 | `chrome.exe` carries a non-zero `VERSIONINFO` resource | patch 0001, resource pipeline |
+| `chrome.exe`'s application icon resource holds the image data of `downstream/assets/chrome/app/theme/chromium/win/chromium.ico` | ADR 0008 |
 
 The version-resource row reads the binary rather than running it, and that
 restriction was bought at the cost of two builds. A launch check shipped here
@@ -50,6 +51,29 @@ browser and the stub handed off", so there was no version of it worth keeping.
 one.** That is a real limit and it is stated rather than papered over: the only
 machine that can answer it is the one that is also the only CI, and a browser
 started there breaks the next build.
+
+The icon row reads the binary the same way and for the same reason. It maps
+`chrome.exe` with `LOAD_LIBRARY_AS_DATAFILE` — which resolves no imports and
+calls no entry point — takes the lowest-numbered `RT_GROUP_ICON`, which is the
+one Windows shows for an application and which Chromium's `chrome_exe.rc`
+names `IDR_MAINFRAME`, resolves each of its entries to the `RT_ICON` it points at, and
+requires those images to be the images the committed `.ico` holds.
+
+What it compares is the image payloads, not the files. An `.ico` is a directory
+of byte offsets into itself; a PE holds the same header with resource ids in
+place of those offsets and each image moved into a resource of its own, so
+`rc.exe` necessarily rewrites the directory and a whole-file comparison would
+fail on a correct build. The images themselves are copied verbatim, so they are
+what survives. Comparing only the *size set* would be simpler and nearly
+worthless: `scripts/verify_asset_overlay.py` requires 16, 32, 48 and 256 px
+because that is the set Chromium's own `chromium.ico` carries, so the icon this
+check exists to catch has the same size set as the icon it expects.
+
+The other icons `chrome_exe.rc` declares — the app-list, incognito and document
+icons — are out of scope. The overlay does not replace them, no contract here
+says what they should contain, and checking them would amount to asserting that
+upstream had not changed its own artwork. `mini_installer.exe` is likewise not
+read here; its icon is a separate overlay file and stays with RV-11.
 
 The registry row is the reason this runs on Windows rather than in the guard job.
 SEC-13 is enforced in source by `scripts/verify_first_party_surfaces.py`; this
@@ -79,7 +103,7 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-7 | Open a new tab | The Sunshine wordmark occupies the logo slot; Chromium's own logo is absent | patch 0002 |
 | RV-8 | Open a new tab on a keyless build | No infobar reports missing Google API keys | patch 0003, ADR 0005 |
 | RV-9 | Search from the New Tab page | Chromium's own search handling runs; no Sunshine interposition, no forced startup URL | `verify_architecture.py` startup-URL rule, at runtime |
-| RV-10 | Look at `chrome.exe` in Explorer, on the taskbar, and as a pinned shortcut | The Sunshine icon, at every size; Chromium's blue sphere appears nowhere | ADR 0008 |
+| RV-10 | Look at `chrome.exe` in Explorer's list view, on the taskbar, and as a pinned shortcut | The Sunshine icon reads correctly at each of the three sizes the shell asks for — not stretched, not a rescaled neighbour, not Chromium's blue sphere | ADR 0008 |
 | RV-11 | Look at `mini_installer.exe` in Explorer | The Sunshine icon | ADR 0008 |
 | RV-12 | Open `chrome://sunshine-security` | Exactly one of the four verdict paragraphs is visible, and it is the one the build's three booleans imply | SC-11, SEC-14, patch 0005 |
 | RV-13 | Open `chrome://sunshine-document`, build a hierarchy 1 → 1.1 → 1.2 → 1.2.1 → 2, then press Next from 1.2 | 1.2.1, not 2. The contents list is the reading order, depth first | DOC contract §3 |
@@ -131,12 +155,25 @@ deferring a context menu that, on Windows, was never raised at press.
 RV-10 and RV-11 are the runtime half of the asset overlay, and they exist because
 the overlay's failure mode is silence. `scripts/verify_asset_overlay.py` proves
 the committed icon is a valid icon and `scripts/verify_pinned_upstream.py` proves
-the destination still exists upstream, but neither can prove `rc.exe` linked it
-into the executable — a build that quietly shipped Chromium's icon would pass
-both. RV-10 asks for three sizes because Windows selects an icon entry by exact
-pixel match: Explorer's list view, the taskbar and a pinned shortcut do not all
-ask for the same one, so a single correct-looking icon is not evidence the set is
-right.
+the destination still exists upstream, and neither can prove `rc.exe` linked it
+into the executable.
+
+**Half of RV-10 is now automated, and it is worth being exact about which half.**
+Section 1's icon row answers *presence*: the image data in `chrome.exe`'s
+application icon resource is the image data of the committed `.ico`, so a build
+that shipped Chromium's blue sphere fails on the build machine rather than
+waiting for someone to look. RV-11 has no such row — `mini_installer.exe` is not
+read — so it remains wholly manual.
+
+What is left to RV-10 is *appearance*, which no resource comparison reaches. The
+automated row compares bytes, and bytes are identical to themselves whether the
+artwork is right or wrong; it also says nothing about which entry the shell
+actually asks for. Windows selects an icon entry by exact pixel match and
+rescales the nearest one when there is none, so Explorer's list view, the
+taskbar and a pinned shortcut do not all ask for the same size, and a shortcut
+can carry an icon of its own regardless of what the binary holds. Looking at
+three sizes and finding all three crisp is the observation that establishes the
+set is right and reaching the shell, and it is not something section 1 can do.
 
 ## 3. Visual
 
