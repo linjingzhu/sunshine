@@ -36,6 +36,10 @@ KNOWN_EXTENDED_REGISTRIES = frozenset({
     "chrome/browser/resources/sunshine/shell/app.css",
     "chrome/browser/resources/sunshine/shell/app.html",
     "chrome/browser/resources/sunshine/shell/app.ts",
+    # Patch 0013 gives the module home the one route to the shell that is not
+    # typing its address, so it extends the surface patch 0007 created.
+    "chrome/browser/resources/sunshine/modules/app.css",
+    "chrome/browser/resources/sunshine/modules/app.html",
 })
 
 

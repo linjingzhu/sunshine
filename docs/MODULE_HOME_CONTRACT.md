@@ -28,6 +28,27 @@ would be lying about the browser it is part of. The single action the page
 offers is *reload the registry*, and the honest thing about it is that it
 re-reads a constant.
 
+### Going somewhere is not administering something
+
+The page carries one link, added by
+`downstream/patches/0013-sunshine-module-shell-entry.patch`: **Open the module
+shell.** It exists because `chrome://sunshine-shell` had no route to it at all
+— it is in the omnibox's host list and nowhere else, so a person had to know
+the address of a surface the browser ships. A feature nobody can reach is
+unfinished, not minimal.
+
+It does not weaken MH-1. Navigating to another Sunshine surface installs
+nothing, removes nothing, enables nothing and grants nothing; the registry is
+the same constant before and after. And it does not weaken MH-4: the link is
+written out in `app.html` with a fixed address, so no registry value reaches
+the page as markup and none could.
+
+**It links to the shell, not to a module.** The shell is not in the module
+list, because it is not a module — it is what a module is mounted into, and
+putting it among the modules would make the page disagree with the registry
+about how many there are (MH-5). When a module declares a mount, the route to
+*it* is the shell's dock, which is the shell's job and not this page's.
+
 ## 2. Invariants
 
 Class **O** is decidable offline. **B** needs the built browser.
@@ -104,3 +125,6 @@ enforced yet; MHA-3 is close to free, because the surface is a plain
 - No claim is made about what the page does with a registry larger than a
   screenful; there are five modules and no scrolling behaviour has been
   designed for more.
+- **The shell link has not been followed.** It is a written-out anchor to a
+  surface that exists in the patch stack and has never been built, so what a
+  person arrives at is a skeleton with no module mounted in it.

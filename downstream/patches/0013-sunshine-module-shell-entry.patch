@@ -1,0 +1,53 @@
+diff --git a/chrome/browser/resources/sunshine/modules/app.css b/chrome/browser/resources/sunshine/modules/app.css
+index 3a7daca..0b15862 100644
+--- a/chrome/browser/resources/sunshine/modules/app.css
++++ b/chrome/browser/resources/sunshine/modules/app.css
+@@ -77,6 +77,23 @@
+   font-weight: 500;
+ }
+ 
++/* A link, drawn like the list items above it so that the column reads as one
++ * thing, and separated by a rule so that it is not mistaken for a module. */
++.navlink {
++  border-radius: 0.5rem;
++  color: var(--color-secondary-foreground);
++  display: block;
++  font-size: 0.875rem;
++  margin-block-start: 0.75rem;
++  padding: 0.5rem 0.75rem;
++  text-decoration: none;
++}
++
++.navlink:hover {
++  background-color: var(--color-midground);
++  color: inherit;
++}
++
+ .tile {
+   block-size: 1.25rem;
+   border: 1px solid var(--color-secondary-foreground);
+diff --git a/chrome/browser/resources/sunshine/modules/app.html b/chrome/browser/resources/sunshine/modules/app.html
+index dce4a99..4ad8517 100644
+--- a/chrome/browser/resources/sunshine/modules/app.html
++++ b/chrome/browser/resources/sunshine/modules/app.html
+@@ -20,6 +20,20 @@
+         <span>Modules</span><span id="moduleCount" class="count"></span>
+       </div>
+       <ul id="navList"></ul>
++
++      <!-- The only route to the module shell that is not typing its address.
++           It sits below the list rather than in it because the shell is not a
++           module: it is what a module is mounted into, and putting it among
++           the modules would make the registry disagree with the page about how
++           many there are.
++
++           A written-out link, not a control app.ts builds. Nothing about it
++           comes from the registry, so it is outside MH-4 by construction, and
++           it mutates nothing, so it is outside MH-1 as well -- see
++           docs/MODULE_HOME_CONTRACT.md section 3. -->
++      <a id="shellLink" class="navlink" href="chrome://sunshine-shell/">
++        Open the module shell
++      </a>
+     </nav>
+ 
+     <main id="main">
