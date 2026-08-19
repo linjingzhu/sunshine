@@ -19,7 +19,7 @@ As described by the owner:
 | --- | --- |
 | Build | Python + Flask, packaged with PyInstaller `onedir` into a Windows executable. |
 | Runtime | Launching it starts a local web server and opens the default browser at `http://127.0.0.1:5600`. |
-| UI | No framework. 8–9 independent Jinja2 templates, plus shared `static/theme.css` and `theme.js` carrying light/dark tokens. No React, no build tooling. |
+| UI | No framework. 8–9 independent Jinja2 templates, plus a shared `theme.css` and `theme.js` in its static directory, carrying light/dark tokens. No React, no build tooling. |
 | Storage | One SQLite file, `marketpick.db`, beside the executable. No account, no cloud, no remote database. |
 | Network | Marketplace APIs only — Naver Commerce API and Coupang WING. Without keys it falls back to stubs. |
 | Chrome | A top navigation bar it draws itself — 홈 / 상품수집 / 상품목록 / 마켓관리 / 주문관리 / 문의관리 / 통계 / 권리보호 / 환경설정, plus a theme toggle. **Duplicated in every template**: changing the menu means editing nine files. No sidebar. |
