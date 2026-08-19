@@ -124,6 +124,10 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-28 | With a real Chromium or Chrome also installed, install Sunshine and use both | Neither replaces the other's files or profile, and the taskbar shows them as two applications | ADR 0015 §1, §3 |
 | RV-29 | After installing, look for the profile: `%LOCALAPPDATA%\Sunshine\User Data` | It exists and holds the profile. `%LOCALAPPDATA%\Chromium` is untouched — which on a machine with real Chromium is that browser's profile, and was the same directory before this change | ADR 0015 §1 |
 | RV-30 | Check `HKCR` for a `chromium` and a `sunshine` key after installing | Neither is registered as a URL protocol. The empty `direct_launch_url_scheme` means the installer writes no `Software\Classes\<scheme>` entry at all | ADR 0015 §3, SEC-13 |
+| RV-31 | Open `chrome://sunshine-shell` and reach all nine states in §3 of the shell contract, then reach each one back | Every state is reachable and reversible. The skeleton is the same in all of them; only content changes | MS-6, MS-8 |
+| RV-32 | Narrow the window past the clamp with all four regions open | E collapses first, then C. D never goes below 480px while visible, and B never changes | MS-5 |
+| RV-33 | Set a tab width in one module, switch modules, switch back; then toggle the bar and the dock and switch modules | The tab width returns per module. The bar toggle and the dock width do not change when the module does | MS-7 |
+| RV-34 | Drag each splitter, release outside the window, and double-click it | Live resize with no ghost line; the width persists where the pointer left it; double-click returns the default | shell contract §4 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -223,7 +227,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-30, RVV-1..RVV-5
+gate       RV-1..RV-34, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

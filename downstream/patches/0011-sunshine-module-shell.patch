@@ -1,0 +1,1266 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index c9209a5..e4cd689 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -54,6 +54,8 @@ build_webui("build") {
+     "modules/app.html",
+     "security/app.css",
+     "security/app.html",
++    "shell/app.css",
++    "shell/app.html",
+   ]
+   ts_files = [
+     "document/app.ts",
+@@ -61,6 +63,8 @@ build_webui("build") {
+     "document_content/app.ts",
+     "modules/app.ts",
+     "security/app.ts",
++    "shell/app.ts",
++    "shell/geometry.ts",
+   ]
+ 
+   # Generated Mojo bindings, extended by each surface patch that has an
+diff --git a/chrome/browser/resources/sunshine/shell/app.css b/chrome/browser/resources/sunshine/shell/app.css
+new file mode 100644
+index 0000000..9445254
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/shell/app.css
+@@ -0,0 +1,378 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * Colour comes from Chromium's pipeline through chrome://theme/colors.css and
++ * from nowhere else -- docs/DESIGN_SYSTEM_CONTRACT.md sections 2.1 and 2.3, no
++ * literal and no fallback. docs/MODULE_SHELL_CONTRACT.md section 7 records
++ * that the source drawing names Carbon hex values instead, and what settling
++ * that would cost.
++ *
++ * Widths are declared once as custom properties and then only referenced. The
++ * numbers themselves live in geometry.ts and are checked against the contract
++ * by scripts/verify_shell_geometry.py -- the properties below are set from
++ * that module at startup, so this file names no measurement it invents. MS-4.
++ */
++
++body {
++  background-color: var(--color-dialog-background);
++  color: var(--color-primary-foreground);
++  display: flex;
++  flex-direction: column;
++  height: 100vh;
++  margin: 0;
++  overflow: hidden;
++}
++
++.visually-hidden {
++  clip-path: inset(50%);
++  height: 1px;
++  overflow: hidden;
++  position: absolute;
++  white-space: nowrap;
++  width: 1px;
++}
++
++/* A -- the module bar ------------------------------------------------------ */
++
++#bar {
++  align-items: center;
++  block-size: var(--sunshine-bar-height);
++  border-bottom: 1px solid var(--color-midground);
++  display: flex;
++  flex: 0 0 auto;
++  gap: 0.5rem;
++  padding: 0 0.5rem;
++}
++
++.bar-button {
++  background: none;
++  border: 0;
++  border-radius: 0.25rem;
++  color: inherit;
++  cursor: pointer;
++  display: inline-flex;
++  font: inherit;
++  padding: 0.125rem 0.375rem;
++}
++
++.bar-button:hover {
++  background-color: var(--color-midground);
++}
++
++#barTitle {
++  font-size: 0.75rem;
++  font-weight: 600;
++  letter-spacing: 0.04em;
++}
++
++.bar-spacer {
++  flex: 1 1 auto;
++}
++
++.bar-note {
++  color: var(--color-secondary-foreground);
++  font-size: 0.75rem;
++}
++
++/* The five regions --------------------------------------------------------- */
++
++#page {
++  display: flex;
++  flex: 1 1 auto;
++  min-height: 0;
++}
++
++#left {
++  display: flex;
++  flex: 0 0 auto;
++  min-height: 0;
++}
++
++/* B -- the dock ------------------------------------------------------------ */
++
++#dock {
++  border-inline-end: 1px solid var(--color-midground);
++  display: flex;
++  flex-direction: column;
++  inline-size: var(--sunshine-dock-width);
++  overflow: hidden;
++  padding: 0.5rem 0;
++}
++
++#dockList {
++  flex: 1 1 auto;
++  list-style: none;
++  margin: 0;
++  overflow-y: auto;
++  padding: 0;
++}
++
++.dock-button {
++  align-items: center;
++  background: none;
++  border: 0;
++  border-inline-start: var(--sunshine-marker) solid transparent;
++  color: var(--color-secondary-foreground);
++  cursor: pointer;
++  display: flex;
++  font: inherit;
++  gap: 0.625rem;
++  inline-size: 100%;
++  padding: 0.5rem 0.75rem;
++  text-align: start;
++}
++
++.dock-button:hover {
++  background-color: var(--color-midground);
++}
++
++/* Selection is a marker plus a background, never a colour the theme did not
++ * provide. The label brightening is what tells icons-only mode apart from
++ * expanded mode without moving anything. */
++.dock-button[aria-current='true'] {
++  background-color: var(--color-midground);
++  border-inline-start-color: var(--color-primary-foreground);
++  color: var(--color-primary-foreground);
++}
++
++.dock-foot {
++  border-top: 1px solid var(--color-midground);
++  flex: 0 0 auto;
++}
++
++.tile {
++  block-size: 1.25rem;
++  border: 1px solid currentcolor;
++  border-radius: 0.25rem;
++  flex: 0 0 auto;
++  inline-size: 1.25rem;
++}
++
++.dock-label {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++/* Icons-only hides the labels rather than unmounting them, so switching width
++ * cannot change what the keyboard reaches. */
++#page[data-dock='icons'] .dock-label {
++  clip-path: inset(50%);
++  inline-size: 1px;
++  overflow: hidden;
++  white-space: nowrap;
++}
++
++/* C -- the tab list -------------------------------------------------------- */
++
++#tabs {
++  display: flex;
++  flex-direction: column;
++  inline-size: var(--sunshine-tabs-width);
++  min-height: 0;
++  overflow: hidden;
++}
++
++#tabsHead {
++  align-items: baseline;
++  color: var(--color-secondary-foreground);
++  display: flex;
++  font-size: 0.75rem;
++  font-weight: 600;
++  gap: 0.5rem;
++  letter-spacing: 0.04em;
++  padding: 0.75rem 1rem 0.5rem;
++  text-transform: uppercase;
++}
++
++#tabsList {
++  flex: 1 1 auto;
++  list-style: none;
++  margin: 0;
++  overflow-y: auto;
++  padding: 0;
++}
++
++.tab-button {
++  background: none;
++  border: 0;
++  border-inline-start: var(--sunshine-marker) solid transparent;
++  color: inherit;
++  cursor: pointer;
++  display: block;
++  font: inherit;
++  inline-size: 100%;
++  padding: 0.375rem 1rem;
++  text-align: start;
++}
++
++.tab-button:hover {
++  background-color: var(--color-midground);
++}
++
++.tab-button[aria-current='true'] {
++  background-color: var(--color-midground);
++  border-inline-start-color: var(--color-primary-foreground);
++}
++
++/* D -- the body ------------------------------------------------------------ */
++
++#body {
++  display: flex;
++  flex-direction: column;
++  flex: 1 1 auto;
++  min-inline-size: var(--sunshine-body-min);
++  min-height: 0;
++}
++
++#header {
++  align-items: center;
++  block-size: var(--sunshine-header-height);
++  border-bottom: 1px solid var(--color-midground);
++  display: flex;
++  flex: 0 0 auto;
++  gap: 0.5rem;
++  padding-inline: var(--sunshine-header-pad-left) var(--sunshine-header-pad-right);
++}
++
++#headerTitle {
++  font-size: 0.875rem;
++  font-weight: 600;
++}
++
++.path {
++  color: var(--color-secondary-foreground);
++  font-family: monospace;
++  font-size: 0.75rem;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++/* A square, not a recoloured icon: the drawing forbids deforming the icon to
++ * show unsaved state, so the marker is its own thing. */
++.dirty {
++  background-color: var(--color-primary-foreground);
++  block-size: var(--sunshine-dirty);
++  flex: 0 0 auto;
++  inline-size: var(--sunshine-dirty);
++}
++
++.header-spacer {
++  flex: 1 1 auto;
++}
++
++.header-button {
++  background: none;
++  border: 0;
++  border-radius: 0.25rem;
++  color: inherit;
++  cursor: pointer;
++  font: inherit;
++  padding: 0.25rem 0.5rem;
++}
++
++.header-button:hover {
++  background-color: var(--color-midground);
++}
++
++.mount {
++  flex: 1 1 auto;
++  min-height: 0;
++  overflow: auto;
++  padding: 1rem var(--sunshine-header-pad-left);
++}
++
++/* E -- the aux panel ------------------------------------------------------- */
++
++#panel {
++  border-inline-start: 1px solid var(--color-midground);
++  display: flex;
++  flex-direction: column;
++  flex: 0 0 auto;
++  inline-size: var(--sunshine-panel-width);
++  min-height: 0;
++}
++
++#panelHead {
++  border-bottom: 1px solid var(--color-midground);
++  display: flex;
++  flex: 0 0 auto;
++  gap: 0.25rem;
++  overflow-x: auto;
++  padding: 0.375rem 0.5rem;
++}
++
++.role-button {
++  background: none;
++  border: 0;
++  border-radius: 0.25rem;
++  color: var(--color-secondary-foreground);
++  cursor: pointer;
++  font: inherit;
++  font-size: 0.75rem;
++  padding: 0.25rem 0.5rem;
++  white-space: nowrap;
++}
++
++.role-button[aria-selected='true'] {
++  background-color: var(--color-midground);
++  color: var(--color-primary-foreground);
++}
++
++/* Splitters ---------------------------------------------------------------- */
++
++/* Drawn narrow, targeted wide: the visual band is centred inside a hit area
++ * twice its width, because a 4px pointer target is a 4px pointer target
++ * however carefully it is drawn. */
++.splitter {
++  background: none;
++  border: 0;
++  cursor: col-resize;
++  flex: 0 0 auto;
++  inline-size: var(--sunshine-splitter-hit);
++  padding: 0;
++  position: relative;
++  touch-action: none;
++}
++
++.splitter::after {
++  background-color: var(--color-midground);
++  content: '';
++  inset-block: 0;
++  inline-size: var(--sunshine-splitter-visual);
++  inset-inline-start: calc(
++      (var(--sunshine-splitter-hit) - var(--sunshine-splitter-visual)) / 2);
++  position: absolute;
++  transition: background-color 100ms linear;
++}
++
++.splitter:hover::after,
++.splitter[data-dragging='true']::after {
++  background-color: var(--color-primary-foreground);
++}
++
++/* The drawing asks for a 100ms highlight with no easing. Someone who has asked
++ * the system for less motion has asked for this too -- the highlight still
++ * happens, it just arrives at once. */
++@media (prefers-reduced-motion: reduce) {
++  .splitter::after {
++    transition: none;
++  }
++}
++
++/* Focus and empty states --------------------------------------------------- */
++
++:focus-visible {
++  outline: 2px solid var(--color-primary-foreground);
++  outline-offset: 1px;
++}
++
++.empty {
++  color: var(--color-secondary-foreground);
++  font-size: 0.875rem;
++  line-height: 1.6;
++  margin: 0;
++  max-width: 34rem;
++}
+diff --git a/chrome/browser/resources/sunshine/shell/app.html b/chrome/browser/resources/sunshine/shell/app.html
+new file mode 100644
+index 0000000..54814a1
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/shell/app.html
+@@ -0,0 +1,100 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Sunshine</title>
++  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
++  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- The five regions of docs/MODULE_SHELL_CONTRACT.md, in the order they are
++       drawn and therefore in the order they are reached by the keyboard.
++
++       A, B, the D header and the E container are the browser's and are written
++       out here. The three content areas are not: they are mount points, and
++       they hold the shell's own empty state until a module is mounted. Markup
++       supplied by a module never enters this document -- MS-3. -->
++
++  <!-- A · module bar -->
++  <header id="bar">
++    <button id="leftToggle" class="bar-button" type="button"
++        aria-expanded="true" aria-controls="left"
++        title="Show or hide the module panel">
++      <span class="glyph" aria-hidden="true"></span>
++      <span class="visually-hidden">Module panel</span>
++    </button>
++    <span id="barTitle">Sunshine</span>
++    <span class="bar-spacer"></span>
++    <button id="densityNote" class="bar-button bar-note" type="button" hidden
++        title="Four regions at once is recommended above 1440px">narrow</button>
++  </header>
++
++  <div id="page">
++    <!-- B · module dock, and C · tab list. A's toggle collapses both. -->
++    <div id="left">
++      <nav id="dock" aria-label="Modules">
++        <ul id="dockList"></ul>
++        <button id="dockToggle" class="dock-button dock-foot" type="button"
++            aria-expanded="false" title="Show module names">
++          <span class="glyph" aria-hidden="true"></span>
++          <span class="dock-label">Names</span>
++        </button>
++      </nav>
++
++      <section id="tabs" aria-label="Tabs">
++        <div id="tabsHead">
++          <span id="tabsTitle"></span>
++          <span id="tabsCount"></span>
++        </div>
++        <ul id="tabsList"></ul>
++        <p id="tabsEmpty" class="empty" hidden></p>
++      </section>
++
++      <div id="tabsSplitter" class="splitter" role="separator"
++          aria-orientation="vertical" tabindex="0"
++          aria-label="Resize the tab list"></div>
++    </div>
++
++    <!-- D · body. The header is the shell's; everything under it is not. -->
++    <main id="body">
++      <div id="header">
++        <button id="restore" class="header-button" type="button" hidden
++            title="Show the module panel">
++          <span class="glyph" aria-hidden="true"></span>
++        </button>
++        <span id="headerIcon" class="tile" aria-hidden="true"></span>
++        <span id="headerTitle"></span>
++        <span id="headerPath" class="path"></span>
++        <span id="headerDirty" class="dirty" hidden
++            title="Unsaved changes"></span>
++        <span class="header-spacer"></span>
++        <span id="headerActions"></span>
++        <button id="panelToggle" class="header-button" type="button"
++            aria-expanded="false" title="Show or hide the side panel">
++          <span class="glyph" aria-hidden="true"></span>
++        </button>
++      </div>
++      <div id="bodyMount" class="mount">
++        <p class="empty" id="bodyEmpty"></p>
++      </div>
++    </main>
++
++    <!-- E · aux panel. One container, six roles. -->
++    <div id="panelSplitter" class="splitter" role="separator"
++        aria-orientation="vertical" tabindex="0"
++        aria-label="Resize the side panel" hidden></div>
++    <aside id="panel" aria-label="Side panel" hidden>
++      <div id="panelHead">
++        <span id="panelRoles" role="tablist" aria-label="Panel role"></span>
++      </div>
++      <div id="panelMount" class="mount">
++        <p class="empty" id="panelEmpty"></p>
++      </div>
++    </aside>
++  </div>
++
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/shell/app.ts b/chrome/browser/resources/sunshine/shell/app.ts
+new file mode 100644
+index 0000000..bb135bb
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/shell/app.ts
+@@ -0,0 +1,438 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import '/strings.m.js';
++
++import {loadTimeData} from '//resources/js/load_time_data.js';
++
++import * as geometry from './geometry.js';
++
++/**
++ * The browser's half of the module shell.
++ *
++ * What this file draws is everything a module cannot be trusted to draw: the
++ * bar, the dock, the tab list's frame, the body header, and the panel
++ * container. docs/MODULE_SHELL_CONTRACT.md section 1 gives the reasoning; the
++ * short form is that these regions carry every way out of a module, so a
++ * module that drew them could omit them.
++ *
++ * The three content areas are mount points. They hold the shell's own empty
++ * state today because the host port has no implementation yet, and when they
++ * hold a module they will hold a frame -- module markup does not enter this
++ * document. MS-3.
++ */
++
++interface ModuleEntry {
++  id: string;
++  display_name: string;
++  kind: string;
++}
++
++interface Registry {
++  modules: ModuleEntry[];
++}
++
++/** E's six roles, in the order the drawing lists them. */
++const ROLES = ['inspector', 'preview', 'console', 'docs', 'assistant', 'tasks'];
++
++/** Per-module keys, exactly the set the contract names. */
++interface Stored {
++  tabsVisible: boolean;
++  tabsWidth: number;
++  panelOpen: boolean;
++  panelRole: string;
++  panelWidth: number;
++  activeTab: string;
++}
++
++function element<T extends HTMLElement>(id: string): T {
++  const found = document.getElementById(id);
++  if (!found) {
++    throw new Error(`sunshine-shell: #${id} is missing from app.html`);
++  }
++  return found as T;
++}
++
++function text(tag: string, value: string, className?: string): HTMLElement {
++  const node = document.createElement(tag);
++  node.textContent = value;
++  if (className) {
++    node.className = className;
++  }
++  return node;
++}
++
++/**
++ * Layout state that belongs to the shell rather than to any module: A's toggle
++ * and the dock's width. The contract makes these global on purpose -- the bar
++ * and the dock are the browser's furniture, and furniture that rearranged
++ * itself as the user moved between modules would be worse than furniture that
++ * did not.
++ */
++class GlobalState {
++  private static readonly KEY = 'sunshine.shell.global';
++
++  leftVisible = true;
++  dockExpanded = false;
++
++  load(): void {
++    const raw = window.localStorage.getItem(GlobalState.KEY);
++    if (!raw) {
++      return;
++    }
++    try {
++      const parsed = JSON.parse(raw) as Partial<GlobalState>;
++      this.leftVisible = parsed.leftVisible ?? true;
++      this.dockExpanded = parsed.dockExpanded ?? false;
++    } catch {
++      // Unreadable state is not a reason to refuse to start. Defaults are a
++      // correct shell; a thrown exception here would be a blank window.
++    }
++  }
++
++  save(): void {
++    window.localStorage.setItem(
++        GlobalState.KEY,
++        JSON.stringify(
++            {leftVisible: this.leftVisible, dockExpanded: this.dockExpanded}));
++  }
++}
++
++/** Everything else, remembered per module. */
++class ModuleState {
++  private static key(id: string): string {
++    return `sunshine.shell.module.${id}`;
++  }
++
++  static load(id: string): Stored {
++    const fallback: Stored = {
++      tabsVisible: true,
++      tabsWidth: geometry.TABS_DEFAULT,
++      panelOpen: false,
++      panelRole: ROLES[0]!,
++      panelWidth: geometry.PANEL_DEFAULT,
++      activeTab: '',
++    };
++    const raw = window.localStorage.getItem(ModuleState.key(id));
++    if (!raw) {
++      return fallback;
++    }
++    try {
++      const parsed = JSON.parse(raw) as Partial<Stored>;
++      return {
++        tabsVisible: parsed.tabsVisible ?? fallback.tabsVisible,
++        tabsWidth: geometry.clampTabs(parsed.tabsWidth ?? fallback.tabsWidth),
++        panelOpen: parsed.panelOpen ?? fallback.panelOpen,
++        panelRole: ROLES.includes(parsed.panelRole ?? '') ? parsed.panelRole! :
++                                                            fallback.panelRole,
++        panelWidth:
++            geometry.clampPanel(parsed.panelWidth ?? fallback.panelWidth),
++        activeTab: parsed.activeTab ?? fallback.activeTab,
++      };
++    } catch {
++      return fallback;
++    }
++  }
++
++  static save(id: string, state: Stored): void {
++    window.localStorage.setItem(ModuleState.key(id), JSON.stringify(state));
++  }
++
++  static clear(id: string): void {
++    window.localStorage.removeItem(ModuleState.key(id));
++  }
++}
++
++class Shell {
++  private readonly modules: ModuleEntry[];
++  private readonly global = new GlobalState();
++  private current: ModuleEntry|null = null;
++  private stored: Stored;
++
++  constructor(registry: Registry) {
++    this.modules = registry.modules;
++    this.global.load();
++    this.stored = ModuleState.load(this.modules[0]?.id ?? '');
++
++    this.buildDock();
++    this.buildRoles();
++    this.wireBar();
++    this.wireHeader();
++    this.wireSplitter(
++        element('tabsSplitter'), () => this.stored.tabsWidth,
++        (width) => {
++          this.stored.tabsWidth = geometry.clampTabs(width);
++        },
++        geometry.TABS_DEFAULT, 1);
++    this.wireSplitter(
++        element('panelSplitter'), () => this.stored.panelWidth,
++        (width) => {
++          this.stored.panelWidth = geometry.clampPanel(width);
++        },
++        geometry.PANEL_DEFAULT, -1);
++
++    window.addEventListener('resize', () => this.apply());
++    this.select(this.modules[0] ?? null);
++  }
++
++  // -- construction ---------------------------------------------------------
++
++  private buildDock(): void {
++    const list = element<HTMLUListElement>('dockList');
++    for (const module of this.modules) {
++      const item = document.createElement('li');
++      const button = document.createElement('button');
++      button.className = 'dock-button';
++      button.type = 'button';
++      button.dataset['id'] = module.id;
++      button.title = `${module.display_name} — ${module.id}`;
++
++      const tile = document.createElement('span');
++      tile.className = 'tile';
++      button.append(tile, text('span', module.display_name, 'dock-label'));
++
++      button.addEventListener('click', () => this.select(module));
++      // Right-click resets this module's layout. The contract puts the reset
++      // here rather than in a settings page because it is the only control
++      // whose target is the thing being right-clicked.
++      button.addEventListener('contextmenu', (event) => {
++        event.preventDefault();
++        ModuleState.clear(module.id);
++        if (this.current?.id === module.id) {
++          this.stored = ModuleState.load(module.id);
++          this.apply();
++        }
++      });
++      item.append(button);
++      list.append(item);
++    }
++  }
++
++  private buildRoles(): void {
++    const host = element('panelRoles');
++    for (const role of ROLES) {
++      const button = document.createElement('button');
++      button.className = 'role-button';
++      button.type = 'button';
++      button.role = 'tab';
++      button.dataset['role'] = role;
++      button.textContent = role;
++      button.addEventListener('click', () => {
++        this.stored.panelRole = role;
++        this.persist();
++        this.apply();
++      });
++      host.append(button);
++    }
++  }
++
++  private wireBar(): void {
++    element('leftToggle').addEventListener('click', () => {
++      this.global.leftVisible = !this.global.leftVisible;
++      this.global.save();
++      this.apply();
++    });
++    element('dockToggle').addEventListener('click', () => {
++      this.global.dockExpanded = !this.global.dockExpanded;
++      this.global.save();
++      this.apply();
++    });
++  }
++
++  private wireHeader(): void {
++    // The restore control appears only in state 04, and only in the header,
++    // because that is the only chrome still on screen when B and C are gone.
++    element('restore').addEventListener('click', () => {
++      this.global.leftVisible = true;
++      this.global.save();
++      this.apply();
++    });
++    element('panelToggle').addEventListener('click', () => {
++      this.stored.panelOpen = !this.stored.panelOpen;
++      this.persist();
++      this.apply();
++    });
++  }
++
++  /**
++   * One splitter. `direction` is +1 when dragging right grows the region and
++   * -1 when it shrinks it, which is the only difference between the two.
++   *
++   * Live resize, no ghost line, and the value is written on release rather
++   * than during the drag -- a drag that ends outside the window should leave
++   * the width where the pointer left it, not where it started.
++   */
++  private wireSplitter(
++      handle: HTMLElement, read: () => number, write: (width: number) => void,
++      fallback: number, direction: number): void {
++    let origin = 0;
++    let start = 0;
++
++    const move = (event: PointerEvent) => {
++      write(start + direction * (event.clientX - origin));
++      this.apply();
++    };
++
++    const release = () => {
++      handle.removeAttribute('data-dragging');
++      window.removeEventListener('pointermove', move);
++      window.removeEventListener('pointerup', release);
++      this.persist();
++    };
++
++    handle.addEventListener('pointerdown', (event: PointerEvent) => {
++      origin = event.clientX;
++      start = read();
++      handle.dataset['dragging'] = 'true';
++      window.addEventListener('pointermove', move);
++      window.addEventListener('pointerup', release);
++      event.preventDefault();
++    });
++
++    handle.addEventListener('dblclick', () => {
++      write(fallback);
++      this.persist();
++      this.apply();
++    });
++
++    // The same handle from the keyboard. A pointer-only splitter is a width
++    // that keyboard users cannot change at all.
++    handle.addEventListener('keydown', (event: KeyboardEvent) => {
++      const step = event.shiftKey ? 32 : 8;
++      if (event.key === 'ArrowLeft') {
++        write(read() - direction * step);
++      } else if (event.key === 'ArrowRight') {
++        write(read() + direction * step);
++      } else if (event.key === 'Home') {
++        write(fallback);
++      } else {
++        return;
++      }
++      event.preventDefault();
++      this.persist();
++      this.apply();
++    });
++  }
++
++  // -- state ----------------------------------------------------------------
++
++  private persist(): void {
++    if (this.current) {
++      ModuleState.save(this.current.id, this.stored);
++    }
++  }
++
++  private select(module: ModuleEntry|null): void {
++    this.current = module;
++    if (module) {
++      this.stored = ModuleState.load(module.id);
++    }
++    this.apply();
++  }
++
++  private apply(): void {
++    const state: geometry.ShellState = {
++      leftVisible: this.global.leftVisible,
++      dockExpanded: this.global.dockExpanded,
++      tabsVisible: this.stored.tabsVisible,
++      tabsWidth: this.stored.tabsWidth,
++      panelOpen: this.stored.panelOpen,
++      panelWidth: this.stored.panelWidth,
++    };
++    const computed = geometry.layout(state, window.innerWidth);
++    const page = element('page');
++    const root = document.documentElement;
++
++    root.style.setProperty('--sunshine-dock-width', `${computed.dock}px`);
++    root.style.setProperty('--sunshine-tabs-width', `${computed.tabs}px`);
++    root.style.setProperty('--sunshine-panel-width', `${computed.panel}px`);
++
++    page.dataset['dock'] = this.global.dockExpanded ? 'names' : 'icons';
++    element('left').hidden = !this.global.leftVisible;
++    element('tabs').hidden = computed.tabs === 0;
++    element('tabsSplitter').hidden = computed.tabs === 0;
++    element('panel').hidden = computed.panel === 0;
++    element('panelSplitter').hidden = computed.panel === 0;
++    element('restore').hidden = this.global.leftVisible;
++    element('densityNote').hidden = geometry.densityAllows(window.innerWidth);
++
++    element('leftToggle')
++        .setAttribute('aria-expanded', String(this.global.leftVisible));
++    element('dockToggle')
++        .setAttribute('aria-expanded', String(this.global.dockExpanded));
++    element('panelToggle')
++        .setAttribute('aria-expanded', String(this.stored.panelOpen));
++
++    for (const button of element('dockList')
++             .querySelectorAll<HTMLElement>('button.dock-button')) {
++      button.setAttribute(
++          'aria-current',
++          String(button.dataset['id'] === this.current?.id));
++    }
++    for (const button of element('panelRoles')
++             .querySelectorAll<HTMLElement>('button.role-button')) {
++      button.setAttribute(
++          'aria-selected',
++          String(button.dataset['role'] === this.stored.panelRole));
++    }
++
++    this.applyContent();
++  }
++
++  /**
++   * What the shell shows where a module would be.
++   *
++   * State 09: the skeleton does not change when there is nothing to show. The
++   * empty text goes in the mount points, and every width above is computed the
++   * same way it would be with a module present.
++   */
++  private applyContent(): void {
++    const name = this.current?.display_name ?? 'No module';
++    element('tabsTitle').textContent = name;
++    element('tabsCount').textContent = '0';
++    element('headerTitle').textContent = name;
++    element('headerPath').textContent = this.current?.id ?? '';
++
++    const tabsEmpty = element('tabsEmpty');
++    tabsEmpty.hidden = false;
++    tabsEmpty.textContent =
++        'This module contributes no tabs yet. The list is the module\'s to ' +
++        'fill; its width, its collapse and its selection are not.';
++
++    element('bodyEmpty').textContent = this.current ?
++        `${name} is declared in the registry and has no body to mount yet. ` +
++            'The header above belongs to the shell and does not change when ' +
++            'one arrives.' :
++        'No modules are registered.';
++
++    element('panelEmpty').textContent = `Nothing is mounted in the ${
++        this.stored.panelRole} role. One container, ${
++        geometry.PANEL_ROLES} roles; the shell switches between them and the ` +
++        'module fills them.';
++  }
++}
++
++document.addEventListener('DOMContentLoaded', function() {
++  const root = document.documentElement;
++  // Every measurement reaches CSS from geometry.ts, so the stylesheet names no
++  // number of its own and there is one place to change a width. MS-4.
++  root.style.setProperty('--sunshine-bar-height', `${geometry.BAR_HEIGHT}px`);
++  root.style.setProperty(
++      '--sunshine-header-height', `${geometry.HEADER_HEIGHT}px`);
++  root.style.setProperty(
++      '--sunshine-header-pad-left', `${geometry.HEADER_PAD_LEFT}px`);
++  root.style.setProperty(
++      '--sunshine-header-pad-right', `${geometry.HEADER_PAD_RIGHT}px`);
++  root.style.setProperty('--sunshine-body-min', `${geometry.BODY_MIN}px`);
++  root.style.setProperty(
++      '--sunshine-splitter-visual', `${geometry.SPLITTER_VISUAL}px`);
++  root.style.setProperty(
++      '--sunshine-splitter-hit', `${geometry.SPLITTER_HIT}px`);
++  root.style.setProperty('--sunshine-marker', '2px');
++  root.style.setProperty('--sunshine-dirty', '6px');
++
++  const registry =
++      JSON.parse(loadTimeData.getString('moduleRegistry')) as Registry;
++  new Shell(registry);
++});
+diff --git a/chrome/browser/resources/sunshine/shell/geometry.ts b/chrome/browser/resources/sunshine/shell/geometry.ts
+new file mode 100644
+index 0000000..618b9c1
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/shell/geometry.ts
+@@ -0,0 +1,153 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * The shell's measurements and the arithmetic over them.
++ *
++ * Every number the layout uses is declared here once and nowhere else.
++ * `docs/MODULE_SHELL_CONTRACT.md` section 2 carries the same table, and
++ * `scripts/verify_shell_geometry.py` fails the build when the two disagree --
++ * so a width changed in a stylesheet and not in the contract is a failure
++ * rather than a drift. MS-4.
++ *
++ * This file is deliberately free of the DOM. Its functions take numbers and
++ * return numbers, which is what lets the collapse order be reasoned about at
++ * all: it is the one part of the shell where being wrong is invisible until a
++ * window is the wrong size.
++ */
++
++// -- Region A, the module bar -------------------------------------------------
++export const BAR_HEIGHT = 32;
++
++// -- Region B, the module dock ------------------------------------------------
++// Two widths and no others. The dock has no splitter, so there is no third.
++export const DOCK_ICONS = 56;
++export const DOCK_EXPANDED = 224;
++
++// -- Region C, the tab list ---------------------------------------------------
++export const TABS_DEFAULT = 232;
++export const TABS_MIN = 180;
++export const TABS_MAX = 360;
++
++// -- Region D, the body -------------------------------------------------------
++// D is flex:1 and absorbs whatever the others leave. BODY_MIN is the floor it
++// never goes below while visible; the others yield instead.
++export const BODY_MIN = 480;
++export const HEADER_HEIGHT = 40;
++export const HEADER_PAD_LEFT = 16;
++export const HEADER_PAD_RIGHT = 12;
++export const HEADER_ACTIONS_MAX = 3;
++
++// -- Region E, the aux panel --------------------------------------------------
++export const PANEL_DEFAULT = 320;
++export const PANEL_MIN = 280;
++export const PANEL_MAX = 520;
++export const PANEL_ROLES = 6;
++
++// -- Splitters ----------------------------------------------------------------
++// Drawn narrow, targeted wide. A 4px pointer target is a 4px pointer target
++// however carefully it is drawn.
++export const SPLITTER_VISUAL = 4;
++export const SPLITTER_HIT = 8;
++
++// -- Density ------------------------------------------------------------------
++export const DENSE_MIN_WIDTH = 1440;
++
++export interface ShellState {
++  /** A's toggle. False hides B and C together -- state 04. */
++  leftVisible: boolean;
++  /** B: icons only, or icons with names. Shell-global, not per module. */
++  dockExpanded: boolean;
++  /** C. Hidden alone is state 03. */
++  tabsVisible: boolean;
++  tabsWidth: number;
++  /** E. */
++  panelOpen: boolean;
++  panelWidth: number;
++}
++
++export interface Layout {
++  dock: number;
++  tabs: number;
++  body: number;
++  panel: number;
++  /** Regions the viewport forced away, in the order they were given up. */
++  collapsed: string[];
++}
++
++export function clamp(value: number, low: number, high: number): number {
++  return Math.min(high, Math.max(low, value));
++}
++
++export function clampTabs(width: number): number {
++  return clamp(width, TABS_MIN, TABS_MAX);
++}
++
++export function clampPanel(width: number): number {
++  return clamp(width, PANEL_MIN, PANEL_MAX);
++}
++
++/**
++ * The widths for a state at a viewport width.
++ *
++ * Under pressure regions yield in one order -- **E first, then C** -- and D
++ * never yields below BODY_MIN while it is visible. That order is not a
++ * preference: E is supplementary, C is navigation, D is the work, so giving up
++ * the work to keep an inspector would be the wrong trade every time.
++ *
++ * B never yields. It is how the user reaches another module, including when
++ * this one is the reason the window is uncomfortable.
++ */
++export function layout(state: ShellState, viewport: number): Layout {
++  const collapsed: string[] = [];
++  const dock = state.leftVisible ? (state.dockExpanded ? DOCK_EXPANDED : DOCK_ICONS) : 0;
++
++  let tabs = state.leftVisible && state.tabsVisible ? clampTabs(state.tabsWidth) : 0;
++  let panel = state.panelOpen ? clampPanel(state.panelWidth) : 0;
++
++  const fits = () => viewport - dock - tabs - panel >= BODY_MIN;
++
++  // 1. Squeeze what can be squeezed, in yield order, before dropping anything.
++  if (!fits() && panel > 0) {
++    panel = Math.max(PANEL_MIN, viewport - dock - tabs - BODY_MIN);
++    panel = panel < PANEL_MIN ? PANEL_MIN : panel;
++  }
++  if (!fits() && tabs > 0) {
++    tabs = Math.max(TABS_MIN, viewport - dock - panel - BODY_MIN);
++    tabs = tabs < TABS_MIN ? TABS_MIN : tabs;
++  }
++
++  // 2. Still short: drop them, same order. A region at its minimum that still
++  //    does not fit is a region that has to go, not one that shrinks further.
++  if (!fits() && panel > 0) {
++    panel = 0;
++    collapsed.push('panel');
++  }
++  if (!fits() && tabs > 0) {
++    tabs = 0;
++    collapsed.push('tabs');
++  }
++
++  // 3. D takes the rest, and is never reported below its floor -- if the window
++  //    is smaller than that, the window is what is wrong, and the shell says so
++  //    by overflowing rather than by lying about the width.
++  const body = Math.max(BODY_MIN, viewport - dock - tabs - panel);
++  return {dock, tabs, body, panel, collapsed};
++}
++
++/** Whether the four-region arrangement is worth offering at this width. */
++export function densityAllows(viewport: number): boolean {
++  return viewport >= DENSE_MIN_WIDTH;
++}
++
++export function defaultState(): ShellState {
++  return {
++    leftVisible: true,
++    dockExpanded: false,
++    tabsVisible: true,
++    tabsWidth: TABS_DEFAULT,
++    panelOpen: false,
++    panelWidth: PANEL_DEFAULT,
++  };
++}
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index 86e295f..ecf2ef0 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -54,6 +54,8 @@ source_set("sunshine") {
+     "modules/sunshine_modules_ui.h",
+     "security/sunshine_security_ui.cc",
+     "security/sunshine_security_ui.h",
++    "shell/sunshine_shell_ui.cc",
++    "shell/sunshine_shell_ui.h",
+   ]
+ 
+   public_deps = [
+diff --git a/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc b/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc
+new file mode 100644
+index 0000000..028ac64
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc
+@@ -0,0 +1,31 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h"
++
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h"
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "ui/webui/webui_util.h"
++
++SunshineShellUI::SunshineShellUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, chrome::kChromeUISunshineShellHost);
++
++  // The same registry the module home is served, from the same constant.
++  // The dock lists every module, so it needs exactly what
++  // chrome://sunshine-modules needs, and a second copy of it would be a second
++  // thing for scripts/verify_module_registry_sync.py to have to know about.
++  source->AddString("moduleRegistry", sunshine::kSunshineModuleRegistryJson);
++
++  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("shell"),
++                              IDR_SUNSHINE_SHELL_APP_HTML);
++}
++
++SunshineShellUI::~SunshineShellUI() = default;
+diff --git a/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h b/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h
+new file mode 100644
+index 0000000..42822ae
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h
+@@ -0,0 +1,49 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_SHELL_SUNSHINE_SHELL_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_SHELL_SUNSHINE_SHELL_UI_H_
++
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineShellUI;
++
++// The module shell, at chrome://sunshine-shell.
++class SunshineShellUIConfig
++    : public content::DefaultWebUIConfig<SunshineShellUI> {
++ public:
++  SunshineShellUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUISunshineShellHost) {}
++};
++
++// The browser's half of the five-region shell every module app is mounted
++// into: the module bar, the dock, the tab list's frame, the body header and
++// the aux panel's container. docs/MODULE_SHELL_CONTRACT.md section 1 draws the
++// line and says why it is there -- the short form is that these regions carry
++// every way out of a module, so a module that drew them could omit them.
++//
++// A plain content::WebUIController, not ui::MojoWebUIController. The shell
++// needs the module registry, which is known before the page loads, so it
++// arrives through the data source and there is no interface to grant. Mounting
++// an actual module will need one; granting it before there is something to
++// grant it to would be machinery with no user.
++class SunshineShellUI : public content::WebUIController {
++ public:
++  explicit SunshineShellUI(content::WebUI* web_ui);
++
++  SunshineShellUI(const SunshineShellUI&) = delete;
++  SunshineShellUI& operator=(const SunshineShellUI&) = delete;
++
++  ~SunshineShellUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SHELL_SUNSHINE_SHELL_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index fb18b87..10a37bb 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -18,6 +18,7 @@
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
++#include "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h"
+ #include "content/public/browser/web_ui_browser_interface_broker_registry.h"
+ #include "content/public/browser/webui_config_map.h"
+ 
+@@ -90,6 +91,7 @@ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
+   map.AddWebUIConfig(std::make_unique<SunshineDocumentUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineModulesUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
++  map.AddWebUIConfig(std::make_unique<SunshineShellUIConfig>());
+ 
+   // The document surface's unprivileged half. It is the same singleton and the
+   // same function: content/public/browser/webui_config_map.h declares
+diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
+index e452afc..4f54243 100644
+--- a/chrome/common/sunshine/sunshine_webui_hosts.h
++++ b/chrome/common/sunshine/sunshine_webui_hosts.h
+@@ -48,6 +48,13 @@ inline constexpr char kChromeUISunshineSecurityHost[] = "sunshine-security";
+ inline constexpr char kChromeUISunshineSecurityURL[] =
+     "chrome://sunshine-security/";
+ 
++// The module shell: the five-region frame every module app is mounted
++// into. docs/MODULE_SHELL_CONTRACT.md draws the line between what the
++// browser renders here and what a module supplies.
++inline constexpr char kChromeUISunshineShellHost[] = "sunshine-shell";
++inline constexpr char kChromeUISunshineShellURL[] =
++    "chrome://sunshine-shell/";
++
+ // Every Sunshine WebUI host, offered to the omnibox's built-in provider
+ // through the loop in ChromeURLHosts(). Empty until the first surface patch
+ // appends to it.
+@@ -58,6 +65,7 @@ inline constexpr auto kSunshineWebUIHosts = std::to_array<base::cstring_view>({
+       kChromeUISunshineDocumentHost,
+       kChromeUISunshineModulesHost,
+       kChromeUISunshineSecurityHost,
++      kChromeUISunshineShellHost,
+ });
+ 
+ }  // namespace chrome

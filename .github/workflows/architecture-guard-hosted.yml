@@ -92,6 +92,9 @@ jobs:
       - name: Verify the product rename is only the product rename
         run: python3 scripts/verify_branding_substitution.py
 
+      - name: Verify the module shell matches its geometry contract
+        run: python3 scripts/verify_shell_geometry.py
+
       - name: Verify Sunshine-authored web assets execute and load nothing remote
         run: python3 scripts/verify_web_asset_security.py
 

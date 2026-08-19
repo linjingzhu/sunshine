@@ -109,6 +109,9 @@ jobs:
       - name: Verify the product rename is only the product rename
         run: python scripts/verify_branding_substitution.py
 
+      - name: Verify the module shell matches its geometry contract
+        run: python scripts/verify_shell_geometry.py
+
       - name: Verify stated counts still match the repository
         run: python scripts/verify_stated_counts.py
 
