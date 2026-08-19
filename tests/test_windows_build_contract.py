@@ -97,6 +97,7 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertTrue(by_name["native-chromium-windows.yml"])
         self.assertTrue(by_name["architecture-guard-self-hosted.yml"])
         self.assertFalse(by_name["architecture-guard-hosted.yml"])
+        self.assertFalse(by_name["patch-apply-hosted.yml"])
 
     def test_build_uses_native_chromium_targets(self) -> None:
         text = SCRIPT.read_text(encoding="utf-8")

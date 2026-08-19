@@ -30,6 +30,47 @@ Set the repository Actions variable `SUNSHINE_CHROMIUM_WORKSPACE` to the persist
 
 The runner also needs `DEPOT_TOOLS_WIN_TOOLCHAIN=0` in the machine environment. Without it `gclient sync` tries to fetch a Google-internal toolchain and fails.
 
+## Why the build is not on a GitHub-hosted runner
+
+It was asked for, and the answer is arithmetic rather than preference.
+
+| | This build needs | A GitHub-hosted standard runner offers |
+| --- | --- | --- |
+| Free disk | 180 GB | ~14 GB, ~45 GB after deleting the image's unused toolchains |
+| Cores | 12, for the six-hour figure below | 4 |
+| Wall clock | ~6 h at 12 cores, so ~18 h at 4 | 6 h, a hard per-job ceiling |
+
+Larger runners would close the first two rows and are configured in
+**organisation** settings; this repository belongs to a personal account, so
+there is no place to enable them. Nothing here is tunable: two of the three
+rows are out by more than an order of magnitude, and the third is a limit the
+job cannot ask to have raised.
+
+A hosted compile therefore needs a machine this project rents rather than one
+GitHub provides -- a cloud VM registered as a self-hosted runner, which is the
+same workflow file with a different label. That is a cost decision and it is
+the owner's.
+
+### What does run on a hosted runner
+
+`.github/workflows/patch-apply-hosted.yml` clones `src` alone at the pinned
+revision -- one revision deep, no DEPS, no submodules, a few gigabytes -- and
+applies the whole stack to it. Every upstream file the stack touches is under
+`chrome/` or `tools/`, so the dependency tree a compile would need is never
+fetched, and the job finishes in minutes.
+
+It answers the one question no offline guard can. `verify_patch_integrity.py`
+checks each hunk's arithmetic, `verify_patch_references.py` replays hunks
+against files the stack itself creates, and `verify_pinned_upstream.py` asks
+whether cited upstream files exist -- but none of them reads an upstream file's
+*contents*, because those are not in this repository. Until this job existed,
+the first thing that ever read a patch against the real tree was `git apply` on
+the build machine, and build #18 died there twenty minutes in.
+
+**It is not a build and does not stand in for one.** A stack that applies can
+still fail on eslint, on `gn`, or in the compiler. What it removes is the class
+of failure that used to cost a whole build slot to discover.
+
 ## Authenticate to googlesource before the first sync
 
 Syncing Chromium clones well over a hundred dependency repositories. Anonymous requests share one server-side quota pool, and a multi-core runner exhausts it:
