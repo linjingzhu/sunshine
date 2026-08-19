@@ -1,8 +1,23 @@
 diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
-index d93bde6..2373434 100644
+index d93bde6..1892558 100644
 --- a/chrome/browser/resources/sunshine/BUILD.gn
 +++ b/chrome/browser/resources/sunshine/BUILD.gn
-@@ -38,10 +38,17 @@ build_webui("build") {
+@@ -30,6 +30,14 @@
+ # scheme-qualified one only for "trusted" and "untrusted"; choosing either of
+ # those would bind every surface in this bundle to that one scheme. Sunshine
+ # surfaces therefore import shared WebUI resources as "//resources/...".
++#
++# That choice is what makes a Mojo surface possible in this bundle rather than
++# merely convenient. The bindings mojom_ts_generator.py emits always import the
++# Mojo library as the scheme-relative "//resources/mojo/mojo/public/js/
++# bindings.js" -- _GetBindingsLibraryPath() returns that literal -- and
++# tools/typescript/path_mappings.py adds the matching "//resources/mojo/*"
++# mapping for every context type. A scheme-qualified context would additionally
++# have bound this bundle, and so every surface in it, to one scheme.
+ 
+ import("//ui/webui/resources/tools/build_webui.gni")
+ 
+@@ -38,13 +46,45 @@ build_webui("build") {
  
    # Extended by each surface patch.
    static_files = [
@@ -20,6 +35,35 @@ index d93bde6..2373434 100644
      "security/app.ts",
    ]
  
+-  ts_deps = [ "//ui/webui/resources/js:build_ts" ]
++  # Generated Mojo bindings, extended by each surface patch that has an
++  # interface. build_webui() copies each named file to
++  # "<mojo_base_path>/<filename>" inside the bundle and hands the copies to the
++  # TypeScript compiler, so mojo_base_path is the one place in the bundle where
++  # bindings land -- there is a single value for the whole bundle, not one per
++  # surface. It is the document surface's directory because that surface owns
++  # the only interface so far, and because it has to be *some* surface's
++  # directory: chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h hands
++  # each surface only the bundle entries under its own directory, so bindings
++  # left at the bundle root would be served to no page at all. A second surface
++  # with an interface is the moment to give that helper a second prefix; until
++  # then, a shared "mojom/" directory would be a directory every surface could
++  # serve, which is the arrangement that helper exists to prevent.
++  mojo_base_path = "document"
++  mojo_files = [ "$root_gen_dir/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom-webui.ts" ]
++  mojo_files_deps = [
++    "//chrome/browser/ui/webui/sunshine:document_mojo_bindings_ts__generator",
++  ]
++
++  ts_deps = [
++    "//ui/webui/resources/js:build_ts",
++
++    # The Mojo library the generated bindings import, and the path mapping that
++    # resolves "//resources/mojo/..." for the TypeScript compiler.
++    "//ui/webui/resources/mojo:build_ts",
++  ]
+   webui_context_type = "relative"
+ }
 diff --git a/chrome/browser/resources/sunshine/document/app.css b/chrome/browser/resources/sunshine/document/app.css
 new file mode 100644
 index 0000000..85595a7
@@ -569,15 +613,16 @@ index 0000000..6576656
 +});
 diff --git a/chrome/browser/resources/sunshine/document/host.ts b/chrome/browser/resources/sunshine/document/host.ts
 new file mode 100644
-index 0000000..962fc2a
+index 0000000..a9cc900
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/document/host.ts
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,133 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
-+import {sendWithPromise} from '//resources/js/cr.js';
++import {DocumentHost as DocumentHostMojo} from './sunshine_document.mojom-webui.js';
++import type {DocumentHostRemote, DocumentStructure} from './sunshine_document.mojom-webui.js';
 +
 +/**
 + * The document surface's one interface to whatever hosts it.
@@ -589,42 +634,63 @@ index 0000000..962fc2a
 + * message, no reaching past the interface because a browser API happens to be
 + * in scope. The interface is the module's whole contract with its container."
 + *
-+ * This file is that interface, and it is the only file in
++ * This file is that interface's page half, and it is the only file in
 + * chrome/browser/resources/sunshine/document/ that names anything
-+ * Chromium-specific. app.ts imports `documentHost` and knows nothing else
-+ * about its container: it never calls chrome.send, never reads loadTimeData,
-+ * and never touches a chrome:// URL. A second host -- the WKWebView shell that
-+ * section 2.5 exists for -- replaces this file and nothing else.
++ * Chromium-specific. app.ts imports `documentHost` and knows nothing else about
++ * its container: it never calls chrome.send, never reads loadTimeData, never
++ * touches a chrome:// URL, and it does not name Mojo either. A second host --
++ * the WKWebView shell that section 2.5 exists for -- replaces this file and
++ * nothing else.
 + *
-+ * The browser half is
-+ * chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h, which
-+ * declares the same six requests under the same six names. A seventh is added
-+ * to both files or to neither.
++ * **Mojo made section 2.5 stronger, not weaker, and the reason is where the
++ * interface is declared.** It used to be declared twice: as six message-name
++ * strings here and as six matching RegisterMessageCallback() calls in the
++ * browser, with nothing but a comment holding the two lists in agreement, and
++ * nothing at all checking that a request carried the arguments its handler
++ * expected. It is now declared once, in
++ * chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom, and both
++ * halves are generated from that one file. The six requests below are the six
++ * methods of `DocumentHost` in that .mojom; a seventh is added there and
++ * appears on both sides, or the build fails. "A single, named,
++ * explicitly-declared interface" is now a declaration rather than a
++ * convention.
 + *
-+ * Nothing here names a file, a directory, or any other location. A node names
-+ * a document Sunshine stores and never a location on disk (DOC-6), and this is
-+ * the boundary at which that could otherwise be quietly reintroduced.
++ * Nothing crossing this boundary names a file, a directory, or any other
++ * location. Identifiers are opaque strings, a node names a document Sunshine
++ * stores and never a location on disk (DOC-6), and this is the boundary at
++ * which that could otherwise be quietly reintroduced.
++ *
++ * The untrusted frame is not a party to any of this. It is given no Mojo
++ * interface at all; it receives one document body by postMessage and nothing
++ * else, which is DOC-2 as an absence rather than as a filter.
++ *
++ * **About the two import specifiers above.** The generated bindings are served
++ * out of this surface's own directory of Sunshine's one resource bundle, beside
++ * this file, so naming them is an ordinary relative import. The bindings' own
++ * import of the Mojo library is the scheme-relative
++ * "//resources/mojo/mojo/public/js/bindings.js" that
++ * mojo/public/tools/bindings/generators/mojom_ts_generator.py emits
++ * unconditionally -- `_GetBindingsLibraryPath()` returns that literal string --
++ * which is exactly the form tools/typescript/path_mappings.py provides a
++ * mapping for under the webui_context_type = "relative" that
++ * chrome/browser/resources/sunshine/BUILD.gn sets, and which resolves against
++ * the page's own scheme at runtime rather than pinning the bundle to one.
 + */
 +
-+/** One entry of the table of contents, in reading order. */
-+export interface DocumentNode {
-+  id: string;
-+  title: string;
-+  /** How deep in the hierarchy, for presentation only. */
-+  depth: number;
-+  hasDocument: boolean;
-+}
-+
-+export interface DocumentProject {
-+  id: string;
-+  title: string;
-+  /** Depth-first traversal of the hierarchy: the reading order. */
-+  nodes: DocumentNode[];
-+}
-+
-+export interface DocumentStructure {
-+  projects: DocumentProject[];
-+}
++/**
++ * The table of contents, its entries in reading order, and the projects they
++ * belong to.
++ *
++ * These are the mojom's structs, re-exported rather than restated. A
++ * hand-written copy of a generated shape is a copy that can disagree with the
++ * generator, and app.ts imports them from here so that it still has no reason
++ * to name the bindings.
++ */
++export type {
++  DocumentNode,
++  DocumentProject,
++  DocumentStructure,
++} from './sunshine_document.mojom-webui.js';
 +
 +/**
 + * What the surface may ask of its host. Structure-returning requests answer
@@ -643,28 +709,45 @@ index 0000000..962fc2a
 +      Promise<boolean>;
 +}
 +
-+// The six request names, written out rather than assembled, so that a search
-+// for one of them finds both halves of this interface at once.
++// Bound on first use rather than at import time, so nothing here reaches for a
++// pipe before the page has decided it needs its host.
++let remote: DocumentHostRemote|null = null;
++
++function host(): DocumentHostRemote {
++  if (remote === null) {
++    remote = DocumentHostMojo.getRemote();
++  }
++  return remote;
++}
++
++// The six requests, written out rather than assembled, so that a search for one
++// of them finds this file and the .mojom at once. Each unwraps the one named
++// response field the generated bindings deliver; that unwrapping is the whole
++// of the difference between this file and the interface above it.
 +export const documentHost: DocumentHost = {
 +  load() {
-+    return sendWithPromise('sunshine.document.load');
++    return host().load().then((response) => response.structure);
 +  },
 +  createProject(title: string) {
-+    return sendWithPromise('sunshine.document.createProject', title);
++    return host().createProject(title).then((response) => response.structure);
 +  },
 +  createNode(projectId: string, parentId: string, title: string) {
-+    return sendWithPromise(
-+        'sunshine.document.createNode', projectId, parentId, title);
++    return host()
++        .createNode(projectId, parentId, title)
++        .then((response) => response.structure);
 +  },
 +  deleteProject(projectId: string) {
-+    return sendWithPromise('sunshine.document.deleteProject', projectId);
++    return host().deleteProject(projectId).then(
++        (response) => response.structure);
 +  },
 +  readDocument(projectId: string, nodeId: string) {
-+    return sendWithPromise('sunshine.document.readDocument', projectId, nodeId);
++    return host().readDocument(projectId, nodeId).then(
++        (response) => response.body);
 +  },
 +  writeDocument(projectId: string, nodeId: string, body: string) {
-+    return sendWithPromise(
-+        'sunshine.document.writeDocument', projectId, nodeId, body);
++    return host()
++        .writeDocument(projectId, nodeId, body)
++        .then((response) => response.stored);
 +  },
 +};
 diff --git a/chrome/browser/resources/sunshine/document_content/app.css b/chrome/browser/resources/sunshine/document_content/app.css
@@ -823,10 +906,46 @@ index 0000000..1c7cab4
 +  render(event.data);
 +});
 diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
-index 962a315..9af4cf9 100644
+index 962a315..7ba1c80 100644
 --- a/chrome/browser/ui/webui/sunshine/BUILD.gn
 +++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
-@@ -14,6 +14,12 @@ source_set("sunshine") {
+@@ -6,6 +6,35 @@
+ # depends on this one target, and each surface appends its own sources and deps
+ # below rather than adding a target line upstream. See
+ # docs/decisions/0007-module-contribution-seam.md.
++#
++# A surface that talks to its page over Mojo declares its interface here too.
++# A mojom() target names its .mojom sources relative to this file and derives
++# every generated path from the source's own path, so a surface keeps its
++# interface in its own subdirectory and adds one mojom() target below, which the
++# shared source_set then depends on. This costs no upstream file for the same
++# reason the rest of the seam does not: this BUILD.gn is a file the seam patch
++# created.
++
++import("//mojo/public/tools/bindings/mojom.gni")
++
++# The document surface's one host interface --
++# docs/decisions/0013-module-data-portability.md section 2.5. Declared once and
++# generated twice: C++ for chrome/browser/ui/webui/sunshine/document/ and
++# TypeScript for chrome/browser/resources/sunshine/document/.
++#
++# webui_module_path = "/" says the generated module is served from the root of
++# the page that offers it -- mojo/public/tools/bindings/mojom.gni documents the
++# value as "the path or URL at which modules generated by this target will be
++# accessible to WebUI pages", and notes that an absolute path also obliges the
++# page to add the module to its own data source. Sunshine's does:
++# chrome/browser/resources/sunshine/BUILD.gn lists the generated file in
++# mojo_files under the document surface's directory, and
++# sunshine_webui_resources.h serves that directory to this surface and to no
++# other.
++mojom("document_mojo_bindings") {
++  sources = [ "document/sunshine_document.mojom" ]
++  webui_module_path = "/"
++}
+ 
+ source_set("sunshine") {
+   sources = [
+@@ -14,12 +43,25 @@ source_set("sunshine") {
      "sunshine_webui_resources.h",
  
      # Extended by each surface patch.
@@ -839,7 +958,20 @@ index 962a315..9af4cf9 100644
      "security/sunshine_security_ui.cc",
      "security/sunshine_security_ui.h",
    ]
-@@ -32,8 +38,16 @@ source_set("sunshine") {
+ 
+   public_deps = [
++    # public_deps, not deps: sunshine_webui_registry.h is this target's one
++    # header an upstream file includes, and it now names the document surface's
++    # Mojo interface. A dependency that a public header exposes has to be public
++    # itself, or chrome/browser/ui/webui/chrome_web_ui_configs.cc compiles
++    # against a generated header nothing promised it would exist yet.
++    ":document_mojo_bindings",
+     "//content/public/browser",
++    "//mojo/public/cpp/bindings",
+     "//ui/base",
+   ]
+ 
+@@ -32,8 +74,20 @@ source_set("sunshine") {
      "//components/prefs",
      "//components/safe_browsing:buildflags",
      "//components/safe_browsing/core/common:safe_browsing_prefs",
@@ -853,9 +985,118 @@ index 962a315..9af4cf9 100644
      "//content/public/common",
      "//google_apis",
 +    "//services/network/public/mojom",
++
++    # //ui/webui was already here for webui::SetupWebUIDataSource(). It is also
++    # what provides ui::MojoWebUIController, which is how the document surface
++    # is granted Mojo and denied chrome.send.
      "//ui/webui",
    ]
  }
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom b/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom
+new file mode 100644
+index 0000000..147f90d
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom
+@@ -0,0 +1,99 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The document surface's one interface to whatever hosts it.
++//
++// docs/decisions/0013-module-data-portability.md section 2.5: "A module's web
++// assets communicate with whatever hosts them through a single, named,
++// explicitly-declared interface, and through nothing else. No scattered calls
++// to Chromium-specific globals, no assumption about which object delivers a
++// message, no reaching past the interface because a browser API happens to be
++// in scope. The interface is the module's whole contract with its container."
++//
++// **Mojo makes that rule stronger, not weaker, and this file is why.** Under
++// the chrome.send arrangement this replaced, the interface existed twice: once
++// as a list of string message names in host.ts and once as the matching list of
++// RegisterMessageCallback() calls in the browser. Nothing but a comment tied
++// the two lists together, nothing checked that a request carried the arguments
++// the handler expected, and a seventh request could be added to one list alone
++// and fail only at runtime. Here the interface is declared once, in this file,
++// and both halves are generated from it: the page's DocumentHostRemote and the
++// browser's DocumentHost base class are the same six methods with the same six
++// signatures, and a seventh added here appears on both sides or the build
++// fails. "A single, named, explicitly-declared interface" is now a file rather
++// than a convention.
++//
++// **Nothing here names a location.** Identifiers cross this boundary as opaque
++// strings -- the UUIDs components/sunshine/document/document_model.h already
++// carries -- and no method below takes or returns a path, a filename, or a
++// directory. DOC-6 keeps paths out of the model, and this interface is the
++// boundary at which they could otherwise be quietly reintroduced.
++//
++// **The untrusted frame is not a party to this.** DOC-2 says the frame
++// "receives content, never capability". The frame at
++// chrome-untrusted://sunshine-document-content is given no Mojo interface at
++// all: it is not registered in
++// chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h, its controller
++// declares no BindInterface, and the only thing that reaches it is one document
++// body by postMessage. A pipe to the frame would be the one thing this design
++// forbids.
++
++module sunshine.document.mojom;
++
++// One entry of the table of contents, in reading order.
++struct DocumentNode {
++  // Opaque. A node identifier, never a location (DOC-6).
++  string id;
++  string title;
++  // How deep in the hierarchy, for presentation only. Derived by the browser
++  // from the hierarchy rather than stored, so a move cannot leave it stale.
++  int32 depth;
++  bool has_document;
++};
++
++struct DocumentProject {
++  // Opaque. A project identifier, never a location (DOC-6).
++  string id;
++  string title;
++  // Depth-first traversal of the hierarchy: the reading order fixed by
++  // docs/DOCUMENT_SURFACE_CONTRACT.md section 3.
++  array<DocumentNode> nodes;
++};
++
++struct DocumentStructure {
++  array<DocumentProject> projects;
++};
++
++// What the surface may ask of its host, and the whole of it.
++//
++// Structure-returning requests answer with the whole structure rather than a
++// delta, so the page never has to keep a second copy of the model in agreement
++// with the first. No document body is ever part of a DocumentStructure: DOC-1
++// forbids project content in the privileged document, so the shell is told what
++// exists and never what it says. A body travels only through ReadDocument and
++// WriteDocument, and the shell's only use for one is to hand it to the frame.
++interface DocumentHost {
++  // Every project's structure. The store is read from disk on the first call.
++  Load() => (DocumentStructure structure);
++
++  CreateProject(string title) => (DocumentStructure structure);
++
++  // `parent_id` is the empty string for a node at the top level. An unknown or
++  // unparsable parent is a root node, which is what the page means when it asks
++  // for a top-level entry.
++  CreateNode(string project_id, string parent_id, string title)
++      => (DocumentStructure structure);
++
++  // DOC-7: the documents go with the project. Nothing above the data layer has
++  // to sweep for them, because the store keeps them inside it.
++  DeleteProject(string project_id) => (DocumentStructure structure);
++
++  // The stored bytes of the document `node_id` names, or the empty string.
++  // Returned byte for byte as they were stored; nothing here paginates them
++  // (DOC-4).
++  ReadDocument(string project_id, string node_id) => (string body);
++
++  WriteDocument(string project_id, string node_id, string body)
++      => (bool stored);
++};
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc
 new file mode 100644
 index 0000000..4a5a4a7
@@ -926,10 +1167,10 @@ index 0000000..4a5a4a7
 +SunshineDocumentContentUI::~SunshineDocumentContentUI() = default;
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h
 new file mode 100644
-index 0000000..b91abfc
+index 0000000..5db43a7
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,82 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -980,6 +1221,20 @@ index 0000000..b91abfc
 +// document at all. That is DOC-2 -- "the frame receives content, never
 +// capability" -- expressed as an absence rather than as a filter.
 +//
++// **It is given no Mojo interface either, and the absence is mechanical.** The
++// privileged shell speaks to the browser through the interface declared in
++// sunshine_document.mojom; this class does not. It is a plain
++// content::WebUIController rather than a ui::MojoWebUIController, so it is
++// never granted the kMojoWebUi binding; it declares no BindInterface overload
++// and carries no WEB_UI_CONTROLLER_TYPE_DECL, so there is no type a binder
++// could be registered against; and it is absent from
++// sunshine::RegisterWebUIInterfaceBrokers() in
++// chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h, so
++// WebUIBrowserInterfaceBrokerRegistry::CreateInterfaceBroker() finds nothing
++// for it, returns nullptr, and content/browser/webui/web_ui_impl.cc never
++// reaches the EnableMojoJsBindingsWithBroker() call that would hand this
++// renderer a pipe. Four independent absences, any one of which would be enough.
++//
 +// DOC-5 says the frame reaches no network. The policy below states it
 +// directly, on top of the "default-src 'self';" that
 +// content::URLDataSource::GetContentSecurityPolicy() already returns for every
@@ -1000,10 +1255,10 @@ index 0000000..b91abfc
 +#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_CONTENT_UI_H_
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.cc
 new file mode 100644
-index 0000000..38cb8bb
+index 0000000..4676cbe
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.cc
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,154 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1014,33 +1269,28 @@ index 0000000..38cb8bb
 +#include <optional>
 +#include <string>
 +#include <utility>
-+#include <vector>
 +
 +#include "base/functional/bind.h"
 +#include "base/uuid.h"
 +#include "components/sunshine/document/document_model.h"
 +
++// The generated interface's own namespace, spelled once. `sunshine::document`
++// (the data layer, components/sunshine/document/) and
++// `sunshine::document::mojom` (this surface's declared interface) are
++// deliberately neighbours: the second is how the first reaches the page, and
++// nothing else in Sunshine may reach it at all.
++namespace document_mojom = sunshine::document::mojom;
++
 +namespace {
 +
-+// The six requests the page may make. They are named here and in
-+// chrome/browser/resources/sunshine/document/host.ts, and nowhere else.
-+constexpr char kLoad[] = "sunshine.document.load";
-+constexpr char kCreateProject[] = "sunshine.document.createProject";
-+constexpr char kCreateNode[] = "sunshine.document.createNode";
-+constexpr char kDeleteProject[] = "sunshine.document.deleteProject";
-+constexpr char kReadDocument[] = "sunshine.document.readDocument";
-+constexpr char kWriteDocument[] = "sunshine.document.writeDocument";
-+
-+const std::string* StringAt(const base::ListValue& args, size_t index) {
-+  if (index >= args.size()) {
-+    return nullptr;
-+  }
-+  return args[index].GetIfString();
-+}
-+
-+base::Uuid UuidAt(const base::ListValue& args, size_t index) {
-+  const std::string* text = StringAt(args, index);
-+  return text ? base::Uuid::ParseLowercase(*text) : base::Uuid();
++// An identifier crosses the interface as an opaque string and becomes a
++// base::Uuid here. Nothing else is done with it: it is never joined to a path,
++// never used as a filename, and never interpreted as anything but a name the
++// store may or may not know (DOC-6). A string that is not a UUID parses to an
++// invalid one, which matches nothing, which is the behaviour the page already
++// relies on when it asks for a top-level node with an empty parent.
++base::Uuid ParseId(const std::string& text) {
++  return base::Uuid::ParseLowercase(text);
 +}
 +
 +}  // namespace
@@ -1052,110 +1302,73 @@ index 0000000..38cb8bb
 +
 +SunshineDocumentHandler::~SunshineDocumentHandler() = default;
 +
-+void SunshineDocumentHandler::RegisterMessages() {
-+  web_ui()->RegisterMessageCallback(
-+      kLoad, base::BindRepeating(&SunshineDocumentHandler::HandleLoad,
-+                                 base::Unretained(this)));
-+  web_ui()->RegisterMessageCallback(
-+      kCreateProject,
-+      base::BindRepeating(&SunshineDocumentHandler::HandleCreateProject,
-+                          base::Unretained(this)));
-+  web_ui()->RegisterMessageCallback(
-+      kCreateNode,
-+      base::BindRepeating(&SunshineDocumentHandler::HandleCreateNode,
-+                          base::Unretained(this)));
-+  web_ui()->RegisterMessageCallback(
-+      kDeleteProject,
-+      base::BindRepeating(&SunshineDocumentHandler::HandleDeleteProject,
-+                          base::Unretained(this)));
-+  web_ui()->RegisterMessageCallback(
-+      kReadDocument,
-+      base::BindRepeating(&SunshineDocumentHandler::HandleReadDocument,
-+                          base::Unretained(this)));
-+  web_ui()->RegisterMessageCallback(
-+      kWriteDocument,
-+      base::BindRepeating(&SunshineDocumentHandler::HandleWriteDocument,
-+                          base::Unretained(this)));
++void SunshineDocumentHandler::Bind(
++    mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver) {
++  receiver_.reset();
++  receiver_.Bind(std::move(receiver));
 +}
 +
-+void SunshineDocumentHandler::HandleLoad(const base::ListValue& args) {
-+  AllowJavascript();
-+  if (args.empty()) {
-+    return;
-+  }
-+  base::Value callback_id = args[0].Clone();
++void SunshineDocumentHandler::Load(LoadCallback callback) {
 +  if (store_->loaded()) {
-+    OnStoreLoaded(std::move(callback_id));
++    OnStoreLoaded(std::move(callback));
 +    return;
 +  }
++  // base::Unretained is safe because the store is owned by this handler and
++  // cannot outlive it, so a callback the store still holds is a callback this
++  // handler is still alive to run.
 +  store_->Load(base::BindOnce(&SunshineDocumentHandler::OnStoreLoaded,
-+                              base::Unretained(this), std::move(callback_id)));
++                              base::Unretained(this), std::move(callback)));
 +}
 +
-+void SunshineDocumentHandler::OnStoreLoaded(base::Value callback_id) {
-+  ResolveJavascriptCallback(callback_id, Structure());
++void SunshineDocumentHandler::OnStoreLoaded(LoadCallback callback) {
++  std::move(callback).Run(Structure());
 +}
 +
-+void SunshineDocumentHandler::HandleCreateProject(
-+    const base::ListValue& args) {
-+  AllowJavascript();
-+  const std::string* title = StringAt(args, 1);
-+  if (args.empty() || !title) {
-+    return;
-+  }
-+  store_->CreateProject(*title);
-+  ResolveJavascriptCallback(args[0], Structure());
++void SunshineDocumentHandler::CreateProject(const std::string& title,
++                                            CreateProjectCallback callback) {
++  store_->CreateProject(title);
++  std::move(callback).Run(Structure());
 +}
 +
-+void SunshineDocumentHandler::HandleCreateNode(const base::ListValue& args) {
-+  AllowJavascript();
-+  const std::string* title = StringAt(args, 3);
-+  if (args.empty() || !title) {
-+    return;
-+  }
++void SunshineDocumentHandler::CreateNode(const std::string& project_id,
++                                         const std::string& parent_id,
++                                         const std::string& title,
++                                         CreateNodeCallback callback) {
 +  // An absent or unparsable parent is a root node, which is what the page
 +  // means when it asks for a top-level entry.
-+  store_->CreateNode(UuidAt(args, 1), UuidAt(args, 2), *title);
-+  ResolveJavascriptCallback(args[0], Structure());
++  store_->CreateNode(ParseId(project_id), ParseId(parent_id), title);
++  std::move(callback).Run(Structure());
 +}
 +
-+void SunshineDocumentHandler::HandleDeleteProject(
-+    const base::ListValue& args) {
-+  AllowJavascript();
-+  if (args.empty()) {
-+    return;
-+  }
-+  store_->DeleteProject(UuidAt(args, 1));
-+  ResolveJavascriptCallback(args[0], Structure());
++void SunshineDocumentHandler::DeleteProject(const std::string& project_id,
++                                            DeleteProjectCallback callback) {
++  store_->DeleteProject(ParseId(project_id));
++  std::move(callback).Run(Structure());
 +}
 +
-+void SunshineDocumentHandler::HandleReadDocument(const base::ListValue& args) {
-+  AllowJavascript();
-+  if (args.empty()) {
-+    return;
-+  }
++void SunshineDocumentHandler::ReadDocument(const std::string& project_id,
++                                           const std::string& node_id,
++                                           ReadDocumentCallback callback) {
 +  const std::optional<std::string> body =
-+      store_->GetDocumentBody(UuidAt(args, 1), UuidAt(args, 2));
++      store_->GetDocumentBody(ParseId(project_id), ParseId(node_id));
 +  // The body travels to the page so the page can hand it to the untrusted
 +  // frame, which is the only place it is ever rendered (DOC-1). It is returned
 +  // byte for byte as it was stored; nothing here paginates it (DOC-4).
-+  ResolveJavascriptCallback(args[0], base::Value(body.value_or(std::string())));
++  std::move(callback).Run(body.value_or(std::string()));
 +}
 +
-+void SunshineDocumentHandler::HandleWriteDocument(
-+    const base::ListValue& args) {
-+  AllowJavascript();
-+  const std::string* body = StringAt(args, 3);
-+  if (args.empty() || !body) {
-+    return;
-+  }
-+  const bool stored =
-+      store_->SetDocumentBody(UuidAt(args, 1), UuidAt(args, 2), *body);
-+  ResolveJavascriptCallback(args[0], base::Value(stored));
++void SunshineDocumentHandler::WriteDocument(const std::string& project_id,
++                                            const std::string& node_id,
++                                            const std::string& body,
++                                            WriteDocumentCallback callback) {
++  std::move(callback).Run(
++      store_->SetDocumentBody(ParseId(project_id), ParseId(node_id), body));
 +}
 +
-+base::DictValue SunshineDocumentHandler::Structure() const {
-+  base::ListValue projects;
++document_mojom::DocumentStructurePtr SunshineDocumentHandler::Structure()
++    const {
++  document_mojom::DocumentStructurePtr structure =
++      document_mojom::DocumentStructure::New();
 +  for (const sunshine::document::Project& project : store_->projects()) {
 +    // Depth is derived here rather than stored, because a stored depth is a
 +    // second statement of the same fact that a move has to remember to update.
@@ -1166,7 +1379,11 @@ index 0000000..38cb8bb
 +                                 : std::string();
 +    }
 +
-+    base::ListValue nodes;
++    document_mojom::DocumentProjectPtr stored =
++        document_mojom::DocumentProject::New();
++    stored->id = project.id.AsLowercaseString();
++    stored->title = project.title;
++
 +    // Depth-first, siblings in order key order: the reading order the contract
 +    // fixes in section 3, computed once in the data layer so the shell cannot
 +    // invent a different one.
@@ -1182,31 +1399,26 @@ index 0000000..38cb8bb
 +        walk = found == parents.end() ? std::string() : found->second;
 +      }
 +
-+      base::DictValue entry;
-+      entry.Set("id", node->id.AsLowercaseString());
-+      entry.Set("title", node->title);
-+      entry.Set("depth", depth);
-+      entry.Set("hasDocument", node->document.is_valid());
-+      nodes.Append(std::move(entry));
++      document_mojom::DocumentNodePtr entry =
++          document_mojom::DocumentNode::New();
++      entry->id = node->id.AsLowercaseString();
++      entry->title = node->title;
++      entry->depth = depth;
++      entry->has_document = node->document.is_valid();
++      stored->nodes.push_back(std::move(entry));
 +    }
 +
-+    base::DictValue stored;
-+    stored.Set("id", project.id.AsLowercaseString());
-+    stored.Set("title", project.title);
-+    stored.Set("nodes", std::move(nodes));
-+    projects.Append(std::move(stored));
++    structure->projects.push_back(std::move(stored));
 +  }
 +
-+  base::DictValue structure;
-+  structure.Set("projects", std::move(projects));
 +  return structure;
 +}
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h
 new file mode 100644
-index 0000000..d0b4b0d
+index 0000000..6afec05
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,96 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1215,31 +1427,46 @@ index 0000000..d0b4b0d
 +#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_HANDLER_H_
 +
 +#include <memory>
++#include <string>
 +
 +#include "base/files/file_path.h"
-+#include "base/values.h"
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
 +#include "components/sunshine/document/project_store.h"
-+#include "content/public/browser/web_ui_message_handler.h"
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "mojo/public/cpp/bindings/receiver.h"
 +
 +// The browser half of the document shell's one host interface.
 +//
 +// docs/decisions/0013-module-data-portability.md section 2.5 requires that a
 +// module's web assets talk to whatever hosts them "through a single, named,
-+// explicitly-declared interface, and through nothing else". The page half of
-+// that interface is chrome/browser/resources/sunshine/document/host.ts, whose
-+// header comment lists the same six requests declared here and states the same
-+// contract. Everything the page can ask the browser is in these two files; a
-+// seventh request is added to both or to neither.
++// explicitly-declared interface, and through nothing else". That interface is
++// chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom, and this
++// class is the browser's implementation of it. The page half is
++// chrome/browser/resources/sunshine/document/host.ts.
++//
++// **What Mojo changed, and why it tightened section 2.5 rather than relaxing
++// it.** This class used to be a content::WebUIMessageHandler that registered
++// six string message names, unpacked positional base::Value arguments by index,
++// and resolved a callback id. The interface therefore existed twice -- once
++// here and once in host.ts -- with nothing but a comment holding the two copies
++// in agreement, and nothing at all checking that a request carried the
++// arguments its handler expected. Both halves are now generated from the one
++// .mojom: the six methods below are overrides, so a name, an argument or a
++// return type that drifts from the declaration does not compile. There is no
++// longer anywhere to add a seventh request to one side alone.
 +//
 +// The requests carry identifiers and text. None of them names a file, a
 +// directory, or anything else the page could turn into a location: DOC-6 keeps
-+// paths out of the model, and this interface is where that would otherwise
-+// leak back in.
++// paths out of the model, and this interface is where that would otherwise leak
++// back in. Identifiers arrive as opaque strings and are parsed into
++// base::Uuid here; an unparsable one is simply an identifier that matches
++// nothing.
 +//
 +// This class holds no project state of its own. The model lives in
 +// components/sunshine/document/, per section 2.1, and this handler translates
 +// between it and the page.
-+class SunshineDocumentHandler : public content::WebUIMessageHandler {
++class SunshineDocumentHandler
++    : public sunshine::document::mojom::DocumentHost {
 + public:
 +  explicit SunshineDocumentHandler(const base::FilePath& profile_path);
 +
@@ -1248,35 +1475,52 @@ index 0000000..d0b4b0d
 +
 +  ~SunshineDocumentHandler() override;
 +
-+  // content::WebUIMessageHandler:
-+  void RegisterMessages() override;
++  // Binds the page's end of the interface. The receiver is reset first so that
++  // a reused WebUI -- content/browser/webui/web_ui_impl.h says
++  // SetUpMojoInterfaceBroker() "may be called multiple times if the WebUI is
++  // reused" -- rebinds rather than CHECK-failing on an already-bound receiver.
++  void Bind(
++      mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver);
++
++  // sunshine::document::mojom::DocumentHost:
++  void Load(LoadCallback callback) override;
++  void CreateProject(const std::string& title,
++                     CreateProjectCallback callback) override;
++  void CreateNode(const std::string& project_id,
++                  const std::string& parent_id,
++                  const std::string& title,
++                  CreateNodeCallback callback) override;
++  void DeleteProject(const std::string& project_id,
++                     DeleteProjectCallback callback) override;
++  void ReadDocument(const std::string& project_id,
++                    const std::string& node_id,
++                    ReadDocumentCallback callback) override;
++  void WriteDocument(const std::string& project_id,
++                     const std::string& node_id,
++                     const std::string& body,
++                     WriteDocumentCallback callback) override;
 +
 + private:
-+  void HandleLoad(const base::ListValue& args);
-+  void HandleCreateProject(const base::ListValue& args);
-+  void HandleCreateNode(const base::ListValue& args);
-+  void HandleDeleteProject(const base::ListValue& args);
-+  void HandleReadDocument(const base::ListValue& args);
-+  void HandleWriteDocument(const base::ListValue& args);
-+
-+  void OnStoreLoaded(base::Value callback_id);
++  void OnStoreLoaded(LoadCallback callback);
 +
 +  // The structure of every project: identifiers, titles, and the reading
 +  // order. No document body is ever part of this -- DOC-1 forbids project
 +  // content in the privileged document, so the shell is told what exists and
 +  // never what it says.
-+  base::DictValue Structure() const;
++  sunshine::document::mojom::DocumentStructurePtr Structure() const;
 +
 +  std::unique_ptr<sunshine::document::ProjectStore> store_;
++
++  mojo::Receiver<sunshine::document::mojom::DocumentHost> receiver_{this};
 +};
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_HANDLER_H_
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
 new file mode 100644
-index 0000000..d5223b9
+index 0000000..29ca52d
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,64 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1284,6 +1528,7 @@ index 0000000..d5223b9
 +#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
 +
 +#include <memory>
++#include <utility>
 +
 +#include "base/strings/strcat.h"
 +#include "chrome/browser/profiles/profile.h"
@@ -1296,14 +1541,14 @@ index 0000000..d5223b9
 +#include "ui/webui/webui_util.h"
 +
 +SunshineDocumentUI::SunshineDocumentUI(content::WebUI* web_ui)
-+    : content::WebUIController(web_ui) {
++    : ui::MojoWebUIController(web_ui) {
 +  Profile* profile = Profile::FromWebUI(web_ui);
 +
 +  // The store lives under the profile directory and nowhere else (DOC-3). The
 +  // path is composed once, here, from the profile's own directory; the handler
-+  // and the data layer never receive one from the page.
-+  web_ui->AddMessageHandler(
-+      std::make_unique<SunshineDocumentHandler>(profile->GetPath()));
++  // and the data layer never receive one from the page, and no method of the
++  // page's interface can carry one.
++  handler_ = std::make_unique<SunshineDocumentHandler>(profile->GetPath());
 +
 +  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
 +      profile, chrome::kChromeUISunshineDocumentHost);
@@ -1313,6 +1558,11 @@ index 0000000..d5223b9
 +  // "document_content/", which this prefix does not match, so the privileged
 +  // page cannot serve them and the two halves stay two halves.
 +  // chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h.
++  //
++  // The generated Mojo bindings are part of that "document/" set:
++  // chrome/browser/resources/sunshine/BUILD.gn copies them into the bundle
++  // under the surface's own directory, so they are served from this page and
++  // from no other.
 +  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("document"),
 +                              IDR_SUNSHINE_DOCUMENT_APP_HTML);
 +
@@ -1328,12 +1578,19 @@ index 0000000..d5223b9
 +}
 +
 +SunshineDocumentUI::~SunshineDocumentUI() = default;
++
++WEB_UI_CONTROLLER_TYPE_IMPL(SunshineDocumentUI)
++
++void SunshineDocumentUI::BindInterface(
++    mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver) {
++  handler_->Bind(std::move(receiver));
++}
 diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h
 new file mode 100644
-index 0000000..b57e5a4
+index 0000000..d57ccb2
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,91 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1341,15 +1598,20 @@ index 0000000..b57e5a4
 +#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_UI_H_
 +#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_UI_H_
 +
++#include <memory>
++
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
 +#include "chrome/common/webui_url_constants.h"
-+#include "content/public/browser/web_ui_controller.h"
 +#include "content/public/browser/webui_config.h"
 +#include "content/public/common/url_constants.h"
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "ui/webui/mojo_web_ui_controller.h"
 +
 +namespace content {
 +class WebUI;
 +}
 +
++class SunshineDocumentHandler;
 +class SunshineDocumentUI;
 +
 +// The privileged half of the document surface, at chrome://sunshine-document.
@@ -1376,10 +1638,25 @@ index 0000000..b57e5a4
 +// docs/SECURITY_ARCHITECTURE_CONTRACT.md exists to prevent. The content goes to
 +// chrome-untrusted://sunshine-document-content, in an iframe, by postMessage.
 +//
-+// The content security policy set below is the browser-side half of that
-+// arrangement: this page may embed exactly one origin, and it is Chromium's
-+// own untrusted scheme rather than anything Sunshine registered.
-+class SunshineDocumentUI : public content::WebUIController {
++// The content security policy set in the constructor is the browser-side half
++// of that arrangement: this page may embed exactly one origin, and it is
++// Chromium's own untrusted scheme rather than anything Sunshine registered.
++//
++// **ui::MojoWebUIController, and what it takes away.** The base class exists to
++// grant one binding and, by default, to withhold another:
++// ui/webui/mojo_web_ui_controller.cc puts kMojoWebUi into this page's
++// content::BindingsPolicySet and adds kWebUi only when `enable_chrome_send` is
++// passed. It is not passed here. The page therefore has Mojo and does not have
++// chrome.send at all -- the mechanism this surface used to be written against
++// is not merely unused, it is absent -- which is the browser-side counterpart
++// of the eslint rule that refuses `chrome.send` and `//resources/js/cr.js` in
++// any new WebUI's TypeScript.
++//
++// The single interface the page may ask for is declared in
++// sunshine_document.mojom and bound below. The binder is registered in
++// chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h, beside the config
++// registrations, so a surface that speaks Mojo still costs no upstream file.
++class SunshineDocumentUI : public ui::MojoWebUIController {
 + public:
 +  explicit SunshineDocumentUI(content::WebUI* web_ui);
 +
@@ -1387,24 +1664,104 @@ index 0000000..b57e5a4
 +  SunshineDocumentUI& operator=(const SunshineDocumentUI&) = delete;
 +
 +  ~SunshineDocumentUI() override;
++
++  // The one interface this page is offered. Everything the shell may ask of
++  // the browser arrives through it, per
++  // docs/decisions/0013-module-data-portability.md section 2.5.
++  void BindInterface(
++      mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver);
++
++ private:
++  std::unique_ptr<SunshineDocumentHandler> handler_;
++
++  // Gives this controller the identity that
++  // content::WebUIBrowserInterfaceBrokerRegistry registers a binder against,
++  // and that content::WebUIController::GetAs() downcasts by. Without it the
++  // registration in sunshine_webui_registry.h has nothing to name.
++  WEB_UI_CONTROLLER_TYPE_DECL();
 +};
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_UI_H_
 diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
-index adaf8ce..8d2e217 100644
+index adaf8ce..b04bb4d 100644
 --- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
 +++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
-@@ -13,13 +13,24 @@
+@@ -13,13 +13,91 @@
  
  #include <memory>
  
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
 +#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h"
 +#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
  #include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
++#include "content/public/browser/web_ui_browser_interface_broker_registry.h"
  #include "content/public/browser/webui_config_map.h"
  
  namespace sunshine {
  
++// The second half of the seam: which Mojo interface each Sunshine surface may
++// ask the browser for.
++//
++// **Why this is here and not where Chromium's own surfaces do it.** Chrome
++// registers its WebUI interface brokers from
++// chrome/browser/chrome_browser_interface_binders_webui.cc, through
++// ChromeContentBrowserClient::RegisterTrustedWebUIInterfaceBrokers(). That is
++// an upstream file this patch stack does not touch, and touching it would make
++// a thirteenth -- the exact cost that
++// docs/decisions/0007-module-contribution-seam.md built this seam to avoid, and
++// the same cost the seam already avoided for config registration.
++//
++// **Why registering from here works, read from the pinned sources rather than
++// assumed.** content/browser/web_ui_browser_interface_broker_registry.cc holds
++// the trusted registry in a `base::NoDestructor` behind the public static
++// WebUIBrowserInterfaceBrokerRegistry::GetTrustedRegistry(), and its own header
++// documents the call shape used below:
++//
++//     registry.ForWebUI<ControllerType>
++//        .Add<Interface1>()
++//        .Add<Interface2>();
++//
++// The registry is read, not copied, at the moment a broker is needed:
++// CreateInterfaceBroker() looks its controller type up in
++// `binder_initializers_` each time it is called, and
++// content/browser/webui/web_ui_impl.cc calls it from
++// WebUIImpl::SetUpMojoInterfaceBroker(), once per WebUI navigation. Everything
++// below therefore has to happen before the first navigation to a Sunshine
++// surface, and it does: RegisterWebUIConfigs() is called from
++// RegisterChromeWebUIConfigs(), which chrome/browser/chrome_browser_main.cc
++// calls inside PreMainMessageLoopRunImpl(), immediately after PreProfileInit()
++// and before the first profile exists -- long before any tab has navigated
++// anywhere.
++//
++// The one visible difference from upstream's arrangement is that touching the
++// registry here forces its lazy construction slightly earlier than the first
++// WebUI navigation would. That construction runs chrome's own
++// RegisterTrustedWebUIInterfaceBrokers(), which reads feature state; the
++// feature list is initialised during early startup, well before
++// PreMainMessageLoopRunImpl(), so it reads the same values either way.
++inline void RegisterWebUIInterfaceBrokers() {
++  // The document shell's single named host interface, and the whole of what the
++  // page may ask for -- docs/decisions/0013-module-data-portability.md section
++  // 2.5. It is declared once, in
++  // chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.
++  //
++  // Note which controller is named, and which is not. SunshineDocumentUI is
++  // the privileged shell at chrome://sunshine-document.
++  // SunshineDocumentContentUI -- the untrusted frame that renders project HTML
++  // -- is deliberately absent from this function, declares no BindInterface,
++  // and carries no
++  // WEB_UI_CONTROLLER_TYPE_DECL, so
++  // WebUIBrowserInterfaceBrokerRegistry::CreateInterfaceBroker() finds nothing
++  // for it and returns nullptr, and no broker is ever handed to that renderer.
++  // The frame receives a document body by postMessage and nothing else. That is
++  // DOC-2 -- "the frame receives content, never capability" -- expressed as an
++  // absence rather than as a filter, and giving that frame a pipe is the one
++  // thing this design forbids.
++  content::WebUIBrowserInterfaceBrokerRegistry::GetTrustedRegistry()
++      .ForWebUI<SunshineDocumentUI>()
++      .Add<::sunshine::document::mojom::DocumentHost>();
++}
++
  inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
 +  map.AddWebUIConfig(std::make_unique<SunshineDocumentUIConfig>());
    map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
@@ -1416,6 +1773,8 @@ index adaf8ce..8d2e217 100644
 +  // upstream file and no second registration point.
 +  map.AddUntrustedWebUIConfig(
 +      std::make_unique<SunshineDocumentContentUIConfig>());
++
++  RegisterWebUIInterfaceBrokers();
  }
  
  }  // namespace sunshine
