@@ -81,6 +81,15 @@ are the instrument; none of this requires instrumentation Sunshine has to build.
 | RV-9 | Search from the New Tab page | Chromium's own search handling runs; no Sunshine interposition, no forced startup URL | `verify_architecture.py` startup-URL rule, at runtime |
 | RV-10 | Look at `chrome.exe` in Explorer, on the taskbar, and as a pinned shortcut | The Sunshine icon, at every size; Chromium's blue sphere appears nowhere | ADR 0008 |
 | RV-11 | Look at `mini_installer.exe` in Explorer | The Sunshine icon | ADR 0008 |
+| RV-12 | Open `chrome://sunshine-security` | Exactly one of the four verdict paragraphs is visible, and it is the one the build's three booleans imply | SC-11, SEC-14, patch 0005 |
+| RV-13 | Open `chrome://sunshine-document`, build a hierarchy 1 → 1.1 → 1.2 → 1.2.1 → 2, then press Next from 1.2 | 1.2.1, not 2. The contents list is the reading order, depth first | DOC contract §3 |
+| RV-14 | Read a section whose HTML carries its own `<head><style>` | That styling applies and the pane *is* the document, edge to edge — not a stripped fragment inside Sunshine's own frame | DOC-1 |
+| RV-15 | Read a section whose HTML contains a `<script>` that would be visible if it ran | The document renders; the script does not run | DOCA-3 |
+| RV-16 | Read a section referencing a remote image | Shown as absent, and no request for it appears in DevTools' network panel | DOC-5, DOCA-4 |
+| RV-17 | Store a document, navigate away, come back, and compare | Byte-identical to what was stored; no normalisation, no re-indentation, no pagination written back | DOC-4, DOCA-5 |
+| RV-18 | Delete a project that had documents, then reopen the surface | The project and every document of it are gone | DOC-7, DOCA-6 |
+| RV-19 | With a section open, press refresh, then download | Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document | DOC-3, DOC-8 |
+| RV-20 | Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px | Left goes back, right goes forward, and the short drag shows the context menu instead. **Cannot run: no gesture recogniser exists** — see below | GESTURE contract §3.2 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -89,6 +98,35 @@ had before the decision rather than the ones it added.
 RV-4 is the runtime half of SEC-13 that neither the source guard nor the registry
 check covers: a scheme can be registered inside the browser without touching the
 registry, and the omnibox is where a user would meet it.
+
+RV-12 through RV-19 are the first gates for a Sunshine capability rather than
+for a property of the build. Everything before them asks whether Chromium
+survived being patched; these ask whether the thing Sunshine added does what its
+contract says. RV-14 through RV-18 map one-to-one onto DOCA-3 through DOCA-6 and
+DOC-4, which the document surface contract classes as decidable only with a
+browser — this document is where that debt is collected.
+
+RV-19 is worth its place for a reason beyond the two controls. Refresh
+re-reading without disturbing an unsaved edit is the observable form of a
+decision that is otherwise invisible: the store's answer and the editor's
+contents are different things, and a refresh that overwrote the editor would
+silently discard work. Download is the only gate that exercises DOC-8 — what
+comes back must be the stored document, and Sunshine must not have been offered
+a destination to remember.
+
+**RV-20 cannot run, and will not be able to for some time.** There is no gesture
+recogniser: `downstream/patches/series` contains no gesture patch and
+`first_party/commands.json` registers no gesture command, so the 200 px
+threshold this gate tests exists only in `docs/GESTURE_CONTRACT.md`. It is
+written now because the gate is what makes the specification concrete — 200 px
+is the number the owner chose after 32 px proved uncomfortable, and a gate is
+where that choice becomes falsifiable rather than a constant in prose. Two
+things block the recogniser, both recorded in
+`docs/decisions/0012-gesture-input-contribution-point.md` and both needing an
+owner's decision rather than an implementer's: §3.1 evaluates suppression "once,
+at button press", which the browser process cannot do because it holds no DOM to
+hit-test against until `ContextMenuParams` arrives at release; and §3.3 describes
+deferring a context menu that, on Windows, was never raised at press.
 
 RV-10 and RV-11 are the runtime half of the asset overlay, and they exist because
 the overlay's failure mode is silence. `scripts/verify_asset_overlay.py` proves
@@ -136,7 +174,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-11, RVV-1..RVV-3
+gate       RV-1..RV-20, RVV-1..RVV-3
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
@@ -187,7 +225,7 @@ is #15.
 
 ## 6. NOT VERIFIED
 
-- **One of fourteen gates has been run.** RV-7 is recorded above. Every other
+- **One of twenty-three gates has been run.** RV-7 is recorded above. Every other
   gate in sections 2 and 3 is `NOT RUN`: builds #15 and #16 succeeded and
   neither has been launched, so the codec, infobar, sandbox, isolation, scheme
   and visual gates are all still specification.
