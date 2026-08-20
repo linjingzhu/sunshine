@@ -318,7 +318,73 @@ makes "would you like to connect an account?" fully safe from reading as
 "finish setting up". The cost is real and is accepted: some users will never
 learn the feature exists. Under D1 that costs them nothing they cannot do.
 
-## 10. NOT VERIFIED
+## 10. What the API survey found
+
+An audit verified every symbol this plan will need at the pinned revision
+before any of it was written. Five findings change what gets built; they are
+here rather than in a scratch file because each one would otherwise be
+rediscovered by a compiler, a guard, or a reviewer.
+
+**There is no PKCE helper to reuse.** The only implementation in the tree is
+file-local to `chrome/browser/ash/printing/oauth2/`, is not built on Windows,
+and — verified against RFC 7636 — produces standard base64 rather than
+base64url for both the verifier and the challenge, which is non-conformant.
+Sunshine writes its own from `base/base64url.h`, `crypto/random.h` and
+`crypto/hash.h`. (`crypto/sha2.h` carries a deprecation notice at the pin.)
+
+**The loopback listener costs a thread.** `net::HttpServer` is real, is not
+test-only, and is reachable from `chrome/browser` — but it needs an IO message
+pump, and the browser UI thread on Windows runs a UI pump. The precedent is
+`content/browser/devtools/devtools_http_handler.cc`, which starts a dedicated
+`base::Thread` with `MessagePumpType::IO`. `ServerSocket::Listen` takes three
+arguments at this pin, not two. There is no other shipping browser-process user
+of `net::HttpServer` under `chrome/`.
+
+**`credentials_mode` defaults to `kInclude`.** `network::ResourceRequest` sends
+cookies unless told not to. The token exchange must set
+`network::mojom::CredentialsMode::kOmit` explicitly, and use the *system*
+network context rather than the profile's storage partition. Forgetting either
+is the single most likely way to send profile cookies to Google's token
+endpoint, which is PO-R7's cookie-jar rule broken by a default.
+
+**Two things will fail CI on correct code, and both are the guard working.**
+`verify_account_freedom.py` matches `client_secret\s*[:=]\s*['"]`, so
+`base::StrCat({"client_secret=", secret})` is rejected while
+`params.emplace_back("client_secret", secret)` is not — the body must be built
+as name/value pairs. And `sunshine::RegisterProfilePrefs` is **already defined**
+by patch 0017; a second definition is a duplicate symbol at link, so the account
+link registers under `sunshine::account::`.
+
+**The Windows credential store is the right place and does not do what people
+assume.** `CRED_PERSIST_LOCAL_MACHINE` is the flag — `CRED_PERSIST_ENTERPRISE`
+roams to other machines, which contradicts D4. The blob cap is 2560 bytes, ample
+for a refresh token. Include `base/win/wincred_shim.h` and call the `W`-suffixed
+names. **Microsoft documents that generic credentials "can be read and written
+by user processes"**: the store protects the token from other Windows users and
+from offline disk inspection, not from another program running as this user.
+§4 step 2's "Where it is kept" line must not overclaim, and `ERROR_NOT_FOUND`
+is the normal unlinked state rather than an error.
+
+**One correction to this document.** §7 named `OSCrypt` as the tempting wrong
+path; `components/os_crypt/sync/os_crypt.h` does not exist at the pin. The risk
+is unchanged — the surviving API is `components/os_crypt/async/common/encryptor.h`
+— only the symbol was stale.
+
+## 11. One question this plan does not answer
+
+**D5 says "settings only". Which settings?**
+
+Chromium's `chrome://settings` is not on the ADR 0007 seam. Putting a row there
+means patching `chrome/browser/resources/settings/`, a large and high-churn
+upstream area, against everything this project has learned about where to make
+a surface. The seam's answer is a `chrome://sunshine-account` page, which costs
+zero upstream files — but that is not the place a person looks for a browser's
+account settings.
+
+The audit is right that this was left ambiguous, and it is a product decision
+rather than an implementation detail. It is the next thing to be asked.
+
+## 12. NOT VERIFIED
 
 - **Nothing here is built, and no ADR exists.** PO-R3 precondition 1 is
   unwritten and precondition 5 — re-deriving §5 and §6 of the onboarding
