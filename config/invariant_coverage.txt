@@ -1,58 +1,49 @@
-# Contract invariants a test or tool claims to enforce, one per line.
 #
 # A test claims an invariant by writing `Enforces: XX-N` in its docstring. Once
-# claimed and listed here, removing the check fails the build; adding is free.
-# Ratchet up freely, ratchet down on purpose.
-#
-# What this number is not: a coverage percentage. Most invariants in this
-# contract set govern what a running browser does -- what happens to a hidden
-# pane, what the omnibox commits, what a provider verdict may not relax -- and
-# no offline suite can establish those. The ones listed here are the subset that
-# a source, registry or patch check can actually decide.
-#
+# ADR 0016 lifted two blanket refusals and replaced them with terms. HA-2 (a
+# BUA-1..BUA-22 acceptance criteria, which are prefixed), and
+# Bare-ordinal lists that remain uncitable, and are therefore not counted at
+# Contract invariants a test or tool claims to enforce, one per line.
 # Five checks that were enforced but uncounted are now listed. They had no
-# stable identifier to cite -- the acceptance criteria were bare ordinals, and
+# HA-5 (reaching a host is not authenticating to one) are what
+# MM-11, added by patch 0015. A WebUI data source forbids every frame by
+# MM-9 and MM-10 need the browser and are RV-35 and RV-36.
 # PERFORMANCE_BUDGET's P1..P6 collided with the P0/P1/P2 priority labels every
-# contract uses. The acceptance lists were given per-document prefixes and the
-# budgets became PB-1..PB-6, with every ordinal preserved through the rename, so
+# Ratchet up freely, ratchet down on purpose.
+# SEC-1 and SEC-2 are the sandbox and site-isolation boundaries. Nothing in this
+# SESSION_PROFILE_CONTRACT's per-section rule lists. Converting either needs a
 # SIDE_PANEL 12.9 is SPA-9 and the same check now cites something durable.
-#
 # Still uncounted: the bare-ordinal *invariant* lists (TAB_LIFECYCLE 13.2,
 # TAB_WORKSPACE_SPLIT 1-12, GESTURE section 2), and TAB_LIFECYCLE section 15,
-# which is a section rather than a criterion. ACCEPTANCE_SUITES section 9
-# records the remainder as a defect in the contract set.
-#
-# Bare-ordinal lists that remain uncitable, and are therefore not counted at
-# all: BROWSER_UTILITIES_CONTRACT's *Invariants* section 1-22 (distinct from its
-# BUA-1..BUA-22 acceptance criteria, which are prefixed), and
-# SESSION_PROFILE_CONTRACT's per-section rule lists. Converting either needs a
-# new family registered in `scripts/trace_invariants.py`, so it is a decision
-# rather than a cleanup.
-#
-# SEC-1 and SEC-2 are the sandbox and site-isolation boundaries. Nothing in this
-# repository mentioned either until the guard that claims them was written, so
-# their count going from zero to two is the whole of the protection, not an
-# improvement on an earlier version of it.
-
-# ADR 0016 lifted two blanket refusals and replaced them with terms. HA-2 (a
-# host is concrete), HA-4 (an empty allowlist is a module that meant deny) and
-# HA-5 (reaching a host is not authenticating to one) are what
-# validate_first_party_modules.py checks in their place. HA-5 is unreachable
-# while SEC-7 is unconditional, and a test pins that rather than leaving it to
-# be noticed if SEC-7 ever moves.
-
-# The module shell. MS-4 has been enforced by verify_shell_geometry.py since
-# the shell landed and was never counted: "MS" was not a family
-# trace_invariants.py knew, so the claim parsed to nothing and both ends read
-# as consistent. Adding the family is what surfaced it.
-
 # The module mount port -- the host port every port plan was blocked on.
-# verify_module_mount.py decides the eight that are decidable from source;
-# MM-9 and MM-10 need the browser and are RV-35 and RV-36.
-
-# MM-11, added by patch 0015. A WebUI data source forbids every frame by
+# The module shell. MS-4 has been enforced by verify_shell_geometry.py since
+# What this number is not: a coverage percentage. Most invariants in this
+# a source, registry or patch check can actually decide.
+# all: BROWSER_UTILITIES_CONTRACT's *Invariants* section 1-22 (distinct from its
+# as consistent. Adding the family is what surfaced it.
+# be noticed if SEC-7 ever moves.
+# budgets became PB-1..PB-6, with every ordinal preserved through the rename, so
+# claimed and listed here, removing the check fails the build; adding is free.
+# contract set govern what a running browser does -- what happens to a hidden
+# contract uses. The acceptance lists were given per-document prefixes and the
 # default, so patch 0011's shell shipped a mount point whose frame could never
+# host is concrete), HA-4 (an empty allowlist is a module that meant deny) and
+# improvement on an earlier version of it.
 # load and nothing said so. The guard now reads the C++ for the policy.
+# new family registered in `scripts/trace_invariants.py`, so it is a decision
+# no offline suite can establish those. The ones listed here are the subset that
+# pane, what the omnibox commits, what a provider verdict may not relax -- and
+# rather than a cleanup.
+# records the remainder as a defect in the contract set.
+# repository mentioned either until the guard that claims them was written, so
+# stable identifier to cite -- the acceptance criteria were bare ordinals, and
+# the shell landed and was never counted: "MS" was not a family
+# their count going from zero to two is the whole of the protection, not an
+# trace_invariants.py knew, so the claim parsed to nothing and both ends read
+# validate_first_party_modules.py checks in their place. HA-5 is unreachable
+# verify_module_mount.py decides the eight that are decidable from source;
+# which is a section rather than a criterion. ACCEPTANCE_SUITES section 9
+# while SEC-7 is unconditional, and a test pins that rather than leaving it to
 AT-1
 AT-12
 AT-9
@@ -76,6 +67,8 @@ OMA-20
 OS-9
 PB-5
 PO-A1
+PO-A16
+PO-A17
 PO-A2
 PO-A3
 S1

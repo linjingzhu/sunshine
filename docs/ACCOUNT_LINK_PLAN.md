@@ -241,17 +241,35 @@ Named so that they are checked rather than discovered.
 
 ## 8. What the guard must be extended to enforce
 
-`verify_account_freedom.py` today proves three things offline. It must keep
-proving all three, and gain two, on the commit that introduces the link:
+**Done, and done first.** `verify_account_freedom.py` proved three things
+offline; it now proves five, and the two new ones landed *before* the
+authorization they constrain rather than with it. That ordering is the point:
+the round trip is written under the rule instead of audited against it
+afterwards.
 
-| | New rule |
-| --- | --- |
-| PO-A16 | The tree still contains no credential and sets none of Chrome's key arguments — **unchanged**, and it must stay unchanged, so the new build argument is a different name and carries no value here. |
-| PO-A17 | The account-link source reaches none of Chromium's identity surface: no `IdentityManager`, no `ProfileOAuth2TokenService`, no `signin::`, no sync service, and no read of the profile's cookie jar. |
+| | New rule | State |
+| --- | --- | --- |
+| PO-A16 | No Sunshine-named credential carries a literal value in the tree. The name may be declared; the value arrives from the release pipeline. | Enforced |
+| PO-A17 | No Sunshine source reaches Chromium's identity surface: no `IdentityManager`, no primary account, no `ProfileOAuth2TokenService`, no `signin::`, no Gaia component, no sync service, and no read of the profile's cookie jar. | Enforced |
 
 Both are decidable from source, like PO-A1 to PO-A3 — which is what made those
 the first acceptance criteria in this contract set a check could actually
-decide. The guard is written with the code, not after it.
+decide.
+
+Two things about them are worth stating, because both were decided rather than
+fallen into:
+
+**PO-A16 is not PO-A1 restated.** An earlier draft of this row said so, and it
+was wrong. PO-A1 refuses Chrome's build arguments and anything shaped like a
+real Google credential; neither sees a *placeholder*. A placeholder is shaped
+like nothing, sets nothing, and still turns the link on in every build made
+from this tree — the one state §5 promises cannot exist.
+
+**PO-A17's scope is every Sunshine source, not the account files.** Scoping it
+by path would mean naming the files the rule is about, and a rule that must be
+told where to look stops applying the moment someone adds a file it was not told
+about. Nothing in the tree reaches any of that machinery today, so the broad
+form costs nothing and cannot be quietly outgrown.
 
 ## 9. What has to be decided
 
