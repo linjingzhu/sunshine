@@ -1,0 +1,56 @@
+/* Copyright 2026 The Sunshine OS contributors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ *
+ * A package is ordinary web content on an untrusted origin, so it cannot read
+ * chrome://theme/colors.css the way a privileged Sunshine surface must -- see
+ * docs/DESIGN_SYSTEM_CONTRACT.md, whose token rule governs the privileged
+ * surfaces this is deliberately not one of. It follows the user's colour scheme
+ * through the one channel a page does have. */
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  font: 400 14px/1.5 system-ui, sans-serif;
+  margin: 0;
+}
+
+#page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 auto;
+  max-width: 44rem;
+  min-height: 100vh;
+  padding: 2rem 1.5rem;
+}
+
+h1 {
+  font-size: 1.375rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+#hint {
+  margin: 0;
+  opacity: 0.75;
+}
+
+#note {
+  border: 1px solid currentcolor;
+  border-radius: 8px;
+  flex: 1;
+  font: inherit;
+  min-height: 16rem;
+  padding: 0.75rem;
+  resize: vertical;
+}
+
+#saved {
+  margin: 0;
+  min-height: 1.5em;
+  opacity: 0.75;
+}

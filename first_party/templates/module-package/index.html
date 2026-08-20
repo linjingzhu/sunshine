@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Copyright 2026 The Sunshine OS contributors
+     Use of this source code is governed by a BSD-style license that can be
+     found in the LICENSE file.
+
+     The whole of a Sunshine module package's entry document. There is no build
+     step: this file is what the browser parses, app.js is what it runs, and
+     zipping this folder is what publishing means. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Scratchpad</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main id="page">
+    <h1>Scratchpad</h1>
+    <p id="hint">Everything typed here is kept in this profile, and nowhere else.</p>
+    <textarea id="note" aria-labelledby="hint" spellcheck="false"></textarea>
+    <p id="saved" role="status"></p>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

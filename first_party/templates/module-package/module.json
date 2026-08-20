@@ -1,0 +1,29 @@
+{
+  "schema_version": 3,
+  "id": "example.scratchpad",
+  "display_name": "Scratchpad",
+  "version": "1.0.0",
+  "description": "A note that stays in this profile. The smallest complete Sunshine module package.",
+  "owner": "third_party",
+  "kind": "package",
+  "entry": "index.html",
+  "icon": "icon.svg",
+  "capabilities": [],
+  "security": {
+    "remote_content": false,
+    "requires_user_activation": true,
+    "profile_modes": [
+      "regular"
+    ],
+    "network": {
+      "access": "deny",
+      "allow": []
+    },
+    "filesystem": {
+      "access": "none"
+    },
+    "credentials": {
+      "direct_access": false
+    }
+  }
+}
