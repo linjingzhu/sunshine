@@ -42,6 +42,7 @@ Blocks run top to bottom. Within a block the order does not matter.
 | **C — is it Sunshine** | RV-10, RV-27, RV-12 | Launched, and pinned to the taskbar once | 10 min |
 | **D — new tab** | RV-8, RV-9, RVV-1, RVV-2, RVV-3 | A window that can be resized; light and dark | 20 min |
 | **E — media** | RV-5, RV-6 | Network, and one H.264/AAC and one VP9 or AV1 source | 10 min |
+| **E2 — mouse gestures** | RV-20 | Any page with history in both directions; a link, an image and some selected text to try it on | 15 min |
 | **F — bookmark bar and module home** | RV-21, RV-22, RV-23, RV-24, RV-25, RV-37, RVV-4, RVV-5 | The bookmark bar shown; `first_party/registry.json` open beside it | 25 min |
 | **G — the module shell** | RV-31, RV-32, RV-33, RV-34, RV-38 | `chrome://sunshine-shell`; a window narrow enough to hit the clamp | 30 min |
 | **H — the document surface** | RV-13, RV-14, RV-15, RV-16, RV-17, RV-18, RV-19 | `chrome://sunshine-document`, DevTools open for RV-16 | 40 min |
@@ -64,15 +65,18 @@ A that cannot be forced.
 | RV-26, RV-29 or RV-30 | Finish block A, then stop. These are installer identity, they are ADR 0015's whole subject, and a failure means the installer has to be rebuilt before the rest is worth running. |
 | Anything else | Record it and carry on. One surface failing says nothing about the next. |
 
-## 4. Three gates that cannot be run, and why
+## 4. Two gates that cannot be run, and why
 
 Stated here so they are not discovered at the end of a long evening.
 
 | Gate | Why not |
 | --- | --- |
-| RV-20 | No gesture recogniser exists. `docs/RUNTIME_VERIFICATION.md` already says so in the gate itself. |
 | RV-35 | **No module declares a mount.** `scripts/verify_module_mount.py` reports `0 module(s) declare a mount`, so there is no frame to open E on and none to destroy. |
 | RV-36 | The same cause. Switching between two mounted modules needs two mounted modules. |
+
+**RV-20 used to be a third.** Patch 0017 implements the gesture recogniser, so
+block E2 above is now runnable — but only from a build that contains it, which
+build #33 does not. Run it from build #34 or later, and nowhere else.
 
 RV-35 and RV-36 are the mount lifecycle, which is the part of the shell the
 whole module seam exists for. They are blocked on there being something to

@@ -5,11 +5,16 @@
 This document records the mouse-gesture contract for the Chromium revision
 pinned by Sunshine OS: `152.0.7977.42` (see `config/chromium.version`).
 
-This wave is **documentation-only**. It adds no downstream patch, no gesture
-recogniser, no settings entry, and no telemetry emitter. Nothing here has been
-compiled, run, or observed in a native window. Every threshold below is a
-declared starting value to be falsified against a native build, not a measured
-result.
+**This is no longer documentation-only.**
+`downstream/patches/0017-sunshine-mouse-gestures.patch` implements recognition,
+binding and dispatch for the two bindings in section 4, and
+`scripts/verify_gesture_bindings.py` holds the patch to this document.
+
+What the patch does **not** add: the trail (section 5), the settings UI, and
+every telemetry event in section 7. Those are separable and are deferred, and
+section 10 says so rather than leaving it to be discovered. The thresholds
+below are still declared values rather than measured ones, because nothing has
+run: the patch applies to the pinned revision and has not yet been compiled.
 
 Sunshine is a native downstream of open-source Chromium. There is no wrapper
 runtime, no injected content script, and no intermediary process between the
@@ -80,7 +85,11 @@ this contract.
 11. The context menu must be evaluated on button release. On a platform where
     Chromium raises the context menu on button press, right-button gestures are
     disabled on that platform rather than suppressing a menu the user has
-    already been shown.
+    already been shown. **Confirmed at the pinned revision:**
+    `context_menu_on_mouse_up` defaults to `BUILDFLAG(IS_WIN)`, and
+    `WebFrameWidgetImpl::HandleMouseUp` is what raises the menu when it is set.
+    Windows is Sunshine's platform, so the feature is buildable there and this
+    invariant is the reason it would not be elsewhere.
 12. Gesture state is transient. Nothing about a gesture is persisted, and no
     gesture state survives the press that created it.
 
@@ -103,9 +112,24 @@ States are `Idle`, `Tracking`, `Recognised`, and `Cancelled`. `Recognised` and
 
 ### 3.1 Suppression conditions
 
-Suppression is evaluated once, at button press. A suppressed press never enters
-`Tracking` and is indistinguishable from a press in a build with gestures
-disabled.
+Suppression has two halves, and they are evaluated at different moments.
+
+**What the browser can know at press time** — gestures disabled, the binding
+disabled — is decided at press, and such a press never enters `Tracking`.
+
+**What only the renderer knows** — whether the pointer is over a link, an
+image, a media element, a form control, an editable field or a selection — is
+decided when the context menu request arrives, which on Windows is after
+release. The first draft of this section required all of it at press time, and
+that was a specification a browser cannot honour: the browser process has not
+hit-tested the page and would have had to re-implement a hit test to guess.
+Chromium reports the answer in `ContextMenuParams`, and asking that structure is
+how section 1's "yields" is kept.
+
+The observable behaviour is unchanged, which is what the section 9 criteria
+test. A press that lands on any of those targets produces the context menu and
+no navigation, exactly as before; only the moment the browser learns why has
+moved.
 
 - Gestures disabled in settings, or the matching binding disabled.
 - A text selection is in progress, or the press position lies within the current
@@ -340,25 +364,56 @@ The §2 invariants are numbered separately and are cited as invariants.
 18. **GA-18. Accessibility.** Every command in section 8 remains reachable by
     keyboard and by toolbar with gestures disabled.
 
-## 10. Not verified
+## 10. What the next Chromium roll will require
 
-Nothing in this document has been executed. Specifically, the following are
-open and must not be reported as done:
+Known now rather than discovered then, because `scripts/measure_rebase_cost.py`
+was pointed at the next milestone before this was committed.
 
-- No downstream patch exists. No Chromium build was configured, compiled, or
-  run, and no gesture code exists in this repository.
-- The thresholds in section 3.2 are declared, not measured. No tuning data
-  exists because no telemetry emitter exists.
-- The suppression list in section 3.1 has not been checked against the pinned
-  revision's actual event handling; whether a given target reports its pointer
-  event as handled is an empirical question this wave did not ask.
-- The platform dependency in invariant 11 — on which platforms Chromium raises
-  the context menu on press rather than release — has not been confirmed against
-  the pinned source.
-- No visual verification of the trail, at any zoom level, theme, or display
-  scale, has been performed.
-- The acceptance criteria in section 9 have been written, not run.
+The patch conflicts on four of its ten hunks at `153.0.8000.0`, all four in
+`chrome/browser/ui/browser.h` and `chrome/browser/ui/browser.cc`, and the cause
+is not drift. **`ContentsMouseEvent` no longer exists on `Browser` there** — it
+has moved to `BrowserWebContentsDelegate`, a class that exists at the pinned
+revision without it. So the roll is a move, not a merge: the observation hook
+and its include go to the new home, and the other six hunks — the preferences
+registration, the GN dependency and the three new files — apply untouched.
 
-Until a patch applies to `refs/tags/152.0.7977.42`, a native build compiles, and
-the criteria in section 9 pass on that build, this work is reported as a
-**contract**, not a browser feature.
+That is also the answer to why the dispatch is in `Browser` rather than in
+`ChromeWebContentsViewDelegateViews::ShowContextMenu`, which did not change at
+all between the two revisions and would have halved the roll cost. Dispatch
+needs `chrome/browser/ui/browser_commands.h`, and that file's own target states
+it has no circular dependency back into `//chrome/browser/ui:ui`. Two hunks a
+milestone is not worth a dependency cycle.
+
+## 11. Not verified
+
+**The patch applies to `refs/tags/152.0.7977.42` and has never been compiled.**
+That is the whole of what can be claimed. Specifically:
+
+- **Not built and not run.** Every symbol it uses was read at the pinned
+  revision — the hooks, the parameter fields, the event types, the flag
+  constants and the command functions — but reading is not a compiler, and this
+  project has lost three build slots that way in one week.
+- **The acceptance criteria in section 9 have been written, not run.** All
+  eighteen. `RV-20` in `docs/RUNTIME_VERIFICATION.md` is the gate that runs the
+  first four of them.
+- **Deliberately not implemented, and therefore not merely unverified:** the
+  trail in section 5, the settings *surface* — the preferences exist and are
+  registered, but nothing shows them to a user — and every telemetry event in
+  section 7. A gesture that fires today records nothing, so the reversal rate
+  section 7 calls the strongest proxy for a false activation cannot be measured
+  yet, and the 200 px default therefore cannot be tuned by evidence.
+- **The thresholds in section 3.2 are declared, not measured**, and follow from
+  that: no emitter, no tuning data.
+- **`focus_lost` is approximated.** The implementation cancels on capture
+  changing and on the pointer leaving the content area. Whether every way a
+  window loses focus mid-press reaches it as one of those two is an empirical
+  question, and GA-12 is where it is answered.
+- **A recognition that never meets a context menu request lives until the next
+  press.** If a page cancels the `contextmenu` event, no request arrives, and
+  the pending state is cleared by the next button press rather than
+  immediately. A keyboard-invoked menu in that window is not affected — the
+  source type is checked — but nothing else bounds it, and that is a real
+  narrow gap rather than a design.
+
+Until a native build compiles and section 9 passes on it, this is reported as
+**a patch that applies**, not a browser feature.

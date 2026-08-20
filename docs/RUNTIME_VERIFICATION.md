@@ -118,7 +118,7 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-17 | Store a document, navigate away, come back, and compare | Byte-identical to what was stored; no normalisation, no re-indentation, no pagination written back | DOC-4, DOCA-5 |
 | RV-18 | Delete a project that had documents, then reopen the surface | The project and every document of it are gone | DOC-7, DOCA-6 |
 | RV-19 | With a section open, press refresh, then download | Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document | DOC-3, DOC-8 |
-| RV-20 | Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px | Left goes back, right goes forward, and the short drag shows the context menu instead. **Cannot run: no gesture recogniser exists** — see below | GESTURE contract §3.2 |
+| RV-20 | Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px | Left goes back, right goes forward, and the short drag shows the context menu instead. Neither long drag shows a menu, and no press does both | GESTURE contract §3.2, patch 0017 |
 | RV-21 | Show the bookmark bar and look at its leading edge | One Sunshine button sits there, left of the saved tab group button, tooltip "Sunshine modules". Its glyph is not the grid the tab group button uses | ADR 0014 §5, patch 0008 |
 | RV-22 | Click that button, then ctrl-click it | The first opens `chrome://sunshine-modules` in the current tab; the second opens it in a new background tab. Disposition follows the modifier, as it does for every other button on this bar | ADR 0014 §2 |
 | RV-23 | On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json` | The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either | patch 0007, `verify_module_registry_sync.py` |
@@ -161,19 +161,25 @@ silently discard work. Download is the only gate that exercises DOC-8 — what
 comes back must be the stored document, and Sunshine must not have been offered
 a destination to remember.
 
-**RV-20 cannot run, and will not be able to for some time.** There is no gesture
-recogniser: `downstream/patches/series` contains no gesture patch and
-`first_party/commands.json` registers no gesture command, so the 200 px
-threshold this gate tests exists only in `docs/GESTURE_CONTRACT.md`. It is
-written now because the gate is what makes the specification concrete — 200 px
-is the number the owner chose after 32 px proved uncomfortable, and a gate is
-where that choice becomes falsifiable rather than a constant in prose. Two
-things block the recogniser, both recorded in
-`docs/decisions/0012-gesture-input-contribution-point.md` and both needing an
-owner's decision rather than an implementer's: §3.1 evaluates suppression "once,
-at button press", which the browser process cannot do because it holds no DOM to
-hit-test against until `ContextMenuParams` arrives at release; and §3.3 describes
+**RV-20 can now run, and the two things that blocked it are the two things the
+patch is built out of.** This paragraph used to say the gate would not be
+runnable for some time, and named both obstacles: §3.1 evaluated suppression
+"once, at button press", which the browser process cannot do because it holds
+no DOM to hit-test until `ContextMenuParams` arrives; and §3.3 described
 deferring a context menu that, on Windows, was never raised at press.
+
+Both were resolved by reading the pinned source rather than by deciding
+anything. `context_menu_on_mouse_up` defaults to `BUILDFLAG(IS_WIN)` and
+`WebFrameWidgetImpl::HandleMouseUp` raises the menu when it is set, so on
+Sunshine's platform the menu request arrives *after* the release — carrying
+Chromium's own hit test of what is under the pointer. Patch 0017 decides there:
+one moment, one outcome, and the suppression list answered with the browser's
+own data instead of a second hit test. Nothing is deferred, because nothing was
+raised early.
+
+The 200 px threshold this gate tests is the number the owner chose after 32 px
+proved uncomfortable, and the gate is where that choice becomes falsifiable
+rather than a constant in prose.
 
 RV-10 and RV-11 are the runtime half of the asset overlay, and they exist because
 the overlay's failure mode is silence. `scripts/verify_asset_overlay.py` proves
@@ -396,8 +402,8 @@ is #15.
   changed since that sentence was first written is only the excuse: build #33
   produced an installer, so all but three of the remaining gates are runnable
   in one sitting and `docs/RETURN_RUN_SHEET.md` says in what order. The three
-  that are not runnable are RV-20, RV-35 and RV-36, and that document says
-  why.
+  that were not runnable were RV-20, RV-35 and RV-36; patch 0017 removes RV-20
+  from that list, and that document says why the other two remain.
 - The gates are specified against Chromium's internal pages at the pinned
   revision. `chrome://sandbox` and `chrome://process-internals` are debugging
   surfaces whose output format upstream may change without notice; a gate that

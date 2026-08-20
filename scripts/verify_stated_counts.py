@@ -756,10 +756,15 @@ def _claims_in_block(
 # record of an experiment, not a link into upstream source, so a roll must
 # leave it alone -- which is the opposite of what the rule below enforces.
 #
-# Keyed by document, so the exemption cannot spread. A second file naming the
-# same revision is still a failure, because a second file naming it is a link.
+# Keyed by document, so the exemption cannot spread on its own. A file not
+# listed here that names the same revision is still a failure -- adding one is a
+# visible edit to this table and not something a document can do to itself.
 NOT_THE_PIN: dict[str, tuple[str, ...]] = {
     "docs/BROWSER_OR_APP_REVIEW.md": ("153.0.8000.0",),
+    # The gesture patch's roll cost, measured against the same milestone before
+    # the patch was committed. Same shape as above: a record of what the next
+    # roll will require, which a roll must not rewrite.
+    "docs/GESTURE_CONTRACT.md": ("153.0.8000.0",),
 }
 
 

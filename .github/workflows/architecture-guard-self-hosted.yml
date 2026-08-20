@@ -112,6 +112,9 @@ jobs:
       - name: Verify the module shell matches its geometry contract
         run: python scripts/verify_shell_geometry.py
 
+      - name: Check the mouse gesture bindings against their contract
+        run: python scripts/verify_gesture_bindings.py
+
       - name: Verify the module mount port matches its contract
         run: python scripts/verify_module_mount.py
 

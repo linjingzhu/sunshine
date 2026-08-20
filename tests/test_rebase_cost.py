@@ -66,10 +66,15 @@ class HunkCountingTests(unittest.TestCase):
         self.assertEqual(0, measure.count_hunks("diff --git a/x b/x\n"))
 
     def test_the_real_series_is_read_in_order(self) -> None:
+        """Derived, not restated. A count written here would be a second place
+        the stack's size lives, and it went stale on the commit that added the
+        seventeenth patch."""
+
         names = measure.series(REPOSITORY_ROOT)
-        self.assertEqual(16, len(names))
-        self.assertTrue(names[0].startswith("0001-"))
-        self.assertTrue(names[-1].startswith("0016-"))
+        files = sorted((REPOSITORY_ROOT / "downstream/patches").glob("[0-9]*.patch"))
+        self.assertEqual([path.name for path in files], names)
+        for ordinal, name in enumerate(names, start=1):
+            self.assertTrue(name.startswith(f"{ordinal:04d}-"), name)
 
 
 class CascadeTests(unittest.TestCase):
