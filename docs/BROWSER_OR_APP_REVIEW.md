@@ -289,7 +289,60 @@ What the objection correctly identifies is not the architecture. It is that this
 project was carrying an unmeasured number with a threshold on it. That was true,
 and it is fixed.
 
-## 10. NOT VERIFIED
+## 10. The roll cost, measured
+
+Both previous answers ended with the same admission: the recurring cost of the
+patch stack was **the one number that would most change the conclusion, and it
+had no data behind it.** Chromium ships a new milestone roughly every four
+weeks; sixteen patches over sixteen upstream files have to survive each one. If
+a roll costs an hour the architecture is fine indefinitely. If it costs three
+days it eats the project.
+
+It is now measured, by `scripts/measure_rebase_cost.py`, which fetches the
+upstream files the stack owns at another revision and applies the series against
+them.
+
+| Target | Patches that conflict | Hunks needing a person |
+| --- | --- | --- |
+| `152.0.7977.42` — the pin, as a control | **0 of 16** | **0 of 197** |
+| `153.0.8000.0` — the next milestone | **3 of 16** | **4 of 197** |
+| `main` — trunk, an unknown distance further | **4 of 16** | **12 of 197** |
+
+The control is not decoration. A harness that reported everything applying
+cleanly would look identical to one that had fetched nothing, and this
+repository has shipped that mistake before.
+
+**Which patches conflict is the finding, more than how many.**
+
+| Conflicts at the next milestone | | |
+| --- | --- | --- |
+| 0002 | the New Tab page | 1 of 6 hunks |
+| 0003 | the API-key infobar | 1 of 1 hunks |
+| 0010 | the product strings | 2 of 58 hunks |
+
+Those three edit upstream's own browser chrome and branding. **Every patch on
+the ADR 0007 seam — 0005, 0006, 0007, 0011, 0012, 0013, 0014, 0015, 0016 —
+applies cleanly, and still applies cleanly at trunk.** That is 114 hunks of
+Sunshine's actual product, untouched by upstream drift, and it is the seam's
+thesis confirmed by measurement rather than by argument: a surface that costs
+zero upstream files also costs zero rebase.
+
+At trunk the seam patch 0004 itself begins to conflict — 5 of 15 hunks, in the
+four upstream files where a WebUI must register. That is the honest ceiling on
+the good news: the seam has a footprint, it is four registration points, and
+those are what a roll touches.
+
+**What this does not say.** `git apply` succeeding is placement, not a build;
+no compiler, `gn` or linter was consulted. The tree is partial — only the files
+the stack owns — so an upstream change to a symbol these files merely call is
+invisible. And `main` is trunk at one moment, not a prediction about any release.
+The number is a floor on the work, and the right way to read it is as an upper
+bound on the good news.
+
+Even read that way, **four hunks per milestone is not a tax that decides an
+architecture.**
+
+## 11. NOT VERIFIED
 
 - The comparison in §4 is reasoned from what these runtimes provide, not from
   building the same module twice. No Electron or Tauri prototype exists here.
@@ -298,7 +351,11 @@ and it is fixed.
   most.
 - The "six hours on twelve cores" figure is `docs/WINDOWS_CHROMIUM_BUILD.md`'s,
   measured on the owner's machine, not re-measured here.
-- No claim is made about what a browser costs to maintain across Chromium rolls
-  over time. This project has not yet rolled the pin once, so the recurring
-  cost of the patch stack is an estimate with no data behind it — and it is the
-  one number that would most change §4 if it turned out large.
+- **The roll cost is now measured, and the pin has still never been rolled.**
+  §10 measures whether the patches *place*; it does not measure whether the
+  result builds, and the difference has cost this project three build slots in
+  one week. The first real roll will produce the number that matters, and it
+  will be larger than four hunks.
+- §10's trunk row is a single observation of a moving branch. Re-running it a
+  month from now measures a different tree, which is the point, and also means
+  the number in that row is not a constant to cite.
