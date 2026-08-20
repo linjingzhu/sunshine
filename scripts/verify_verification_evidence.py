@@ -34,6 +34,16 @@ two manifests are read on every run. Only the evidence rule waits.
   6. agreement    section 4's claim about `scripts/validate_first_party_modules.py`
                   is true, confirmed by exercising that validator rather than by
                   restating its rule here
+  7. run sheet    `docs/RETURN_RUN_SHEET.md`, which orders the manual gates for
+                  whoever sits down to run them, names only gates this document
+                  defines, and names every gate this document has no PASS for
+
+Rule 7 is what keeps the run sheet from becoming the second copy it would
+otherwise be. That sheet holds order, prerequisites and stop rules and no
+expectations at all, so the only way it can lie is by going stale: a gate added
+here and never scheduled, a gate recorded PASS and still on the list, a label
+mistyped. All three are decidable from this document, so all three are checked
+rather than trusted.
 
 Rule 6 deserves its own note. The rule it describes -- `runtime_verified`
 requires `native_build` and `runtime` -- is already enforced, and duplicating it
@@ -54,6 +64,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCUMENT = "docs/RUNTIME_VERIFICATION.md"
+RUN_SHEET = "docs/RETURN_RUN_SHEET.md"
 MODULES = "first_party/modules"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -76,6 +87,15 @@ SECTION = re.compile(r"^##\s+(\d+)\.\s*(.*)$")
 # still passed. Both halves are fixed: the label shape accepts the repository's
 # hyphenated convention, and an empty gate set is now a failure.
 GATE = re.compile(r"^([A-Z]+)-?(\d+)$")
+
+# A gate label as prose spells it. Deliberately looser than `GATE`, which
+# anchors to a whole table cell: the run sheet names gates inside sentences and
+# inside comma-separated table cells. The hyphen is optional for the same reason
+# it is in `GATE` -- the series spelling belongs to the document, not to this
+# guard. Labels whose series this document does not define are dropped rather
+# than reported, because `SEC-1` in a stop rule is a contract identifier and not
+# a mistyped gate, and `H264` is not a label at all.
+PROSE_GATE = re.compile(r"\b([A-Z]+-?\d+)\b")
 
 # `ADR 0004`, `patch 0002`. Both are four-digit series with a file per number.
 ADR = re.compile(r"\bADR\s+(\d{4})\b")
@@ -455,12 +475,45 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
     # --- 6. the document's claim about the other validator ----------------
     failures.extend(_agreement(found_manifests))
 
+    # --- 7. the run sheet schedules exactly what is still owed ------------
+    sheet = root / RUN_SHEET
+    scheduled: set[str] = set()
+    if sheet.is_file():
+        letters = {gate.letter for gate in all_gates}
+        for label in PROSE_GATE.findall(sheet.read_text(encoding="utf-8")):
+            # The series comes from `GATE`, which is the one place the label
+            # shape is decided. Splitting on the hyphen instead would read the
+            # unhyphenated form `R1` as a series called "R1" and drop it.
+            series = GATE.match(label)
+            if not series or series.group(1) not in letters:
+                continue
+            if label not in by_label:
+                failures.append(
+                    f"{RUN_SHEET}: schedules gate {label}, which {DOCUMENT} "
+                    "does not define"
+                )
+                continue
+            scheduled.add(label)
+        owed = sorted(
+            (label for label in by_label if "PASS" not in passing.get(label, set())),
+            key=lambda name: (by_label[name].letter, by_label[name].number),
+        )
+        unscheduled = [label for label in owed if label not in scheduled]
+        if unscheduled:
+            failures.append(
+                f"{RUN_SHEET}: {DOCUMENT} has no PASS for "
+                f"{', '.join(unscheduled)}, and the sheet does not say when to "
+                "run them"
+            )
+
     letters = sorted({gate.letter for gate in all_gates})
     report = [
         f"Checked {len(all_gates)} gates ({', '.join(letters) or 'none'}), "
         f"{references} references and {len(found_manifests)} manifests "
         f"against {DOCUMENT}; {len(records)} evidence record(s) found."
     ]
+    if sheet.is_file():
+        report.append(f"{RUN_SHEET} schedules {len(scheduled)} of them.")
     return report, failures
 
 

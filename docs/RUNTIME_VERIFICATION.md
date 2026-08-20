@@ -92,6 +92,11 @@ machine, and the run to be identifiable — workflow run number and commit.
 These need the browser open and a person looking. Chromium's own internal pages
 are the instrument; none of this requires instrumentation Sunshine has to build.
 
+**What order to run them in is not here.** `docs/RETURN_RUN_SHEET.md` holds the
+order, what each block needs, and when a failure should end the session. It
+holds no expectations — this document owns those — and rule 7 of
+`scripts/verify_verification_evidence.py` keeps the two from drifting apart.
+
 | # | Step | Expected | Invariant |
 | --- | --- | --- | --- |
 | RV-1 | Open `chrome://version` | The command line contains no `--no-sandbox`, no `--single-process`, no `--disable-site-isolation-trials` | SEC-1, SEC-2 |
@@ -386,9 +391,13 @@ is #15.
 ## 6. NOT VERIFIED
 
 - **One of forty-three gates has been run.** RV-7 is recorded above. Every other
-  gate in sections 2 and 3 is `NOT RUN`: builds #15 and #16 succeeded and
-  neither has been launched, so the codec, infobar, sandbox, isolation, scheme
-  and visual gates are all still specification.
+  gate in sections 2 and 3 is `NOT RUN`, so the codec, infobar, sandbox,
+  isolation, scheme and visual gates are all still specification. What has
+  changed since that sentence was first written is only the excuse: build #33
+  produced an installer, so all but three of the remaining gates are runnable
+  in one sitting and `docs/RETURN_RUN_SHEET.md` says in what order. The three
+  that are not runnable are RV-20, RV-35 and RV-36, and that document says
+  why.
 - The gates are specified against Chromium's internal pages at the pinned
   revision. `chrome://sandbox` and `chrome://process-internals` are debugging
   surfaces whose output format upstream may change without notice; a gate that

@@ -444,6 +444,56 @@ class UpstreamPathReferenceTests(unittest.TestCase):
         self.assertNotIn("components", guard.upstream.OWN_PREFIXES)
 
 
+class RunSheetTests(GuardTestCase):
+    """Rule 7 -- the run sheet schedules exactly what is still owed.
+
+    The sheet exists because the gates are cheap individually and unmanageable
+    as a list of forty-three, and it is allowed to hold no expectations at all.
+    What it can do is go stale, in three ways, and each has a case here.
+    """
+
+    SHEET = "docs/RETURN_RUN_SHEET.md"
+
+    def sheet(self, text: str) -> None:
+        self.write(self.SHEET, text)
+
+    def test_a_sheet_naming_every_unrun_gate_is_accepted(self) -> None:
+        self.sheet("Run R1, then R2, then V1.\n")
+        self.assertEqual([], self.failures())
+
+    def test_a_gate_left_off_the_sheet_is_reported(self) -> None:
+        self.sheet("Run R1, then V1.\n")
+        failures = self.failures()
+        self.assertTrue(any("R2" in failure for failure in failures), failures)
+
+    def test_a_gate_with_a_pass_need_not_be_scheduled(self) -> None:
+        """The other direction of staleness: a gate already run stays off the
+        sheet, and the sheet must not be forced to keep telling someone to run
+        it."""
+
+        self.sheet("Run R2, then V1.\n")
+        self.assertEqual([], self.failures(records=record("R1")))
+
+    def test_a_gate_the_document_does_not_define_is_reported(self) -> None:
+        self.sheet("Run R1, R2, V1 and R9.\n")
+        failures = self.failures()
+        self.assertTrue(any("R9" in failure for failure in failures), failures)
+
+    def test_an_identifier_from_another_series_is_not_read_as_a_gate(self) -> None:
+        """A stop rule naming SEC-1 is citing a contract invariant, not
+        mistyping a gate. Reading it as one would make every sheet that
+        explains *why* a gate matters fail."""
+
+        self.sheet("Run R1, R2, V1. If R1 fails, SEC-1 is not what it claims.\n")
+        self.assertEqual([], self.failures())
+
+    def test_no_sheet_leaves_the_rule_with_nothing_to_say(self) -> None:
+        """Deliberate, and the reason the repository-level test below exists:
+        absence is not a failure here, so absence must be a failure there."""
+
+        self.assertEqual([], self.failures())
+
+
 class RepositoryStateTests(unittest.TestCase):
     """The repository as it stands, and what of this guard is live in it.
 
@@ -519,6 +569,17 @@ class RepositoryStateTests(unittest.TestCase):
         self.assertEqual(["RV-7"], [record.gate for record in records])
         self.assertEqual(["PASS"], [record.result for record in records])
         self.assertIn("6aa75ff", records[0].build)
+
+    def test_the_run_sheet_exists_and_rule_seven_is_live(self) -> None:
+        """Rule 7 is a no-op where there is no sheet, so this is the assertion
+        that the repository is not that case. Forty-two of the forty-three
+        gates are owed, and the sheet has to say when to run every one."""
+
+        self.assertTrue((REPOSITORY_ROOT / guard.RUN_SHEET).is_file())
+        self.assertTrue(
+            any(guard.RUN_SHEET in line for line in self.report),
+            "\n".join(self.report),
+        )
 
     def test_evidence_alone_advances_no_manifest(self) -> None:
         """A gate passing is not a module being verified.
