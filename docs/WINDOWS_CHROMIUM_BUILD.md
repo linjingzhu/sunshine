@@ -53,6 +53,14 @@ revision with no compatibility alias, and `GURL::path_piece()` does not exist
 because `path()` already returns a `std::string_view`. Each would have ended
 the build.
 
+**Grep for the name, then read the whole declaration.** Build #32 died on the
+same function anyway, because `base::JSONReader::Read` exists but its `options`
+parameter has no default here {D} the name was confirmed and the signature was
+not. Reading four more lines of `base/json/json_reader.h` would have caught it,
+and would also have found `ReadDict()`, which is what the call should have been
+in the first place. A grep answers *is it there*; only the declaration answers
+*can I call it that way*.
+
 **Also confirm the include a generated header comes from.** A `.mojom.h` is not
 in the source tree and will 404; find an upstream `.cc` that uses the same
 symbol and copy its include line. `new_tab_page_ui.cc` is the worked example
