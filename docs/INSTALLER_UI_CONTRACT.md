@@ -159,6 +159,8 @@ person.
 | IU-12 | A declined elevation prompt returns to the dialog and never installs per-user instead. | B |
 | IU-13 | The dialog resolves its colours through the token mapping, follows the system light/dark setting, and is legible from 100% to 300% scaling. | U |
 | IU-14 | Every control is reachable and operable from the keyboard alone, with a visible focus indicator, and every control has an accessible name. | U |
+| IU-15 | There is no switch, argument, environment variable or registry value that makes `sunshine-setup.exe` install without showing the dialog. Every installation it performs was watched by a person. | O |
+| IU-16 | The only machine state the front-end reads before the user has agreed to anything is whether Sunshine is installed and at what version. It reads no other key, and it writes none. | O |
 
 **No check claims any of these yet, because no code implements them.** IU-1 to
 IU-8 become decidable the moment the front-end is written, and the guard that
@@ -172,33 +174,35 @@ Nothing. It is the first contract to describe anything that runs outside the
 browser, which is why §7 needed a family of its own: every existing family
 speaks for a surface that only exists once Sunshine is installed.
 
-## 9. Still open
+## 9. Two answers, and what each costs
 
-Two questions this contract deliberately does not answer, because neither is
-implied by the six decisions above.
+**No silent mode.** There is no switch that installs without the dialog.
 
-- **A silent mode.** One file was chosen over two, and the cost named at the
-  time was that a deployment can no longer drive the engine directly. A switch
-  that skips the dialog and installs with the defaults would give that back.
+The two situations are one feature. Fifty machines set up from a deployment
+script is the same switch that an installer for some other program, or a script
+nobody read, would use to put Sunshine on a machine whose owner never asked for
+it. **Convenience and risk are not separable here**, and the honest way to hold
+that is to have neither until a deployment need is real enough to be argued on
+its own. IU-15 is the rule; when the need arrives, this section is what has to
+be reopened rather than quietly worked around.
 
-  *Concretely:* fifty machines to set up. With the switch, one line in a
-  deployment script does all fifty. Without it, somebody clicks through fifty
-  dialogs. **The other half of the same fact:** a switch that installs Sunshine
-  without showing anything is also what a bundler, an installer for some other
-  program, or a script the user did not read would use. That is why it is a
-  decision and not a detail — a silent installer is a different threat model
-  from an interactive one, and the convenience and the risk are the same
-  feature.
+**The dialog says when it is updating.** "Sunshine 1.0 is installed; this will
+update it to 1.1", rather than a button reading Install that silently does
+something else.
 
-- **An upgrade path in the dialog.** `mini_installer` already handles installing
-  over an existing version. Whether the dialog should *say* so means reading the
-  registry before drawing, which is work the front-end otherwise does not do.
+The cost is named in IU-16 and is deliberately bounded: the front-end reads the
+machine **before the user has agreed to anything**, which is a thing an
+installer should do as little of as possible. So it reads exactly one fact —
+whether Sunshine is installed, and at what version — from the registration
+`setup.exe` already maintains. It reads nothing else and writes nothing. An
+installer that inspects a machine it has not been given permission to change is
+a pattern worth keeping to one line.
 
-  *Concretely:* Sunshine is already installed and the user runs a newer
-  installer. Today the dialog says "Install" and quietly updates instead. The
-  alternative says "Sunshine 1.0 is installed; this will update it to 1.1"
-  — one honest line, bought by giving the installer a reason to inspect the
-  machine before it has been given permission to change anything.
+**What this does not become.** It does not become a repair flow, a downgrade
+prompt, or a "you already have the latest version" refusal. `mini_installer`
+decides what to do with an existing installation; the dialog only reports what
+it found, and if the read fails the dialog says Install and proceeds, because a
+missing fact is not a reason to block an installation.
 
 ## 10. NOT VERIFIED
 
