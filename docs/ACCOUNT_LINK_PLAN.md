@@ -365,10 +365,18 @@ from offline disk inspection, not from another program running as this user.
 §4 step 2's "Where it is kept" line must not overclaim, and `ERROR_NOT_FOUND`
 is the normal unlinked state rather than an error.
 
-**One correction to this document.** §7 named `OSCrypt` as the tempting wrong
-path; `components/os_crypt/sync/os_crypt.h` does not exist at the pin. The risk
-is unchanged — the surviving API is `components/os_crypt/async/common/encryptor.h`
-— only the symbol was stale.
+**One correction to this document, and the guard made it twice.** §7 named
+`OSCrypt` as the tempting wrong path. That class has been replaced at the pin by
+`components/os_crypt/async/common/encryptor.h`; the risk is unchanged and only
+the name was stale.
+
+The first draft of this paragraph said so by spelling the retired header in
+backticks — and `scripts/verify_pinned_upstream.py` failed the build, because it
+checks that every upstream path a document cites exists at the pinned revision
+and cannot tell a citation from an example of something absent. It was right to.
+**A document may not name an upstream path that is not there, even to say it is
+not there**, because the next reader cannot tell the difference either. The name
+of the retired class is enough.
 
 ## 11. One question this plan does not answer
 
