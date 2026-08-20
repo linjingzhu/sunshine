@@ -153,8 +153,8 @@ enforced yet; MHA-3 is close to free, because the surface is a plain
 - No claim is made about what the page does with a registry larger than a
   screenful; there are five modules and no scrolling behaviour has been
   designed for more.
-- **The shell link has not been followed.** It is a written-out anchor to a
-  surface that exists in the patch stack and has never been built, so what a
-  person arrives at is a skeleton with no module mounted in it.
+- **The shell link has not been followed.** The surface it points at compiles
+  as of build #33, but nobody has clicked the link, and what a person would
+  arrive at is a skeleton with no module mounted in it.
 - **The Register control has not been pressed.** Neither the dock's anchor nor
   the section it points at has been rendered by a browser. RV-38 is the gate.

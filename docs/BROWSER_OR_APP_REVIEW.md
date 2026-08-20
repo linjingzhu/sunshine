@@ -60,9 +60,14 @@ Concretely, with modules compiled in:
 - Two modules cannot be worked on independently. They share one build and one
   stack, so they share one queue and one failure.
 
-**This is already visibly not scaling.** Patches 0009 through 0014 have never
-been compiled, because the machine that compiles them is switched off. That is
-not a projection about ten modules; it is the state of the repository today.
+**This was already visibly not scaling**, and the evidence has since changed
+shape rather than gone away. When this was written, patches 0009 through 0014
+had never been compiled because the machine that compiles them was switched
+off. Build #33 has since compiled 0009 through 0016 {D} in three attempts, over
+about forty minutes of build machine time, on the one machine that can do it,
+while the owner was at it. The objection stands on the *coupling* rather than
+on the backlog: a module change still cannot be validated without that
+machine.
 
 So the problem the question names is real, present, and the largest one this
 project has. What remains is whether *"should have been an app"* is the right
@@ -180,9 +185,9 @@ is a fact about use, and no amount of build arithmetic outweighs it.
 
 Staying a Chromium downstream was right, and remains right, **on one
 condition: that modules stop needing builds.** Until installation lands, the
-architecture does not scale past a handful of modules, and the evidence is six
-patches that have never been compiled. That is not a quibble about the future;
-it is the present state, and it deserves to sting.
+architecture does not scale past a handful of modules. The backlog that made
+that vivid is gone {D} build #33 compiled it {D} but the coupling that produced
+the backlog is not, and it is the coupling that was the argument.
 
 What would have been lost by having been an app is not recoverable later — the
 isolation, the origins, the upstream bundle mechanism, and being the user's

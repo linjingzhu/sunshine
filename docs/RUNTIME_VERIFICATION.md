@@ -330,6 +330,39 @@ correct in Explorer's list view, on the taskbar and as a pinned shortcut is an
 observation only a person can make. RV-11 gains nothing here at all:
 `mini_installer.exe` carries a separate overlay file that no check reads.
 
+**Build #33 compiled patches 0009 to 0016, all eight of them for the first
+time.** Run `32323176049`, commit `ca1f5c0`: `Build Succeeded: 1194 steps` in
+20m42s, `verify_installed_build.py` exited 0, and `mini_installer.exe` is
+117.5 MB.
+
+That is the largest first-compile surface this project has had {D} the Windows
+install identity, 527 lines of renamed product strings, the module shell, the
+mount port and its storage vocabulary, the shell's framing policy, and two
+entry points {D} and with it, roughly 1,300 lines of TypeScript that upstream's
+eslint and stylelint had never seen.
+
+**It took three attempts and the two failures are worth keeping.** #31 died on
+`stylelint`, `no-duplicate-selectors`: patch 0011 wrote a `.tab-button` rule and
+patch 0012 wrote a second one beside it, each correct alone and wrong in sum.
+#32 died on `clang`: `base::JSONReader::Read` exists but its `options`
+parameter has no default here, and the symbol had been confirmed without the
+signature being read. Both classes are now in
+`docs/WINDOWS_CHROMIUM_BUILD.md`'s pre-build section, with the harnesses that
+decide them off the build machine.
+
+**What this does and does not establish.** It establishes that the stack
+compiles, that four surfaces plus the shell share one grd, that the framing
+policy in patch 0015 is valid C++ against the pinned tree, and that the
+artifact still carries the Sunshine icon and registers no scheme. It
+establishes **nothing about behaviour**: no gate below is discharged by a
+compile, and the shell has still never been opened.
+
+**What it unlocks is the owner's.** `mini_installer.exe` from this build is the
+first installer containing the rename, the shell, the dock and the mount port,
+so RV-26 to RV-30, RV-31 to RV-34, RV-35 to RV-37 and RV-38 are now *runnable*
+rather than blocked. They need a person, and they are the whole of what stands
+between this stack and evidence.
+
 ### Evidence
 
 ```text

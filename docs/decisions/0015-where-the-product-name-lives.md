@@ -134,7 +134,14 @@ enumerator would be renaming code.
 
 ## NOT VERIFIED
 
-- **Nothing here has been built.** Both patches apply cleanly to a fresh
+- **Both patches compile.** Build #33 (commit `ca1f5c0`) is the first native
+  build containing them, and `verify_installed_build.py` passed on its
+  artifact. That decides nothing about what a person sees: RV-26 to RV-30 need
+  the installer run, and this build produced the first installer that has the
+  rename in it. What follows was written before that build and is otherwise
+  unchanged.
+
+  Both patches apply cleanly to a fresh
   checkout of the pinned revision — that was run — but `git apply` does not
   tell you that grit still parses the grd, or that the installer places files
   where the new constants say.

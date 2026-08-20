@@ -262,9 +262,10 @@ because most seams here have needed one:
   blocked every mounted frame — the port could not have carried a message even
   with a module plugged in. It was found by reading the document surface's C++
   beside the shell's, not by any check, which is why MM-11 now exists.
-- **Nothing here has been built.** The patch applies to a fresh checkout of the
-  pinned revision. That is placement, not behaviour, and no native build has
-  compiled `mount.ts` or `mount_port.ts`.
+- **It compiles; it has never carried a message.** Build #33 (commit
+  `ca1f5c0`) compiled `mount.ts`, `mount_port.ts` and patch 0015's framing
+  policy, and both of upstream's linters passed on them. That is the type
+  system and the style rules agreeing, not the port working.
 - MM-9 and MM-10 need the browser and are unrun.
 - **A module in E belonging to a different module than D's is not
   implemented.** `docs/MODULE_SHELL_CONTRACT.md` §1 permits it; the shell mounts

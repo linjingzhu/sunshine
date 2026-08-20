@@ -234,8 +234,11 @@ default root size, and both still scale with the user's font-size setting.**
 
 ## 8. NOT VERIFIED
 
-- **Nothing here has been built into a running browser.** The patch applies to
-  a fresh checkout of the pinned revision; that is placement, not behaviour.
+- **It compiles; it has never run.** Build #33 (run `32323176049`, commit
+  `ca1f5c0`) is the first native build containing this patch, so the geometry,
+  the stylesheet and the TypeScript are valid against the pinned tree. Nothing
+  below follows from that: a compiler says nothing about behaviour, and the
+  shell has still never been opened.
 - **No module is mounted in it.** The mount port exists —
   `docs/MODULE_MOUNT_CONTRACT.md` and
   `downstream/patches/0012-sunshine-module-mount.patch` — and no module
