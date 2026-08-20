@@ -237,9 +237,23 @@ decide. The guard is written with the code, not after it.
 Each is written with the situation that makes it a real fork, because a
 decision stated only as two abstractions is one nobody can take.
 
+**D1 is settled: the account is optional forever.**
+
+The owner's answer, and it is the load-bearing one. No module and no feature may
+require a link. PO-2 stays true, §3 of the onboarding contract keeps describing
+a complete path rather than a degraded one, and `verify_account_freedom.py`'s
+PO-A3 — no registered command for sign-in — needs no exception.
+
+**It also narrows §6.** Module *entitlement* was the most plausible first use of
+the link, and entitlement means "this person may install that module", which is
+a requirement by another name. Under D1 it is not available as stated. What
+remains for the link to be **for** is identity that makes something *better*
+and nothing *possible*: naming the person across devices, and filling the
+`device` and ownership fields `docs/DOCUMENT_STORE_CONTRACT.md` §3 already
+defines. D3 is where that is confirmed or replaced.
+
 | | Decision | The moment it decides | Options |
 | --- | --- | --- | --- |
-| **D1** | Is the account **optional forever**, or does some part of Sunshine come to require it? | A module is written that would rather not run without knowing who the user is. | Optional forever (recommended; keeps PO-2 and the whole local-only argument true) — or required for a named subset, which must be named **now**, because a list that grows later turns "local-only is a complete path" into a sentence that used to be true. |
 | **D2** | Where does Google's authorization page render? | The user is already signed in to Gmail in a tab, and presses Link. | A **normal tab**: Google offers the account already in session and it is one click. PO-R7 still holds, because Sunshine reads no cookies — it receives a code on a socket. Or a **dedicated ephemeral partition**: the sign-in page starts empty and the password is typed again. Strictly satisfies PO-R7's storage-partition clause with no interpretation, at the cost of a prompt that will look like a bug to someone who is plainly already signed in. |
 | **D3** | What scope is requested at launch? | Google's consent screen renders, and says out loud what was asked for. | `openid email` only (recommended): "Sunshine wants to see your email address." One line, no Google app review. Or identity **plus** a product scope: "…wants to see and manage files in your Google Drive", which makes people stop, and needs review — for a feature that does not exist yet. |
 | **D4** | Is the link **per profile** or per installation? | Two profiles on one machine, one person's and one someone else's. | Per profile (recommended): linking in one leaves the other with no account, which is what §7 deletes and where the credential is keyed. Or per installation: one link the whole browser shares, which makes profile isolation partly untrue and would need `docs/SESSION_PROFILE_CONTRACT.md` to say so. |
