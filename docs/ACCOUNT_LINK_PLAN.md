@@ -90,13 +90,12 @@ offered.
 
 ### Step 1 — the offer
 
-A row in the profile's own settings, and — if the owner wants it — one
-dismissible card the first time a profile is used. Requirements, all from
-existing rules:
+**A row in the profile's own settings, and nothing else** (D5). No card, no
+banner, no first-run step. Requirements, all from existing rules:
 
-- Dismissing it yields a fully configured browser (PO-9) and it does not return
-  (PO-R12's rule for first-run steps).
-- It is reachable from settings afterwards, forever (PO-10).
+- The absence of any prompt is itself PO-9 satisfied: a user who never opens
+  settings has a fully configured browser.
+- The row is reachable from settings at any time (PO-10).
 - Its copy never says *incomplete*, *set up*, *finish*, or *recommended*
   (PO-6, PO-A15).
 
@@ -125,12 +124,13 @@ The documented native-application flow, and nothing clever:
 | Client type | **Public client, PKCE only**, with SHA-256 challenges. No client secret ships. A secret in a program on a user's disk is not a secret, and Google's desktop client type does not expect one. |
 | Redirect | **Loopback**, `http://127.0.0.1:<ephemeral port>`. The listener binds before the URL opens, accepts exactly one request, and closes. |
 | Anti-forgery | `state`, generated per attempt, compared on return, single use. |
+| Account choice | `prompt=select_account`, always (D2). Google must not continue silently with the session already in the tab, because a person with several accounts would never see which one was linked. |
 | Refusals | `urn:ietf:wg:oauth:2.0:oob` is not used — it is retired. No embedded web view is used; Google refuses those and it would also breach PO-R7. |
 | Timeout | The listener closes on a short timer whether or not anything arrives, so a cancelled sign-in leaves no socket open. |
 
-**Where the authorization page renders is the one open design question**, and
-§9's D2 is where it is asked. Both answers are defensible and they differ in
-exactly one property: whether the user's existing Google web session is reused.
+The page renders in an ordinary tab (D2). The user's existing Google session is
+reachable, and the forced account chooser is what stops that convenience from
+becoming a link the user did not read.
 
 ### Step 4 — the exchange
 
@@ -287,12 +287,36 @@ link**, on the same path and with the same offline behaviour as §7 — the loca
 delete happens whether or not the revocation reaches Google. That is a rule the
 implementation owes, and PO-A10's fixture list should gain a linked account.
 
-**D2 and D5 are open.**
+**D2 is settled: a normal tab, with account selection forced.**
 
-| | Decision | The moment it decides | Options |
-| --- | --- | --- | --- |
-| **D2** | Where does Google's authorization page render? | The user is already signed in to Gmail in a tab, and presses Link. | A **normal tab**: Google offers the account already in session and it is one click. PO-R7 still holds, because Sunshine reads no cookies — it receives a code on a socket. Or a **dedicated ephemeral partition**: the sign-in page starts empty and the password is typed again. Strictly satisfies PO-R7's storage-partition clause with no interpretation, at the cost of a prompt that will look like a bug to someone who is plainly already signed in. |
-| **D5** | Is a first-use **card** shown, or is the link only ever found in settings? | A brand-new profile opens for the first time. | A dismissible card: found without hunting, at the cost of appearing at the one moment PO-6 is most easily broken. Or settings only: quieter, impossible to mistake for a setup step, and some users will never learn the feature exists. |
+The authorization page renders in an ordinary tab, and the request carries
+`prompt=select_account` so that Google never silently continues with whatever
+session is already there.
+
+This is the middle of the three answers and it was chosen over both ends for a
+reason worth recording. Reusing the session outright is one click, and its
+failure mode is a person with several Google accounts linking the wrong one
+without ever seeing which. The ephemeral partition removes that by making the
+user type a password, and its failure mode is that a person plainly signed in is
+asked to sign in again, which reads as a defect. Forcing the account chooser
+costs one click and removes the first failure without buying the second.
+
+PO-R7 still holds, and the reason has not changed: Sunshine reads no cookies. It
+receives an authorization code on a socket it opened. The user's Google session
+is the user's, used by the user, in their own tab — which is L1, and PO-R1
+permits it.
+
+**D5 is settled: settings only. No first-use card.**
+
+Nothing appears when a new profile opens. The link lives in the profile's
+settings and is found by looking for it.
+
+This is the answer most consistent with D1. A card offering an account at first
+run is a card appearing at the exact moment PO-6 is easiest to break — the
+moment a user is deciding what this browser expects of them — and no wording
+makes "would you like to connect an account?" fully safe from reading as
+"finish setting up". The cost is real and is accepted: some users will never
+learn the feature exists. Under D1 that costs them nothing they cannot do.
 
 ## 10. NOT VERIFIED
 
