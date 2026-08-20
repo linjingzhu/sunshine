@@ -201,9 +201,15 @@ The candidates, with what each would cost:
 | **Module entitlement** | Which modules this person may install. | This is what "account-based operation" most plausibly means, and it needs identity and nothing more. |
 | **Drive as a document store** | `drive.file`. | **Contradicts a settled decision.** DS-1 chose "a directory the user picks, in a folder something else already syncs". Drive-as-an-API is a different design from Drive-as-a-synced-folder, and DS-2 forbids the database shape it tends toward. If this is wanted it reopens the store contract; it does not extend it. |
 
-**Recommendation: request `openid email` and nothing else at launch.** A scope
+**Decided (D3): `openid` and `email` at launch, and nothing else.** A scope
 requested before a feature needs it is a permission with no justification to
-give, and Google's consent screen will say so more bluntly than any reviewer.
+give, and Google's consent screen says so more bluntly than any reviewer would.
+
+Under D1 the identity row is also the only row still available: entitlement is a
+requirement by another name, and Drive would reopen DS-1. So the link's whole
+job at launch is to name a person across devices — and if that turns out not to
+be worth building, this is the section where that becomes visible rather than
+the section that hides it.
 
 ## 7. What breaks if this is done carelessly
 
@@ -252,11 +258,40 @@ and nothing *possible*: naming the person across devices, and filling the
 `device` and ownership fields `docs/DOCUMENT_STORE_CONTRACT.md` §3 already
 defines. D3 is where that is confirmed or replaced.
 
+**D3 is settled: `openid` and `email`, and nothing else.**
+
+Two things follow that are worth having written down.
+
+- **No Google verification is required to launch.** Verification is what
+  sensitive and restricted scopes trigger; an app asking only for identity does
+  not. The unverified-app screen §10 warns about is therefore not on the path,
+  provided the scope list stays as decided. Adding one product scope later is
+  not a small edit — it is a review.
+- **Drive-as-a-store stays closed.** `docs/DOCUMENT_STORE_CONTRACT.md` DS-1 —
+  a directory the user picks, in a folder something else already syncs — is
+  untouched, and §6's warning that Drive-as-an-API would *reopen* that contract
+  rather than extend it does not need to be acted on.
+
+**D4 is settled: the link is per profile.**
+
+The credential is keyed to the profile in the Windows credential store, which
+is what §5 already described and what makes §7's "one delete and it is gone"
+literally true.
+
+**It adds one obligation to a contract this document does not own.**
+`docs/PROFILE_ONBOARDING_CONTRACT.md` PO-12 requires profile deletion to destroy
+"all Sunshine metadata keyed to that profile". A credential in the OS vault is
+exactly that, and it does not live under the profile directory, so Chromium's
+own deletion will not remove it. **Deleting a profile must revoke and delete its
+link**, on the same path and with the same offline behaviour as §7 — the local
+delete happens whether or not the revocation reaches Google. That is a rule the
+implementation owes, and PO-A10's fixture list should gain a linked account.
+
+**D2 and D5 are open.**
+
 | | Decision | The moment it decides | Options |
 | --- | --- | --- | --- |
 | **D2** | Where does Google's authorization page render? | The user is already signed in to Gmail in a tab, and presses Link. | A **normal tab**: Google offers the account already in session and it is one click. PO-R7 still holds, because Sunshine reads no cookies — it receives a code on a socket. Or a **dedicated ephemeral partition**: the sign-in page starts empty and the password is typed again. Strictly satisfies PO-R7's storage-partition clause with no interpretation, at the cost of a prompt that will look like a bug to someone who is plainly already signed in. |
-| **D3** | What scope is requested at launch? | Google's consent screen renders, and says out loud what was asked for. | `openid email` only (recommended): "Sunshine wants to see your email address." One line, no Google app review. Or identity **plus** a product scope: "…wants to see and manage files in your Google Drive", which makes people stop, and needs review — for a feature that does not exist yet. |
-| **D4** | Is the link **per profile** or per installation? | Two profiles on one machine, one person's and one someone else's. | Per profile (recommended): linking in one leaves the other with no account, which is what §7 deletes and where the credential is keyed. Or per installation: one link the whole browser shares, which makes profile isolation partly untrue and would need `docs/SESSION_PROFILE_CONTRACT.md` to say so. |
 | **D5** | Is a first-use **card** shown, or is the link only ever found in settings? | A brand-new profile opens for the first time. | A dismissible card: found without hunting, at the cost of appearing at the one moment PO-6 is most easily broken. Or settings only: quieter, impossible to mistake for a setup step, and some users will never learn the feature exists. |
 
 ## 10. NOT VERIFIED
@@ -264,10 +299,12 @@ defines. D3 is where that is confirmed or replaced.
 - **Nothing here is built, and no ADR exists.** PO-R3 precondition 1 is
   unwritten and precondition 5 — re-deriving §5 and §6 of the onboarding
   contract against the revision in force — has not been done.
-- **No OAuth client exists.** No Google Cloud project has been created, no
-  consent screen configured, and no verification requested. Until an app is
-  verified Google shows an unverified-app warning to users, and how that
-  interacts with §4 step 2's copy has not been considered.
+- **No OAuth client exists.** No Google Cloud project has been created and no
+  consent screen configured. **Verification is believed not to be required**,
+  because D3 settled the scope at identity only and verification is what
+  sensitive and restricted scopes trigger — but that is read from Google's
+  published policy, not from having submitted anything, and it is the claim in
+  this document most likely to be wrong in a way that costs weeks.
 - **The Windows credential store has not been touched.** Which API is used, what
   it costs at profile deletion, and whether it survives a Windows account
   migration are all unexamined.
