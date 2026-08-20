@@ -30,6 +30,57 @@ Set the repository Actions variable `SUNSHINE_CHROMIUM_WORKSPACE` to the persist
 
 The runner also needs `DEPOT_TOOLS_WIN_TOOLCHAIN=0` in the machine environment. Without it `gclient sync` tries to fetch a Google-internal toolchain and fails.
 
+## Before dispatching a build, read the pinned tree and run the toolchain
+
+A build is six hours on the machine the owner also works on, so the question
+worth asking before every dispatch is *what would waste it*. Three kinds of
+failure can be found in about twenty minutes, off the build machine entirely,
+and the first time this was done it found three real ones.
+
+**1. Symbols, not just paths.** The guards read the patch stack; none of them
+reads Chromium's headers, so a C++ patch naming an API that does not exist at
+the pin passes everything and dies in the compiler. `raw.githubusercontent.com`
+is reachable from an agent session even where `chromium.googlesource.com` is
+not, so any header can be read directly:
+
+```text
+curl -s https://raw.githubusercontent.com/chromium/chromium/<pin>/base/values.h
+```
+
+Before build #31 this found three in one 40-line function: `base::Value::Dict`
+and `base::Value::List` are `base::DictValue` and `base::ListValue` at this
+revision with no compatibility alias, and `GURL::path_piece()` does not exist
+because `path()` already returns a `std::string_view`. Each would have ended
+the build.
+
+**Also confirm the include a generated header comes from.** A `.mojom.h` is not
+in the source tree and will 404; find an upstream `.cc` that uses the same
+symbol and copy its include line. `new_tab_page_ui.cc` is the worked example
+for `network::mojom::CSPDirectiveName`.
+
+**2. TypeScript, actually compiled.** `tsc` type-checks the surfaces without a
+Chromium checkout. Use Chromium's own settings from
+`tools/typescript/tsconfig_base.json` rather than a guess {D} it is stricter
+than the obvious defaults, in particular `noUncheckedIndexedAccess` and
+`noPropertyAccessFromIndexSignature`. Stub `//resources/js/load_time_data.js`
+and `/strings.m.js` through `paths`.
+
+**3. eslint, with Chromium's own configuration.** This is the one that runs
+*inside* `build_webui()`. `tools/web_dev_style/eslint.config.mjs` can be used
+directly by rewriting its four plugin imports to locally installed copies of
+`@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser`,
+`@stylistic/eslint-plugin` and `eslint-plugin-lit`. Approximating the rules by
+hand is not the same thing and misses the project-specific
+`no-restricted-syntax` cases.
+
+**Prove each harness before trusting it.** Inject a fault and check it fails.
+A checker that passes because it matched no files is worse than no checker,
+and both of these can do that silently {D} `tsc` on an empty include list and
+`eslint` on a glob that matches nothing both exit 0.
+
+None of this is a substitute for the build. It removes the failures that are
+decidable without one, which is most of the ones this project has actually hit.
+
 ## Why the build is not on a GitHub-hosted runner
 
 It was asked for, and the answer is arithmetic rather than preference.
