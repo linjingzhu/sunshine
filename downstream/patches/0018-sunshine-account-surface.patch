@@ -1,0 +1,485 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index d2fa882..e13700a 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -46,6 +46,8 @@ build_webui("build") {
+ 
+   # Extended by each surface patch.
+   static_files = [
++    "account/app.css",
++    "account/app.html",
+     "document/app.css",
+     "document/app.html",
+     "document_content/app.css",
+@@ -58,6 +60,7 @@ build_webui("build") {
+     "shell/app.html",
+   ]
+   ts_files = [
++    "account/app.ts",
+     "document/app.ts",
+     "document/host.ts",
+     "document_content/app.ts",
+diff --git a/chrome/browser/resources/sunshine/account/app.css b/chrome/browser/resources/sunshine/account/app.css
+new file mode 100644
+index 0000000..e831585
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/account/app.css
+@@ -0,0 +1,58 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file. */
++
++body {
++  background: var(--color-dialog-background);
++  color: var(--color-primary-foreground);
++  margin: 0;
++}
++
++#page {
++  margin: 0 auto;
++  max-width: 720px;
++  padding: 32px 24px 48px;
++}
++
++h1 {
++  font-size: 1.5rem;
++  font-weight: 500;
++  margin: 0 0 16px;
++}
++
++h2 {
++  font-size: 0.875rem;
++  font-weight: 500;
++  letter-spacing: 0.04em;
++  margin: 0 0 8px;
++  text-transform: uppercase;
++}
++
++.state {
++  border-inline-start: 3px solid var(--color-secondary-foreground);
++  margin: 0 0 32px;
++  padding-inline-start: 12px;
++}
++
++.panel {
++  border-top: 1px solid var(--color-midground);
++  margin: 0;
++  padding: 24px 0 0;
++}
++
++.panel + .panel {
++  margin-top: 24px;
++}
++
++ul {
++  margin: 0;
++  padding-inline-start: 20px;
++}
++
++li {
++  margin-bottom: 8px;
++}
++
++p {
++  margin: 0 0 8px;
++}
+diff --git a/chrome/browser/resources/sunshine/account/app.html b/chrome/browser/resources/sunshine/account/app.html
+new file mode 100644
+index 0000000..65f9db7
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/account/app.html
+@@ -0,0 +1,65 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Sunshine Account</title>
++  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
++  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- Written out rather than built by app.ts, and deliberately.
++       docs/ACCOUNT_LINK_PLAN.md section 4 step 2 requires Sunshine's own
++       consent screen to say what the link will not do, *before* Google's
++       screen says what it will. That text is the product of a decision, not of
++       data: it is the same in every build and for every user, so it belongs in
++       the document where it can be read and reviewed, not assembled at run
++       time from strings a reader has to reconstruct. -->
++  <main id="page">
++    <h1>Google account</h1>
++
++    <p id="state" class="state"></p>
++
++    <section class="panel">
++      <h2>What connecting does</h2>
++      <ul>
++        <li>Sunshine learns the address of the Google account you choose.</li>
++        <li>That is the whole of it.</li>
++      </ul>
++    </section>
++
++    <section class="panel">
++      <h2>What it does not do</h2>
++      <!-- The load-bearing half. A person who reads "connect a Google account"
++           in a browser reasonably expects browser sign-in, and this page has to
++           say plainly that it is not that. PO-R7 and PO-R10 are the rules; this
++           is the sentence a user actually meets. -->
++      <ul>
++        <li>It does not sign the browser in. Sunshine still has no browser
++            account, and nothing about the pages you visit changes.</li>
++        <li>It does not sync anything &mdash; not bookmarks, not history, not
++            passwords, not open tabs. Sunshine has no sync and will not gain
++            one this way.</li>
++        <li>It does not give Sunshine your Google password.</li>
++        <li>Nothing in Sunshine reads the connected account to change how it
++            behaves.</li>
++      </ul>
++    </section>
++
++    <section class="panel">
++      <h2>Where it is kept</h2>
++      <!-- Deliberately not overclaimed. Microsoft documents that generic
++           credentials "can be read and written by user processes", so the
++           store protects the token from other Windows users and from offline
++           inspection of the disk -- not from another program running as you.
++           Saying the smaller true thing is the point. -->
++      <p>In Windows' credential store, for this profile only. It is protected
++         from other Windows users and from anyone reading the disk; it is not
++         protected from another program running as you.</p>
++      <p>Disconnecting removes it, whether or not you are online.</p>
++    </section>
++  </main>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/account/app.ts b/chrome/browser/resources/sunshine/account/app.ts
+new file mode 100644
+index 0000000..4370bfd
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/account/app.ts
+@@ -0,0 +1,44 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import '/strings.m.js';
++
++import {loadTimeData} from '//resources/js/load_time_data.js';
++
++/**
++ * The Google account link.
++ *
++ * This file writes exactly one sentence, and everything else on the page is in
++ * app.html where it can be reviewed. That split is deliberate: the consent text
++ * is a decision and does not vary, while the state does.
++ *
++ * `textContent`, never markup. Nothing here needs it today, and the moment the
++ * connected address arrives from Google's token response this file becomes the
++ * one place on the page where a privileged surface handles a string it did not
++ * write. Doing it the safe way before that is free; retrofitting it is an
++ * audit.
++ */
++
++function stateSentence(available: boolean): string {
++  if (!available) {
++    // Absent, not broken -- and phrased so that it reads as a fact about this
++    // build rather than as something the reader failed to set up. PO-6 forbids
++    // presenting local-only operation as an incomplete setup, and this is the
++    // sentence that rule is about.
++    return 'This build of Sunshine does not offer a Google account connection.';
++  }
++  return 'No Google account is connected. Sunshine works exactly the same ' +
++      'either way.';
++}
++
++function render(): void {
++  const state = document.querySelector<HTMLElement>('#state');
++  if (!state) {
++    return;
++  }
++  state.textContent =
++      stateSentence(loadTimeData.getBoolean('accountLinkAvailable'));
++}
++
++render();
+diff --git a/chrome/browser/resources/sunshine/modules/app.html b/chrome/browser/resources/sunshine/modules/app.html
+index 17865cb..f118880 100644
+--- a/chrome/browser/resources/sunshine/modules/app.html
++++ b/chrome/browser/resources/sunshine/modules/app.html
+@@ -34,6 +34,18 @@
+       <a id="shellLink" class="navlink" href="chrome://sunshine-shell/">
+         Open the module shell
+       </a>
++
++      <!-- The only route to the account link that is not typing its address.
++           docs/ACCOUNT_LINK_PLAN.md D5 chose settings over a first-run card,
++           and section 11 chose this page over Chromium's own settings, so this
++           anchor is the whole of the feature's discoverability. It is written
++           out for the same three reasons the shell link above is: nothing
++           about it comes from the registry, it mutates nothing, and a page
++           that assembled it would be a page that could assemble a different
++           destination. -->
++      <a id="accountLink" class="navlink" href="chrome://sunshine-account/">
++        Google account
++      </a>
+     </nav>
+ 
+     <main id="main">
+diff --git a/chrome/browser/ui/sunshine/BUILD.gn b/chrome/browser/ui/sunshine/BUILD.gn
+index 9be4fbc..feec6b1 100644
+--- a/chrome/browser/ui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/sunshine/BUILD.gn
+@@ -8,8 +8,14 @@
+ # target that could see Browser could navigate one, and section 1 forbids
+ # exactly that.
+ source_set("sunshine") {
+-  public = [ "mouse_gesture.h" ]
+-  sources = [ "mouse_gesture.cc" ]
++  public = [
++    "account_link.h",
++    "mouse_gesture.h",
++  ]
++  sources = [
++    "account_link.cc",
++    "mouse_gesture.cc",
++  ]
+ 
+   deps = [
+     "//base",
+diff --git a/chrome/browser/ui/sunshine/account_link.cc b/chrome/browser/ui/sunshine/account_link.cc
+new file mode 100644
+index 0000000..a684659
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/account_link.cc
+@@ -0,0 +1,32 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/sunshine/account_link.h"
++
++namespace sunshine::account {
++
++namespace {
++
++// The OAuth client this build was given, or the empty string.
++//
++// It is a build-time define and never a literal in this repository. The name is
++// Sunshine's own and deliberately not one of Chrome's three -- setting
++// `google_default_client_id` is what re-enables Desktop Identity Consistency,
++// and ADR 0018 section 4 traces that chain from `HasAPIKeyConfigured()` through
++// the signin-allowed preference to the suppressed first run. A Sunshine client
++// id is invisible to that chain, which is the whole reason this feature is safe
++// in a way that configuring an API key would not be.
++#if defined(SUNSHINE_ACCOUNT_CLIENT_ID)
++constexpr char kClientId[] = SUNSHINE_ACCOUNT_CLIENT_ID;
++#else
++constexpr char kClientId[] = "";
++#endif
++
++}  // namespace
++
++bool LinkAvailable() {
++  return kClientId[0] != '\0';
++}
++
++}  // namespace sunshine::account
+diff --git a/chrome/browser/ui/sunshine/account_link.h b/chrome/browser/ui/sunshine/account_link.h
+new file mode 100644
+index 0000000..7fd04bb
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/account_link.h
+@@ -0,0 +1,27 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_SUNSHINE_ACCOUNT_LINK_H_
++#define CHROME_BROWSER_UI_SUNSHINE_ACCOUNT_LINK_H_
++
++namespace sunshine::account {
++
++// Whether this build can offer an account link at all.
++//
++// **False in every build made from this repository, and that is the design.**
++// `scripts/verify_account_freedom.py` refuses every credential in the tree, so
++// the OAuth client arrives at build time from the release pipeline and a
++// community build simply has none. Section 5 of `docs/ACCOUNT_LINK_PLAN.md`
++// calls that state *absent*, not broken: the surface says so plainly and
++// offers nothing, rather than offering a control that cannot work.
++//
++// This is the whole of the account link's browser-side state today. There is
++// deliberately no preference for the linked address yet: nothing can set one
++// until the authorization round trip exists, and a preference for a value that
++// can never be written is a preference for nothing.
++bool LinkAvailable();
++
++}  // namespace sunshine::account
++
++#endif  // CHROME_BROWSER_UI_SUNSHINE_ACCOUNT_LINK_H_
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index ecf2ef0..6751b18 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -43,6 +43,8 @@ source_set("sunshine") {
+     "sunshine_webui_resources.h",
+ 
+     # Extended by each surface patch.
++    "account/sunshine_account_ui.cc",
++    "account/sunshine_account_ui.h",
+     "document/sunshine_document_content_ui.cc",
+     "document/sunshine_document_content_ui.h",
+     "document/sunshine_document_handler.cc",
+@@ -75,6 +77,11 @@ source_set("sunshine") {
+ 
+     # Extended by each surface patch.
+     "//chrome/browser/profiles:profile",
++
++    # The account link's state. It lives beside the mouse gesture recogniser
++    # for the same reason that one does: a target that cannot see Browser
++    # cannot navigate one.
++    "//chrome/browser/ui/sunshine",
+     "//chrome/common",
+     "//components/prefs",
+     "//components/safe_browsing:buildflags",
+diff --git a/chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.cc b/chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.cc
+new file mode 100644
+index 0000000..c1cdaeb
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.cc
+@@ -0,0 +1,32 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.h"
++
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/sunshine/account_link.h"
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "ui/webui/webui_util.h"
++
++SunshineAccountUI::SunshineAccountUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, chrome::kChromeUISunshineAccountHost);
++
++  // One fact, known before the page loads, and false in every build made from
++  // this repository: the OAuth client arrives at build time and this tree
++  // carries no credential. The page renders that as a plain statement rather
++  // than as a disabled control -- PO-6 forbids presenting local-only operation
++  // as an incomplete setup, and a greyed-out Connect button is exactly that.
++  source->AddBoolean("accountLinkAvailable", sunshine::account::LinkAvailable());
++
++  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("account"),
++                              IDR_SUNSHINE_ACCOUNT_APP_HTML);
++}
++
++SunshineAccountUI::~SunshineAccountUI() = default;
+diff --git a/chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.h b/chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.h
+new file mode 100644
+index 0000000..b00f1e1
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.h
+@@ -0,0 +1,49 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_ACCOUNT_SUNSHINE_ACCOUNT_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_ACCOUNT_SUNSHINE_ACCOUNT_UI_H_
++
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineAccountUI;
++
++// The Google account link, at chrome://sunshine-account. Reached from a row on
++// the module home; docs/ACCOUNT_LINK_PLAN.md section 11 records why it is not
++// a row in Chromium's own settings.
++class SunshineAccountUIConfig
++    : public content::DefaultWebUIConfig<SunshineAccountUI> {
++ public:
++  SunshineAccountUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUISunshineAccountHost) {}
++};
++
++// Says what the link is, what it is not, and whether this build can offer it.
++//
++// A plain content::WebUIController, not ui::MojoWebUIController, and the reason
++// is the same one the module home gives: the page needs facts that are known
++// before it loads, so they arrive through the data source and no interface is
++// granted. **The page has nothing to ask the browser to do yet.** Starting an
++// authorization is the next patch's, and it is what will make an interface
++// necessary; granting one now would be machinery for an operation that does not
++// exist.
++class SunshineAccountUI : public content::WebUIController {
++ public:
++  explicit SunshineAccountUI(content::WebUI* web_ui);
++
++  SunshineAccountUI(const SunshineAccountUI&) = delete;
++  SunshineAccountUI& operator=(const SunshineAccountUI&) = delete;
++
++  ~SunshineAccountUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_ACCOUNT_SUNSHINE_ACCOUNT_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index 10a37bb..72cd746 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -14,6 +14,7 @@
+ #include <memory>
+ 
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
++#include "chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h"
+@@ -88,6 +89,7 @@ inline void RegisterWebUIInterfaceBrokers() {
+ }
+ 
+ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
++  map.AddWebUIConfig(std::make_unique<SunshineAccountUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineDocumentUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineModulesUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
+diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
+index 4f54243..4b7c904 100644
+--- a/chrome/common/sunshine/sunshine_webui_hosts.h
++++ b/chrome/common/sunshine/sunshine_webui_hosts.h
+@@ -20,6 +20,13 @@
+ 
+ namespace chrome {
+ 
++// The Google account link. docs/ACCOUNT_LINK_PLAN.md section 11: the consent
++// screen has to be a page, so the page exists whatever else is decided, and
++// the linked state belongs on it. Reached from a row on the module home.
++inline constexpr char kChromeUISunshineAccountHost[] = "sunshine-account";
++inline constexpr char kChromeUISunshineAccountURL[] =
++    "chrome://sunshine-account/";
++
+ // The Sunshine document surface. Two hosts, one surface: the privileged shell
+ // and the unprivileged frame it embeds. docs/DOCUMENT_SURFACE_CONTRACT.md
+ // section 1 is why they are two, and `chrome-untrusted` is Chromium's own
+@@ -62,6 +69,7 @@ inline constexpr char kChromeUISunshineShellURL[] =
+ // navigated to by name -- the document frame is reachable only as the shell's
+ // iframe -- and ChromeURLHosts() is the omnibox's list of chrome:// pages.
+ inline constexpr auto kSunshineWebUIHosts = std::to_array<base::cstring_view>({
++      kChromeUISunshineAccountHost,
+       kChromeUISunshineDocumentHost,
+       kChromeUISunshineModulesHost,
+       kChromeUISunshineSecurityHost,

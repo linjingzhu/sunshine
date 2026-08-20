@@ -2,7 +2,20 @@
 
 ## 0. Status, and the question this answers
 
-A plan, not a decision and not work. **It answers a standing P0.**
+A plan whose first step is now built. **It answers a standing P0.**
+
+`0018-sunshine-account-surface.patch` implements §4 steps 0 and 1 and stops
+there. What exists: a `sunshine://account` page, a row on the module home that
+reaches it, and one browser-side function that answers whether this build has an
+OAuth client. What does not exist: consent, authorization, token exchange,
+credential storage, the linked address, unlinking — §4 steps 2 through 7, all of
+it a later patch. The plan below is unchanged; this note only marks how far down
+it the code has come.
+
+There is deliberately **no preference for the linked address yet.** Nothing can
+write one until the authorization round trip exists, and a preference for a
+value that can never be written is a preference for nothing.
+
 `docs/PROFILE_ONBOARDING_CONTRACT.md` §12 asks:
 
 > Is a **permanently** account-free browser the product, or is local-only the

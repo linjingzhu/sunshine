@@ -46,6 +46,12 @@ KNOWN_EXTENDED_REGISTRIES = frozenset({
     # Patch 0016 gives the port 0012 created its storage vocabulary.
     "chrome/browser/resources/sunshine/shell/mount.ts",
     "chrome/browser/resources/sunshine/shell/mount_port.ts",
+    # Patch 0017 created this build file for the gesture recognizer, the first
+    # browser-side Sunshine target outside the WebUI seam; patch 0018 adds the
+    # account link's two files to it. The same shape as 0012 extending 0011 --
+    # a Sunshine-created file extended by a later Sunshine patch -- and it
+    # stays a Sunshine file, so no upstream ownership is claimed either time.
+    "chrome/browser/ui/sunshine/BUILD.gn",
 })
 
 

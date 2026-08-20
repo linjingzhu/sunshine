@@ -9,8 +9,22 @@ updated: 2026-08-20
 
 ## Status
 
-**Accepted. Not implemented.** The plan is `docs/ACCOUNT_LINK_PLAN.md`; the rules
-it must not break are `docs/PROFILE_ONBOARDING_CONTRACT.md` §4 and §5.
+**Accepted. The surface is implemented; the authorization is not.** The plan is
+`docs/ACCOUNT_LINK_PLAN.md`; the rules it must not break are
+`docs/PROFILE_ONBOARDING_CONTRACT.md` §4 and §5.
+
+`0018-sunshine-account-surface.patch` landed steps 0 and 1 of the plan's §4 and
+nothing after them: there is a `sunshine://account` page, it is reachable from
+the module home, and it reports whether this build has an OAuth client at all.
+It does not offer a control, because no build made from this repository has a
+client — §5 below is why, and the page says so plainly rather than showing a
+button that cannot work. Steps 2 through 7 — consent, authorization, exchange,
+storage, display, unlink — are a later patch and none of their code exists.
+
+The patch cost **zero upstream files**. It touches thirteen paths and every one
+of them is Sunshine's own, which is the seam of
+`docs/decisions/0007-module-contribution-seam.md` doing exactly what it was
+built to do.
 
 This ADR exists because that contract requires it to. PO-R3 permits Sunshine to
 gain an identity only if five preconditions hold simultaneously, and the first
