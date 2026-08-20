@@ -27,6 +27,7 @@
 #include <sddl.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <wincodec.h>
 
 #include <string>
 #include <vector>
@@ -373,6 +374,67 @@ bool RelaunchElevated(const Choices& choices, DWORD* exit_code) {
 // Sunshine's (D6). The token mapping lives in one table and nowhere else.
 // ---------------------------------------------------------------------------
 
+// The banner. Decoded once, from the resource compiled into this binary, and
+// never from a file (IU-6). WIC reads it out of memory, so there is no path
+// anywhere in this program that an image could arrive by.
+HBITMAP DecodeBanner() {
+  HRSRC resource = ::FindResourceW(nullptr, MAKEINTRESOURCEW(IDR_BANNER), RT_RCDATA);
+  HGLOBAL loaded = resource ? ::LoadResource(nullptr, resource) : nullptr;
+  auto* data = loaded ? static_cast<BYTE*>(::LockResource(loaded)) : nullptr;
+  const DWORD size = resource ? ::SizeofResource(nullptr, resource) : 0;
+  if (!data || !size) {
+    return nullptr;
+  }
+
+  IWICImagingFactory* factory = nullptr;
+  if (FAILED(::CoCreateInstance(CLSID_WICImagingFactory, nullptr,
+                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)))) {
+    return nullptr;
+  }
+  IWICStream* stream = nullptr;
+  IWICBitmapDecoder* decoder = nullptr;
+  IWICBitmapFrameDecode* frame = nullptr;
+  IWICFormatConverter* converter = nullptr;
+  HBITMAP bitmap = nullptr;
+
+  if (SUCCEEDED(factory->CreateStream(&stream)) &&
+      SUCCEEDED(stream->InitializeFromMemory(data, size)) &&
+      SUCCEEDED(factory->CreateDecoderFromStream(
+          stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder)) &&
+      SUCCEEDED(decoder->GetFrame(0, &frame)) &&
+      SUCCEEDED(factory->CreateFormatConverter(&converter)) &&
+      SUCCEEDED(converter->Initialize(frame, GUID_WICPixelFormat32bppBGR,
+                                      WICBitmapDitherTypeNone, nullptr, 0.0,
+                                      WICBitmapPaletteTypeCustom))) {
+    UINT width = 0;
+    UINT height = 0;
+    if (SUCCEEDED(converter->GetSize(&width, &height)) && width && height) {
+      BITMAPINFO info = {};
+      info.bmiHeader.biSize = sizeof(info.bmiHeader);
+      info.bmiHeader.biWidth = static_cast<LONG>(width);
+      info.bmiHeader.biHeight = -static_cast<LONG>(height);  // top-down
+      info.bmiHeader.biPlanes = 1;
+      info.bmiHeader.biBitCount = 32;
+      info.bmiHeader.biCompression = BI_RGB;
+      void* bits = nullptr;
+      bitmap = ::CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+      if (bitmap && FAILED(converter->CopyPixels(nullptr, width * 4,
+                                                 width * height * 4,
+                                                 static_cast<BYTE*>(bits)))) {
+        ::DeleteObject(bitmap);
+        bitmap = nullptr;
+      }
+    }
+  }
+
+  if (converter) { converter->Release(); }
+  if (frame) { frame->Release(); }
+  if (decoder) { decoder->Release(); }
+  if (stream) { stream->Release(); }
+  factory->Release();
+  return bitmap;
+}
+
 struct Palette {
   COLORREF surface;
   COLORREF text;
@@ -419,6 +481,7 @@ struct DialogState {
   bool accepted = false;
   Palette palette;
   HBRUSH surface_brush = nullptr;
+  HBITMAP banner = nullptr;
 };
 
 void RefreshLocation(HWND dialog, DialogState* state) {
@@ -439,6 +502,71 @@ void ReadChoices(HWND dialog, DialogState* state) {
   state->choices.system_level = checked(IDC_SCOPE_MACHINE);
 }
 
+// The banner and the buttons are owner-drawn because D6 chose Sunshine's own
+// look, and they are still real Win32 controls because IU-14 wants keyboard
+// traversal and accessible names, which the system gives to a real control and
+// not to a rectangle somebody painted.
+void DrawBanner(const DRAWITEMSTRUCT& item, DialogState* state) {
+  if (!state->banner) {
+    ::SetDCBrushColor(item.hDC, state->palette.accent);
+    ::FillRect(item.hDC, &item.rcItem,
+               static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
+    return;
+  }
+  BITMAP measured = {};
+  ::GetObjectW(state->banner, sizeof(measured), &measured);
+  HDC memory = ::CreateCompatibleDC(item.hDC);
+  HGDIOBJ previous = ::SelectObject(memory, state->banner);
+  ::SetStretchBltMode(item.hDC, HALFTONE);
+  ::SetBrushOrgEx(item.hDC, 0, 0, nullptr);
+  ::StretchBlt(item.hDC, item.rcItem.left, item.rcItem.top,
+               item.rcItem.right - item.rcItem.left,
+               item.rcItem.bottom - item.rcItem.top, memory, 0, 0,
+               measured.bmWidth, measured.bmHeight, SRCCOPY);
+  ::SelectObject(memory, previous);
+  ::DeleteDC(memory);
+}
+
+void DrawButton(const DRAWITEMSTRUCT& item, DialogState* state) {
+  const bool primary = item.CtlID == IDC_INSTALL;
+  const bool pressed = (item.itemState & ODS_SELECTED) != 0;
+  const bool disabled = (item.itemState & ODS_DISABLED) != 0;
+
+  COLORREF face = primary ? state->palette.accent : state->palette.surface;
+  if (pressed) {
+    // A press is a shade, not a different colour: the token set has one accent
+    // and inventing a second here would put a colour outside the design system
+    // into the one surface nobody can inspect with devtools.
+    face = RGB(GetRValue(face) * 4 / 5, GetGValue(face) * 4 / 5,
+               GetBValue(face) * 4 / 5);
+  }
+  ::SetDCBrushColor(item.hDC, face);
+  ::FillRect(item.hDC, &item.rcItem,
+             static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
+  if (!primary) {
+    ::SetDCBrushColor(item.hDC, state->palette.muted);
+    ::FrameRect(item.hDC, &item.rcItem,
+                static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
+  }
+
+  wchar_t caption[64] = {};
+  ::GetWindowTextW(item.hwndItem, caption, ARRAYSIZE(caption));
+  ::SetBkMode(item.hDC, TRANSPARENT);
+  ::SetTextColor(item.hDC, disabled ? state->palette.muted
+                                    : (primary ? state->palette.accent_text
+                                               : state->palette.text));
+  RECT text = item.rcItem;
+  ::DrawTextW(item.hDC, caption, -1, &text,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+  // IU-14: focus is visible at every stop.
+  if (item.itemState & ODS_FOCUS) {
+    RECT focus = item.rcItem;
+    ::InflateRect(&focus, -3, -3);
+    ::DrawFocusRect(item.hDC, &focus);
+  }
+}
+
 INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
                             LPARAM lparam) {
   auto* state = reinterpret_cast<DialogState*>(
@@ -449,6 +577,7 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
       ::SetWindowLongPtrW(dialog, GWLP_USERDATA, lparam);
       state->palette = CurrentPalette();
       state->surface_brush = ::CreateSolidBrush(state->palette.surface);
+      state->banner = DecodeBanner();
       ::CheckDlgButton(dialog, IDC_SCOPE_USER, BST_CHECKED);
       ::CheckDlgButton(dialog, IDC_DESKTOP_SHORTCUT, BST_CHECKED);
       ::CheckDlgButton(dialog, IDC_TASKBAR_SHORTCUT, BST_CHECKED);
@@ -467,6 +596,18 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
         ::SetDlgItemTextW(dialog, IDC_INSTALL, L"Update");
       }
       RefreshLocation(dialog, state);
+      return TRUE;
+    }
+    case WM_DRAWITEM: {
+      if (!state) {
+        break;
+      }
+      const auto& item = *reinterpret_cast<DRAWITEMSTRUCT*>(lparam);
+      if (item.CtlID == IDC_BANNER) {
+        DrawBanner(item, state);
+      } else {
+        DrawButton(item, state);
+      }
       return TRUE;
     }
     case WM_CTLCOLORDLG:
@@ -506,6 +647,10 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
       if (state && state->surface_brush) {
         ::DeleteObject(state->surface_brush);
         state->surface_brush = nullptr;
+      }
+      if (state && state->banner) {
+        ::DeleteObject(state->banner);
+        state->banner = nullptr;
       }
       break;
     default:

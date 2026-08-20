@@ -220,6 +220,11 @@ missing fact is not a reason to block an installation.
 
 ## 10. NOT VERIFIED
 
+- **The banner is a placeholder and is meant to look like one.**
+  `installer/banner.png` is a generated 1360×224 image carrying a diagonal
+  hatch and the words "PLACEHOLDER BANNER". It is deliberately not a design:
+  a placeholder that looks deliberate is a placeholder that ships. Replacing
+  it is a file swap, not a code change, because the decode path is real.
 - **Nothing here is built.** No dialog exists, no engine has been embedded, and
   no install has been driven by anything but a double-click on
   `mini_installer.exe` — which itself has not happened yet;

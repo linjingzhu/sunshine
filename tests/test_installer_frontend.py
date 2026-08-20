@@ -71,6 +71,24 @@ class CommentTests(GuardTestCase):
         self.assertFailsWith("IU-15")
 
 
+class DrawingTests(GuardTestCase):
+    def test_owner_drawn_controls_with_no_draw_handler_are_rejected(self) -> None:
+        """The defect this rule was written for. BS_OWNERDRAW with no
+        WM_DRAWITEM compiles, passes every other rule, and renders blank
+        rectangles that only someone running the build would ever see."""
+
+        self.rewrite("installer/sunshine_setup.cpp", "case WM_DRAWITEM: {", "case WM_NULL: {")
+        self.assertFailsWith("draw nothing")
+
+    def test_decoding_the_banner_from_anything_but_memory_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.cpp", "InitializeFromMemory", "InitializeFromFilename")
+        self.assertFailsWith("IU-6")
+
+    def test_an_owner_drawn_control_without_a_focus_indicator_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.cpp", "::DrawFocusRect(", "::DrawEdge(")
+        self.assertFailsWith("IU-14")
+
+
 class ElevationTests(GuardTestCase):
     def test_an_always_elevating_manifest_is_rejected(self) -> None:
         self.rewrite(

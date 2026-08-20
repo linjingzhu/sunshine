@@ -68,7 +68,7 @@ inline constexpr wchar_t kEngineSha256[] = L"$hash";
             /Fe:sunshine-setup.exe sunshine_setup.cpp sunshine_setup.res `
             /link /SUBSYSTEM:WINDOWS /LTCG `
             /MANIFEST:EMBED /MANIFESTINPUT:sunshine_setup.manifest `
-            user32.lib gdi32.lib shell32.lib ole32.lib advapi32.lib bcrypt.lib comctl32.lib
+            user32.lib gdi32.lib shell32.lib ole32.lib advapi32.lib bcrypt.lib comctl32.lib windowscodecs.lib
         if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
     }
     finally {

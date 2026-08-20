@@ -70,7 +70,12 @@ INSTALLING = (
 )
 
 # Reading an image at run time (IU-6).
-IMAGE_AT_RUNTIME = ("LoadImageW", "GdipLoadImageFromFile", "SHCreateStreamOnFile")
+IMAGE_AT_RUNTIME = (
+    "LoadImageW",
+    "GdipLoadImageFromFile",
+    "SHCreateStreamOnFile",
+    "CreateDecoderFromFilename",
+)
 
 # A silent-install switch, in the spellings installers use (IU-15).
 SILENT_WORDS = ("silent", "quiet", "passive", "unattend", "/S\"", "verysilent")
@@ -164,6 +169,30 @@ def check(root: Path = ROOT) -> list[str]:
             failures.append(
                 f"{SOURCE}: uses {symbol}, so an image could come from disk; IU-6"
             )
+
+    # -- IU-6 and IU-14: what is owner-drawn is actually drawn ----------------
+    #
+    # This rule exists because the first version of this program declared
+    # BS_OWNERDRAW buttons and an SS_OWNERDRAW banner and handled no
+    # WM_DRAWITEM, which renders them as blank rectangles. Nothing else would
+    # have caught it: it compiles, every other rule passes, and the failure is
+    # visible only to someone running a build nobody in this project can make.
+    owner_drawn = re.findall(r"\b(?:BS_OWNERDRAW|SS_OWNERDRAW)\b", resource_code)
+    if owner_drawn and "WM_DRAWITEM" not in source_code:
+        failures.append(
+            f"{RESOURCE}: declares {len(owner_drawn)} owner-drawn control(s) and "
+            f"{SOURCE} handles no WM_DRAWITEM, so they draw nothing"
+        )
+    if "InitializeFromMemory" not in source_code:
+        failures.append(
+            f"{SOURCE}: the banner is not decoded from memory, so it may be "
+            "arriving from a file; IU-6"
+        )
+    if "DrawFocusRect" not in source_code:
+        failures.append(
+            f"{SOURCE}: an owner-drawn control must draw its own focus, and "
+            "nothing here does; IU-14"
+        )
 
     # -- IU-8: the switch table is closed, and elevation carries no file ------
     if "kSwitches[]" not in source_code:
