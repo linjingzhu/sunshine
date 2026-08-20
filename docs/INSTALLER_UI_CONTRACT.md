@@ -179,13 +179,26 @@ implied by the six decisions above.
 
 - **A silent mode.** One file was chosen over two, and the cost named at the
   time was that a deployment can no longer drive the engine directly. A switch
-  that skips the dialog and installs with the defaults would give that back. It
-  is small, it is probably right, and it is a decision rather than a detail —
-  a silent installer is a different threat model from an interactive one.
+  that skips the dialog and installs with the defaults would give that back.
+
+  *Concretely:* fifty machines to set up. With the switch, one line in a
+  deployment script does all fifty. Without it, somebody clicks through fifty
+  dialogs. **The other half of the same fact:** a switch that installs Sunshine
+  without showing anything is also what a bundler, an installer for some other
+  program, or a script the user did not read would use. That is why it is a
+  decision and not a detail — a silent installer is a different threat model
+  from an interactive one, and the convenience and the risk are the same
+  feature.
+
 - **An upgrade path in the dialog.** `mini_installer` already handles installing
-  over an existing version. Whether the dialog should *say* so — "Sunshine is
-  already installed; this will update it" — means reading the registry before
-  drawing, which is work the front-end otherwise does not do.
+  over an existing version. Whether the dialog should *say* so means reading the
+  registry before drawing, which is work the front-end otherwise does not do.
+
+  *Concretely:* Sunshine is already installed and the user runs a newer
+  installer. Today the dialog says "Install" and quietly updates instead. The
+  alternative says "Sunshine 1.0 is installed; this will update it to 1.1"
+  — one honest line, bought by giving the installer a reason to inspect the
+  machine before it has been given permission to change anything.
 
 ## 10. NOT VERIFIED
 

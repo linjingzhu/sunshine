@@ -234,13 +234,16 @@ decide. The guard is written with the code, not after it.
 
 ## 9. What has to be decided
 
-| | Decision | Options |
-| --- | --- | --- |
-| **D1** | Is the account **optional forever**, or does some part of Sunshine come to require it? | Optional forever (recommended; keeps PO-2 and the whole local-only argument true) — or required for a named subset, which must be named now. |
-| **D2** | Where does Google's authorization page render? | A **normal tab**, reusing the user's existing Google session — fewer steps, and PO-R7 still holds because Sunshine reads no cookies. Or a **dedicated ephemeral partition**, where the user signs in again — strictly satisfies PO-R7's storage-partition clause with no interpretation, at the cost of a password prompt someone may find puzzling. |
-| **D3** | What scope is requested at launch? | `openid email` only (recommended) — or identity plus a product scope, which needs the feature that justifies it to exist first. |
-| **D4** | Is the link **per profile** or per installation? | Per profile (recommended; matches where the credential is keyed and what §7 deletes) — or one link the whole browser shares, which makes profile isolation partly untrue. |
-| **D5** | Is a first-use **card** shown, or is the link only ever found in settings? | A dismissible card — or settings only, which is quieter and cannot be mistaken for a setup step. |
+Each is written with the situation that makes it a real fork, because a
+decision stated only as two abstractions is one nobody can take.
+
+| | Decision | The moment it decides | Options |
+| --- | --- | --- | --- |
+| **D1** | Is the account **optional forever**, or does some part of Sunshine come to require it? | A module is written that would rather not run without knowing who the user is. | Optional forever (recommended; keeps PO-2 and the whole local-only argument true) — or required for a named subset, which must be named **now**, because a list that grows later turns "local-only is a complete path" into a sentence that used to be true. |
+| **D2** | Where does Google's authorization page render? | The user is already signed in to Gmail in a tab, and presses Link. | A **normal tab**: Google offers the account already in session and it is one click. PO-R7 still holds, because Sunshine reads no cookies — it receives a code on a socket. Or a **dedicated ephemeral partition**: the sign-in page starts empty and the password is typed again. Strictly satisfies PO-R7's storage-partition clause with no interpretation, at the cost of a prompt that will look like a bug to someone who is plainly already signed in. |
+| **D3** | What scope is requested at launch? | Google's consent screen renders, and says out loud what was asked for. | `openid email` only (recommended): "Sunshine wants to see your email address." One line, no Google app review. Or identity **plus** a product scope: "…wants to see and manage files in your Google Drive", which makes people stop, and needs review — for a feature that does not exist yet. |
+| **D4** | Is the link **per profile** or per installation? | Two profiles on one machine, one person's and one someone else's. | Per profile (recommended): linking in one leaves the other with no account, which is what §7 deletes and where the credential is keyed. Or per installation: one link the whole browser shares, which makes profile isolation partly untrue and would need `docs/SESSION_PROFILE_CONTRACT.md` to say so. |
+| **D5** | Is a first-use **card** shown, or is the link only ever found in settings? | A brand-new profile opens for the first time. | A dismissible card: found without hunting, at the cost of appearing at the one moment PO-6 is most easily broken. Or settings only: quieter, impossible to mistake for a setup step, and some users will never learn the feature exists. |
 
 ## 10. NOT VERIFIED
 
