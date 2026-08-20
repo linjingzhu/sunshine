@@ -34,35 +34,53 @@
 # their count going from zero to two is the whole of the protection, not an
 # improvement on an earlier version of it.
 
+# ADR 0016 lifted two blanket refusals and replaced them with terms. HA-2 (a
+# host is concrete), HA-4 (an empty allowlist is a module that meant deny) and
+# HA-5 (reaching a host is not authenticating to one) are what
+# validate_first_party_modules.py checks in their place. HA-5 is unreachable
+# while SEC-7 is unconditional, and a test pins that rather than leaving it to
+# be noticed if SEC-7 ever moves.
+
+# The module shell. MS-4 has been enforced by verify_shell_geometry.py since
+# the shell landed and was never counted: "MS" was not a family
+# trace_invariants.py knew, so the claim parsed to nothing and both ends read
+# as consistent. Adding the family is what surfaced it.
+
+# The module mount port -- the host port every port plan was blocked on.
+# verify_module_mount.py decides the eight that are decidable from source;
+# MM-9 and MM-10 need the browser and are RV-35 and RV-36.
+
+# MM-11, added by patch 0015. A WebUI data source forbids every frame by
+# default, so patch 0011's shell shipped a mount point whose frame could never
+# load and nothing said so. The guard now reads the C++ for the policy.
 AT-1
-AT-9
 AT-12
+AT-9
 CPA-9
+GA-16
+HA-2
+HA-4
+HA-5
+MM-1
+MM-11
+MM-2
+MM-3
+MM-4
+MM-5
+MM-6
+MM-7
+MM-8
+MS-4
 OMA-20
 OS-9
 PB-5
-SC-8
-SC-11
-SCA-13
-SEC-1
-SEC-2
-SEC-4
-SEC-5
-SEC-6
-SEC-7
-SEC-8
-SEC-13
-SEC-14
-SECA-7
-SECA-8
-SECA-9
-SECA-10
-SECA-11
-SPA-9
 PO-A1
 PO-A2
 PO-A3
 S1
+S10
+S11
+S12
 S2
 S3
 S4
@@ -71,38 +89,21 @@ S6
 S7
 S8
 S9
-S10
-S11
-S12
-# ADR 0016 lifted two blanket refusals and replaced them with terms. HA-2 (a
-# host is concrete), HA-4 (an empty allowlist is a module that meant deny) and
-# HA-5 (reaching a host is not authenticating to one) are what
-# validate_first_party_modules.py checks in their place. HA-5 is unreachable
-# while SEC-7 is unconditional, and a test pins that rather than leaving it to
-# be noticed if SEC-7 ever moves.
-HA-2
-HA-4
-HA-5
-
-# The module shell. MS-4 has been enforced by verify_shell_geometry.py since
-# the shell landed and was never counted: "MS" was not a family
-# trace_invariants.py knew, so the claim parsed to nothing and both ends read
-# as consistent. Adding the family is what surfaced it.
-MS-4
-
-# The module mount port -- the host port every port plan was blocked on.
-# verify_module_mount.py decides the eight that are decidable from source;
-# MM-9 and MM-10 need the browser and are RV-35 and RV-36.
-MM-1
-MM-2
-MM-3
-MM-4
-MM-5
-MM-6
-MM-7
-MM-8
-
-# MM-11, added by patch 0015. A WebUI data source forbids every frame by
-# default, so patch 0011's shell shipped a mount point whose frame could never
-# load and nothing said so. The guard now reads the C++ for the policy.
-MM-11
+SC-11
+SC-8
+SCA-13
+SEC-1
+SEC-13
+SEC-14
+SEC-2
+SEC-4
+SEC-5
+SEC-6
+SEC-7
+SEC-8
+SECA-10
+SECA-11
+SECA-7
+SECA-8
+SECA-9
+SPA-9
