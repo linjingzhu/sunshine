@@ -77,9 +77,6 @@ IMAGE_AT_RUNTIME = (
     "CreateDecoderFromFilename",
 )
 
-# A silent-install switch, in the spellings installers use (IU-15).
-SILENT_WORDS = ("silent", "quiet", "passive", "unattend", "/S\"", "verysilent")
-
 
 # Line comments, in both the C++ and the resource script.
 COMMENT = re.compile(r"^\s*//.*$", re.M)
@@ -261,14 +258,30 @@ def check(root: Path = ROOT) -> list[str]:
     if "engine_hash.h" not in build or "Get-FileHash" not in build:
         failures.append(f"{BUILD}: does not generate the engine hash; IU-10")
 
-    # -- IU-15: no silent mode ------------------------------------------------
-    lowered = source_code.lower()
-    for word in SILENT_WORDS:
-        if word.lower() in lowered:
-            failures.append(
-                f"{SOURCE}: mentions {word!r}. There is no switch that installs "
-                "without showing the dialog; IU-15"
-            )
+    # -- IU-15: every install was preceded by the dialog ----------------------
+    #
+    # This rule used to grep for a vocabulary -- "silent", "quiet", "passive",
+    # "unattend". It was wrong twice over. It fired on the *comment* explaining
+    # that there is no silent mode, which is a check that makes people write
+    # worse prose; and it never fired on the actual violation, because the
+    # switch that performed a complete unattended install was spelled
+    # `--sunshine-elevated` and no vocabulary list was ever going to contain it.
+    #
+    # The property is not a spelling. It is that every path reaching the engine
+    # goes through the dialog, or through an elevation the dialog started. That
+    # is countable: two call sites, one window.
+    engine_calls = len(re.findall(r"RunEngine\(", source_code)) - 1  # minus the definition
+    if engine_calls != 2:
+        failures.append(
+            f"{SOURCE}: RunEngine is called from {engine_calls} place(s). IU-15 "
+            "allows exactly two -- the elevated continuation, and the path after "
+            "the dialog returned IDOK. A third is an install nobody watched"
+        )
+    if len(re.findall(r"::DialogBoxParamW\(", source_code)) != 1:
+        failures.append(
+            f"{SOURCE}: the dialog must be shown from exactly one place, so that "
+            "'was the dialog shown' has one answer; IU-15"
+        )
 
     # -- IU-16: exactly two reads, and they are the two named -----------------
     opens = len(REGISTRY_OPEN.findall(source_code))

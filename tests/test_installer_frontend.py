@@ -62,12 +62,37 @@ class CommentTests(GuardTestCase):
         )
         self.assertEqual([], self.failures())
 
-    def test_a_real_silent_switch_is_still_caught(self) -> None:
+    def test_a_switch_named_silent_is_no_longer_what_the_rule_looks_for(self) -> None:
+        """And that is the point, not a regression.
+
+        The vocabulary rule this replaces would have caught `--silent` and did
+        not catch `--sunshine-elevated`, which was an actual unattended install
+        path sitting in the same table it scanned. A rule that matches spellings
+        catches the careless and misses the real thing. IU-15 is now a property
+        -- two call sites into the engine, one window -- and the tests below are
+        what hold it."""
+
         self.rewrite(
             "installer/sunshine_setup.cpp",
             '{L"--make-default", &Choices::make_default, true},',
             '{L"--silent", &Choices::make_default, true},',
         )
+        # A switch that only sets a preference installs nothing on its own.
+        self.assertEqual([], self.failures())
+
+    def test_a_third_route_into_the_engine_is_rejected(self) -> None:
+        """The shape a silent mode actually takes: another call site that does
+        not pass through the dialog."""
+
+        self.rewrite(
+            "installer/sunshine_setup.cpp",
+            "  INITCOMMONCONTROLSEX controls",
+            "  if (choices.make_default) { RunEngine(choices, false); }\n  INITCOMMONCONTROLSEX controls",
+        )
+        self.assertFailsWith("IU-15")
+
+    def test_removing_the_dialog_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.cpp", "::DialogBoxParamW(", "::NoDialog(")
         self.assertFailsWith("IU-15")
 
 

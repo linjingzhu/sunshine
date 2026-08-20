@@ -164,7 +164,7 @@ person.
 | IU-12 | A declined elevation prompt returns to the dialog and never installs per-user instead. | B |
 | IU-13 | The dialog resolves its colours through the token mapping, follows the system light/dark setting, and is legible from 100% to 300% scaling. | U |
 | IU-14 | Every control is reachable and operable from the keyboard alone, with a visible focus indicator, and every control has an accessible name. | U |
-| IU-15 | There is no switch, argument, environment variable or registry value that makes `sunshine-setup.exe` install without showing the dialog. Every installation it performs was watched by a person. | O |
+| IU-15 | Every path that reaches the engine passes through the dialog, or through an elevation the dialog started: two call sites, one window. The elevated continuation verifies that it holds an elevated token rather than believing the command line. **The boundary is stated rather than overclaimed:** a caller that is already administrator can drive the continuation, and no check inside this program prevents that — such a caller does not need this program. | O |
 | IU-16 | The only state the front-end reads about *the installation* before the user has agreed to anything is whether Sunshine is installed and at what version. Exactly one further read is permitted — the system's light/dark preference, which is needed to draw — and nothing is written. | O |
 
 **No check claims any of these yet, because no code implements them.** IU-1 to
@@ -190,6 +190,17 @@ it. **Convenience and risk are not separable here**, and the honest way to hold
 that is to have neither until a deployment need is real enough to be argued on
 its own. IU-15 is the rule; when the need arrives, this section is what has to
 be reopened rather than quietly worked around.
+
+**The first implementation shipped one by accident**, which is worth recording
+because it is how this always happens. `--sunshine-elevated` exists so the
+program can relaunch itself for a per-machine install, and it took its own
+elevation on trust from the command line — so anything that could start a
+process could drive a complete unattended install with it. The guard did not
+notice, because the guard was looking for the words *silent*, *quiet* and
+*unattend*, and the switch was spelled none of those. **A rule that matches
+spellings catches the careless and misses the real thing.** IU-15 is now a
+property that can be counted — two call sites into the engine, one window — and
+the continuation checks its own token.
 
 **The dialog says when it is updating.** "Sunshine 1.0 is installed; this will
 update it to 1.1", rather than a button reading Install that silently does
