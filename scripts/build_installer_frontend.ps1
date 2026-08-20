@@ -84,11 +84,29 @@ inline constexpr wchar_t kEngineSha256[] = L"$hash";
         & rc.exe /nologo /fo sunshine_setup.res sunshine_setup.rc
         if ($LASTEXITCODE -ne 0) { throw "rc.exe failed with $LASTEXITCODE" }
 
-        & cl.exe /nologo /std:c++20 /EHsc /O2 /GL /DUNICODE /D_UNICODE `
+        # /W4 because this file had never been compiled: one slot spent on
+        # warnings is cheaper than three spent discovering the same defects one
+        # at a time. /guard:cf and /Qspectre because it runs elevated.
+        #
+        # uuid.lib is not optional and its absence is a link error, not a
+        # warning: FOLDERID_ProgramFiles and FOLDERID_LocalAppData are
+        # *declarations* in KnownFolders.h unless INITKNOWNFOLDERS is defined,
+        # and their definitions live in uuid.lib. A Visual C++ project links it
+        # from the template's AdditionalDependencies; a bare cl.exe line, which
+        # is what this is, does not.
+        #
+        # /MANIFESTUAC:NO because link.exe otherwise generates a trustInfo
+        # block of its own and merges it with ours -- two requestedExecutionLevel
+        # elements, which is either a diagnostic or a binary the side-by-side
+        # loader refuses to start. IU-7 needs exactly one, and it needs to be
+        # the one in sunshine_setup.manifest.
+        & cl.exe /nologo /std:c++20 /W4 /permissive- /EHsc /O2 /GL /guard:cf /Qspectre `
+            /DUNICODE /D_UNICODE `
             /Fe:sunshine-setup.exe sunshine_setup.cpp sunshine_setup.res `
-            /link /SUBSYSTEM:WINDOWS /LTCG `
+            /link /SUBSYSTEM:WINDOWS /LTCG /GUARD:CF /MANIFESTUAC:NO `
             /MANIFEST:EMBED /MANIFESTINPUT:sunshine_setup.manifest `
-            user32.lib gdi32.lib shell32.lib ole32.lib advapi32.lib bcrypt.lib comctl32.lib windowscodecs.lib
+            user32.lib gdi32.lib shell32.lib ole32.lib advapi32.lib bcrypt.lib `
+            comctl32.lib windowscodecs.lib uuid.lib uxtheme.lib
         if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
     }
     finally {

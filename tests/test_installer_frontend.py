@@ -98,16 +98,31 @@ class ElevationTests(GuardTestCase):
         )
         self.assertFailsWith("IU-7")
 
-    def test_reading_a_file_in_the_elevated_continuation_is_rejected(self) -> None:
-        """The classic shape of this bug: an elevated process reading a file an
-        unprivileged user can rewrite."""
+    def test_staging_the_engine_where_the_user_can_write_is_rejected(self) -> None:
+        """The classic shape of this bug, and the one the first version of this
+        rule could not see. It sliced the source from `if (elevated_continuation)`
+        to end-of-file and grepped the tail for file reads; every function the
+        elevated path calls is *defined above* that point, so the rule passed for
+        a reason unrelated to the property."""
 
         self.rewrite(
             "installer/sunshine_setup.cpp",
-            "  if (elevated_continuation) {\n    const Outcome outcome",
-            "  if (elevated_continuation) {\n    CreateFileW(nullptr,0,0,0,0,0,0);\n    const Outcome outcome",
+            "const UINT length = ::GetSystemWindowsDirectoryW(",
+            "const UINT length = ::GetTempPathW(",
         )
-        self.assertFailsWith("IU-8")
+        self.assertFailsWith("IU-9")
+
+    def test_an_elevated_continuation_that_trusts_the_command_line_is_rejected(self) -> None:
+        """Without this, `--sunshine-elevated` is a complete unattended install
+        path for anything that can already start a process -- which is what
+        IU-15 forbids, while the guard was looking for the word "silent"."""
+
+        # The call site, not the definition: `rewrite` replaces the first
+        # occurrence, and the first occurrence of the bare name is `bool
+        # RunningElevated() {`.
+        self.rewrite("installer/sunshine_setup.cpp",
+                     "if (!RunningElevated()", "if (false")
+        self.assertFailsWith("IU-15")
 
     def test_losing_the_closed_switch_table_is_rejected(self) -> None:
         self.rewrite("installer/sunshine_setup.cpp", "kSwitches[]", "kOptions[]")
@@ -116,7 +131,18 @@ class ElevationTests(GuardTestCase):
 
 class EngineTests(GuardTestCase):
     def test_running_the_engine_unhashed_is_rejected(self) -> None:
-        self.rewrite("installer/sunshine_setup.cpp", "BCryptHash", "memcmp")
+        self.rewrite("installer/sunshine_setup.cpp", "BCryptHashData", "memcmp")
+        self.assertFailsWith("IU-10")
+
+    def test_hashing_the_resource_instead_of_the_written_file_is_rejected(self) -> None:
+        """The defect this rule was rewritten for. Hashing the in-memory
+        resource proves the build carried what it meant to; it says nothing
+        about the bytes on disk when CreateProcessW runs, which is the entire
+        window IU-9 and IU-10 exist to close."""
+
+        self.rewrite("installer/sunshine_setup.cpp",
+                     "HANDLE verified = OpenVerifiedEngine",
+                     "HANDLE verified = (HANDLE)HashMatchesResource")
         self.assertFailsWith("IU-10")
 
     def test_a_committed_engine_hash_is_rejected(self) -> None:

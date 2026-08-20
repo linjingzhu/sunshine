@@ -98,3 +98,10 @@ jobs:
           $megabytes = [math]::Round((Get-Item $installer).Length / 1MB, 1)
           Write-Host "Installer ($megabytes MB): $installer"
           Get-Content (Join-Path $directory "size-report.json")
+          # The front-end is a separate artifact from a separate compiler run,
+          # and without this a step that silently produced nothing would leave
+          # the job green.
+          $frontEnd = Join-Path $directory "sunshine-setup.exe"
+          if (-not (Test-Path $frontEnd)) { throw "the installer front-end is missing: $frontEnd" }
+          $feMegabytes = [math]::Round((Get-Item $frontEnd).Length / 1MB, 1)
+          Write-Host "Front-end ($feMegabytes MB): $frontEnd"

@@ -123,7 +123,7 @@ DS-5 become decidable the moment the store is written, and the guard that
 decides them should be written with it rather than after — this project's own
 record is that a rule with no check is a rule that drifts.
 
-## 7. What this reverses
+## 7. What this reverses, and the rule that replaces it
 
 `docs/MARKETPICK_PORT_PLAN.md` and `docs/FIRST_MODULE_GUIDE.md` both suggest
 Chromium's `//sql` for a module's storage. **For the shared store that is now
@@ -133,6 +133,56 @@ Profile-local state can still be SQLite: the profile is not synced, is not
 shared between devices, and is not the user's to open. The distinction is not
 "which database" but **which volume** — and a store the user picked is, by
 construction, a volume something else is writing to.
+
+### 7.1 Naming the library was not enough
+
+An audit of the pinned revision found four ways to satisfy that paragraph's
+letter and break DS-2 and DS-5 anyway. **The rule is therefore about the
+mechanism, not the library:**
+
+> **No API may be used under the store that creates a sibling, temporary, lock,
+> journal, manifest or index file — whatever that API is called.**
+
+The four found, all read at `152.0.7977.42`:
+
+| | What it does under the store |
+| --- | --- |
+| **`base::ImportantFileWriter`** | Creates its temporary file **in the target's own directory**, then renames. Under the store that means a temp file inside the user's synced folder, which a sync client will replicate, and which the writer may leave behind after a failed delete. **This is the dangerous one, because `components/sunshine/document/project_store.cc` already uses it** — it is what an implementer would reach for by precedent. |
+| `sql::Database` | `Open()` may create a rollback journal, a write-ahead log and a shared-memory file. Three siblings per database, and its locking modes are what §3 warns about over SMB. |
+| `leveldb_proto::ProtoDatabaseProvider::GetUniqueDB` | Takes an **arbitrary directory** and its own comment recommends it for data "not tied to a specific profile", which reads like an invitation. Creates `CURRENT`, `LOCK`, `LOG`, `MANIFEST-*`, `*.ldb`. |
+| `storage::ObfuscatedFileUtil` | Keeps directory information in LevelDB and **obfuscates the filenames**, so it breaks DS-3 as well: the folder stops being openable without Sunshine. Reached by anything that routes through `storage::FileSystemURL` instead of `base::FilePath`. |
+
+A `prefs.json` written by anything `JsonPrefStore`-shaped is the same failure
+twice: it is `ImportantFileWriter` underneath, and a per-module preferences file
+is DS-2's forbidden index wearing a different name.
+
+**The consequence for `ImportantFileWriter` is a real loss and is stated rather
+than hidden.** Not using it gives up crash-atomicity on save. What replaces it
+is not decided here; §9 records it as owed.
+
+### 7.2 What the store costs upstream
+
+**Nothing.** The audit confirmed it against `scripts/patch_manifest.py` and the
+patch stack: the store lands entirely on the ADR 0007 seam, in files the seam
+already created. The one upstream file it needs — `chrome/browser/prefs/browser_prefs.cc`,
+for the profile preference that holds the chosen directory — **is already owned**
+by `0017-sunshine-mouse-gestures.patch`, and the registration can go inside the
+`sunshine::RegisterProfilePrefs` call that patch already installs.
+
+Three routes that *would* buy new upstream files were measured and are refused:
+a `KeyedService` factory (+1), Chromium's File System Access persisted
+permissions (+2), and a `ContentSettingsType` of its own (+3). The second is not
+merely expensive — it is **structurally impossible**. Every entry point on
+`permissions::ObjectPermissionContextBase` takes a `url::Origin`, its index is
+keyed by origin, and its gate reads a content setting on `origin.GetURL()`.
+There is no origin-free surface, and the store has no origin. DS-1's "held as a
+grant" is therefore **Sunshine's own record**, which is what DS-1 wanted anyway.
+
+**And every library API the store compiles against changed by zero lines**
+between the pin and the next milestone: the file picker, the Windows error
+mapping, the enumerator, the path watcher and the thread pool are byte-identical
+at `153.0.8000.0`. That is the strongest available argument for this insertion
+point, and it is a measurement rather than a preference.
 
 ## 8. NOT VERIFIED
 

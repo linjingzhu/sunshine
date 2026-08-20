@@ -252,6 +252,7 @@ class PinnedUpstreamTests(unittest.TestCase):
         self.assertEqual(
             {
                 "chrome/common/sunshine/sunshine_webui_hosts.h",
+                "components/sunshine/document/project_store.cc",
                 "chrome/browser/resources/sunshine/document/host.ts",
                 "chrome/browser/resources/sunshine/shell/app.ts",
                 "chrome/browser/resources/sunshine/shell/mount.ts",

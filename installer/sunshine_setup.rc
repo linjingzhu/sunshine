@@ -35,6 +35,13 @@ BEGIN
     AUTOCHECKBOX    "Make Sunshine my default browser", IDC_MAKE_DEFAULT, 176, 152, 150, 10
     AUTOCHECKBOX    "Open Sunshine when this finishes", IDC_LAUNCH_WHEN_DONE, 16, 168, 200, 10
     LTEXT           "", IDC_STATUS, 16, 188, 308, 10
-    DEFPUSHBUTTON   "Install", IDC_INSTALL, 200, 206, 60, 16, BS_OWNERDRAW
-    PUSHBUTTON      "Cancel", IDCANCEL, 268, 206, 56, 16, BS_OWNERDRAW
+    // Generic CONTROL rather than DEFPUSHBUTTON/PUSHBUTTON, and the reason is
+    // not style. BS_PUSHBUTTON, BS_DEFPUSHBUTTON and BS_OWNERDRAW all occupy
+    // the same BS_TYPEMASK nibble -- they are alternatives, not flags -- so
+    // `DEFPUSHBUTTON ... BS_OWNERDRAW` silently discarded the default-button
+    // half and left the dialog with no default push button at all. Enter then
+    // sent IDOK, which nothing handled, and the keyboard could not reach
+    // Install. IU-14 requires every control to be operable from the keyboard.
+    CONTROL         "Install", IDC_INSTALL, "Button", BS_OWNERDRAW | WS_TABSTOP | WS_GROUP, 200, 206, 60, 16
+    CONTROL         "Cancel", IDCANCEL, "Button", BS_OWNERDRAW | WS_TABSTOP, 268, 206, 56, 16
 END

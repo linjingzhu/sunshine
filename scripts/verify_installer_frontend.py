@@ -199,17 +199,60 @@ def check(root: Path = ROOT) -> list[str]:
         failures.append(f"{SOURCE}: has no closed switch table; IU-8")
     if "BuildElevatedCommandLine" not in source_code:
         failures.append(f"{SOURCE}: does not build the elevated command line; IU-8")
-    elevated = (source_code[source_code.find("if (elevated_continuation)"):]
-                if "if (elevated_continuation)" in source_code else "")
-    if "ReadFile" in elevated or "CreateFileW" in elevated:
+    # This rule used to slice the source text from `if (elevated_continuation)`
+    # to the end of the file and grep the tail for file reads. It found nothing,
+    # and could not: `RunEngine` and `WriteFileBytes` are *defined above* that
+    # point, so the elevated path's entire file I/O sat outside the slice. A
+    # check that reads text position instead of reachability is a check that
+    # passes for a reason unrelated to the property.
+    #
+    # What IU-8 and IU-9 actually need is that nothing the elevated instance
+    # touches is in a place an unprivileged user can write. That is decidable,
+    # and it is where the staging directory comes from.
+    if "GetSystemWindowsDirectoryW" not in source_code:
         failures.append(
-            f"{SOURCE}: the elevated continuation reads a file. Choices cross as "
-            "switches; a file an unprivileged user can rewrite is the bug; IU-8"
+            f"{SOURCE}: the elevated staging root must come from "
+            "GetSystemWindowsDirectoryW. UAC gives the elevated process the "
+            "same profile, so %TEMP%'s parent grants the unelevated user "
+            "FILE_DELETE_CHILD -- they cannot write into a protected child, "
+            "but they can delete it and put their own there; IU-9"
+        )
+    if not re.search(r"if \(elevated\)\s*\{[^}]*GetSystemWindowsDirectoryW", source_code, re.S):
+        failures.append(
+            f"{SOURCE}: GetSystemWindowsDirectoryW is present but is not what "
+            "the elevated branch uses; IU-9"
+        )
+    if not re.search(r"if \(!RunningElevated\(\)", source_code):
+        failures.append(
+            f"{SOURCE}: the elevated continuation does not verify that it is "
+            "elevated. Taking that from the command line makes the switch a "
+            "complete unattended install path; IU-15"
         )
 
-    # -- IU-10: hashed before run, and the constant is generated --------------
-    if "kEngineSha256" not in source_code or "BCryptHash" not in source_code:
+    # -- IU-10: the hash is over the file that runs, not over the resource ----
+    #
+    # The first version of this hashed the in-memory resource, which came out of
+    # this binary's own image and could not have been tampered with by an
+    # unprivileged user in the first place. It proved the build carried what the
+    # build intended and said nothing about the bytes on disk at the moment of
+    # execution -- which is the whole window IU-9 and IU-10 exist to close.
+    if "kEngineSha256" not in source_code or "BCryptHashData" not in source_code:
         failures.append(f"{SOURCE}: does not hash the engine before running it; IU-10")
+    if "OpenVerifiedEngine" not in source_code:
+        failures.append(
+            f"{SOURCE}: nothing hashes the extracted engine through a handle it "
+            "holds; hashing the resource proves nothing about what runs; IU-10"
+        )
+    else:
+        verify = source_code.find("HANDLE verified = OpenVerifiedEngine")
+        launch = source_code.find("::CreateProcessW")
+        close = source_code.find("::CloseHandle(verified)")
+        if not (0 < verify < launch < close):
+            failures.append(
+                f"{SOURCE}: the engine must be verified before CreateProcessW "
+                "and its handle held until after, so nothing can replace the "
+                "file in between; IU-10"
+            )
     if (root / "installer/engine_hash.h").exists():
         failures.append(
             "installer/engine_hash.h is committed. It belongs to one build's "

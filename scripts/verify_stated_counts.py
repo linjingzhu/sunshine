@@ -765,6 +765,10 @@ NOT_THE_PIN: dict[str, tuple[str, ...]] = {
     # the patch was committed. Same shape as above: a record of what the next
     # roll will require, which a roll must not rewrite.
     "docs/GESTURE_CONTRACT.md": ("153.0.8000.0",),
+    # The store's roll-cost measurement, taken before the store was written.
+    # Same shape again: a record of what the next milestone costs, which a roll
+    # must not rewrite.
+    "docs/DOCUMENT_STORE_CONTRACT.md": ("153.0.8000.0",),
 }
 
 
