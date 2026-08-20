@@ -172,15 +172,76 @@ part of item 5 that matters and it is achievable in full.
 | `SEC-14`, no remote resource | **Survives.** A bundle is a local file. |
 | `SEC-8`, filesystem access | The store folder is one user-chosen grant, which is `docs/FILE_BROKER_CONTRACT.md`'s shape exactly. |
 
-## 4. The risks, in the order they should be resolved
+## 3a. Risk 1, resolved: Sunshine should install bundles, not Isolated Web Apps
 
-1. **Can an installed app's document be framed by `chrome://sunshine-shell`?**
-   Isolated Web Apps are strictly isolated and their framing policy has not
-   been read. **If they cannot be embedded, the shell cannot mount them**, and
-   the five-region model in `docs/MODULE_SHELL_CONTRACT.md` has to be rethought
-   for installed modules — or Sunshine patches the policy, which spends exactly
-   the guarantee it just bought. This decides the design and it is one
-   afternoon's reading. **Do it first.**
+The first risk this review named was whether an installed app's document can be
+framed by `chrome://sunshine-shell`. It was read, and the answer changes §2 for
+the better.
+
+**An Isolated Web App is placed in its own StoragePartition.**
+`chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h`
+declares `storage_partition_config()` for the app and
+`GetStoragePartitionConfigForControlledFrame()` for what an IWA embeds. The
+embedding direction the API offers is **an IWA embedding others**, through a
+guest view, and a plain iframe does not cross a partition boundary. So the
+shell almost certainly cannot mount an IWA with an `<iframe>`, and making it do
+so would mean guest views in a `chrome://` page — more machinery, and a second
+mounting mechanism beside the one that already works.
+
+**The good news is that the format and the guarantee are separable from the
+hosting.** `//components/web_package` is a standalone component and it has
+everything the attractive half of §2 needs, all present at `152.0.7977.42`:
+
+| File | What it gives |
+| --- | --- |
+| `components/web_package/web_bundle_parser.h` | The bundle format, parsed by Chromium |
+| `components/web_package/signed_web_bundles/integrity_block_parser.h` | The signature block |
+| `components/web_package/signed_web_bundles/signed_web_bundle_signature_verifier.h` | **Verification. No cryptography is written here.** |
+| `components/web_package/signed_web_bundles/ed25519_public_key.h` | The key type |
+| `components/web_package/signed_web_bundles/signed_web_bundle_id.h` | The id derived from the key |
+| `components/web_package/web_bundle_builder.h` | Building one, for the signing tool |
+
+So the revised shape:
+
+- the file is a **signed web bundle**, the same format, signed the same way;
+- Sunshine verifies it with `//components/web_package`;
+- the module is served at **`chrome-untrusted://<bundle-id>/`**, so the origin
+  is still derived from the signing key — Sunshine deriving it rather than the
+  browser, in one place a guard can read;
+- serving is a Sunshine `URLDataSource` over the verified bundle;
+- **the shell mounts it with a plain iframe, through the mount port that
+  already exists**, under the framing policy
+  `downstream/patches/0015-sunshine-shell-frame-policy.patch` added — which
+  already derives the allowed origins from what shipped, and would derive them
+  from the installed set the same way.
+
+A detail that decides a name: `MM-1` allows a host of at most 63 characters and
+a signed bundle id is 56, so the host is **the bundle id itself**, not a
+readable name with the id appended. That is the right outcome rather than a
+constraint to work around: a readable host would be a name the module chose,
+and the id is a name its key chose.
+
+**What is given up against a real IWA**, stated plainly:
+
+- the dedicated StoragePartition. Installed modules would share the profile's
+  partition with the shell, each with its own origin and therefore its own
+  storage — weaker than an IWA, and exactly what the document surface already
+  does;
+- the browser enforcing the origin-to-key binding. Sunshine enforces it
+  instead. That is a real transfer of responsibility and it is the one thing in
+  this revision worth arguing about.
+
+**What is gained:** the shell can actually mount them; there is one mounting
+mechanism rather than two; and none of it depends on the IWA feature flag or
+the enterprise policy in §1.
+
+## 4. The remaining risks, in the order they should be resolved
+
+1. **Confirm the framing conclusion above against a running browser.** The
+   StoragePartition facts were read; that a plain iframe cannot cross a
+   partition was reasoned from the shape of the API rather than from the code
+   that enforces it. The revision in §3a makes the question moot rather than
+   answered — which is a better place to be, but not the same place.
 2. **The feature and policy gating.** `IsIwaUnmanagedInstallEnabled()` is a
    flag plus a policy. Sunshine is its own build, so it can set its own
    defaults — but that is a patch to write and a decision to record.
@@ -225,12 +286,13 @@ most of what comes after it, installs from a file.
 
 ## 7. NOT VERIFIED
 
-- **Nothing here has been built or tried.** The Chromium facts in §1 were read
-  from the pinned tree at `152.0.7977.42` today; everything about how Sunshine
-  would use them is reasoning.
-- **The framing question in §4 risk 1 is open and is the important one.** No
-  file was read on it. A design committed before that answer is a design that
-  may have to be discarded.
+- **Nothing here has been built or tried.** The Chromium facts in §1 and §3a
+  were read from the pinned tree at `152.0.7977.42`; everything about how
+  Sunshine would use them is reasoning.
+- **§3a's conclusion rests on one unread step.** That an IWA has its own
+  StoragePartition is verified. That a plain iframe cannot host a document in
+  another partition is the standard model and is consistent with the API only
+  offering the guest-view direction, but the enforcing code was not read.
 - No measurement supports §5's phases. They are an order, not a schedule.
 - The sync options in §4 are assessed from their documented behaviour, not from
   running Sunshine against any of them. In particular, no NAS was tested, and
