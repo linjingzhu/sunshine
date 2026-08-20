@@ -226,6 +226,10 @@ Two rules that catch people:
 
 ## 6. Where a collection lives
 
+**Read `docs/DOCUMENT_STORE_CONTRACT.md` first; this section is older than it and is wrong where they differ.** The owner has since decided that documents live in a directory the user picks, inside a folder something else already syncs, as one readable file per document with the identity inside it. `//sql` is right for a module's *profile-local* state and wrong for anything in that store: DS-2.
+
+What survives from this section unchanged is the interface, which is the part the app writes.
+
 Chromium's `//sql`, in the profile directory, behind a Mojo interface the app
 declares — `chrome/browser/resources/sunshine/document/host.ts` is the working
 example of the page half, and

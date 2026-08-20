@@ -54,7 +54,7 @@ Everything below follows from that split.
 | 8–9 Jinja2 templates | One surface, `chrome://sunshine-marketpick`, mounted in the shell's D region. | Jinja2 renders on a server that no longer exists; the templates become static HTML plus TypeScript that fills them from the host port. |
 | Flask routes | Methods on one Mojo interface. | `docs/decisions/0013-module-data-portability.md` §2.5: one named host interface per module. |
 | Flask business logic | `components/sunshine/marketpick/` | C++ depending on neither `//chrome` nor `//content`, the same arrangement `components/sunshine/document/` already uses. |
-| SQLite `marketpick.db` beside the exe | Chromium's `//sql`, in the profile directory. | The file stops living beside an executable, because there is no longer an executable of its own. A module holds no path — `DOC-3` and `DOC-8`. |
+| SQLite `marketpick.db` beside the exe | Chromium's `//sql`, in the profile directory — but see `docs/DOCUMENT_STORE_CONTRACT.md` DS-2: anything that belongs in the user's synced store is one file per document, not a database. | The file stops living beside an executable, because there is no longer an executable of its own. A module holds no path — `DOC-3` and `DOC-8`. |
 | Naver Commerce / Coupang WING calls | **Staged out.** See §4. | |
 | API keys | **The module may not hold them.** See §4. | |
 | PyInstaller, the local server, port 5600, "open the default browser" | **All gone.** | The browser *is* the executable. This is the largest single deletion and it is pure simplification. |

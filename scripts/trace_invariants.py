@@ -111,6 +111,10 @@ FAMILIES = (
     # since the shell landed, and the claim was neither counted nor rejected,
     # because an unparsed token is absent rather than refused.
     "MS", "MM",
+    # The document store: DS-n. Distinct from DSA-n, which is the design
+    # system's acceptance series -- _family() reads the leading capitals, so
+    # "DS-1" and "DSA-1" are two families and not one.
+    "DS",
 )
 
 
