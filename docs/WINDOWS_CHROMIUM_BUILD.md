@@ -65,13 +65,32 @@ than the obvious defaults, in particular `noUncheckedIndexedAccess` and
 `noPropertyAccessFromIndexSignature`. Stub `//resources/js/load_time_data.js`
 and `/strings.m.js` through `paths`.
 
-**3. eslint, with Chromium's own configuration.** This is the one that runs
+**3. eslint, with Chromium's own configuration.** One of two linters that run
 *inside* `build_webui()`. `tools/web_dev_style/eslint.config.mjs` can be used
 directly by rewriting its four plugin imports to locally installed copies of
 `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser`,
 `@stylistic/eslint-plugin` and `eslint-plugin-lit`. Approximating the rules by
 hand is not the same thing and misses the project-specific
 `no-restricted-syntax` cases.
+
+**4. stylelint, likewise.** The CSS is linted too, by a separate `lint_css`
+action, and **this is the step that failed build #31** {D} `no-duplicate-selectors`
+on a `.tab-button` block a later patch added beside the one an earlier patch
+had written. Nothing else in this project would ever have noticed: two patches
+each producing a valid rule, and the defect existing only in their sum.
+
+Use `ui/webui/resources/tools/stylelint.config_base.mjs` with its one plugin
+import rewritten to a local `@stylistic/stylelint-plugin`, and run it over
+**every** surface's stylesheet at once rather than the one just edited {D} the
+build lints them as one list, and a duplicate selector is a property of a whole
+file rather than of a hunk.
+
+The lesson is more general than the rule: **a patch stack can be correct patch
+by patch and wrong in its sum**, and every check here reads the *reconstructed*
+file for that reason.
+
+The four together took about half an hour and found four real defects across
+two build attempts. A build takes six.
 
 **Prove each harness before trusting it.** Inject a fault and check it fails.
 A checker that passes because it matched no files is worse than no checker,

@@ -634,7 +634,7 @@ index 0000000..031ad67
 +  return url.slice(0, url.length - 1);
 +}
 diff --git a/chrome/browser/resources/sunshine/shell/app.css b/chrome/browser/resources/sunshine/shell/app.css
-index c043ed9..7d31f42 100644
+index c043ed9..1bfbfd8 100644
 --- a/chrome/browser/resources/sunshine/shell/app.css
 +++ b/chrome/browser/resources/sunshine/shell/app.css
 @@ -141,6 +141,18 @@
@@ -656,28 +656,40 @@ index c043ed9..7d31f42 100644
  .tile {
    block-size: 1.25rem;
    border: 1px solid currentcolor;
-@@ -216,6 +228,20 @@
-   border-inline-start-color: var(--color-primary-foreground);
+@@ -194,14 +206,18 @@
+   padding: 0;
  }
  
-+/* The tab's own row: a mark, then the label, which is allowed to run out of
-+ * room and is never allowed to change the row's height. */
-+.tab-button {
++/* A mark, then the label. The label is allowed to run out of room and is never
++ * allowed to change the row's height. */
+ .tab-button {
 +  align-items: center;
+   background: none;
+   border: 0;
+   border-inline-start: var(--sunshine-marker) solid transparent;
+   color: inherit;
+   cursor: pointer;
+-  display: block;
 +  display: flex;
+   font: inherit;
 +  gap: 0.5rem;
+   inline-size: 100%;
+   padding: 0.375rem 1rem;
+   text-align: start;
+@@ -214,6 +230,12 @@
+ .tab-button[aria-current='true'] {
+   background-color: var(--color-midground);
+   border-inline-start-color: var(--color-primary-foreground);
 +}
 +
 +.tab-label {
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
-+}
-+
- /* D -- the body ------------------------------------------------------------ */
+ }
  
- #body {
-@@ -282,6 +308,23 @@
+ /* D -- the body ------------------------------------------------------------ */
+@@ -282,6 +304,23 @@
    min-height: 0;
    overflow: auto;
    padding: 1rem var(--sunshine-header-pad-left);
