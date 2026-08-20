@@ -55,7 +55,7 @@ the build.
 
 **Grep for the name, then read the whole declaration.** Build #32 died on the
 same function anyway, because `base::JSONReader::Read` exists but its `options`
-parameter has no default here {D} the name was confirmed and the signature was
+parameter has no default here — the name was confirmed and the signature was
 not. Reading four more lines of `base/json/json_reader.h` would have caught it,
 and would also have found `ReadDict()`, which is what the call should have been
 in the first place. A grep answers *is it there*; only the declaration answers
@@ -68,7 +68,7 @@ for `network::mojom::CSPDirectiveName`.
 
 **2. TypeScript, actually compiled.** `tsc` type-checks the surfaces without a
 Chromium checkout. Use Chromium's own settings from
-`tools/typescript/tsconfig_base.json` rather than a guess {D} it is stricter
+`tools/typescript/tsconfig_base.json` rather than a guess — it is stricter
 than the obvious defaults, in particular `noUncheckedIndexedAccess` and
 `noPropertyAccessFromIndexSignature`. Stub `//resources/js/load_time_data.js`
 and `/strings.m.js` through `paths`.
@@ -82,14 +82,14 @@ hand is not the same thing and misses the project-specific
 `no-restricted-syntax` cases.
 
 **4. stylelint, likewise.** The CSS is linted too, by a separate `lint_css`
-action, and **this is the step that failed build #31** {D} `no-duplicate-selectors`
+action, and **this is the step that failed build #31** — `no-duplicate-selectors`
 on a `.tab-button` block a later patch added beside the one an earlier patch
 had written. Nothing else in this project would ever have noticed: two patches
 each producing a valid rule, and the defect existing only in their sum.
 
 Use `ui/webui/resources/tools/stylelint.config_base.mjs` with its one plugin
 import rewritten to a local `@stylistic/stylelint-plugin`, and run it over
-**every** surface's stylesheet at once rather than the one just edited {D} the
+**every** surface's stylesheet at once rather than the one just edited — the
 build lints them as one list, and a duplicate selector is a property of a whole
 file rather than of a hunk.
 
@@ -102,7 +102,7 @@ two build attempts. A build takes six.
 
 **Prove each harness before trusting it.** Inject a fault and check it fails.
 A checker that passes because it matched no files is worse than no checker,
-and both of these can do that silently {D} `tsc` on an empty include list and
+and both of these can do that silently — `tsc` on an empty include list and
 `eslint` on a glob that matches nothing both exit 0.
 
 None of this is a substitute for the build. It removes the failures that are

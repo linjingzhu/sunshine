@@ -340,10 +340,10 @@ time.** Run `32323176049`, commit `ca1f5c0`: `Build Succeeded: 1194 steps` in
 20m42s, `verify_installed_build.py` exited 0, and `mini_installer.exe` is
 117.5 MB.
 
-That is the largest first-compile surface this project has had {D} the Windows
+That is the largest first-compile surface this project has had — the Windows
 install identity, 527 lines of renamed product strings, the module shell, the
 mount port and its storage vocabulary, the shell's framing policy, and two
-entry points {D} and with it, roughly 1,300 lines of TypeScript that upstream's
+entry points — and with it, roughly 1,300 lines of TypeScript that upstream's
 eslint and stylelint had never seen.
 
 **It took three attempts and the two failures are worth keeping.** #31 died on

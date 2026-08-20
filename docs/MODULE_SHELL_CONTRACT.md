@@ -49,7 +49,7 @@ only content is empty"* — and every ownership question below follows from it.
 
 ### What sits at B's foot
 
-Two controls, both the shell's own, neither supplied by any module {D} so MS-1
+Two controls, both the shell's own, neither supplied by any module — so MS-1
 is untouched:
 
 | Control | |
@@ -60,7 +60,7 @@ is untouched:
 **Register is a destination, not an action.** A Sunshine module is compiled
 into the browser (`docs/decisions/0006-module-execution-model.md`), so nothing
 in this window can install one, and a control that implied otherwise would be
-lying about the browser it is part of {D} the sentence
+lying about the browser it is part of — the sentence
 `docs/MODULE_HOME_CONTRACT.md` §1 already applies to that page. It is at the
 very bottom of B because that is where a person looks for *add*, and what they
 find there is the answer to the question they were about to ask rather than a

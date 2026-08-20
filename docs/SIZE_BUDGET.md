@@ -20,6 +20,42 @@ build is not performed unless the user asks — and `docs/PERFORMANCE_BUDGET.md`
 depends on the two budgets sharing a reference platform, since a size and a
 speed measured on different machines cannot be traded against each other.
 
+## What is measured today, and what was not
+
+**Two of the four metrics had no measurement at all until now, and one of them
+had a threshold.** That is worth stating plainly, because a row reading
+"investigate above 250 MB" beside no number reads as a budget being kept.
+
+| Metric | Measured by | Latest |
+| --- | --- | ---: |
+| Compressed download | `scripts/build_chromium_windows.ps1`, since build #12 | **117.5 MB** (build #33, commit `ca1f5c0`) |
+| Installed app bundle | `scripts/measure_shipped_size.py`, from build #34 | **not yet measured** |
+| First-run profile | nothing | — |
+| Cache after use | nothing | — |
+
+**`chrome.exe` is not this number and never was.** The size report has recorded
+it since build #12 — 4.1 MB at build #33 — and it is a launcher stub. The
+browser is `chrome.dll`, and neither it nor the paks, the ICU data, the V8
+snapshot, the ANGLE and SwiftShader libraries nor the locale files were counted
+by anything.
+
+**How the payload is now measured.** `chrome/installer/mini_installer/chrome.release`
+is upstream's own manifest of what the installer packs, sectioned by build
+configuration. `scripts/measure_shipped_size.py` reads it from the workspace,
+resolves each entry against the build output, and sums what it finds. **No file
+list is written into this repository**, because a copy of that manifest would be
+a second list that drifts from what actually ships — and the reason to measure
+at all is to stop believing a number that has drifted.
+
+It measures the **payload the installer packs**, not the directory after setup
+has run. Those differ: setup also writes the version directory layout and the
+uninstall registration. The payload is the larger part and the part this budget
+is about, and the difference is named here rather than left for whoever first
+compares the two.
+
+Item 5 of the release report — the five largest application files — falls out of
+the same measurement, which reports the twelve largest and their share.
+
 ## Required release configuration
 
 - `is_official_build=true`

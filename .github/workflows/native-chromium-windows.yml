@@ -65,6 +65,17 @@ jobs:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
         run: python scripts/verify_installed_build.py
 
+      # docs/SIZE_BUDGET.md names an installed-bundle threshold that nothing
+      # has ever measured: the size report reads chrome.exe, which build #33
+      # measured at 4.1 MB because it is a launcher stub. This reads upstream's
+      # own shipped-file manifest and sums what the installer actually packs.
+      - name: Measure the shipped payload
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: >
+          python scripts/measure_shipped_size.py
+          --json artifacts\windows-x64\shipped-size.json
+
       # Where the installer is, rather than a copy of it. The build script has
       # already written it to the runner's own disk.
       - name: Report the installer location

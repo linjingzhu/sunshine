@@ -63,7 +63,7 @@ Concretely, with modules compiled in:
 **This was already visibly not scaling**, and the evidence has since changed
 shape rather than gone away. When this was written, patches 0009 through 0014
 had never been compiled because the machine that compiles them was switched
-off. Build #33 has since compiled 0009 through 0016 {D} in three attempts, over
+off. Build #33 has since compiled 0009 through 0016 — in three attempts, over
 about forty minutes of build machine time, on the one machine that can do it,
 while the owner was at it. The objection stands on the *coupling* rather than
 on the backlog: a module change still cannot be validated without that
@@ -186,7 +186,7 @@ is a fact about use, and no amount of build arithmetic outweighs it.
 Staying a Chromium downstream was right, and remains right, **on one
 condition: that modules stop needing builds.** Until installation lands, the
 architecture does not scale past a handful of modules. The backlog that made
-that vivid is gone {D} build #33 compiled it {D} but the coupling that produced
+that vivid is gone — build #33 compiled it — but the coupling that produced
 the backlog is not, and it is the coupling that was the argument.
 
 What would have been lost by having been an app is not recoverable later — the
@@ -194,7 +194,102 @@ isolation, the origins, the upstream bundle mechanism, and being the user's
 actual browser. What is being lost by not having installation yet is
 recoverable, and the recovery is designed.
 
-## 9. NOT VERIFIED
+## 9. The web-app framing, and the size question
+
+The owner returned to this with a sharper version: *should Sunshine have been a
+web app you install — like the installed Claude — with the browser implemented
+inside it?* And two supporting observations: **Chromium carries a lot Sunshine
+does not need**, and **why is it so large?**
+
+The second question turns out to be the one that answers the first.
+
+### 9.1 The size, as actually measured
+
+| | |
+| --- | --- |
+| `chrome.exe` | **4.1 MB** |
+| `mini_installer.exe` | **117.5 MB** |
+| Installed payload | **never measured** until now |
+
+Build #33, commit `ca1f5c0`. The first number is not the browser: `chrome.exe`
+is a launcher stub. The browser is `chrome.dll`, and neither it nor the resource
+paks, the ICU data, the V8 snapshot, the ANGLE and SwiftShader libraries nor the
+locale files had been counted by anything — while `docs/SIZE_BUDGET.md` carried
+an installed-bundle threshold of 250 MB. **A threshold beside no measurement.**
+`scripts/measure_shipped_size.py` now reads upstream's own shipped-file manifest
+and sums the payload; build #34 is the first run.
+
+**What those 117.5 MB are is not a feature list. It is the web platform.** Blink
+implements the whole rendering and DOM surface; V8 is a multi-tier optimising
+JIT; Skia is a complete 2D graphics engine; the network stack carries its own
+TLS, HTTP/2 and QUIC. Every one of those exists so that an HTML file appears on
+screen — which is the one thing every Sunshine module does.
+
+### 9.2 A web app does not escape that size. It relocates it
+
+There are two ways to be a web app on Windows, and neither is smaller:
+
+| | |
+| --- | --- |
+| **Electron** | Ships Chromium, plus Node. Same engine, same order of magnitude, plus a second runtime. |
+| **Tauri / WebView2** | Ships almost nothing — and renders in **Microsoft's copy of Chromium**, because WebView2 *is* Chromium. |
+
+The second is the tempting one, and it is the worse fit here. The engine still
+exists on the disk; it is simply not yours. You do not choose its version, you
+cannot patch it, you cannot pin it, and its security posture is set on
+Microsoft's schedule. For a product whose entire module argument is **isolating
+content the user installed from somewhere else**, handing the isolation boundary
+to a runtime you neither version nor patch is not a simplification.
+
+### 9.3 Implementing the browser inside it
+
+This has been tried by someone with far more resources than this project.
+**Brave's first browser was built on Electron** — their fork was called Muon —
+and they abandoned it to become a Chromium downstream, because keeping a
+wrapper's security current with upstream is a race that the wrapper loses.
+Sunshine would be starting that race in 2026 rather than finishing it.
+
+Concretely, "implement the browser inside" means rebuilding, at application
+privilege: per-site process isolation for the pages being rendered, the renderer
+sandbox, the extension system, PDF, print, DevTools, profile management,
+download protection. `scripts/verify_architecture.py` already refuses the
+architecture that results — and its comment says why in one line worth keeping:
+API names in prose are how a wrapper architecture survived in a spec.
+
+### 9.4 Where the objection is right
+
+**Chromium does carry things Sunshine may not need, and GN has flags for most
+of them.** Print preview, reporting, and — the honest easy one — **the locale
+paks**, of which a Chromium build ships roughly fifty when Sunshine's audience
+needs two.
+
+Two things bound how much that is worth:
+
+- `docs/SIZE_BUDGET.md` already forecloses the largest tempting cut: *security
+  features must never be traded for size.* Safe Browsing, the sandbox and site
+  isolation are not on the table, and they should not be.
+- Everything genuinely removable sits **outside** Blink, V8, Skia and net —
+  which is where the bytes are. Trimming is a percentage, not an order of
+  magnitude.
+
+**And until build #34 nobody could say which percentage**, because the payload
+had never been measured. That was the real defect behind this question, it is
+now fixed, and the argument becomes arithmetic on the next build rather than
+opinion.
+
+### 9.5 The answer
+
+**No — and this framing makes the case more strongly than the first one did.**
+
+A web app would have paid the same bytes, given up the isolation model, handed
+either the engine's version or its patching to someone else, and started a
+security-currency race that the one prior attempt at this exact design lost.
+
+What the objection correctly identifies is not the architecture. It is that this
+project was carrying an unmeasured number with a threshold on it. That was true,
+and it is fixed.
+
+## 10. NOT VERIFIED
 
 - The comparison in §4 is reasoned from what these runtimes provide, not from
   building the same module twice. No Electron or Tauri prototype exists here.
