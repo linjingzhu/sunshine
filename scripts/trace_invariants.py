@@ -115,6 +115,10 @@ FAMILIES = (
     # system's acceptance series -- _family() reads the leading capitals, so
     # "DS-1" and "DSA-1" are two families and not one.
     "DS",
+    # The installer front-end: IU-n. The installer is the one Sunshine surface
+    # that runs before the browser exists, so none of the web-surface families
+    # can speak for it.
+    "IU",
 )
 
 

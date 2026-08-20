@@ -21,8 +21,8 @@ Everything below was read at the pinned revision `152.0.7977.42`.
 | | Verdict |
 | --- | --- |
 | **1. An install UI** | **Yes — but not inside `mini_installer.exe`.** A separate front-end that writes an initial-preferences file and launches the existing installer. Zero upstream files. |
-| **2. A user-chosen install path** | **No, as asked.** Chromium does not merely lack this — it reads a path from preferences and then *rejects* any value that is not one of the two Program Files roots. Making it work means patching the path logic and inheriting three other things that assume the standard roots. |
-| **3. A user-chosen software name** | **No, as asked, and the reason is not the installer.** 518 of the browser's own strings carry the literal product name, compiled into the resource pak at build time. An install-time name renames the folder and the Start menu entry while the browser keeps calling itself Sunshine in every sentence it speaks. |
+| **2. A user-chosen install path** | **No, as asked — settled in §7.** Chromium does not merely lack this — it reads a path from preferences and then *rejects* any value that is not one of the two Program Files roots. Making it work means patching the path logic and inheriting three other things that assume the standard roots. |
+| **3. A user-chosen software name** | **No, as asked — settled in §7.** And the reason is not the installer. 518 of the browser's own strings carry the literal product name, compiled into the resource pak at build time. An install-time name renames the folder and the Start menu entry while the browser keeps calling itself Sunshine in every sentence it speaks. |
 | **4. A supplied image** | **Yes.** The only real question is *when* the image arrives — at build time or at install time — and the second one has a security cost the first does not. |
 
 Two of the four are straightforward. The other two are the interesting part of
@@ -187,14 +187,18 @@ the costs in view, not a checkbox.
 
 Nothing below is implied by anything above; each is a real fork.
 
-| | Decision | The options |
+**All six are settled, and all six went to the recommendation.** They are
+recorded here as the record of the choice; `docs/INSTALLER_UI_CONTRACT.md` is
+what follows from them.
+
+| | Decision | Answer |
 | --- | --- | --- |
-| **D1** | Does the front-end replace `mini_installer.exe` as the thing shipped, or sit beside it? | One file the user runs, with the engine embedded — or two files, where the engine can still be run silently for deployment. |
-| **D2** | The install path | Per-user/per-machine choice only (recommended) — or patch `helper.cc` for an arbitrary directory, and take on §3's three consequences. |
-| **D3** | The software name | Fixed at `Sunshine` (recommended) — or a display name on the shortcuts only, disagreeing with 518 in-browser strings — or a full runtime identity, which §4 argues against. |
-| **D4** | Where the image comes from | Build time from `downstream/assets/` (recommended) — or install time from a file beside the installer, with §5's constraints. |
-| **D5** | How the front-end gets built | Its own compiler invocation in the workflow, owning zero upstream files — or a GN target, which means editing an upstream `BUILD.gn`. |
-| **D6** | What it looks like | `docs/DESIGN_SYSTEM_CONTRACT.md` is written for web surfaces. A Win32 dialog cannot use its tokens directly, so either the tokens get a native mapping or the dialog is explicitly outside the design system. |
+| **D1** | Front-end and engine, one file or two | **One file.** `sunshine-setup.exe` carries `mini_installer.exe` inside it, so there is no wrong file to double-click. The cost taken on: both are repackaged for every release, and a silent deployment now needs a switch rather than a second executable — §9 of the contract keeps that open. |
+| **D2** | The install path | **Per-user or per-machine, and nothing else.** The path is shown, never typed. `helper.cc` is not patched, so §3's three consequences are not incurred — and the folder a person actually cares about is the document store, which DS-1 already lets them pick. |
+| **D3** | The software name | **Fixed at `Sunshine`.** No display-name override either. The folder, the registry keys, the ProgID, the taskbar identity and the browser's own 518 sentences all say one thing, and RV-26, RV-29, RV-30 and the SEC-13 checks keep having something to assert. |
+| **D4** | Where the image comes from | **Build time**, from `downstream/assets/`. The front-end opens no image file at run time, which closes §5's decoder-at-elevation problem outright rather than mitigating it. |
+| **D5** | How the front-end is built | **Its own compiler invocation in the workflow.** Zero upstream files, and a dialog change costs a small link rather than a browser build. |
+| **D6** | What it looks like | **Sunshine's**, by mapping the design tokens to native values. The cost taken on is real and named in the contract: dark mode, per-monitor DPI and keyboard accessibility all become this program's work instead of the system's. |
 
 ## 8. NOT VERIFIED
 
