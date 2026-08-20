@@ -40,6 +40,9 @@ KNOWN_EXTENDED_REGISTRIES = frozenset({
     # typing its address, so it extends the surface patch 0007 created.
     "chrome/browser/resources/sunshine/modules/app.css",
     "chrome/browser/resources/sunshine/modules/app.html",
+    # Patch 0015 gives the shell 0011 created the framing policy it shipped
+    # without, so it extends that surface's C++ too.
+    "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc",
 })
 
 

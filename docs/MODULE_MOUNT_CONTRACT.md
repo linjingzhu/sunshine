@@ -152,9 +152,19 @@ Class **O** is decidable offline. **B** needs the built browser.
 | MM-8 | A `describe` from the `panel` region changes nothing about D's header or C's list. | O |
 | MM-9 | Closing E destroys its frame. A module does not keep running behind a hidden region. | B |
 | MM-10 | Switching modules replaces the frame rather than reusing it, so no state of the previous module survives into the next. | B |
+| MM-11 | The shell's data source names the origins it may frame, derived from the compiled registry. A declared mount whose origin is not named is a frame that never loads. | O |
 
-`scripts/verify_module_mount.py` decides MM-1 through MM-8 and claims them.
-MM-9 and MM-10 need the browser; they are RV-35 and RV-36.
+`scripts/verify_module_mount.py` decides MM-1 through MM-8 and MM-11, and
+claims them. MM-9 and MM-10 need the browser; they are RV-35 and RV-36.
+
+**MM-11 exists because its absence is invisible.** A WebUI data source forbids
+every frame by default — `URLDataSource::GetContentSecurityPolicy()` returns
+`child-src 'none';` — so a shell that named no origin compiles, passes every
+other check here, and produces a mount point whose frame silently never loads.
+`downstream/patches/0011-sunshine-module-shell.patch` shipped exactly that;
+`downstream/patches/0015-sunshine-shell-frame-policy.patch` repaired it. The
+document surface had already met this and named its one origin literally, which
+is the part that did not get carried across.
 
 ## 7. What a module app must do
 
@@ -196,6 +206,11 @@ because most seams here have needed one:
 - **No module declares a mount.** The socket is built; nothing is plugged into
   it. Every message in §3 and §4 is therefore unexchanged, and the first port to
   arrive should expect to find at least one thing here wrong.
+- **One thing here was already wrong and is fixed.** Until patch 0015 the shell
+  named no framable origin, so its default `child-src 'none';` would have
+  blocked every mounted frame — the port could not have carried a message even
+  with a module plugged in. It was found by reading the document surface's C++
+  beside the shell's, not by any check, which is why MM-11 now exists.
 - **Nothing here has been built.** The patch applies to a fresh checkout of the
   pinned revision. That is placement, not behaviour, and no native build has
   compiled `mount.ts` or `mount_port.ts`.

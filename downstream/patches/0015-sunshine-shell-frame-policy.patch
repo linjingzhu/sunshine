@@ -1,0 +1,97 @@
+diff --git a/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc b/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc
+index 028ac64..7be8b74 100644
+--- a/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc
++++ b/chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc
+@@ -4,13 +4,80 @@
+ 
+ #include "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h"
+ 
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "base/json/json_reader.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_util.h"
++#include "base/values.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h"
+ #include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
+ #include "chrome/grit/sunshine_resources.h"
+ #include "content/public/browser/web_ui.h"
+ #include "content/public/browser/web_ui_data_source.h"
++#include "content/public/common/url_constants.h"
++#include "services/network/public/mojom/content_security_policy.mojom.h"
+ #include "ui/webui/webui_util.h"
++#include "url/gurl.h"
++
++namespace {
++
++// The origins this page is allowed to frame, read from the registry it serves.
++//
++// **A WebUI data source forbids every frame by default.** URLDataSource's own
++// GetContentSecurityPolicy() returns "child-src 'none';", so a mount point
++// that named no origin would be a frame that never loads -- the whole mount
++// port would be unreachable, and nothing offline would have said so. The
++// document surface hit this first and names its one origin literally; the
++// shell cannot, because which modules are mountable is a property of the
++// registry rather than of this file.
++//
++// The set is still fixed when the browser is built. The registry is a constant
++// compiled into the binary, so this is a policy derived from what shipped and
++// not from anything a page or a module said at run time -- which is what keeps
++// it a policy rather than a hole.
++//
++// With no mountable module the answer is "child-src 'none';". That is both the
++// default and the truth, and it is the state today.
++std::string MountChildSrc() {
++  std::vector<std::string> origins;
++  std::optional<base::Value> parsed =
++      base::JSONReader::Read(sunshine::kSunshineModuleRegistryJson);
++  const base::Value::List* modules =
++      parsed && parsed->is_dict() ? parsed->GetDict().FindList("modules")
++                                  : nullptr;
++  if (modules) {
++    for (const base::Value& entry : *modules) {
++      const base::Value::Dict* module = entry.GetIfDict();
++      const std::string* declared =
++          module ? module->FindStringByDottedPath("mount.content_url")
++                 : nullptr;
++      if (!declared) {
++        continue;
++      }
++      // MM-1's shape, checked here rather than trusted. GURL does the parsing,
++      // so this is the same rule applied again and not a third spelling of it;
++      // scripts/verify_module_mount.py holds the manifest check and the page's
++      // check to the same set, and this narrows rather than widens.
++      GURL candidate(*declared);
++      if (candidate.is_valid() &&
++          candidate.SchemeIs(content::kChromeUIUntrustedScheme) &&
++          candidate.has_host() && candidate.path_piece() == "/" &&
++          !candidate.has_query() && !candidate.has_ref()) {
++        origins.push_back(candidate.spec());
++      }
++    }
++  }
++  if (origins.empty()) {
++    return "child-src 'none';";
++  }
++  return base::StrCat({"child-src ", base::JoinString(origins, " "), ";"});
++}
++
++}  // namespace
+ 
+ SunshineShellUI::SunshineShellUI(content::WebUI* web_ui)
+     : content::WebUIController(web_ui) {
+@@ -26,6 +93,11 @@
+ 
+   webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("shell"),
+                               IDR_SUNSHINE_SHELL_APP_HTML);
++
++  // Without this the mount port cannot carry a message, because the frame it
++  // carries messages to never loads. MM-11.
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ChildSrc, MountChildSrc());
+ }
+ 
+ SunshineShellUI::~SunshineShellUI() = default;

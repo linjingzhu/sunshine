@@ -101,3 +101,8 @@ MM-5
 MM-6
 MM-7
 MM-8
+
+# MM-11, added by patch 0015. A WebUI data source forbids every frame by
+# default, so patch 0011's shell shipped a mount point whose frame could never
+# load and nothing said so. The guard now reads the C++ for the policy.
+MM-11

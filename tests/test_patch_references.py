@@ -64,7 +64,16 @@ class ReconstructionTests(unittest.TestCase):
 
 
 class DetectionTests(unittest.TestCase):
-    """Each failure the guard exists for, injected."""
+    """Each failure the guard exists for, injected.
+
+    **The injections target the security surface, not the shell**, and that is
+    load-bearing rather than arbitrary. A later patch's context lines are the
+    earlier patch's text, so mutating a file that a later patch extends makes
+    the reconstruction diverge first and the guard reports *that* instead --
+    which is correct behaviour and the wrong thing to be testing here. Patch
+    0015 extends the shell's C++, so three of these moved to patch 0005, whose
+    files no later patch touches.
+    """
 
     def setUp(self) -> None:
         directory = tempfile.mkdtemp()
@@ -93,9 +102,9 @@ class DetectionTests(unittest.TestCase):
     def test_a_resource_id_the_bundle_does_not_produce_fails(self) -> None:
         """The typo class: C++ naming an IDR_ that no file backs."""
 
-        self.rewrite("0011", "IDR_SUNSHINE_SHELL_APP_HTML", "IDR_SUNSHINE_SHEL_APP_HTML")
+        self.rewrite("0005", "IDR_SUNSHINE_SECURITY_APP_HTML", "IDR_SUNSHINE_SECURIT_APP_HTML")
         failures = guard.check(self.root)
-        self.assertTrue(any("IDR_SUNSHINE_SHEL_APP_HTML" in f for f in failures), failures)
+        self.assertTrue(any("IDR_SUNSHINE_SECURIT_APP_HTML" in f for f in failures), failures)
 
     def test_a_bundle_entry_with_no_file_fails(self) -> None:
         self.rewrite("0011", '+    "shell/app.css",', '+    "shell/missing.css",')
@@ -111,9 +120,9 @@ class DetectionTests(unittest.TestCase):
 
     def test_an_include_of_a_header_no_patch_creates_fails(self) -> None:
         self.rewrite(
-            "0011",
-            '+#include "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h"',
-            '+#include "chrome/browser/ui/webui/sunshine/shell/not_written.h"',
+            "0005",
+            '+#include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"',
+            '+#include "chrome/browser/ui/webui/sunshine/security/not_written.h"',
         )
         failures = guard.check(self.root)
         self.assertTrue(any("not_written.h" in f for f in failures), failures)
@@ -128,7 +137,7 @@ class DetectionTests(unittest.TestCase):
 
     def test_a_chromium_include_is_not_this_guards_business(self) -> None:
         self.rewrite(
-            "0011",
+            "0005",
             '+#include "content/public/browser/web_ui.h"',
             '+#include "content/public/browser/web_ui_nonexistent.h"',
         )

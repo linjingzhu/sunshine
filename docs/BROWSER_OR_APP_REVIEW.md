@@ -7,8 +7,16 @@ form that makes it worth asking: **as modules multiply**. It re-examines
 `docs/decisions/0002-native-chromium-downstream.md` against what the repository
 has actually become, rather than against what it intended to become.
 
-It changes no decision. §6 says what I would change, and one of those is a
-revision to advice already given.
+**The owner answered it, and the answer is recorded here so it is not asked a
+third time:** *the browser is what gets used most, so that is what it was built
+on.* `docs/decisions/0002-native-chromium-downstream.md` stands, and stands for
+a reason about use rather than about architecture — which is the strongest kind
+of reason a product decision can have, and the one this review could not have
+supplied on its own.
+
+What follows is the analysis that was done before that answer. It is kept
+because §3's objection is true regardless of the answer, §6 is work either way,
+and §7 is what would make this worth asking again.
 
 ## 1. The question, stated precisely
 
@@ -164,6 +172,11 @@ Falsifiable, so this does not become a decision nobody can revisit:
 ## 8. The answer
 
 **No — and the objection is still correct about today.**
+
+The owner's own reason is the one that settles it: *the browser is what gets
+used most.* A module platform hosted inside the thing a person already has open
+all day is worth more than a better-built one they have to go and launch. That
+is a fact about use, and no amount of build arithmetic outweighs it.
 
 Staying a Chromium downstream was right, and remains right, **on one
 condition: that modules stop needing builds.** Until installation lands, the

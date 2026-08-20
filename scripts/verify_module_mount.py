@@ -18,9 +18,16 @@ What is checked, and which invariant each check claims:
   * the shell's receiver tests source, origin and payload, all three (MM-6);
   * the shell writes module strings with `textContent` and never as markup
     (MM-7);
-  * a `describe` from the panel region is discarded (MM-8).
+  * a `describe` from the panel region is discarded (MM-8);
+  * the shell's data source names the origins it may frame (MM-11).
 
-Enforces: MM-1, MM-2, MM-3, MM-4, MM-5, MM-6, MM-7, MM-8.
+The last one is here because its absence is invisible everywhere else. A WebUI
+data source forbids every frame by default, so a shell that never named an
+origin would compile, pass every other check, and produce a mount point whose
+frame silently never loads. Patch 0011 shipped exactly that and patch 0015
+repaired it; this is what stops the third time.
+
+Enforces: MM-1, MM-2, MM-3, MM-4, MM-5, MM-6, MM-7, MM-8, MM-11.
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ import verify_patch_references  # noqa: E402
 PORT = "chrome/browser/resources/sunshine/shell/mount_port.ts"
 MOUNT = "chrome/browser/resources/sunshine/shell/mount.ts"
 APP = "chrome/browser/resources/sunshine/shell/app.ts"
+SHELL_UI = "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc"
 CONTRACT = "docs/MODULE_MOUNT_CONTRACT.md"
 
 # `export const NAME = ['a', 'b'] as const;`, possibly spread over lines.
@@ -70,7 +78,7 @@ def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     files = verify_patch_references.stack_files(root)
 
-    for path in (PORT, MOUNT, APP):
+    for path in (PORT, MOUNT, APP, SHELL_UI):
         if path not in files:
             failures.append(f"{path}: the patch stack does not create it")
     if failures:
@@ -79,7 +87,28 @@ def check(root: Path = ROOT) -> list[str]:
     port = "\n".join(files[PORT])
     mount = "\n".join(files[MOUNT])
     app = "\n".join(files[APP])
+    shell_ui = "\n".join(files[SHELL_UI])
     contract = (root / CONTRACT).read_text(encoding="utf-8")
+
+    # -- MM-11: a frame the policy forbids is a frame that never loads --------
+    if "CSPDirectiveName::ChildSrc" not in shell_ui:
+        failures.append(
+            f"{SHELL_UI}: the shell never overrides child-src, so its default "
+            "of 'none' blocks every mounted frame; MM-11"
+        )
+    # Derived from the registry rather than written out: which modules are
+    # mountable is the registry's property, and a literal list here would be a
+    # second place a mount is declared.
+    if "kSunshineModuleRegistryJson" not in shell_ui:
+        failures.append(
+            f"{SHELL_UI}: the framing policy must be derived from the compiled "
+            "registry, not written out; MM-11"
+        )
+    if "kChromeUIUntrustedScheme" not in shell_ui:
+        failures.append(
+            f"{SHELL_UI}: the framing policy must re-check the scheme it "
+            "admits; MM-11"
+        )
 
     # -- MM-3: the port reaches for nothing ----------------------------------
     #
