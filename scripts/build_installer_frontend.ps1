@@ -59,6 +59,26 @@ inline constexpr wchar_t kEngineSha256[] = L"$hash";
 #endif  // SUNSHINE_INSTALLER_ENGINE_HASH_H_
 "@ | Set-Content (Join-Path $Staging "engine_hash.h") -Encoding utf8
 
+    # cl.exe and rc.exe are not on PATH in a bare shell, and they are not on it
+    # during a Chromium build either -- gn and ninja locate the toolchain
+    # themselves. Assuming PATH here would have failed this step *after* a
+    # twenty-minute compile succeeded, which is the class of waste
+    # docs/WINDOWS_CHROMIUM_BUILD.md exists to prevent.
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) { throw "vswhere.exe is not at $vswhere; Visual Studio is required to build the front-end." }
+    $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if (-not $vsRoot) { throw "No Visual Studio installation with the C++ toolchain was found." }
+    $vcvars = Join-Path $vsRoot "VC\Auxiliary\Build\vcvars64.bat"
+    if (-not (Test-Path $vcvars)) { throw "vcvars64.bat is not at $vcvars." }
+
+    # Run vcvars in cmd and import what it set, because the compiler needs INCLUDE,
+    # LIB and PATH and there is no other way to learn them.
+    & cmd.exe /c "`"$vcvars`" >nul && set" | ForEach-Object {
+        if ($_ -match "^([^=]+)=(.*)$") {
+            Set-Item -Path ("Env:" + $matches[1]) -Value $matches[2] -ErrorAction SilentlyContinue
+        }
+    }
+
     Push-Location $Staging
     try {
         & rc.exe /nologo /fo sunshine_setup.res sunshine_setup.rc
