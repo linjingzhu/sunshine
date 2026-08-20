@@ -90,8 +90,10 @@ offered.
 
 ### Step 1 — the offer
 
-**A row in the profile's own settings, and nothing else** (D5). No card, no
-banner, no first-run step. Requirements, all from existing rules:
+**A row on the module home, `chrome://sunshine-modules`, and nothing else**
+(D5, §11). No card, no banner, no first-run step. The row opens
+`chrome://sunshine-account`, which is where §4 step 2's consent screen and the
+linked state both live. Requirements, all from existing rules:
 
 - The absence of any prompt is itself PO-9 satisfied: a user who never opens
   settings has a fully configured browser.
@@ -402,19 +404,31 @@ and cannot tell a citation from an example of something absent. It was right to.
 not there**, because the next reader cannot tell the difference either. The name
 of the retired class is enough.
 
-## 11. One question this plan does not answer
+## 11. Where the link lives — settled
 
-**D5 says "settings only". Which settings?**
+**A Sunshine surface, `chrome://sunshine-account`, reached from a row on the
+module home.**
 
-Chromium's `chrome://settings` is not on the ADR 0007 seam. Putting a row there
-means patching `chrome/browser/resources/settings/`, a large and high-churn
-upstream area, against everything this project has learned about where to make
-a surface. The seam's answer is a `chrome://sunshine-account` page, which costs
-zero upstream files — but that is not the place a person looks for a browser's
-account settings.
+The first half was nearly forced rather than chosen. §4 step 2 requires
+Sunshine's own consent screen to render *before* Google's, saying what is asked
+for and what the link will not do. That has to be a page, so a Sunshine page
+exists whatever else is decided — and once it exists, the linked-and-unlinked
+row belongs on it rather than somewhere else.
 
-The audit is right that this was left ambiguous, and it is a product decision
-rather than an implementation detail. It is the next thing to be asked.
+The second half is the owner's answer, and it costs nothing. The module home is
+already reachable in one click from the bookmark bar button (patch 0008), and
+patch 0013 already established the pattern of linking onward from it to another
+Sunshine surface. So the route is: **bookmark bar → module home → Google
+account**, at a cost of **zero upstream files**.
+
+**What was rejected, and why it was a real option.** A row in Chromium's own
+`chrome://settings` is where a person actually looks for a browser's account
+settings, and that is not a small thing to give up. It was rejected on cost:
+`chrome/browser/resources/settings/` is off the ADR 0007 seam, is large, and
+churns, so a row there is a fight at every Chromium roll — paid forever, for
+discoverability that D5 has already decided not to optimise for. If that
+judgement turns out wrong, this is the paragraph to reopen, and the measurement
+to make first is that directory's churn between two milestones.
 
 ## 12. NOT VERIFIED
 
