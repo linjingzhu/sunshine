@@ -199,6 +199,15 @@ Class **O** is decidable offline. **B** needs the built browser.
 `scripts/verify_module_mount.py` decides MM-1 through MM-8 and MM-11, and
 claims them. MM-9 and MM-10 need the browser; they are RV-35 and RV-36.
 
+**Three symbols in that C++ were wrong when it was written**, and were found by
+reading `base/values.h` and `url/gurl.h` at the pinned revision rather than by
+building: `base::Value::Dict` and `base::Value::List` are `base::DictValue` and
+`base::ListValue` here, and `GURL::path_piece()` does not exist because
+`path()` already returns a `std::string_view`. Nothing in this repository could
+have caught them — the guards read the stack, not Chromium's headers — and
+each one would have ended a six-hour build. It is worth knowing that reading
+the pinned tree for a symbol costs about a minute.
+
 **MM-11 exists because its absence is invisible.** A WebUI data source forbids
 every frame by default — `URLDataSource::GetContentSecurityPolicy()` returns
 `child-src 'none';` — so a shell that named no origin compiles, passes every

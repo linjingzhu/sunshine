@@ -48,12 +48,12 @@ index 028ac64..7be8b74 100644
 +  std::vector<std::string> origins;
 +  std::optional<base::Value> parsed =
 +      base::JSONReader::Read(sunshine::kSunshineModuleRegistryJson);
-+  const base::Value::List* modules =
++  const base::ListValue* modules =
 +      parsed && parsed->is_dict() ? parsed->GetDict().FindList("modules")
 +                                  : nullptr;
 +  if (modules) {
 +    for (const base::Value& entry : *modules) {
-+      const base::Value::Dict* module = entry.GetIfDict();
++      const base::DictValue* module = entry.GetIfDict();
 +      const std::string* declared =
 +          module ? module->FindStringByDottedPath("mount.content_url")
 +                 : nullptr;
@@ -67,7 +67,7 @@ index 028ac64..7be8b74 100644
 +      GURL candidate(*declared);
 +      if (candidate.is_valid() &&
 +          candidate.SchemeIs(content::kChromeUIUntrustedScheme) &&
-+          candidate.has_host() && candidate.path_piece() == "/" &&
++          candidate.has_host() && candidate.path() == "/" &&
 +          !candidate.has_query() && !candidate.has_ref()) {
 +        origins.push_back(candidate.spec());
 +      }
