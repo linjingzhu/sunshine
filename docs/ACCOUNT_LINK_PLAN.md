@@ -68,11 +68,11 @@ specification for this work.
 
 | | Precondition | How this plan meets it |
 | --- | --- | --- |
-| 1 | A reviewed ADR superseding the relevant part of ADR 0002 | **ADR 0018** — not written, because it depends on §9's answers. It supersedes nothing about search providers; it narrows PO-R8's "Sunshine operates no browser-level OAuth of its own" to "…and operates an application link that is not a browser-level identity". |
-| 2 | A credential story that is **Sunshine's own rather than Chrome's** | §5. A Sunshine OAuth client, public, PKCE-only, never in this repository, never Chrome's client id. |
+| 1 | A reviewed ADR superseding the relevant part of ADR 0002 | **`docs/decisions/0018-sunshine-account-link.md`**, written. It found that ADR 0002 needs no superseding — what ADR 0002 forbids is *Google Chrome proprietary* keys, and a Sunshine client is not one — so the precondition is met by showing ADR 0002 untouched. What it does narrow is one sentence of PO-R8. |
+| 2 | A credential story that is **Sunshine's own rather than Chrome's** | §5. A desktop client of Sunshine's own, PKCE-protected, never in this repository, never Chrome's `google_default_client_id`. |
 | 3 | A user action that **names the account and its consequences before it happens** | §4 step 2. Sunshine's own consent screen renders before Google's, and says what will be requested and what it will not reach. |
 | 4 | A sign-out that returns the profile to §3's state | §7. Revoke, delete, and the profile is a local-only profile again with nothing left behind. |
-| 5 | A re-derivation of §5 and §6 of the onboarding contract against the revision in force | Owed at implementation time, not now. §10 records it as outstanding. |
+| 5 | A re-derivation of §5 and §6 of the onboarding contract against the revision in force | Discharged by ADR 0018 §5, which re-reads the four files those sections rest on at `152.0.7977.42`. **Owed again when the pin moves** — it is not discharged once. |
 
 ## 4. The procedure
 
@@ -121,7 +121,7 @@ The documented native-application flow, and nothing clever:
 
 | | |
 | --- | --- |
-| Client type | **Public client, PKCE only**, with SHA-256 challenges. No client secret ships. A secret in a program on a user's disk is not a secret, and Google's desktop client type does not expect one. |
+| Client type | **Desktop app**, with PKCE and SHA-256 challenges. Google issues a client *secret* for this type and its own documentation says it is not treated as confidential for installed apps — so it ships exactly as the client id does, at build time and never in this repository, and **PKCE is what actually protects the exchange**. An earlier draft of this row said no secret ships; that was wrong about Google's desktop client and is corrected here rather than discovered at the token endpoint. |
 | Redirect | **Loopback**, `http://127.0.0.1:<ephemeral port>`. The listener binds before the URL opens, accepts exactly one request, and closes. |
 | Anti-forgery | `state`, generated per attempt, compared on return, single use. |
 | Account choice | `prompt=select_account`, always (D2). Google must not continue silently with the session already in the tab, because a person with several accounts would never see which one was linked. |
@@ -324,7 +324,10 @@ learn the feature exists. Under D1 that costs them nothing they cannot do.
   unwritten and precondition 5 — re-deriving §5 and §6 of the onboarding
   contract against the revision in force — has not been done.
 - **No OAuth client exists.** No Google Cloud project has been created and no
-  consent screen configured. **Verification is believed not to be required**,
+  consent screen configured. Whether the desktop client type still issues a
+  client secret, and whether Google's token endpoint still expects it alongside
+  the PKCE verifier, is read from documentation rather than from an attempt —
+  it is the first thing to confirm once a client exists. **Verification is believed not to be required**,
   because D3 settled the scope at identity only and verification is what
   sensitive and restricted scopes trigger — but that is read from Google's
   published policy, not from having submitted anything, and it is the claim in

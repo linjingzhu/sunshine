@@ -124,7 +124,7 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 # upstream asks for a path that was never meant to be there.
 OWN_PREFIXES = frozenset({
     ".ai", ".git", ".github", "config", "docs", "downstream", "first_party",
-    "scripts", "tests",
+    "installer", "scripts", "tests",
     # Ours, but present only after a build, so absent from a fresh clone and
     # from this list until the first CI run on the build machine failed for
     # exactly that reason. `artifacts/` holds the installer and size report the

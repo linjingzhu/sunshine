@@ -136,7 +136,7 @@ Two places it can come from, and they are not equally safe.
 
 | | |
 | --- | --- |
-| **Build time** | Committed under `downstream/assets/`, baked into the front-end's resources. This is exactly what ADR 0008 already does for the application icon, and `verify_asset_overlay.py` already guards that path. Zero new risk. |
+| **Build time** | Committed beside the front-end and baked into its resources. Zero new risk, and nothing is opened at run time. |
 | **Install time** | Read from a file beside the installer. The installer then **decodes an image file it did not author** — and for a system-level install it does so **elevated**. Image decoders are a classic elevation-of-privilege surface. |
 
 If the requirement is "the owner supplies the image", build time satisfies it.
@@ -196,7 +196,7 @@ what follows from them.
 | **D1** | Front-end and engine, one file or two | **One file.** `sunshine-setup.exe` carries `mini_installer.exe` inside it, so there is no wrong file to double-click. The cost taken on: both are repackaged for every release, and a silent deployment now needs a switch rather than a second executable — §9 of the contract keeps that open. |
 | **D2** | The install path | **Per-user or per-machine, and nothing else.** The path is shown, never typed. `helper.cc` is not patched, so §3's three consequences are not incurred — and the folder a person actually cares about is the document store, which DS-1 already lets them pick. |
 | **D3** | The software name | **Fixed at `Sunshine`.** No display-name override either. The folder, the registry keys, the ProgID, the taskbar identity and the browser's own 518 sentences all say one thing, and RV-26, RV-29, RV-30 and the SEC-13 checks keep having something to assert. |
-| **D4** | Where the image comes from | **Build time**, from `downstream/assets/`. The front-end opens no image file at run time, which closes §5's decoder-at-elevation problem outright rather than mitigating it. |
+| **D4** | Where the image comes from | **Build time**, committed beside the front-end. The front-end opens no image file at run time, which closes §5's decoder-at-elevation problem outright rather than mitigating it. |
 | **D5** | How the front-end is built | **Its own compiler invocation in the workflow.** Zero upstream files, and a dialog change costs a small link rather than a browser build. |
 | **D6** | What it looks like | **Sunshine's**, by mapping the design tokens to native values. The cost taken on is real and named in the contract: dark mode, per-monitor DPI and keyboard accessibility all become this program's work instead of the system's. |
 

@@ -88,11 +88,16 @@ pattern, and this program does exactly that by construction.
 
 ## 4. The image, and everything else on screen
 
-**The image is a build-time asset.** It is committed under
-`downstream/assets/`, compiled into the front-end's resources, and the running
-program reads no image file from disk. `docs/decisions/0008-binary-asset-overlay.md`
-already established this path for the application icon and
-`scripts/verify_asset_overlay.py` already guards it.
+**The image is a build-time asset.** It is committed under `installer/`,
+beside the program that compiles it in, and the running program reads no image
+file from disk.
+
+It is deliberately **not** under `downstream/assets/`. That directory is an
+overlay onto Chromium's own tree — ADR 0008's mechanism for replacing an
+upstream file — and a banner belonging to a program that is not part of
+Chromium has no upstream file to replace. Putting it there made
+`verify_asset_overlay.py` report it as an untracked overlay of a Chromium path
+that does not exist, which was the guard being right.
 
 That closes the whole class of problem §5 of the review describes: an installer
 that decodes a file it did not author, potentially while elevated.
@@ -160,7 +165,7 @@ person.
 | IU-13 | The dialog resolves its colours through the token mapping, follows the system light/dark setting, and is legible from 100% to 300% scaling. | U |
 | IU-14 | Every control is reachable and operable from the keyboard alone, with a visible focus indicator, and every control has an accessible name. | U |
 | IU-15 | There is no switch, argument, environment variable or registry value that makes `sunshine-setup.exe` install without showing the dialog. Every installation it performs was watched by a person. | O |
-| IU-16 | The only machine state the front-end reads before the user has agreed to anything is whether Sunshine is installed and at what version. It reads no other key, and it writes none. | O |
+| IU-16 | The only state the front-end reads about *the installation* before the user has agreed to anything is whether Sunshine is installed and at what version. Exactly one further read is permitted — the system's light/dark preference, which is needed to draw — and nothing is written. | O |
 
 **No check claims any of these yet, because no code implements them.** IU-1 to
 IU-8 become decidable the moment the front-end is written, and the guard that
@@ -192,11 +197,20 @@ something else.
 
 The cost is named in IU-16 and is deliberately bounded: the front-end reads the
 machine **before the user has agreed to anything**, which is a thing an
-installer should do as little of as possible. So it reads exactly one fact —
-whether Sunshine is installed, and at what version — from the registration
-`setup.exe` already maintains. It reads nothing else and writes nothing. An
+installer should do as little of as possible. So it reads exactly one fact about
+the installation — whether Sunshine is installed, and at what version — from
+`Software\Microsoft\Windows\CurrentVersion\Uninstall\Sunshine`'s
+`DisplayVersion`, in the 32-bit view, which is where `setup.exe` writes it. An
 installer that inspects a machine it has not been given permission to change is
 a pattern worth keeping to one line.
+
+**IU-16 admits a second read, and saying so is the point.** Drawing in the
+user's chosen light or dark theme means reading `AppsUseLightTheme`. That was
+not inventory of the machine and the first draft of IU-16 forbade it anyway, by
+saying "no other key" — a rule the implementation would have had to break
+quietly or the feature dropped. Naming the exception is what keeps the invariant
+enforceable: the guard asserts the source reads **those two keys and no
+others**, which is a stronger check than "as few as possible" ever was.
 
 **What this does not become.** It does not become a repair flow, a downgrade
 prompt, or a "you already have the latest version" refusal. `mini_installer`

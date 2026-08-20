@@ -1,0 +1,40 @@
+// Copyright 2026 The Sunshine Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include <windows.h>
+
+#include "resource.h"
+
+// The engine, byte for byte as upstream built it. `mini_installer.exe` is
+// staged beside this file by scripts/build_installer_frontend.ps1, which also
+// writes the hash the program checks it against.
+IDR_ENGINE RCDATA "mini_installer.exe"
+
+// The banner. Compiled in (IU-6); the running program opens no image file.
+IDR_BANNER RCDATA "banner.png"
+
+IDI_SETUP ICON "sunshine.ico"
+
+// Deliberately no EDITTEXT anywhere in this dialog. The install location is a
+// label (IU-4) and the product name has no control at all (IU-5); a text box
+// for either is the shape both invariants exist to forbid.
+IDD_SETUP DIALOGEX 0, 0, 340, 232
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Sunshine"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    CONTROL         "", IDC_BANNER, "Static", SS_OWNERDRAW, 0, 0, 340, 56
+    LTEXT           "Install Sunshine", IDC_HEADLINE, 16, 68, 308, 12
+    AUTORADIOBUTTON "Install for me only", IDC_SCOPE_USER, 16, 88, 150, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Install for all users on this computer", IDC_SCOPE_MACHINE, 16, 102, 200, 10
+    LTEXT           "", IDC_LOCATION, 28, 118, 296, 10
+    AUTOCHECKBOX    "Desktop shortcut", IDC_DESKTOP_SHORTCUT, 16, 138, 150, 10, WS_GROUP | WS_TABSTOP
+    AUTOCHECKBOX    "Taskbar shortcut", IDC_TASKBAR_SHORTCUT, 16, 152, 150, 10
+    AUTOCHECKBOX    "Quick Launch shortcut", IDC_QUICK_LAUNCH_SHORTCUT, 176, 138, 150, 10
+    AUTOCHECKBOX    "Make Sunshine my default browser", IDC_MAKE_DEFAULT, 176, 152, 150, 10
+    AUTOCHECKBOX    "Open Sunshine when this finishes", IDC_LAUNCH_WHEN_DONE, 16, 168, 200, 10
+    LTEXT           "", IDC_STATUS, 16, 188, 308, 10
+    DEFPUSHBUTTON   "Install", IDC_INSTALL, 200, 206, 60, 16, BS_OWNERDRAW
+    PUSHBUTTON      "Cancel", IDCANCEL, 268, 206, 56, 16, BS_OWNERDRAW
+END

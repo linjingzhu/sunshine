@@ -65,6 +65,16 @@ jobs:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
         run: python scripts/verify_installed_build.py
 
+      # The dialog, with mini_installer.exe inside it. Its own compiler
+      # invocation rather than a GN target: it links against nothing Chromium
+      # produces except the engine it embeds as a blob, so it does not belong
+      # in that build graph, and a dialog change costs a link rather than a
+      # browser.
+      - name: Build the installer front-end
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: ./scripts/build_installer_frontend.ps1
+
       # docs/SIZE_BUDGET.md names an installed-bundle threshold that nothing
       # has ever measured: the size report reads chrome.exe, which build #33
       # measured at 4.1 MB because it is a launcher stub. This reads upstream's

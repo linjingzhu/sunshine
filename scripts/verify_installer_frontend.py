@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""Hold the installer front-end to `docs/INSTALLER_UI_CONTRACT.md`.
+
+The front-end cannot be compiled or run anywhere in this project's CI: it needs
+MSVC and Windows, and the one machine that has both is also the only machine
+that builds Chromium. So everything about it that can be decided from source is
+decided here, and the rules chosen are the ones whose failure would be silent.
+
+What is checked, and which invariant each claims:
+
+  * the manifest requests `asInvoker`, and requests nothing else (IU-7);
+  * every preferences key the program writes is one the contract names, so a
+    control cannot quietly acquire an effect upstream did not agree to (IU-3);
+  * no text box exists anywhere in the dialog -- which is how both "the path is
+    shown, never typed" and "the name has no control" are enforced, because
+    each would need one (IU-4, IU-5);
+  * nothing installs: no registry write, no shortcut, no copy into a program
+    directory (IU-2);
+  * no image is opened at run time (IU-6);
+  * the choices cross the elevation boundary as switches from a closed table,
+    and the elevated continuation reads no file to learn them (IU-8);
+  * the engine is hashed against a generated constant before it is run, and the
+    constant is generated rather than committed (IU-10);
+  * there is no switch that skips the dialog (IU-15);
+  * exactly two registry paths are read, and they are the two IU-16 names.
+
+**IU-16 is the reason this file exists in this shape.** Its first draft said the
+front-end reads one key and "no other". Drawing in the user's light or dark
+theme needs a second, so the rule as written could only have been kept by
+dropping the theme or by breaking it quietly. Naming both keys and asserting the
+source reads *exactly* those is a stronger check than "as few as possible" ever
+was, and it is the shape a rule takes once someone has tried to obey it.
+
+Enforces: IU-1
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+
+SOURCE = "installer/sunshine_setup.cpp"
+RESOURCE = "installer/sunshine_setup.rc"
+MANIFEST = "installer/sunshine_setup.manifest"
+BUILD = "scripts/build_installer_frontend.ps1"
+CONTRACT = "docs/INSTALLER_UI_CONTRACT.md"
+
+# The two registry paths IU-16 permits, matched by the fragment that identifies
+# each. The uninstall registration says whether Sunshine is installed; the
+# Personalize key says whether to draw light or dark.
+PERMITTED_KEYS = (
+    "CurrentVersion\\\\Uninstall\\\\Sunshine",
+    "Themes\\\\\"\n                      L\"Personalize",
+)
+
+# A registry open, however it is spelled.
+REGISTRY_OPEN = re.compile(r"Reg(?:Open|Create)KeyEx[WA]?\s*\(")
+REGISTRY_WRITE = re.compile(r"Reg(?:SetValue|DeleteValue|CreateKey)")
+
+# Things that would mean this program installs something itself (IU-2).
+INSTALLING = (
+    "IShellLink",
+    "CopyFileW",
+    "MoveFileW",
+    "SHFileOperation",
+    "CreateSymbolicLink",
+)
+
+# Reading an image at run time (IU-6).
+IMAGE_AT_RUNTIME = ("LoadImageW", "GdipLoadImageFromFile", "SHCreateStreamOnFile")
+
+# A silent-install switch, in the spellings installers use (IU-15).
+SILENT_WORDS = ("silent", "quiet", "passive", "unattend", "/S\"", "verysilent")
+
+
+# Line comments, in both the C++ and the resource script.
+COMMENT = re.compile(r"^\s*//.*$", re.M)
+
+
+def code_only(text: str) -> str:
+    """The file with its line comments removed.
+
+    Three of this guard's rules fired on their own explanations the first time
+    it ran: a comment saying "there is no silent mode" was read as a silent
+    mode, and one saying "deliberately no EDITTEXT" was read as an EDITTEXT.
+    A guard that reads prose is a guard that makes people write worse prose to
+    get past it, so it reads code.
+    """
+
+    return COMMENT.sub("", text)
+
+
+def _read(root: Path, relative: str, failures: list[str]) -> str:
+    path = root / relative
+    if not path.is_file():
+        failures.append(f"{relative}: missing")
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def check(root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    source = _read(root, SOURCE, failures)
+    resource = _read(root, RESOURCE, failures)
+    manifest = _read(root, MANIFEST, failures)
+    build = _read(root, BUILD, failures)
+    contract = _read(root, CONTRACT, failures)
+    if failures:
+        return failures
+
+    # -- IU-7: asInvoker, and only that ---------------------------------------
+    levels = re.findall(r'requestedExecutionLevel\s+level="([^"]+)"', manifest)
+    if levels != ["asInvoker"]:
+        failures.append(
+            f"{MANIFEST}: requests {levels or 'no execution level'}; IU-7 requires "
+            "exactly one, asInvoker"
+        )
+
+    source_code = code_only(source)
+    resource_code = code_only(resource)
+
+    # -- IU-3: only preferences keys the contract names -----------------------
+    #
+    # The keys are written into a JSON literal, so in the C++ they appear with
+    # their quotes escaped.
+    named = set(re.findall(r"`(do_not_[a-z_]+|make_chrome_default_for_user|system_level)`", contract))
+    written = set(
+        re.findall(r'\\"(do_not_[a-z_]+|make_chrome_default_for_user|system_level)\\"', source_code)
+    )
+    if not written:
+        failures.append(f"{SOURCE}: writes no preferences key, so nothing is requested")
+    for key in sorted(written - named):
+        failures.append(
+            f"{SOURCE}: writes preferences key {key!r}, which {CONTRACT} does not "
+            "name; IU-3"
+        )
+
+    # -- IU-4 and IU-5: no text box, anywhere ---------------------------------
+    #
+    # Checked as an absence in the dialog template rather than as a rule about
+    # two particular fields. A typed install path and a typed product name both
+    # need an edit control, and neither can appear without one.
+    if re.search(r"\bEDITTEXT\b|\bES_AUTOHSCROLL\b|\"Edit\"", resource_code):
+        failures.append(
+            f"{RESOURCE}: contains a text box. The install location is shown and "
+            "never typed (IU-4) and the product name has no control at all (IU-5)"
+        )
+
+    # -- IU-2: it installs nothing -------------------------------------------
+    for symbol in INSTALLING:
+        if symbol in source_code:
+            failures.append(
+                f"{SOURCE}: uses {symbol}, which is installing rather than asking; IU-2"
+            )
+    if REGISTRY_WRITE.search(source_code):
+        failures.append(f"{SOURCE}: writes to the registry; IU-2 and IU-16")
+
+    # -- IU-6: no image opened at run time ------------------------------------
+    for symbol in IMAGE_AT_RUNTIME:
+        if symbol in source_code:
+            failures.append(
+                f"{SOURCE}: uses {symbol}, so an image could come from disk; IU-6"
+            )
+
+    # -- IU-8: the switch table is closed, and elevation carries no file ------
+    if "kSwitches[]" not in source_code:
+        failures.append(f"{SOURCE}: has no closed switch table; IU-8")
+    if "BuildElevatedCommandLine" not in source_code:
+        failures.append(f"{SOURCE}: does not build the elevated command line; IU-8")
+    elevated = (source_code[source_code.find("if (elevated_continuation)"):]
+                if "if (elevated_continuation)" in source_code else "")
+    if "ReadFile" in elevated or "CreateFileW" in elevated:
+        failures.append(
+            f"{SOURCE}: the elevated continuation reads a file. Choices cross as "
+            "switches; a file an unprivileged user can rewrite is the bug; IU-8"
+        )
+
+    # -- IU-10: hashed before run, and the constant is generated --------------
+    if "kEngineSha256" not in source_code or "BCryptHash" not in source_code:
+        failures.append(f"{SOURCE}: does not hash the engine before running it; IU-10")
+    if (root / "installer/engine_hash.h").exists():
+        failures.append(
+            "installer/engine_hash.h is committed. It belongs to one build's "
+            "engine and to no other; the build script writes it; IU-10"
+        )
+    if "engine_hash.h" not in build or "Get-FileHash" not in build:
+        failures.append(f"{BUILD}: does not generate the engine hash; IU-10")
+
+    # -- IU-15: no silent mode ------------------------------------------------
+    lowered = source_code.lower()
+    for word in SILENT_WORDS:
+        if word.lower() in lowered:
+            failures.append(
+                f"{SOURCE}: mentions {word!r}. There is no switch that installs "
+                "without showing the dialog; IU-15"
+            )
+
+    # -- IU-16: exactly two reads, and they are the two named -----------------
+    opens = len(REGISTRY_OPEN.findall(source_code))
+    if opens != 2:
+        failures.append(
+            f"{SOURCE}: opens {opens} registry key(s); IU-16 permits exactly two "
+            "-- the uninstall registration and the light/dark preference"
+        )
+    if "CurrentVersion\\\\Uninstall\\\\Sunshine" not in source_code:
+        failures.append(f"{SOURCE}: does not read the uninstall registration; IU-16")
+    if "AppsUseLightTheme" not in source_code:
+        failures.append(
+            f"{SOURCE}: does not read the light/dark preference, which is the "
+            "second read IU-16 permits and the reason it permits one; IU-16"
+        )
+
+    # -- IU-1: zero upstream Chromium files ----------------------------------
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        if "installer/sunshine_setup" in patch.read_text(encoding="utf-8"):
+            failures.append(
+                f"{patch.name}: the front-end is in the patch stack. It owns no "
+                "upstream file and is not part of Chromium's build; IU-1"
+            )
+
+    print(f"installer front-end: {len(written)} preferences key(s), {opens} registry read(s).")
+    return failures
+
+
+def main() -> int:
+    failures = check()
+    for failure in failures:
+        print(failure)
+    if failures:
+        print(f"{len(failures)} installer front-end failure(s).")
+        return 1
+    print("Installer front-end passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
