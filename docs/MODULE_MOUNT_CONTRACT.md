@@ -94,6 +94,7 @@ Enforced by `scripts/validate_first_party_modules.py` (`validate_mount`) and by
 | `activate` | `tab` | The user chose a tab in C. |
 | `action` | `action` | The user pressed one of the module's header actions. |
 | `panel` | `role` | E is now showing this role. |
+| `storage-result` | `requestId`, `ok`, `error`, `documents`, `id`, `body` | The answer to exactly one `storage-request`, echoing its `requestId`. |
 
 `region` is `body` or `panel`. D's body and E's role content are two frames of
 the same module at the same content URL, told apart by this field and by
@@ -107,6 +108,7 @@ registry needing a second URL for it.
 | `describe` | `title`, `path`, `icon`, `dirty`, `tabs`, `activeTab`, `actions` | Everything the shell draws on the module's behalf. |
 | `select` | `tab` | The module moved its own selection. C follows. |
 | `request-panel` | `role` | The module would like E showing a role. |
+| `storage-request` | `requestId`, `op`, `id`, `title`, `body` | Ask the document store for something. `op` is `list`, `read`, `save` or `remove`. |
 
 **`describe` is whole state, never a delta.** A delta obliges the receiver to
 keep a second copy of the model in agreement with the first, and the copy is
@@ -117,6 +119,45 @@ A `describe` from the **panel** region is discarded. The header and the tab list
 belong to D's module; a panel that could rewrite them would be E deciding what
 D is.
 
+## 4a. The document store, across the port
+
+`docs/DOCUMENT_STORE_CONTRACT.md` says where documents live and what they look
+like. This is how a module reaches them, and it is the **only** way: an
+installed module cannot be given a Mojo interface, so the shell brokers.
+
+**Correlation is in the message, not in the order of messages.** The module
+coins a `requestId` and the shell echoes it. `postMessage` gives no ordering
+guarantee worth relying on across a navigation, and a store call that resolved
+the wrong promise would be a document written under another document's name.
+
+**Every request is answered.** A request that got no reply would leave a module
+waiting forever on a promise it cannot cancel, which is a worse failure than a
+refusal — so a handler that throws still produces `failed`.
+
+### The one field that reaches the filesystem
+
+`title` **becomes the filename** — `DS-3` puts identity inside the document
+precisely so that the name can be the user's to read and to change. That makes
+`title` the single string a module sends that touches the disk, and it is
+validated hardest: no separator, no traversal, no control character, no leading
+or trailing space, not empty, and never `.` or `..`.
+
+`documentTitle()` in `mount_port.ts` is that check, and it runs on the way in
+*and* on the way out — a document in a `storage-result` whose title is not a
+legal title poisons the whole result rather than being repaired, because a
+repaired name is a name nobody chose.
+
+### What it answers today
+
+**`no-store`, always.** The store needs a directory the user has chosen and a
+browser side to read it with, and neither exists. `DS-8` says the answer is a
+refusal rather than a fallback into the profile, because a silent fallback is
+how a person ends up with documents in two places and only one of them synced.
+
+That is not a stub. It is the correct behaviour of an unconfigured store, and
+it is the behaviour a module has to handle anyway — a user can revoke the
+folder, or unmount the share, at any time.
+
 ## 5. Limits, and where each one lives
 
 | Limit | Value | Declared in |
@@ -126,6 +167,7 @@ D is.
 | Label length | `MAX_LABEL` = 120 | `mount_port.ts` |
 | Identifier | `IDENTIFIER`, 64 characters | `mount_port.ts` |
 | Icon names | `ICONS`, 8 of them | `mount_port.ts` |
+| Document body | `MAX_BODY` = 4 MiB | `mount_port.ts` — a body is one `postMessage` payload, so the bound keeps one save from stalling the shell. Larger needs streaming, which is a later problem and should be solved as one rather than by raising this number |
 
 The split is deliberate and is the same one `docs/MODULE_SHELL_CONTRACT.md`
 MS-4 draws: a number that describes the *layout* belongs with the layout, and a

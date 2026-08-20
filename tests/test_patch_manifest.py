@@ -43,6 +43,9 @@ KNOWN_EXTENDED_REGISTRIES = frozenset({
     # Patch 0015 gives the shell 0011 created the framing policy it shipped
     # without, so it extends that surface's C++ too.
     "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc",
+    # Patch 0016 gives the port 0012 created its storage vocabulary.
+    "chrome/browser/resources/sunshine/shell/mount.ts",
+    "chrome/browser/resources/sunshine/shell/mount_port.ts",
 })
 
 

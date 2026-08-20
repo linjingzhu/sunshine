@@ -48,9 +48,14 @@ APP = "chrome/browser/resources/sunshine/shell/app.ts"
 SHELL_UI = "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc"
 CONTRACT = "docs/MODULE_MOUNT_CONTRACT.md"
 
-# `export const NAME = ['a', 'b'] as const;`, possibly spread over lines.
+# `export const NAME = ['a', 'b'] as const;`.
+#
+# `\s*` after the `=` because clang-format wraps the declaration onto the next
+# line as soon as the list is long enough, which is what adding one message
+# name did. The rule being checked is "a closed `as const` list" and that is
+# unchanged; only the assumption that it fits on one line is gone.
 CONST_LIST = re.compile(
-    r"export const (?P<name>[A-Z_]+) = \[(?P<body>[^\]]*)\] as const;", re.S
+    r"export const (?P<name>[A-Z_]+)\s*=\s*\[(?P<body>[^\]]*)\]\s*as const;", re.S
 )
 QUOTED = re.compile(r"'([^']*)'")
 # Any import at all, including a bare side-effect one.
