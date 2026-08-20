@@ -117,6 +117,10 @@ person and two machines.
 | DS-7 | A file with no `id` is adopted rather than ignored. | B |
 | DS-8 | With no store chosen, a module asking for storage is refused. There is no fallback into the profile. | B |
 | DS-9 | Editing on two machines while both are offline loses nothing when they reconnect. | U |
+| DS-10 | A store that cannot be read is reported as unreachable, never as empty, and never as a diagnosis the browser cannot support. | B |
+| DS-11 | Every filesystem call the store makes reports its error. No `PathExists`/`DirectoryExists` existence test, no `IGNORE_ERRORS` enumeration, no `bool`-returning call where an error-returning form exists. | O |
+| DS-12 | A document whose bytes are not local is present and unavailable. Conflict resolution never hydrates a file to compare it. | B |
+| DS-13 | No API is used under the store that creates a sibling, temporary, lock, journal, manifest or index file, whatever it is called. | O |
 
 **No check claims any of these yet, because no code implements them.** DS-1 to
 DS-5 become decidable the moment the store is written, and the guard that
@@ -184,7 +188,97 @@ mapping, the enumerator, the path watcher and the thread pool are byte-identical
 at `153.0.8000.0`. That is the strongest available argument for this insertion
 point, and it is a measurement rather than a preference.
 
-## 8. NOT VERIFIED
+## 8. When the store is not there
+
+§10 of the first draft said: *"Nothing decides what happens when the store
+folder disappears — an unmounted share, a revoked grant, a user moving it. That
+is a real gap and it is the next thing this contract needs."* This is that.
+
+It is specified from Chromium's Windows error mapping read at the pinned
+revision, not from invention. **All four files it rests on are byte-identical at
+`153.0.8000.0`**, so this section does not rot at the next roll.
+
+### 8.1 The three cases are not distinguishable, and that decides the design
+
+`base::File::OSErrorToFileError` maps Win32 errors onto `base::File::Error`.
+Reading its switch:
+
+| What happened | What the store sees |
+| --- | --- |
+| **Access revoked** | `FILE_ERROR_ACCESS_DENIED`. Clean, and the only one of the three that is. |
+| **Folder moved or deleted** | `FILE_ERROR_NOT_FOUND`. A move and a delete are the same value; Chromium tracks no identity that would let the store follow a move. |
+| **Share unmounted** | **Any of `FILE_ERROR_FAILED`, `FILE_ERROR_IO`, or `FILE_ERROR_NOT_FOUND`**, depending on transport and on whether the path is UNC or a mapped letter. The SMB redirector's own errors — `ERROR_BAD_NETPATH`, `ERROR_BAD_NET_NAME`, `ERROR_NETNAME_DELETED` — appear nowhere in the switch and fall through to `FILE_ERROR_FAILED`, which is also what an unclassified transient failure returns. |
+
+**So the rule is not "tell the user which of the three happened."** It cannot be
+derived from `base::File::Error`, and a store that claimed to would be guessing.
+
+> **DS-10. A store that cannot be read is reported as unreachable, never as
+> empty, and never as a specific diagnosis the browser cannot support.**
+
+If the distinction is ever wanted, the store must capture the raw
+`::GetLastError()` at the call site before it is folded. That is a decision this
+contract does not take.
+
+### 8.2 Three APIs destroy the evidence, and they are the obvious ones
+
+This is the more important half, because each is what an implementer reaches for
+first.
+
+| | |
+| --- | --- |
+| **`base::PathExists` / `base::DirectoryExists`** | Read `GetFileAttributes` and return `false` without consulting `GetLastError()`. Unmounted, deleted, moved and access-denied are one `false`. **The obvious "is the store still there?" check is the one call that cannot answer the question.** |
+| **`base::FileEnumerator`** | Defaults to `ErrorPolicy::IGNORE_ERRORS`. `Next()` returns an empty path and `GetError()` returns `FILE_OK`. **A listing over a vanished store is indistinguishable from a store containing nothing** — which under DS-7 is the difference between adopting nothing and the user's whole library having disappeared. |
+| **`base::WriteFile` / `base::ReadFileToString`** | Return `bool`. Same loss. |
+
+> **DS-11. Every filesystem call the store makes reports its error.**
+> `FileEnumerator` is constructed with `ErrorPolicy::STOP_ENUMERATION` and its
+> `GetError()` is read; existence is never decided by `PathExists` or
+> `DirectoryExists`; and no `bool`-returning file call is used where an
+> error-returning form exists.
+
+### 8.3 A fourth state, which happens every day
+
+§2 puts the store inside a cloud client's folder **by design**. So there is a
+state the first draft did not name and which is far more common than the three
+it did: **the folder is present, the file is listed, and the bytes are not
+local.** OneDrive Files On-Demand is the ordinary case.
+
+`base::GetFileInfo` reports the placeholder's stub size. Reading the file blocks
+on a network fetch. Chromium ships `base::GetHydratedFileInfo` for exactly this,
+and its own comment says it "may open the file and therefore block or trigger a
+network download".
+
+That breaks §4 as written: *"the newer `updated_at` is the document"* is a rule
+the store cannot evaluate without either hydrating every candidate — slow, and
+it defeats the point of Files On-Demand — or reading `updated_at` from somewhere
+that is already local.
+
+> **DS-12. A document whose bytes are not local is present and unavailable, not
+> missing and not empty.** Conflict resolution never hydrates a file to compare
+> it; §4's `updated_at` comparison reads metadata that is local, or the conflict
+> is left unresolved and shown as one.
+
+This is the row most likely to be got wrong by a correct-looking implementation,
+because on a developer's machine every file is hydrated and none of it shows.
+
+### 8.4 Detecting it, rather than discovering it on the next save
+
+`base::FilePathWatcher` with `Type::kNonRecursive` "watch[es] the given path
+**and its ancestors** … If the path does not exist, its ancestors will be
+watched in anticipation of it appearing later" — which is unmount-and-remount
+and delete-and-recreate. Its Windows implementation classifies
+`ERROR_FILE_NOT_FOUND`, `ERROR_PATH_NOT_FOUND`, `ERROR_ACCESS_DENIED` and
+`ERROR_SHARING_VIOLATION` as non-fatal and keeps waiting on a surviving
+ancestor; everything else is fatal and fires the callback with `error = true`.
+
+**The three cases therefore produce three different watcher behaviours, and none
+of them is a notification saying which happened.** The watcher is worth having
+because it tells the store *when* to re-check, and it is not worth trusting for
+*what* changed. Nothing in this contract may depend on following a move: the
+`ChangeInfo` cookie that would pair a moved-from with a moved-to carries an
+upstream TODO saying every consumer must implement the coalescing itself.
+
+## 9. NOT VERIFIED
 
 - **Nothing here is built.** No directory is chosen, no document is written, no
   conflict has been seen. Every row in §4 is a rule rather than an observation.
