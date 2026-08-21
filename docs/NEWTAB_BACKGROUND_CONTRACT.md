@@ -55,6 +55,22 @@ the animation chunks shows a still image rather than an error.
 | **NTB-1** | The background source declares the PNG, JPEG and RIFF signatures as byte arrays, and all are present. |
 | **NTB-2** | No excluded format's signature is declared, and no code path decides a background's format from its file name. |
 | **NTB-4** | WebP is recognised by **both** of its tags: `RIFF` at offset 0 and `WEBP` at offset 8. Declaring the first without the second is refused, and so is declaring the second without ever reading it at offset 8. |
+| **NTB-5** | The path the handler answers is a path the source will actually service. One named constant, used three times — declared, matched in the handler, listed in the allowlist. |
+
+**NTB-5 exists because the feature shipped broken and everything went green.**
+`untrusted_source.cc` gates every request through `ShouldServiceRequest`, an
+allowlist of exact paths. The handler branch was written; the allowlist entry
+was not. Every request was refused with `ERR_INVALID_URL` before reaching the
+branch, which was unreachable code — and a correctly installed, correctly
+signed asset produced exactly what a missing one produces, because §5 records
+that those two states are indistinguishable. The compiler had no objection, the
+build was green, and this guard passed, because none of the three knew the two
+places had to agree. Counting uses of one constant is what makes them one fact.
+
+The rule counts the **constant**, not the function name. An edit to the
+allowlist changes a `return` chain, not a signature, so `ShouldServiceRequest`
+arrives as a context line and a check that searched for it would fail on a
+correct patch. Three uses in the added lines is the shape a correct patch has.
 
 **NTB-4 exists because WebP's identity is not a prefix.** `RIFF` is a
 container tag that WAV and AVI open with too. What says WebP is the four bytes
@@ -162,7 +178,9 @@ because they already have a home.
 - **Nothing has been run.** No background has been placed, served, or
   displayed, and no animated asset has played in a Sunshine build. The whole
   of §2 to §4 is source a guard holds, not evidence about a browser. It has
-  not been compiled either: the last Windows build predates all three patches.
+  been compiled — build #40, run `32445665066` — and compiling is not running:
+  the feature was in fact **broken at that point** and the green build said
+  nothing about it. See the note under NTB-5.
 - **A rejected file is indistinguishable from no file.** `ReadInstalledBackground`
   returns empty for a missing file, an oversized one, and one whose bytes are
   not a permitted format alike, and no surface anywhere says which happened.
@@ -182,7 +200,11 @@ because they already have a home.
   **to the degree PB-5a's second run requires** is an assumption about
   upstream behaviour, not a measurement. It is the likeliest place for this
   feature to fail its own budget, and it fails there quietly.
-- **No size limit is set for the asset and none is enforced.** It matters more
+- **A 32 MB cap is enforced, and nothing tells a reader they hit it.**
+  `kMaxAssetBytes` is `32u * 1024u * 1024u` and `ReadFileToStringWithMaxSize`
+  refuses a larger file outright rather than truncating it. An earlier draft of
+  this bullet said no limit was set or enforced, which was false and sat in the
+  NOT VERIFIED list where it would be believed. Size matters more
   for APNG than for the alternatives: APNG is lossless, so photographic or
   gradient-heavy material can be very large, while an animated WebP of the
   same material is lossy and typically far smaller. The installed payload

@@ -62,10 +62,32 @@ PO-R4 forbids treating an account grant as consent to it regardless. Any
 roadmap item that reads "sync bookmarks/passwords/history via Google" should be
 struck rather than scheduled.
 
-**Chromium's own sign-in must stay off.** It is off by construction: with no
-OAuth client configured, `CanEnableDiceForBuild()` is false, `kSigninAllowed` is
-written false, and the first-run experience is skipped. PO-R2 makes that
-unconditional. **L4 must not switch it on as a side effect**, which is a real
+**Chromium's own sign-in must stay off.** With no OAuth client configured,
+`CanEnableDiceForBuild()` is false, `kSigninAllowed` is written false, and the
+first-run experience is skipped.
+
+**"Off by construction" is how an earlier draft put it, and that was too
+strong.** An adversarial review checked the chain at the pin and found what it
+rests on. `google_apis/api_key_cache.cc` resolves a key from, in order, a
+command-line switch, a config file, an **environment variable**, a feature
+flag, and only last the value baked into the build — and
+`HasOAuthClientConfigured()` tests the *resolved* value, not the baked one.
+Whether the environment may override is
+`allow_override_via_environment = !BUILDFLAG(GOOGLE_CHROME_BRANDING)` in
+`google_apis/default_api_keys-inc.cc`. **Sunshine builds are unbranded, so
+that override is on**, and a shipped Sunshine launched with the six
+`GOOGLE_CLIENT_ID_*`/`GOOGLE_CLIENT_SECRET_*` variables set has Dice enabled.
+
+So PO-R2 is a rule binding the people who build Sunshine — no patch, switch,
+flag, build argument or credential *of ours* may enable it — and not a property
+of the artifact that survives a hostile or careless environment. The
+distinction matters because §2 and the ADR presented it as the second, and a
+guard cannot enforce what a document only asserts.
+
+This is a **local** escalation: setting those variables already requires the
+ability to run code as the user, and it enables Chromium's own sign-in rather
+than anything Sunshine-specific. It is not a remote attack. It is recorded here
+because the document claimed something absolute and it is not. **L4 must not switch it on as a side effect**, which is a real
 risk and §8 is how it is prevented: the credential L4 uses must never be
 Chrome's `google_default_client_id`, because setting that is precisely what
 re-enables Dice.

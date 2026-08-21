@@ -97,6 +97,29 @@ SUNSHINE_CREDENTIAL_VALUE = re.compile(
     re.I,
 )
 
+# PO-A16, second half. The value does not live under the macro's name.
+#
+# The rule above keys on `SUNSHINE_*CLIENT_ID`, and an adversarial reviewer
+# walked straight past it with the one line patch 0018 actually ships:
+#
+#     constexpr char kClientId[] = "test-1234";
+#
+# No `SUNSHINE_` prefix, so no match -- and `LinkAvailable()` returns true in
+# every build made from this tree, which is the exact state the rule exists to
+# make impossible. The macro name is where the value *comes from*; this is
+# where it *lands*, and only the second one matters.
+#
+# So: any identifier that reads as a credential, holding a non-empty literal
+# that is not a reference or a macro. Deliberately not a list of the names in
+# use today -- a rule that had to be told about `kClientId` would need telling
+# again about the next one.
+CREDENTIAL_IDENTIFIER = re.compile(
+    r"\b[kg]?_?[A-Za-z0-9_]*(?:ClientId|ClientSecret|ApiKey|CLIENT_ID|CLIENT_SECRET|API_KEY|"
+    r"client_id|client_secret|api_key)[A-Za-z0-9_]*\s*(?:\[\s*\])?\s*=\s*"
+    r"\\?(?P<quote>[\"'])(?!\$)(?P<value>[^\"'\s\\]+)(?P=quote)",
+    re.I,
+)
+
 # PO-A17. Sunshine's own code reaches none of Chromium's identity surface.
 #
 # PO-A2 above forbids *patching* the identity, sync and first-run areas. That is
@@ -254,6 +277,16 @@ def check_no_sunshine_credential_value(root: Path, failures: list[str]) -> None:
     """PO-A16: Sunshine's own credential name is declared, never given a value."""
 
     for label, text in sunshine_sources(root):
+        for match in CREDENTIAL_IDENTIFIER.finditer(text):
+            value = match.group("value")
+            # A macro name on the right-hand side is the supported shape: the
+            # value arrives at compile time and is not written here.
+            if re.fullmatch(r"[A-Z][A-Z0-9_]*", value):
+                continue
+            failures.append(
+                f"{label}: gives a credential identifier the literal value "
+                f"{value!r} -- PO-A16, it must come from the release pipeline"
+            )
         for match in SUNSHINE_CREDENTIAL_VALUE.finditer(text):
             value = match.group("value")
             failures.append(

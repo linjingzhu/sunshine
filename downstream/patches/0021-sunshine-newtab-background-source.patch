@@ -1,28 +1,45 @@
 diff --git a/chrome/browser/ui/webui/new_tab_page/BUILD.gn b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
-index 15bf03e..73a4afa 100644
+index 15bf03e..c524d3f 100644
 --- a/chrome/browser/ui/webui/new_tab_page/BUILD.gn
 +++ b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
-@@ -70,6 +70,7 @@ source_set("impl") {
-     ":mojo_bindings",
-     ":new_tab_page",
-     "//base",
+@@ -107,6 +107,7 @@ source_set("impl") {
+     "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/search",
+     "//chrome/browser/ui/search:impl",
 +    "//chrome/browser/ui/sunshine",
-     "//base:i18n",
-     "//build:branding_buildflags",
-     "//chrome/app:branded_strings",
+     "//chrome/browser/ui/tabs:tabs_public",
+     "//chrome/browser/ui/webui:favicon_source",
+     "//chrome/browser/ui/webui:plural_string_handler",
 diff --git a/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc b/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
-index ae1df07..a65b1a3 100644
+index ae1df07..1e0db70 100644
 --- a/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
 +++ b/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
-@@ -3,6 +3,7 @@
- // found in the LICENSE file.
- 
- #include "chrome/browser/ui/webui/new_tab_page/untrusted_source.h"
+@@ -31,6 +31,7 @@
+ #include "chrome/browser/search/background/ntp_custom_background_service.h"
+ #include "chrome/browser/search/background/ntp_custom_background_service_factory.h"
+ #include "chrome/browser/ui/search/ntp_user_data_logger.h"
 +#include "chrome/browser/ui/sunshine/newtab_background.h"
- 
- #include <numeric>
- #include <optional>
-@@ -281,6 +282,26 @@ void UntrustedSource::StartDataRequest(
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/new_tab_page_untrusted_resources.h"
+ #include "components/policy/core/browser/url_list/policy_blocklist_service.h"
+@@ -94,6 +95,16 @@ std::string AsyncParamDataAsCSV(
+ // logic can be found in
+ // `NtpCustomBackgroundService::SetBackgroundToLocalResourceWithId()` and
+ // `WallpaperSearchBackgroundManager::SelectLocalBackgroundImage()`.
++// Sunshine's New Tab background, named once.
++//
++// It has to appear in two places -- the allowlist in `ShouldServiceRequest`
++// and the branch in `StartDataRequest` -- and naming it twice is how the
++// feature shipped broken: the branch was written and the allowlist was not,
++// so every request was refused with ERR_INVALID_URL before reaching it, and
++// the handler was unreachable code that no compiler and no guard objected to.
++// A constant makes the two references one fact.
++constexpr char kSunshineBackgroundPath[] = "sunshine-background.png";
++
+ bool IsValidBackgroundImagePath(std::string_view path) {
+   std::optional<std::string_view> prefix =
+       base::RemoveSuffix(path, "background.jpg");
+@@ -281,6 +292,26 @@ void UntrustedSource::StartDataRequest(
          base::BindOnce(&ServeBackgroundImageData, std::move(callback)));
      return;
    }
@@ -39,7 +56,7 @@ index ae1df07..a65b1a3 100644
 +  //
 +  // Empty bytes are the normal answer: no file installed means no background,
 +  // which is what makes the feature opt-in under PB-5a.
-+  if (path == "sunshine-background.png") {
++  if (path == kSunshineBackgroundPath) {
 +    base::ThreadPool::PostTaskAndReplyWithResult(
 +        FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
 +        base::BindOnce(&sunshine::background::ReadInstalledBackground),
@@ -49,7 +66,7 @@ index ae1df07..a65b1a3 100644
    std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>());
  }
  
-@@ -294,6 +315,17 @@ std::string UntrustedSource::GetMimeType(const GURL& url) {
+@@ -294,6 +325,17 @@ std::string UntrustedSource::GetMimeType(const GURL& url) {
                       base::CompareCase::INSENSITIVE_ASCII)) {
      return "image/jpg";
    }
@@ -67,3 +84,13 @@ index ae1df07..a65b1a3 100644
  
    return "text/html";
  }
+@@ -321,7 +363,8 @@ bool UntrustedSource::ShouldServiceRequest(
+   return path == "one-google-bar" || path == "one_google_bar.js" ||
+          path == "one_google_bar_api.js" || path == "image" ||
+          path == "background_image" || path == "custom_background_image" ||
+-         path == "background_image.js" || IsValidBackgroundImagePath(path);
++         path == "background_image.js" || path == kSunshineBackgroundPath ||
++         IsValidBackgroundImagePath(path);
+ }
+ 
+ void UntrustedSource::OnOneGoogleBarDataUpdated() {

@@ -154,13 +154,43 @@ def check_no_backtick_in_html(root: Path, failures: list[str]) -> None:
 # *adds*. Upstream's own bindings are already declared upstream, and a rule
 # that demanded the stack re-declare them would fail on every patch that
 # touches a template.
-LIT_BINDING = re.compile(r"\$\{this\.([A-Za-z_][A-Za-z0-9_]*)\}")
+# Every `${...}` the stack adds, and every property read inside it.
+#
+# The first version required `}` immediately after the identifier, which meant
+# it saw `${this.x}` and nothing else -- not `${!this.x}`, the form this
+# repository's own patch uses for `?hidden`, so the guard covered one of the
+# two bindings it was written for and would have let build #38's failure
+# recur. Read the expression, then the properties inside it.
+#
+# `this.name(` is a method call, not a reactive property, and Lit's rule is
+# about properties -- so an identifier followed by `(` is skipped. For
+# `this.a.b` the property is `a`; the first segment is what must be declared.
+LIT_EXPRESSION = re.compile(r"\$\{(.*?)\}", re.S)
+# The `\b` after the capture is load-bearing. Without it the greedy character
+# class backtracks: on `this.computeSunshineSrc_()` it gives up the trailing
+# `_`, the lookahead then inspects that `_` instead of the `(`, and a method
+# call reads as a property. A word boundary forbids the truncation.
+LIT_PROPERTY = re.compile(r"\bthis\.([A-Za-z_][A-Za-z0-9_]*)\b\s*(?!\()")
+
+# A properties-block entry, tolerant of the spacing people actually write and
+# blind to comments. `foo: {type: String}` and `foo: { type: Number }` are the
+# same declaration; `// TODO add foo: {type: X}` is not one at all.
+def declares(name: str, declarations: str) -> bool:
+    stripped = re.sub(r"//[^\n]*|/\*.*?\*/", "", declarations, flags=re.S)
+    return re.search(rf"\b{re.escape(name)}\s*:\s*\{{\s*type\s*:", stripped) is not None
 
 
 def check_lit_bindings_are_declared(root: Path, failures: list[str]) -> None:
     """WA-2: a binding the stack adds has a reactive declaration it adds."""
 
     added: dict[str, list[str]] = {}
+    # Lines the patch removes or leaves alone. A property bound there already
+    # existed before the stack touched the file, so its declaration is
+    # upstream's and is not in any patch. Without this, moving an existing
+    # binding -- which patch 0002 does, carrying `logoEnabled_` from
+    # `<ntp-logo>` to the Sunshine wordmark -- reads as introducing a property
+    # with no declaration, and the guard fails on correct work.
+    existing: dict[str, list[str]] = {}
     for patch in sorted((root / "downstream/patches").glob("*.patch")):
         target: str | None = None
         for line in patch.read_text(encoding="utf-8").splitlines():
@@ -168,21 +198,31 @@ def check_lit_bindings_are_declared(root: Path, failures: list[str]) -> None:
             if header:
                 target = header.group(1)
                 continue
-            if target and line.startswith("+") and not line.startswith("+++ "):
+            if not target:
+                continue
+            if line.startswith("+") and not line.startswith("+++ "):
                 added.setdefault(target, []).append(line[1:])
+            elif line.startswith("-") and not line.startswith("--- "):
+                existing.setdefault(target, []).append(line[1:])
+            elif line.startswith(" "):
+                existing.setdefault(target, []).append(line[1:])
 
     for path, lines in added.items():
         if not path.endswith(".html"):
             continue
         sibling = path[: -len(".html")] + ".ts"
         declarations = "\n".join(added.get(sibling, []))
+        pre_existing = "\n".join(existing.get(path, []))
         for line in lines:
-            for name in LIT_BINDING.findall(line):
-                if f"{name}: {{type:" not in declarations:
-                    failures.append(
-                        f"{path}: binds {name!r}, which {sibling} does not "
-                        "declare in its properties block (WA-2)"
-                    )
+            for expression in LIT_EXPRESSION.findall(line):
+                for name in LIT_PROPERTY.findall(expression):
+                    if f"this.{name}" in pre_existing:
+                        continue
+                    if not declares(name, declarations):
+                        failures.append(
+                            f"{path}: binds {name!r}, which {sibling} does not "
+                            "declare in its properties block (WA-2)"
+                        )
 
 
 def check(root: Path = ROOT) -> list[str]:

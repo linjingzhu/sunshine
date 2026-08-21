@@ -218,6 +218,63 @@ class LitBindingTests(TreeTestCase):
         self.assertEqual([], self.failures())
 
 
+class GuardWiringTests(TreeTestCase):
+    """Enforces: WA-1, WA-2 — through the entry point CI actually runs.
+
+    Every other test in this file calls a check function directly, which
+    proves the function works and nothing about whether it is reached. An
+    adversarial reviewer deleted both calls from `check()` and all nineteen
+    tests still passed: the guards were correct and disconnected, and CI would
+    have reported success on a violating tree.
+    """
+
+    def test_check_reaches_the_backtick_rule(self) -> None:
+        self.write("downstream/patches/0096-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <!-- the `hidden` attribute -->",
+        ]))
+        self.assertTrue(any("WA-1" in f for f in assets.check(self.root)))
+
+    def test_check_reaches_the_binding_rule(self) -> None:
+        self.write("downstream/patches/0097-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.sunshineUndeclared_}\"></iframe>",
+        ]))
+        self.assertTrue(any("WA-2" in f for f in assets.check(self.root)))
+
+    def test_check_reaches_the_binding_rule_through_a_negated_form(self) -> None:
+        """`${!this.x}` is the form this repository's own patch uses.
+
+        The first version of WA-2 required `}` immediately after the
+        identifier, so it saw one of the two bindings patch 0002 adds and
+        would have let build #38's failure recur.
+        """
+
+        self.write("downstream/patches/0098-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe ?hidden=\"${!this.sunshineUndeclared_}\"></iframe>",
+        ]))
+        self.assertTrue(any("WA-2" in f for f in assets.check(self.root)))
+
+    def test_a_method_call_is_not_a_reactive_property(self) -> None:
+        """Lit's rule is about properties. A method needs no declaration, and
+        demanding one would fail on correct code."""
+
+        self.write("downstream/patches/0099-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.computeSunshineSrc_()}\"></iframe>",
+        ]))
+        self.assertEqual([], [f for f in assets.check(self.root) if "WA-2" in f])
+
+
 class HtmlBacktickTests(TreeTestCase):
     """Enforces: WA-1."""
 

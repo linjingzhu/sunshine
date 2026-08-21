@@ -1,7 +1,7 @@
 """Tests for the New Tab background format check.
 
-The rule is that a background is PNG or JPEG, decided from the file's own
-bytes. Every way of getting that wrong looks correct in a diff -- an
+The rule is that a background is PNG, JPEG or WebP, decided from the file's
+own bytes. Every way of getting that wrong looks correct in a diff -- an
 extension check reads like a format check, a GIF signature reads like one more
 constant, and a timer driving frames reads like an implementation detail
 rather than the thing that falsifies PB-5a. So each is injected here, because
