@@ -189,6 +189,197 @@ KOREAN = {
 }
 
 
+# What to actually do, and what you should actually see.
+#
+# The gate text above each of these is the contract's wording: precise for the
+# person who wrote the rule and useless to the person holding the mouse. The
+# owner could not start from it, which is a defect in this sheet and not in
+# them. Each entry is (steps, pass, fail).
+HOWTO = {
+
+# --- Block A: before anything is launched ---------------------------------
+"RV-11": (["설치 파일이 있는 폴더를 탐색기로 연다",
+           "`sunshine-setup.exe` 와 `sunshine-installer-windows-x64.exe` 의 아이콘을 본다"],
+  "두 파일 모두 Sunshine 아이콘이 보인다",
+  "Chromium 의 파란 구슬 아이콘이거나, 아이콘이 없는 흰 종이 모양이다"),
+
+"RV-26": (["`sunshine-setup.exe` 를 실행해서 설치를 끝낸다",
+           "탐색기 주소창에 `%LOCALAPPDATA%` 를 입력하고 Enter",
+           "`Sunshine` 폴더가 있는지 본다. 그 안의 `Application` 폴더도",
+           "시작 메뉴를 열고 Sunshine 을 찾는다",
+           "작업표시줄에 고정하고 이름을 본다",
+           "Windows 설정 → 앱 → 기본 앱 목록에서 Sunshine 을 찾는다"],
+  "네 곳(설치 폴더·시작 메뉴·작업표시줄·기본 앱) 모두 Sunshine 이라고 쓰여 있다. 설치 폴더는 `%LOCALAPPDATA%\\Sunshine\\Application`",
+  "설치 폴더가 `%LOCALAPPDATA%\\Chromium` 이거나, 어느 한 곳이라도 Chromium 이라고 표시된다. **여기서 실패하면 블록 A만 끝내고 중단**"),
+
+"RV-29": (["탐색기 주소창에 `%LOCALAPPDATA%\\Sunshine\\User Data` 를 입력하고 Enter",
+           "이어서 주소창에 `%LOCALAPPDATA%\\Chromium` 을 입력하고 Enter"],
+  "앞쪽은 존재하고 안에 파일들이 있다. 뒤쪽은 폴더가 없거나(정상), 원래 Chromium 을 쓰고 계셨다면 **날짜가 그대로**다",
+  "`Sunshine\\User Data` 가 없거나, `Chromium` 폴더의 내용이 방금 바뀌었다. **실패 시 블록 A 끝내고 중단**"),
+
+"RV-30": (["Win+R → `regedit` 입력 → Enter",
+           "왼쪽 트리에서 `HKEY_CLASSES_ROOT` 를 편다",
+           "Ctrl+F 로 `sunshine` 을 찾고, 다시 `chromium` 을 찾는다",
+           "찾은 키가 있다면 그 안에 `URL Protocol` 이라는 값이 있는지 본다"],
+  "`sunshine` 도 `chromium` 도 URL 프로토콜로 등록돼 있지 않다 (키가 아예 없거나, 있어도 `URL Protocol` 값이 없다)",
+  "둘 중 하나가 `URL Protocol` 값을 갖고 있다. **실패 시 블록 A 끝내고 중단**"),
+
+"RV-28": (["이 기계에 진짜 Chrome 이나 Chromium 이 설치돼 있는 경우에만 한다",
+           "둘 다 실행해서 나란히 띄운다",
+           "각각에서 아무 사이트나 열어보고, 작업표시줄을 본다"],
+  "서로의 파일이나 프로필을 건드리지 않고, 작업표시줄에 **별개의 두 앱**으로 보인다",
+  "한쪽을 설치하니 다른 쪽이 사라졌거나, 작업표시줄에서 하나로 합쳐진다. **Chrome/Chromium 이 없으면 NOT RUN**"),
+
+# --- Block B: security posture --------------------------------------------
+"RV-1": (["Sunshine 을 실행한다",
+          "주소창에 `chrome://version` 을 입력하고 Enter",
+          "페이지에서 **명령줄(Command Line)** 항목을 찾는다"],
+  "그 줄에 원문의 세 스위치가 하나도 없다",
+  "셋 중 하나라도 보인다. **여기서 실패하면 세션 전체 중단** — 보안 모델이 계약과 다른 브라우저입니다"),
+
+"RV-2": (["주소창에 `chrome://sandbox` 를 입력하고 Enter",
+          "표의 각 행을 본다"],
+  "렌더러 행마다 샌드박스가 켜져 있다고 표시된다",
+  "샌드박스가 꺼져 있다고 표시된 행이 있다. **실패 시 세션 중단**. 페이지 자체가 안 열리면 PASS 가 아니라 **NOT RUN**"),
+
+"RV-3": (["주소창에 `chrome://process-internals` 를 입력하고 Enter",
+          "맨 위에서 **Site Isolation mode** 를 찾는다",
+          "새 탭에서 다른 사이트의 iframe 이 있는 페이지(예: 유튜브 영상이 박혀 있는 블로그 글)를 연다",
+          "`chrome://process-internals` 로 돌아와 그 탭의 프레임 목록을 본다"],
+  "격리 모드가 **site-per-process** 이고, 서로 다른 사이트의 프레임이 **다른 프로세스 번호**를 갖는다",
+  "모드가 다르거나, 다른 사이트의 프레임이 같은 프로세스에 있다. **실패 시 세션 중단**. 페이지를 못 읽으면 **NOT RUN**"),
+
+"RV-4": (["주소창에 `sunshine://anything` 을 입력하고 Enter"],
+  "그 주소로 이동하지 않고 **검색 결과**가 뜬다 (또는 검색 엔진으로 넘어간다)",
+  "`sunshine://` 페이지가 열리거나 '해당 주소를 찾을 수 없다'는 식으로 **주소로 취급**된다"),
+
+# --- Block C: is it Sunshine ----------------------------------------------
+"RV-10": (["설치 폴더에서 `chrome.exe` 를 탐색기 **자세히/목록** 보기로 본다",
+           "작업표시줄에 고정된 Sunshine 아이콘을 본다",
+           "바탕화면 바로가기가 있으면 그것도 본다"],
+  "세 곳 모두 Sunshine 아이콘이고, 흐릿하거나 늘어나 보이지 않는다",
+  "어느 하나가 뭉개져 보이거나, Chromium 의 파란 구슬이다"),
+
+"RV-27": (["오른쪽 위 ⋮ 메뉴를 연다",
+           "도움말 → Sunshine 정보 (About) 를 연다",
+           "다른 브라우저를 기본으로 해두었다면, Sunshine 을 다시 열어 기본 브라우저 안내가 뜨는지 본다"],
+  "메뉴·정보·안내 모두 Sunshine 이라고 한다. **정보 화면에 The Chromium Authors 저작권 표기가 그대로 남아 있는 것이 정상**이고 그게 맞는 동작",
+  "어딘가 Chromium 이라고 표시되거나, 반대로 Chromium Authors 저작권 표기가 지워져 있다"),
+
+"RV-12": (["주소창에 `chrome://sunshine-security` 를 입력하고 Enter",
+           "화면에 보이는 판정 문단을 센다"],
+  "판정 문단이 **정확히 하나**만 보인다",
+  "두 개 이상 보이거나, 하나도 안 보인다"),
+}
+
+HOWTO.update({
+# --- Block D: new tab ------------------------------------------------------
+"RV-8": (["Ctrl+T 로 새 탭을 연다", "화면 위쪽에 노란 띠 같은 알림 막대가 있는지 본다"],
+  "'Google API 키가 없다'는 알림 막대가 **뜨지 않는다**",
+  "그런 알림 막대가 뜬다"),
+"RV-9": (["새 탭의 검색창에 아무 단어나 입력하고 Enter"],
+  "평범하게 검색 결과로 넘어간다",
+  "엉뚱한 페이지로 가거나, 검색이 아니라 정해진 주소로 끌려간다"),
+"RVV-1": (["새 탭을 연 상태에서 창을 아주 좁게 → 중간 → 넓게 세 번 크기를 바꾼다",
+           "가운데 SUNSHINE 글자를 본다"],
+  "글자 크기가 창에 따라 부드럽게 변하고, 잘리거나 두 줄로 넘어가지 않는다",
+  "글자가 잘리거나 줄바꿈되거나, 크기가 끊기듯 튄다"),
+"RVV-2": (["Windows 설정에서 앱 모드를 밝게/어둡게 바꿔가며 새 탭을 본다"],
+  "두 모드 모두 글자와 배경이 제대로 보인다",
+  "한쪽에서 글자가 배경에 묻혀 안 보인다"),
+"RVV-3": (["새 탭에서 마우스를 쓰지 않고 Tab 키만 눌러 이동한다"],
+  "지금 어디에 있는지 **테두리로 표시**되고, 계속 누르면 검색창에 도달한다",
+  "어디에 있는지 안 보이거나, 검색창에 도달하지 못한다"),
+
+# --- Block E: media --------------------------------------------------------
+"RV-5": (["유튜브 같은 곳에서 일반 동영상을 재생한다"],
+  "정상 재생된다", "재생이 안 되거나 검은 화면에 소리만 난다"),
+"RV-6": (["같은 사이트에서 다른 영상을 몇 개 더 재생한다 (요즘 유튜브는 대부분 VP9/AV1)"],
+  "정상 재생된다", "일부 영상만 재생이 안 된다"),
+
+# --- E2: mouse gestures ----------------------------------------------------
+"RV-20": (["아무 사이트에서 링크를 두어 번 눌러 **뒤로 갈 기록**을 만든다",
+           "페이지 빈 곳에서 **오른쪽 버튼을 누른 채** 왼쪽으로 화면 폭의 1/5 쯤 끌고 놓는다",
+           "같은 방식으로 오른쪽으로 끌고 놓는다",
+           "이번엔 아주 짧게(1cm 정도) 끌고 놓는다"],
+  "왼쪽 = 뒤로, 오른쪽 = 앞으로. **짧게 끌면 오른쪽 클릭 메뉴가 뜬다.** 길게 끌었을 때는 메뉴가 뜨지 않는다",
+  "이동이 안 되거나, 길게 끌었는데 메뉴까지 같이 뜬다"),
+
+# --- Block F: bookmark bar and module home ---------------------------------
+"RV-21": (["Ctrl+Shift+B 로 북마크바를 켠다", "북마크바 **맨 왼쪽**을 본다", "그 버튼에 마우스를 올려 툴팁을 읽는다"],
+  "맨 왼쪽에 버튼이 하나 있고 툴팁이 'Sunshine modules'. 모양이 격자(바둑판) 모양은 아니다",
+  "버튼이 없거나, 다른 자리에 있거나, 격자 모양이다"),
+"RV-22": (["그 버튼을 그냥 클릭한다", "뒤로 온 뒤, 이번엔 Ctrl 을 누른 채 클릭한다"],
+  "그냥 클릭 = 지금 탭에서 열림. Ctrl+클릭 = **뒤쪽 새 탭**에서 열림",
+  "둘 다 같게 동작하거나, Ctrl+클릭이 지금 탭을 바꿔버린다"),
+"RV-23": (["그 버튼으로 모듈 홈을 연다", "왼쪽 목록의 항목 이름과 순서를 적어둔다",
+           "제목에 적힌 개수도 본다"],
+  "목록과 개수가 서로 맞는다 (저장소의 `first_party/registry.json` 과 대조하는 게 원칙이지만, **개수와 목록이 어긋나지 않으면 합격**으로 두셔도 됩니다)",
+  "제목의 개수와 실제 항목 수가 다르다"),
+"RV-24": (["왼쪽 목록에서 항목을 하나씩 눌러본다", "오른쪽에 나오는 네트워크·파일·자격증명 값을 본다"],
+  "대부분 `deny` / `none` / 아니오 로 표시되고, 그렇지 않은 값이 있으면 **눈에 띈다**",
+  "값이 안 보이거나, 무엇이 허용됐는지 알아볼 수 없다"),
+"RV-25": (["북마크바를 켠 채로 창을 아주 좁게 줄인다"],
+  "Sunshine 버튼이 맨 왼쪽 자리를 지키고, 옆 버튼과 **겹치지 않는다**",
+  "버튼이 사라지거나 다른 버튼 위에 겹쳐 그려진다"),
+"RV-37": (["모듈 홈에서 목록 **아래쪽**의 링크를 찾아 누른다"],
+  "모듈 셸 화면으로 이동한다",
+  "링크가 없거나 눌러도 아무 일이 없다"),
+"RVV-4": (["밝게/어둡게 모드를 바꿔가며 북마크바의 Sunshine 버튼을 본다"],
+  "두 모드 모두 옆 버튼들과 **같은 색감**으로 보인다",
+  "한쪽 모드에서 혼자 색이 튀거나 안 보인다"),
+"RVV-5": (["북마크바를 켜고, 주소창에서 Tab 키로 이동해 북마크바에 들어간다"],
+  "북마크바 안에서 **Sunshine 버튼이 첫 번째**로 선택된다",
+  "다른 버튼이 먼저 선택된다"),
+
+# --- Block G: module shell -------------------------------------------------
+"RV-31": (["주소창에 `chrome://sunshine-shell` 을 입력하고 Enter",
+           "화면의 각 영역(왼쪽 바, 목록, 본문, 오른쪽 패널)을 **열고 닫아가며** 가능한 조합을 만들어 본다",
+           "각 조합에서 다시 원래대로 되돌려 본다"],
+  "어떤 조합이든 만들 수 있고 **되돌릴 수 있다**. 틀(뼈대)은 그대로고 내용만 바뀐다",
+  "어떤 조합에서 빠져나올 수 없거나, 화면 틀 자체가 깨진다"),
+"RV-32": (["네 영역을 모두 연 채로 창을 계속 좁힌다"],
+  "오른쪽 패널이 **먼저** 접히고, 그다음 목록이 접힌다. 본문은 일정 폭 아래로 안 줄고, 왼쪽 바는 변하지 않는다",
+  "본문이 계속 찌그러지거나, 왼쪽 바가 같이 줄어든다"),
+"RV-33": (["한 모듈에서 목록 폭을 드래그로 바꾼다", "다른 모듈로 갔다가 돌아온다",
+           "왼쪽 바와 오른쪽 독을 토글해보고 다시 모듈을 바꾼다"],
+  "폭이 **모듈마다 따로** 기억된다. 바 토글과 독 폭은 모듈을 바꿔도 그대로",
+  "폭이 초기화되거나, 모든 모듈이 같은 폭을 공유한다"),
+"RV-34": (["영역 사이 경계선을 잡고 드래그한다", "창 밖까지 끌고 놓아본다", "경계선을 더블클릭한다"],
+  "끄는 대로 즉시 크기가 변하고, 놓은 자리에 유지되며, 더블클릭하면 기본 폭으로 돌아온다",
+  "회색 선만 움직이다 튀거나, 더블클릭이 아무 일도 안 한다"),
+"RV-38": (["모듈 셸에서 오른쪽 독 **맨 아래**의 Register 를 누른다"],
+  "모듈 홈의 등록 안내로 이동하고, **아무것도 설치되지 않는다.** 왜 그런지 설명이 적혀 있다",
+  "버튼이 없거나, 눌렀더니 뭔가 설치·변경된다"),
+
+# --- Block H: document surface ---------------------------------------------
+"RV-13": (["주소창에 `chrome://sunshine-document` 를 입력하고 Enter",
+           "항목을 1 → 1.1 → 1.2 → 1.2.1 → 2 순서로 만든다 (들여쓰기로 하위 항목)",
+           "1.2 를 열어둔 채 **다음** 을 누른다"],
+  "2 가 아니라 **1.2.1** 로 간다",
+  "2 로 건너뛴다"),
+"RV-14": (["`<style>` 이 들어 있는 HTML 을 섹션 내용으로 붙여넣는다", "그 섹션을 읽기로 연다"],
+  "그 스타일이 그대로 적용되고, 화면 전체가 그 문서로 보인다",
+  "스타일이 벗겨지거나, Sunshine 틀 안에 작게 끼워져 보인다"),
+"RV-15": (["`<script>alert(1)</script>` 처럼 실행되면 티가 나는 것을 섹션에 넣는다", "읽기로 연다"],
+  "문서는 보이고 스크립트는 **실행되지 않는다**",
+  "경고창이 뜨는 등 스크립트가 실행된다"),
+"RV-16": (["인터넷 주소의 이미지를 참조하는 `<img>` 를 섹션에 넣는다",
+           "F12 로 개발자도구를 열고 Network 탭을 켠 뒤 섹션을 연다"],
+  "이미지는 안 보이고, Network 탭에 **그 요청이 없다**",
+  "이미지가 보이거나, Network 탭에 요청이 나타난다"),
+"RV-17": (["문서를 저장한다", "다른 화면으로 갔다가 돌아온다", "내용을 원래와 비교한다"],
+  "글자 하나까지 저장한 그대로다",
+  "들여쓰기나 줄바꿈이 임의로 바뀌어 있다"),
+"RV-18": (["문서가 들어 있는 프로젝트를 삭제한다", "화면을 닫았다 다시 연다"],
+  "그 프로젝트와 문서가 모두 사라져 있다",
+  "일부가 남아 있다"),
+"RV-19": (["섹션을 열고 내용을 조금 고친다 (저장하지 말 것)", "새로고침을 누른다", "이어서 내려받기를 누른다"],
+  "새로고침이 **고치던 내용을 날리지 않고**, 내려받으면 저장된 내용의 `.html` 파일이 생긴다",
+  "새로고침이 편집 중인 내용을 지우거나, 내려받은 파일 내용이 다르다"),
+})
+
+
 GATE_ROW = re.compile(r"^\| (RV-\d+|RVV-\d+) \| (.*?) \| (.*?) \|(?: (.*?) \|)?\s*$", re.M)
 BLOCK_ROW = re.compile(
     r"^\| \*\*([A-Z]\d?) — [^|]*\*\* \| ([^|]+) \| ([^|]+) \| ([^|]+) \|\s*$", re.M)
@@ -240,6 +431,8 @@ def markup(text: str) -> str:
 def gate_row(gate: dict[str, str], badge: str = "") -> str:
     inv = f'<span class="inv">{esc(gate["invariant"])}</span>' if gate["invariant"] else ""
     step_ko, expected_ko = KOREAN[gate["id"]]
+    do, ok, no = HOWTO[gate["id"]]
+    steps = "".join(f"<li>{markup(item)}</li>" for item in do)
     if "{codes}" in expected_ko:
         codes = ", ".join(f"`{token}`" for token in re.findall(r"`([^`]+)`", gate["expected"]))
         expected_ko = expected_ko.replace("{codes}", codes)
@@ -249,7 +442,10 @@ def gate_row(gate: dict[str, str], badge: str = "") -> str:
         <div class="gid"><span class="idtag">{gate['id']}</span>{badge}</div>
         <div class="body">
           <p class="step">{markup(step_ko)}</p>
-          <p class="exp"><span class="explabel">기대</span>{markup(expected_ko)}</p>
+          <ol class="do">{steps}</ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>{markup(ok)}</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>{markup(no)}</p>
+          <p class="exp"><span class="explabel">계약 문구</span>{markup(expected_ko)}</p>
           <details class="src">
             <summary>원문</summary>
             <p class="step">{esc(gate['step'])}</p>
@@ -294,6 +490,13 @@ def build(root: Path = ROOT) -> str:
     # A gate added upstream without a translation must stop this script rather
     # than appear in English among Korean rows, where a reader would take the
     # odd one out for a formatting slip instead of a missing translation.
+    runnable = set(gate) - set(BLOCKED) - set(DONE)
+    unwalked = sorted(runnable - set(HOWTO))
+    if unwalked:
+        raise SystemExit(
+            f"these gates have no walkthrough and a reader cannot start from "
+            f"the contract's wording alone: {unwalked}"
+        )
     untranslated = sorted(set(gate) - set(KOREAN))
     stale = sorted(set(KOREAN) - set(gate))
     if untranslated or stale:
@@ -461,7 +664,17 @@ button.act.primary{background:var(--accent);border-color:var(--accent);color:#ff
 button.act.primary:hover{filter:brightness(1.08);color:#fff}
 button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* ---- stop rules ---- */
-.rules{margin:28px 0 0;border:1px solid var(--rule);border-left:3px solid var(--warn);
+.start{margin:28px 0 0;border:1px solid var(--rule);border-left:3px solid var(--accent);
+  border-radius:4px;background:var(--surface);padding:18px 20px}
+.start h3{font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  margin:0 0 10px;color:var(--accent)}
+.start p{margin:0 0 10px;font-size:14px;line-height:1.6;max-width:70ch}
+.start ul{margin:0 0 10px;padding-left:20px;font-size:14px;line-height:1.6;max-width:70ch}
+.start li{margin-bottom:5px}
+.start em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:12px;
+  background:var(--surface-2);border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px}
+.startnote{color:var(--ink-3);font-size:13px}
+.rules{margin:20px 0 0;border:1px solid var(--rule);border-left:3px solid var(--warn);
   border-radius:4px;background:var(--surface);padding:16px 18px}
 .rules h3{font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
   margin:0 0 10px;color:var(--warn)}
@@ -507,6 +720,17 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 .exp{margin:7px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.5}
 .explabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink-3);margin-right:7px}
+.do{margin:9px 0 0;padding-left:20px;font-size:13.5px;line-height:1.6;color:var(--ink)}
+.do li{margin-bottom:3px}
+.do li::marker{color:var(--ink-3);font-family:"IBM Plex Mono",monospace;font-size:11px}
+.verdict{margin:8px 0 0;font-size:13.5px;line-height:1.5;padding-left:10px;border-left:3px solid}
+.verdict.ok{border-color:var(--pass)}
+.verdict.no{border-color:var(--fail)}
+.vlabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
+  font-weight:600;margin-right:8px}
+.verdict.ok .vlabel{color:var(--pass)}
+.verdict.no .vlabel{color:var(--fail)}
+.exp{margin-top:10px}
 .src{margin-top:9px}
 .src summary{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-3);cursor:pointer;list-style:none;
@@ -599,8 +823,21 @@ SHELL = """<div class="wrap">
     </dl>
   </section>
 
-  <p class="sub" style="margin-top:26px">읽을 수 없는 게이트는 <strong>PASS가 아니라 NOT RUN</strong>입니다.
-  <code>chrome://sandbox</code>와 <code>chrome://process-internals</code>는 업스트림 디버깅 표면이라 핀에서 출력이 달라졌을 수 있습니다. 행을 못 찾으면 그것이 결과입니다.</p>
+  <section class="start">
+    <h3>처음 하시는 경우</h3>
+    <p><strong>브라우저를 쓸 줄 아시면 충분합니다.</strong> 대부분의 게이트는 주소를 하나 입력하고 화면을 보는 일입니다.
+    각 항목에 <em>할 일</em>이 번호로 적혀 있고, 그 아래 <em>합격</em>과 <em>불합격</em>이 무엇처럼 보이는지 적어뒀습니다.
+    그대로 따라 하시고 셋 중 하나를 누르시면 됩니다.</p>
+    <ul>
+      <li><code>chrome://…</code> 로 시작하는 것은 <strong>주소창에 그대로 입력하고 Enter</strong> 하시면 되는 브라우저 내부 페이지입니다.</li>
+      <li><strong>모르겠거나 화면을 못 찾으면 NOT RUN 입니다.</strong> 추측해서 PASS 를 누르지 마십시오 — 모른다는 것도 결과이고, 그게 저에게 가장 쓸모 있는 답입니다.</li>
+      <li>메모칸에 <strong>본 것을 그대로</strong> 적어주시면 됩니다. 판단하지 않으셔도 됩니다.</li>
+      <li>순서대로 하지 않으셔도 되지만 <strong>A 를 가장 먼저</strong> 하십시오. A 는 브라우저를 켜기 전에 파일과 설정을 보는 단계입니다.</li>
+      <li>중간에 닫으셔도 입력은 남습니다. 지치시면 거기까지만 하고 <strong>결과 복사</strong>를 눌러 보내주셔도 됩니다.</li>
+    </ul>
+    <p class="startnote">각 항목의 <em>계약 문구</em>와 <em>원문</em>은 참고용입니다. 읽지 않으셔도 테스트에는 지장이 없습니다 —
+    번역이 원문과 어긋났을 때 그 자리에서 보이라고 남겨둔 것입니다.</p>
+  </section>
 {blocks}
 
   <section class="block">
