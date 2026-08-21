@@ -236,6 +236,26 @@ missing fact is not a reason to block an installation.
   hatch and the words "PLACEHOLDER BANNER". It is deliberately not a design:
   a placeholder that looks deliberate is a placeholder that ships. Replacing
   it is a file swap, not a code change, because the decode path is real.
+- **The placeholder's aspect ratio is wrong, and any replacement authored the
+  same way would be wrong too. Deferred by the owner, not resolved.**
+  `IDC_BANNER` is 340×56 **dialog units**, and dialog units are not square:
+  horizontal converts by `baseunitX / 4` and vertical by `baseunitY / 8`, so
+  the control is roughly **5.6:1 in pixels**, not the 6.07:1 the numbers
+  suggest. The placeholder is 1360×224 — exactly four times the dialog-unit
+  figures — which assumes square units. `DrawBanner` uses `StretchBlt` and
+  does not preserve aspect, so it is displayed squashed by about 7%.
+
+  Two ways out, and they are not equivalent. Re-cutting the image fixes this
+  one file and leaves the next author the same trap. Making `DrawBanner`
+  preserve aspect — fit the width, crop the height — makes the ratio of the
+  supplied image stop mattering, which is the version that cannot be got wrong
+  again. Neither is done.
+
+  The pixel figures above are **arithmetic, not measurement**: the base units
+  follow from Segoe UI 9pt's metrics and no one has read them off a running
+  dialog. The manifest declares `PerMonitorV2`, so the control also scales
+  with display DPI, and a replacement should be supplied well above nominal
+  size — `StretchBlt` with `HALFTONE` downscales cleanly and upscales badly.
 - **Nothing here is built.** No dialog exists, no engine has been embedded, and
   no install has been driven by anything but a double-click on
   `mini_installer.exe` — which itself has not happened yet;
