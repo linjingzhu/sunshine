@@ -879,6 +879,9 @@ SHELL = """<div class="wrap">
     <h2>결과 넘기기</h2>
     <p><strong>결과 복사</strong>를 누르면 아래 상자가 채워지고 클립보드에 들어갑니다. 그대로 붙여넣어 주시면 됩니다.
     입력은 이 브라우저에 자동 저장되니 중간에 닫으셔도 됩니다.</p>
+    <p><strong>답하지 않은 항목도 함께 나옵니다.</strong> 설명이 부족해서 못 하신 것이라면 비워둔 채로 복사해 주십시오 —
+    그 목록이 제가 다시 써야 할 항목입니다. 페이지를 저장해서 보내주시는 것보다 이 버튼이 확실합니다
+    (저장한 페이지에는 입력하신 내용이 함께 담기지 않습니다).</p>
     <textarea id="out" readonly placeholder="아직 표시할 결과가 없습니다."></textarea>
     <p class="saved" id="saved" style="margin-top:8px"></p>
   </section>
@@ -991,7 +994,23 @@ SCRIPT = r"""<script>
       });
       L.push("");
     });
-    if (n.pass + n.fail + n.na === 0) return "아직 표시할 결과가 없습니다.";
+    // The unanswered gates, by name. This is the half of the report that
+    // matters most: the owner's first pass through the sheet left rows blank
+    // because they could not tell what to do, and a report that listed only
+    // answers made that invisible -- I could see what worked and not what was
+    // unusable, which is the thing I need to fix.
+    var blank = live.filter(function(g){ return !(state[g.dataset.gate]||{}).r; })
+                    .map(function(g){ return g.dataset.gate; });
+    if (blank.length) {
+      L.push("## 따라 하지 못한 항목");
+      L.push("");
+      L.push("아래는 답하지 않은 항목입니다. 설명이 부족해서 못 하신 것이라면 그대로 두시면 됩니다 — 이 목록이 다시 쓸 대상입니다.");
+      L.push("");
+      L.push(blank.join(", "));
+      L.push("");
+    }
+    if (n.pass + n.fail + n.na === 0 && !blank.length) return "아직 표시할 결과가 없습니다.";
+    if (n.pass + n.fail + n.na === 0) return L.join("\n");
     return L.join("\n");
   }
 
