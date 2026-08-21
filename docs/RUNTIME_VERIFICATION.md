@@ -443,6 +443,18 @@ is judged by two toolchains this repository had no checks for until now.
 **Nothing here is behaviour.** No background has been placed or displayed, and
 `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 still holds in full.
 
+**Build #41 compiled what four adversarial reviews changed.** Run
+`32477837656`, commit `779ef04`, all eight steps green. That covers the
+once-per-process availability probe, the warm call in `Browser`'s constructor,
+the newly owned `new_tab_page_ui.cc`, the allowlist entry that the serving path
+had been missing, and the page's conditional frame.
+
+**The middle item is why this build's green means less than it looks.** Build
+#40 was also green, on a feature that could not serve a single byte: the
+allowlist rejected every request before the handler ran. A compile proves the
+code is valid C++ and nothing about whether the browser does the thing. Every
+gate below is still `NOT RUN`.
+
 ### Evidence
 
 ```text
