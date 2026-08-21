@@ -203,6 +203,25 @@ path is untouched.
 That is not a workaround. It is the same rule the repository already applies to
 every other credential, extended to one more.
 
+**The route now exists, end to end, and carries nothing.** Three links, none of
+which holds a value:
+
+| Where | What is there |
+| --- | --- |
+| `chrome/browser/ui/sunshine/BUILD.gn` | `sunshine_account_client_id`, a GN argument defaulting to `""`. When non-empty it becomes the `SUNSHINE_ACCOUNT_CLIENT_ID` define that `account_link.cc` compiles against. |
+| `scripts/build_chromium_windows.ps1` | Reads `SUNSHINE_ACCOUNT_CLIENT_ID` from the environment and appends the argument **only when it is set**, so a build without one produces an `args.gn` byte-identical to before the feature existed. |
+| `.github/workflows/native-chromium-windows.yml` | Passes `secrets.SUNSHINE_ACCOUNT_CLIENT_ID`. Unset resolves to empty, which is what every build from this repository does today and what any fork keeps doing. |
+
+So the only thing still missing is the value itself, and it is the owner's to
+create: a Google Cloud project, an OAuth client of type **Desktop app**, scopes
+`openid` and `email` only (D3), and the id stored as a repository secret under
+that name. Until then `LinkAvailable()` is false and the page says so.
+
+Two build arguments would each have been a mistake, and neither is used: not
+`google_default_client_id`, which is what re-enables Dice, and not a second
+argument carrying the secret, because §4 step 3 already records that PKCE is
+what protects the exchange for an installed app.
+
 ## 6. What the link is for
 
 **Nothing, until something needs it** — and that is the recommendation, not an

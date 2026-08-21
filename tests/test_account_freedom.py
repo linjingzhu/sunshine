@@ -114,6 +114,49 @@ class AccountFreedomTests(unittest.TestCase):
         )
         self.assertEqual([], checker.validate(self.root))
 
+    def test_a_value_assembled_from_a_variable_is_accepted(self) -> None:
+        """The shape that broke the first version of this rule.
+
+        `scripts/build_chromium_windows.ps1` builds the GN argument by
+        concatenation, and the quote the rule read as opening a value is the
+        one closing the argument *name*. It captured PowerShell and called it a
+        credential. A credential contains no whitespace; code does.
+        """
+
+        (self.root / "scripts/example_build.ps1").write_text(
+            '$gnArgs += ("sunshine_account_client_id=" + [char]34 + $Id + [char]34)\n',
+            encoding="utf-8",
+        )
+        self.assertEqual([], checker.validate(self.root))
+
+    def test_an_escaped_interpolation_is_accepted(self) -> None:
+        """The spelling the feature actually uses.
+
+        `chrome/browser/ui/sunshine/BUILD.gn` writes the define with escaped
+        quotes around a GN reference. A rule that rejected this would forbid
+        the only way the client id can reach the compiler.
+        """
+
+        (self.root / "first_party/example.gn").write_text(
+            'defines = [ "SUNSHINE_ACCOUNT_CLIENT_ID=\\"$sunshine_account_client_id\\"" ]\n',
+            encoding="utf-8",
+        )
+        self.assertEqual([], checker.validate(self.root))
+
+    def test_an_escaped_literal_is_rejected(self) -> None:
+        """And the hole that closing the escaped form opened.
+
+        Identical to the line above but for a real value in place of the
+        reference. Escaping the quotes must not be a way to smuggle one in --
+        what separates them is the leading `$`, not the quoting.
+        """
+
+        (self.root / "first_party/example.gn").write_text(
+            'defines = [ "SUNSHINE_ACCOUNT_CLIENT_ID=\\"1234-abc.example\\"" ]\n',
+            encoding="utf-8",
+        )
+        self.assertRejected("PO-A16")
+
     def test_an_empty_value_is_accepted(self) -> None:
         """An empty define leaves the link absent, which is the correct state
         for a build with no credential -- there is nothing to prohibit."""

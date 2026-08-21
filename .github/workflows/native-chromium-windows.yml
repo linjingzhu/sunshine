@@ -55,6 +55,14 @@ jobs:
         env:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
           SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}
+          # The account link's OAuth client, if this repository has been given
+          # one. A secret rather than a variable: the id is public by Google's
+          # own account of installed apps, but a secret is redacted from logs
+          # and a variable is not, and nothing is gained by watching it scroll
+          # past. Unset resolves to the empty string, and the build then makes
+          # a browser with no account link -- which is what every build from
+          # this repository does today and what any fork will keep doing.
+          SUNSHINE_ACCOUNT_CLIENT_ID: ${{ secrets.SUNSHINE_ACCOUNT_CLIENT_ID }}
         run: ./scripts/build_chromium_windows.ps1
 
       # The first check in this project that reads the output rather than the

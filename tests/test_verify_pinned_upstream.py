@@ -252,6 +252,10 @@ class PinnedUpstreamTests(unittest.TestCase):
         self.assertEqual(
             {
                 "chrome/common/sunshine/sunshine_webui_hosts.h",
+                # Created by 0017 and cited by section 5 of
+                # docs/ACCOUNT_LINK_PLAN.md, which names it as the first of the
+                # three links carrying the client id from the release pipeline.
+                "chrome/browser/ui/sunshine/BUILD.gn",
                 "components/sunshine/document/project_store.cc",
                 "chrome/browser/resources/sunshine/document/host.ts",
                 "chrome/browser/resources/sunshine/shell/app.ts",

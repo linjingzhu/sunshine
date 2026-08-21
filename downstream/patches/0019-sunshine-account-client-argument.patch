@@ -1,0 +1,46 @@
+diff --git a/chrome/browser/ui/sunshine/BUILD.gn b/chrome/browser/ui/sunshine/BUILD.gn
+index feec6b1..e9a4eee 100644
+--- a/chrome/browser/ui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/sunshine/BUILD.gn
+@@ -2,6 +2,25 @@
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
++declare_args() {
++  # The OAuth client id this build is given, or the empty string.
++  #
++  # Deliberately **not** `google_default_client_id`. Setting Chrome's argument
++  # is what re-enables Desktop Identity Consistency, and section 4 of
++  # docs/decisions/0018-sunshine-account-link.md traces that chain from
++  # HasAPIKeyConfigured() through the signin-allowed preference to the
++  # suppressed first run. A Sunshine-named argument is invisible to it, which
++  # is the whole reason the account link is safe in a way that configuring
++  # Chrome's key would not be.
++  #
++  # The value arrives from the release pipeline and is never written down in
++  # this repository -- PO-A16 refuses a literal value here, including a
++  # placeholder, because a placeholder would make the link available in every
++  # build anyone makes from this tree. Empty is the honest default and the
++  # state every community build is in.
++  sunshine_account_client_id = ""
++}
++
+ # Deliberately depends on no part of //chrome/browser/ui. Recognition and
+ # binding are two of the three stages the GESTURE contract separates, and the
+ # third -- dispatch -- stays in Browser, where the command layer already is. A
+@@ -17,6 +36,15 @@ source_set("sunshine") {
+     "mouse_gesture.cc",
+   ]
+ 
++  # Passed as a define rather than read from a generated header: the value is
++  # a build input, not source, and a header would be a file in the output tree
++  # holding a credential. The `!= ""` guard is what makes
++  # `#if defined(SUNSHINE_ACCOUNT_CLIENT_ID)` in account_link.cc mean "this
++  # build was given a client", rather than "this build was configured at all".
++  if (sunshine_account_client_id != "") {
++    defines = [ "SUNSHINE_ACCOUNT_CLIENT_ID=\"$sunshine_account_client_id\"" ]
++  }
++
+   deps = [
+     "//base",
+     "//components/pref_registry",

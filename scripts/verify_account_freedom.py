@@ -71,8 +71,29 @@ ACCOUNT_COMMAND_WORDS = ("signin", "sign_in", "sync", "account", "profile.create
 #
 # The value has to arrive from the release pipeline or not at all, so the rule
 # is that the name may appear here but a literal value may not.
+# The value must be a quoted run with **no whitespace in it**, and the quotes
+# must match. Both halves of that were learned by getting it wrong: an earlier
+# version accepted any `"..."` after the name, and the first thing it rejected
+# was `scripts/build_chromium_windows.ps1` assembling the argument from a
+# variable --
+#
+#     $gnArgs += ("sunshine_account_client_id=" + [char]34 + $Id + [char]34)
+#
+# where the quote it read as opening a value is the one closing the argument
+# *name*. Requiring no whitespace is not a patch over that one line; it is the
+# property that separates a credential from code, because no client id, secret
+# or API key contains a space.
+# The escaped form counts too. `chrome/browser/ui/sunshine/BUILD.gn` spells the
+# define as `"SUNSHINE_ACCOUNT_CLIENT_ID=\\"$sunshine_account_client_id\\""`, so a
+# rule that only understood a bare quote would read the one shape the feature
+# actually uses as no value at all -- and would have accepted a real id written
+# the same way.
+#
+# What separates the two is not the quoting: it is that a GN or shell
+# **reference** begins with `$` and a literal does not. That is the check.
 SUNSHINE_CREDENTIAL_VALUE = re.compile(
-    r"\bSUNSHINE_[A-Z0-9_]*(?:CLIENT_ID|CLIENT_SECRET|API_KEY)\b\s*=?\s*\"([^\"]+)\"",
+    r"\bSUNSHINE_[A-Z0-9_]*(?:CLIENT_ID|CLIENT_SECRET|API_KEY)\b\s*=?\s*"
+    r"\\?(?P<quote>[\"'])(?!\$)(?P<value>[^\"'\s\\]+)\\?(?P=quote)",
     re.I,
 )
 
@@ -233,7 +254,8 @@ def check_no_sunshine_credential_value(root: Path, failures: list[str]) -> None:
     """PO-A16: Sunshine's own credential name is declared, never given a value."""
 
     for label, text in sunshine_sources(root):
-        for value in SUNSHINE_CREDENTIAL_VALUE.findall(text):
+        for match in SUNSHINE_CREDENTIAL_VALUE.finditer(text):
+            value = match.group("value")
             failures.append(
                 f"{label}: gives a Sunshine credential the literal value {value!r} -- "
                 "PO-A16, it must come from the release pipeline"
