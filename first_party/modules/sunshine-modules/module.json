@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "id": "sunshine.modules",
+  "display_name": "Sunshine Modules",
+  "owner": "sunshine",
+  "kind": "surface",
+  "lifecycle": "profile",
+  "status": "prepared",
+  "entrypoints": [
+    {
+      "type": "chromium_webui",
+      "target": "chrome://sunshine-modules"
+    }
+  ],
+  "capabilities": [],
+  "data": [
+    {
+      "owner": "sunshine",
+      "scope": "profile",
+      "access": "read",
+      "retention": "none"
+    }
+  ],
+  "security": {
+    "remote_content": false,
+    "requires_user_activation": false,
+    "profile_modes": [
+      "regular"
+    ],
+    "network": {
+      "access": "deny",
+      "allow": []
+    },
+    "filesystem": {
+      "access": "none"
+    },
+    "credentials": {
+      "direct_access": false
+    }
+  },
+  "verification": {
+    "native_build": "pending",
+    "runtime": "pending",
+    "visual": "pending"
+  }
+}

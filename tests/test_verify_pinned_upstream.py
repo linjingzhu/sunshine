@@ -177,6 +177,96 @@ class PinnedUpstreamTests(unittest.TestCase):
                 self.assertRegex(path, r"^[a-z_]+/")
                 self.assertNotIn("`", path)
 
+    def test_a_path_the_stack_creates_is_not_demanded_of_upstream(self) -> None:
+        """The failure this exemption was written for.
+
+        `chrome/common/sunshine/sunshine_webui_hosts.h` is created by the seam
+        patch and cited by OMNIBOX_CONTRACT.md. It sits under `chrome/`, so
+        nothing in its spelling separates it from an upstream path -- and
+        upstream correctly does not have it, which this check reported as a
+        missing citation until it learned the difference.
+        """
+
+        root = Path(self.enterExitStack.enter_context(tempfile.TemporaryDirectory()))
+        (root / "docs").mkdir()
+        (root / "docs" / "SOME_CONTRACT.md").write_text(
+            "The hosts live in `chrome/common/sunshine/sunshine_webui_hosts.h`.\n",
+            encoding="utf-8",
+        )
+        patches = root / "downstream" / "patches"
+        patches.mkdir(parents=True)
+        (patches / "series").write_text("0001-probe.patch\n", encoding="utf-8")
+        (patches / "0001-probe.patch").write_text(
+            "diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h "
+            "b/chrome/common/sunshine/sunshine_webui_hosts.h\n"
+            "--- /dev/null\n"
+            "+++ b/chrome/common/sunshine/sunshine_webui_hosts.h\n"
+            "@@ -0,0 +1 @@\n"
+            "+// created by the stack\n",
+            encoding="utf-8",
+        )
+
+        report: list[str] = []
+        with mock.patch.object(checker, "exists", lambda source, version, path: False):
+            healthy = checker.check_citations("github", "152.0.7977.42", root, report)
+
+        self.assertTrue(healthy, "\n".join(report))
+        self.assertIn("created by the patch stack", "\n".join(report))
+
+    def test_an_upstream_citation_still_fails_beside_a_created_one(self) -> None:
+        """The exemption must not swallow the check it sits inside."""
+
+        root = Path(self.enterExitStack.enter_context(tempfile.TemporaryDirectory()))
+        (root / "docs").mkdir()
+        (root / "docs" / "SOME_CONTRACT.md").write_text(
+            "See `chrome/common/sunshine/sunshine_webui_hosts.h` and\n"
+            "`components/omnibox/browser/omnibox_edit_model.h`.\n",
+            encoding="utf-8",
+        )
+        patches = root / "downstream" / "patches"
+        patches.mkdir(parents=True)
+        (patches / "series").write_text("0001-probe.patch\n", encoding="utf-8")
+        (patches / "0001-probe.patch").write_text(
+            "diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h "
+            "b/chrome/common/sunshine/sunshine_webui_hosts.h\n"
+            "--- /dev/null\n"
+            "+++ b/chrome/common/sunshine/sunshine_webui_hosts.h\n"
+            "@@ -0,0 +1 @@\n"
+            "+// created by the stack\n",
+            encoding="utf-8",
+        )
+
+        report: list[str] = []
+        with mock.patch.object(checker, "exists", lambda source, version, path: False):
+            healthy = checker.check_citations("github", "152.0.7977.42", root, report)
+
+        self.assertFalse(healthy)
+        self.assertIn("omnibox_edit_model.h", "\n".join(report))
+
+    def test_the_repositorys_own_created_paths_are_the_expected_ones(self) -> None:
+        """Reads the real stack, so a patch that stopped creating a cited file
+        fails here rather than in CI's network step."""
+
+        created = checker.stack_created_paths(REPOSITORY_ROOT)
+        cited = set(checker.cited_paths(REPOSITORY_ROOT))
+        self.assertEqual(
+            {
+                "chrome/common/sunshine/sunshine_webui_hosts.h",
+                # Created by 0017 and cited by section 5 of
+                # docs/ACCOUNT_LINK_PLAN.md, which names it as the first of the
+                # three links carrying the client id from the release pipeline.
+                "chrome/browser/ui/sunshine/BUILD.gn",
+                "components/sunshine/document/project_store.cc",
+                "chrome/browser/resources/sunshine/document/host.ts",
+                "chrome/browser/resources/sunshine/shell/app.ts",
+                "chrome/browser/resources/sunshine/shell/mount.ts",
+                "chrome/browser/resources/sunshine/shell/mount_port.ts",
+                "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom",
+                "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h",
+            },
+            created & cited,
+        )
+
     def test_section_stops_at_the_closing_brace(self) -> None:
         text = "struct A {\n  wanted;\n};\nstruct B {\n  unwanted;\n};"
         body = checker.section(text, "struct A {")

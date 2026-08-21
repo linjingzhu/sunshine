@@ -50,12 +50,47 @@ class FirstPartyModuleTests(unittest.TestCase):
         with self.assertRaisesRegex(self.validator.ModuleValidationError, "remote content"):
             self.validator.validate_manifest(manifest, "fixture")
 
-    def test_network_access_is_fail_closed_until_allowlists_exist(self) -> None:
-        manifest = json.loads(
-            (ROOT / "first_party/templates/module.example.json").read_text(encoding="utf-8")
-        )
-        manifest["security"]["network"] = {"access": "allowlist", "allow": ["api.example.com"]}
-        with self.assertRaisesRegex(self.validator.ModuleValidationError, "host-allowlist"):
+    def test_a_concrete_allowlist_is_admitted(self) -> None:
+        """Enforces: HA-2, HA-4.
+
+        This was a blanket refusal until ADR 0016. The refusal was a
+        placeholder for `docs/HOST_ALLOWLIST_CONTRACT.md`, which now exists, so
+        what replaced it is the contract's terms rather than nothing.
+        """
+
+        manifest = self._template()
+        manifest["security"]["network"] = {
+            "access": "allowlist", "allow": ["api.example.com"]
+        }
+        self.validator.validate_manifest(manifest, "fixture")
+
+    def test_an_empty_allowlist_is_a_module_that_meant_deny(self) -> None:
+        """Enforces: HA-4.
+
+        Not pedantry: the module home shows the user what a module may reach,
+        and `allowlist` with nothing on it reads as a capability held.
+        """
+
+        manifest = self._template()
+        manifest["security"]["network"] = {"access": "allowlist", "allow": []}
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "declare deny"):
+            self.validator.validate_manifest(manifest, "fixture")
+
+    def test_reaching_a_host_is_not_authenticating_to_one(self) -> None:
+        """Enforces: HA-5.
+
+        HA-5 says an allowlisted host is not an authenticated one. It is
+        unreachable while SEC-7's rule is unconditional, and that is the point
+        of this test: it pins *why* it is unreachable, so that moving SEC-7
+        fails here rather than silently making HA-5 load-bearing and unchecked.
+        """
+
+        manifest = self._template()
+        manifest["security"]["network"] = {
+            "access": "allowlist", "allow": ["api.example.com"]
+        }
+        manifest["security"]["credentials"] = {"direct_access": True}
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "credential"):
             self.validator.validate_manifest(manifest, "fixture")
 
     def test_capabilities_require_chromium_namespace(self) -> None:
@@ -93,20 +128,36 @@ class FirstPartyModuleTests(unittest.TestCase):
         with self.assertRaisesRegex(self.validator.ModuleValidationError, "credential"):
             self.validator.validate_manifest(manifest, "fixture")
 
-    def test_scoped_file_access_is_refused_until_a_broker_exists(self) -> None:
-        """Enforces: SEC-8."""
+    def test_scoped_file_access_is_admitted(self) -> None:
+        """Enforces: SEC-8.
+
+        Refused outright until ADR 0016, pending
+        `docs/FILE_BROKER_CONTRACT.md`. That contract now exists, and nothing
+        else about `user_selected` is decidable from a manifest: its terms are
+        about a grant, and a manifest declares only that the module may ask for
+        one. FB-9 -- declaring the capability is not holding it.
+        """
 
         manifest = self._template()
         manifest["security"]["filesystem"] = {"access": "user_selected"}
-        with self.assertRaisesRegex(self.validator.ModuleValidationError, "file-broker"):
+        self.validator.validate_manifest(manifest, "fixture")
+
+    def test_an_unknown_filesystem_value_is_still_refused(self) -> None:
+        """Admitting one value is not admitting the field."""
+
+        manifest = self._template()
+        manifest["security"]["filesystem"] = {"access": "full"}
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "filesystem access"):
             self.validator.validate_manifest(manifest, "fixture")
 
     def test_a_wildcard_host_is_not_a_host(self) -> None:
-        """Enforces: SEC-6.
+        """Enforces: SEC-6, HA-2.
 
-        `*` and `*.com` are the shapes the allowlist exists to keep out. They
-        are rejected on their shape, before the allowlist gate, so the message
-        names the real problem rather than the missing contract.
+        `*` and `*.com` are the shapes the allowlist exists to keep out, and
+        since ADR 0016 lifted the blanket refusal this is the check that keeps
+        an admitted allowlist meaningful. A wildcard hands the choice of host
+        to whoever controls the zone, turning a decision the owner made into
+        one an outside party makes.
         """
 
         for host in ("*", "*.com", "https://api.github.com", "api.github.com/repos"):

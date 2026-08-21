@@ -1,0 +1,368 @@
+diff --git a/chrome/browser/resources/sunshine/shell/app.ts b/chrome/browser/resources/sunshine/shell/app.ts
+index d5e64f8..9a06b6b 100644
+--- a/chrome/browser/resources/sunshine/shell/app.ts
++++ b/chrome/browser/resources/sunshine/shell/app.ts
+@@ -7,8 +7,9 @@
+ import {loadTimeData} from '//resources/js/load_time_data.js';
+ 
+ import * as geometry from './geometry.js';
+-import {emptyView, Mount, mountable} from './mount.js';
++import {emptyView, Mount, mountable, refusal} from './mount.js';
+ import type {Mountable, MountView} from './mount.js';
++import type {HostStorageResult, StorageRequest} from './mount_port.js';
+ 
+ /**
+  * The browser's half of the module shell.
+@@ -185,6 +186,7 @@
+       describe: (view) => this.describe(view),
+       select: (tab) => this.selectTab(tab, /*tell=*/ false),
+       requestPanel: (role) => this.requestPanel(role),
++      storage: (request) => this.storage(request),
+     });
+     // E's frame is the same module rendering a different region. It describes
+     // nothing: the header and the tab list belong to D's module, and a panel
+@@ -193,6 +195,7 @@
+       describe: () => {},
+       select: () => {},
+       requestPanel: (role) => this.requestPanel(role),
++      storage: (request) => this.storage(request),
+     });
+ 
+     this.buildDock();
+@@ -426,6 +429,20 @@
+       this.body.activate(tab);
+     }
+     this.apply();
++  }
++
++  /**
++   * The store, answering.
++   *
++   * `no-store` is the whole implementation and it is the correct one. The
++   * document store needs a directory the user has chosen and a browser side to
++   * read it with; neither exists, so there is nothing to refuse *with* except
++   * the truth. `DS-8` says explicitly that the answer is a refusal and not a
++   * fallback into the profile, because a silent fallback is how a person ends
++   * up with documents in two places and only one of them synced.
++   */
++  private storage(request: StorageRequest): Promise<HostStorageResult> {
++    return Promise.resolve(refusal(request.requestId, 'no-store'));
+   }
+ 
+   /** A module asked for a panel role. E's container stays the shell's. */
+diff --git a/chrome/browser/resources/sunshine/shell/mount.ts b/chrome/browser/resources/sunshine/shell/mount.ts
+index a55fd36..dd3a5a0 100644
+--- a/chrome/browser/resources/sunshine/shell/mount.ts
++++ b/chrome/browser/resources/sunshine/shell/mount.ts
+@@ -57,6 +57,32 @@
+   select(tab: string): void;
+   /** The module asked for a panel role. E's container is the shell's. */
+   requestPanel(role: string): void;
++  /**
++   * The module asked the store for something.
++   *
++   * Answering is the shell's, not this file's: `Mount` carries the request and
++   * the answer and inspects neither. Today every answer is `no-store`, which
++   * is `DS-8` -- there is no store until the user has chosen one and there is
++   * no fallback into the profile.
++   */
++  storage(request: port.StorageRequest): Promise<port.HostStorageResult>;
++}
++
++/**
++ * A storage answer that refuses, which is every answer the shell can give until
++ * the browser side of `docs/DOCUMENT_STORE_CONTRACT.md` exists.
++ */
++export function refusal(
++    requestId: string, error: port.StorageError): port.HostStorageResult {
++  return {
++    type: 'storage-result',
++    requestId,
++    ok: false,
++    error,
++    documents: [],
++    id: '',
++    body: '',
++  };
+ }
+ 
+ /** The empty description, which is also what a mount reverts to when closed. */
+@@ -241,6 +267,17 @@
+       return;
+     }
+ 
++    if (message.type === 'storage-request') {
++      // The answer is posted whatever happens. A request that got no reply
++      // would leave the module waiting forever on a promise it cannot cancel,
++      // which is a worse failure than a refusal.
++      const request = message;
++      this.callbacks.storage(request)
++          .catch(() => refusal(request.requestId, 'failed'))
++          .then((result) => this.send({...result, requestId: request.requestId}));
++      return;
++    }
++
+     // The header holds HEADER_ACTIONS_MAX of them and no more. Truncating
+     // rather than refusing the message: a module that offered four actions has
+     // said something true about three of them, and dropping the description
+diff --git a/chrome/browser/resources/sunshine/shell/mount_port.ts b/chrome/browser/resources/sunshine/shell/mount_port.ts
+index 031ad67..e56a06a 100644
+--- a/chrome/browser/resources/sunshine/shell/mount_port.ts
++++ b/chrome/browser/resources/sunshine/shell/mount_port.ts
+@@ -34,10 +34,12 @@
+  */
+ 
+ /** Shell to module. A closed set: a name not here is not a message. */
+-export const HOST_MESSAGES = ['mount', 'activate', 'action', 'panel'] as const;
++export const HOST_MESSAGES =
++    ['mount', 'activate', 'action', 'panel', 'storage-result'] as const;
+ 
+ /** Module to shell. Also closed, and also the whole of it. */
+-export const MODULE_MESSAGES = ['describe', 'select', 'request-panel'] as const;
++export const MODULE_MESSAGES =
++    ['describe', 'select', 'request-panel', 'storage-request'] as const;
+ 
+ export type HostMessageType = (typeof HOST_MESSAGES)[number];
+ export type ModuleMessageType = (typeof MODULE_MESSAGES)[number];
+@@ -84,6 +86,66 @@
+ /** A tab list longer than this is a module using C as a data store. */
+ export const MAX_TABS = 200;
+ 
++/**
++ * A document body crosses as one `postMessage` payload, which is one copy in
++ * each direction. The bound is here so that a single save cannot stall the
++ * shell; a document larger than this needs streaming, which is a later problem
++ * and should be solved as one rather than by raising this number.
++ */
++export const MAX_BODY = 4 * 1024 * 1024;
++
++/** The store's whole vocabulary. `docs/DOCUMENT_STORE_CONTRACT.md`. */
++export const STORAGE_OPS = ['list', 'read', 'save', 'remove'] as const;
++export type StorageOp = (typeof STORAGE_OPS)[number];
++
++/**
++ * Why a request was refused, from a closed set.
++ *
++ * `no-store` is the answer whenever the user has not chosen a store, and it is
++ * the only answer the shell can give until the browser side exists. That is
++ * `DS-8` stated as behaviour: there is no fallback into the profile, because a
++ * silent fallback is how a person ends up with documents in two places and
++ * only one of them synced.
++ */
++export const STORAGE_ERRORS =
++    ['', 'no-store', 'not-found', 'refused', 'failed'] as const;
++export type StorageError = (typeof STORAGE_ERRORS)[number];
++
++/**
++ * A document's title, which **becomes its filename**.
++ *
++ * This is the one string a module sends that reaches the filesystem, so it is
++ * the one validated hardest. No separator, no traversal, no control character,
++ * no leading or trailing space, and not empty -- a title that could be a path
++ * would be `MA-2` broken by the field that looks least like a location.
++ *
++ * `DS-3` is what makes this safe to be strict about: identity is inside the
++ * document, so a title Sunshine adjusts or a user renames costs nothing.
++ */
++export const TITLE_FORBIDDEN = /[\u0000-\u001f\u007f/\\:*?"<>|]/;
++
++export function documentTitle(value: unknown): string|null {
++  if (typeof value !== 'string' || value.length === 0 ||
++      value.length > MAX_LABEL) {
++    return null;
++  }
++  if (TITLE_FORBIDDEN.test(value) || value !== value.trim()) {
++    return null;
++  }
++  // "." and ".." are directories on every platform this runs on.
++  return value === '.' || value === '..' ? null : value;
++}
++
++/** One document, as the store describes it. Never a path. */
++export interface StorageDocument {
++  id: string;
++  title: string;
++  updatedAt: string;
++  device: string;
++  /** True when a second file carries this id -- `DS-6`. */
++  conflict: boolean;
++}
++
+ export interface MountTab {
+   id: string;
+   label: string;
+@@ -125,7 +187,28 @@
+   role: string;
+ }
+ 
+-export type ModuleMessage = MountDescription|MountSelection|MountPanelRequest;
++/**
++ * The module asking the store for something.
++ *
++ * `requestId` is the module's to coin and the shell's to echo. Correlation
++ * lives in the message rather than in the order of messages, because
++ * `postMessage` gives no ordering guarantee worth relying on across a
++ * navigation.
++ */
++export interface StorageRequest {
++  type: 'storage-request';
++  requestId: string;
++  op: StorageOp;
++  /** The document, for `read` and `remove`. Empty for `list` and a new save. */
++  id: string;
++  /** `save` only. */
++  title: string;
++  /** `save` only. */
++  body: string;
++}
++
++export type ModuleMessage =
++    MountDescription|MountSelection|MountPanelRequest|StorageRequest;
+ 
+ export interface HostMount {
+   type: 'mount';
+@@ -151,7 +234,23 @@
+   role: string;
+ }
+ 
+-export type HostMessage = HostMount|HostActivate|HostAction|HostPanel;
++/** The answer to exactly one `StorageRequest`, echoing its `requestId`. */
++export interface HostStorageResult {
++  type: 'storage-result';
++  requestId: string;
++  ok: boolean;
++  /** Empty when `ok`. One of `STORAGE_ERRORS` otherwise. */
++  error: StorageError;
++  /** `list` only. */
++  documents: StorageDocument[];
++  /** `save` only: the id the document has, which a new one is given here. */
++  id: string;
++  /** `read` only. */
++  body: string;
++}
++
++export type HostMessage =
++    HostMount|HostActivate|HostAction|HostPanel|HostStorageResult;
+ 
+ // -- validation ---------------------------------------------------------------
+ //
+@@ -183,6 +282,18 @@
+   return /[\u0000-\u001f\u007f]/.test(value) ? null : value;
+ }
+ 
++/**
++ * A document body. Bounded, and not otherwise inspected.
++ *
++ * Control characters are *not* rejected here, unlike a label: a body is a file
++ * and a file may contain anything a file contains. Nothing draws it -- the
++ * shell hands it to the store and the store writes it -- so there is nothing
++ * for a control character to corrupt.
++ */
++export function body(value: unknown): string|null {
++  return typeof value === 'string' && value.length <= MAX_BODY ? value : null;
++}
++
+ export function icon(value: unknown): IconName|null {
+   return typeof value === 'string' &&
+           (ICONS as readonly string[]).includes(value) ?
+@@ -203,6 +314,21 @@
+   return {id, label: text, icon: icon(fields['icon'])};
+ }
+ 
++function storageDocument(value: unknown): StorageDocument|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const id = identifier(fields['id']);
++  const title = documentTitle(fields['title']);
++  const updatedAt = label(fields['updatedAt']);
++  const device = label(fields['device']);
++  if (id === null || title === null || updatedAt === null || device === null) {
++    return null;
++  }
++  return {id, title, updatedAt, device, conflict: fields['conflict'] === true};
++}
++
+ /**
+  * One inbound message from a module.
+  *
+@@ -230,6 +356,42 @@
+   if (type === 'request-panel') {
+     const role = identifier(fields['role']);
+     return role === null ? null : {type: 'request-panel', role};
++  }
++
++  if (type === 'storage-request') {
++    const requestId = identifier(fields['requestId']);
++    const op = fields['op'];
++    if (requestId === null || typeof op !== 'string' ||
++        !(STORAGE_OPS as readonly string[]).includes(op)) {
++      return null;
++    }
++    // Each operation is checked for what *it* needs, rather than every field
++    // being required of every operation. A `list` that had to carry an empty
++    // title and an empty body would be a message shaped by the validator
++    // instead of by the request.
++    const id = op === 'list' ? '' : identifier(fields['id']) ?? '';
++    if ((op === 'read' || op === 'remove') && id === '') {
++      return null;
++    }
++    let title = '';
++    let content = '';
++    if (op === 'save') {
++      const proposed = documentTitle(fields['title']);
++      const proposedBody = body(fields['body']);
++      if (proposed === null || proposedBody === null) {
++        return null;
++      }
++      title = proposed;
++      content = proposedBody;
++    }
++    return {
++      type: 'storage-request',
++      requestId,
++      op: op as StorageOp,
++      id,
++      title,
++      body: content,
++    };
+   }
+ 
+   const title = label(fields['title']);
+@@ -308,6 +470,35 @@
+     return role === null ? null : {type: 'panel', role};
+   }
+ 
++  if (type === 'storage-result') {
++    const requestId = identifier(fields['requestId']);
++    const error = fields['error'];
++    if (requestId === null || typeof error !== 'string' ||
++        !(STORAGE_ERRORS as readonly string[]).includes(error)) {
++      return null;
++    }
++    const rawDocuments = fields['documents'];
++    const documents: StorageDocument[] = [];
++    if (Array.isArray(rawDocuments)) {
++      for (const entry of rawDocuments) {
++        const parsed = storageDocument(entry);
++        if (parsed === null) {
++          return null;
++        }
++        documents.push(parsed);
++      }
++    }
++    return {
++      type: 'storage-result',
++      requestId,
++      ok: fields['ok'] === true,
++      error: error as StorageError,
++      documents,
++      id: identifier(fields['id']) ?? '',
++      body: body(fields['body']) ?? '',
++    };
++  }
++
+   const module = identifier(fields['module']);
+   const region = fields['region'];
+   const panelRole = identifier(fields['panelRole']);

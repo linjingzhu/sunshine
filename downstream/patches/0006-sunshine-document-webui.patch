@@ -1,0 +1,3184 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index d93bde6..1892558 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -30,6 +30,14 @@
+ # scheme-qualified one only for "trusted" and "untrusted"; choosing either of
+ # those would bind every surface in this bundle to that one scheme. Sunshine
+ # surfaces therefore import shared WebUI resources as "//resources/...".
++#
++# That choice is what makes a Mojo surface possible in this bundle rather than
++# merely convenient. The bindings mojom_ts_generator.py emits always import the
++# Mojo library as the scheme-relative "//resources/mojo/mojo/public/js/
++# bindings.js" -- _GetBindingsLibraryPath() returns that literal -- and
++# tools/typescript/path_mappings.py adds the matching "//resources/mojo/*"
++# mapping for every context type. A scheme-qualified context would additionally
++# have bound this bundle, and so every surface in it, to one scheme.
+ 
+ import("//ui/webui/resources/tools/build_webui.gni")
+ 
+@@ -38,13 +46,45 @@ build_webui("build") {
+ 
+   # Extended by each surface patch.
+   static_files = [
++    "document/app.css",
++    "document/app.html",
++    "document_content/app.css",
++    "document_content/app.html",
+     "security/app.css",
+     "security/app.html",
+   ]
+   ts_files = [
++    "document/app.ts",
++    "document/host.ts",
++    "document_content/app.ts",
+     "security/app.ts",
+   ]
+ 
+-  ts_deps = [ "//ui/webui/resources/js:build_ts" ]
++  # Generated Mojo bindings, extended by each surface patch that has an
++  # interface. build_webui() copies each named file to
++  # "<mojo_base_path>/<filename>" inside the bundle and hands the copies to the
++  # TypeScript compiler, so mojo_base_path is the one place in the bundle where
++  # bindings land -- there is a single value for the whole bundle, not one per
++  # surface. It is the document surface's directory because that surface owns
++  # the only interface so far, and because it has to be *some* surface's
++  # directory: chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h hands
++  # each surface only the bundle entries under its own directory, so bindings
++  # left at the bundle root would be served to no page at all. A second surface
++  # with an interface is the moment to give that helper a second prefix; until
++  # then, a shared "mojom/" directory would be a directory every surface could
++  # serve, which is the arrangement that helper exists to prevent.
++  mojo_base_path = "document"
++  mojo_files = [ "$root_gen_dir/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom-webui.ts" ]
++  mojo_files_deps = [
++    "//chrome/browser/ui/webui/sunshine:document_mojo_bindings_ts__generator",
++  ]
++
++  ts_deps = [
++    "//ui/webui/resources/js:build_ts",
++
++    # The Mojo library the generated bindings import, and the path mapping that
++    # resolves "//resources/mojo/..." for the TypeScript compiler.
++    "//ui/webui/resources/mojo:build_ts",
++  ]
+   webui_context_type = "relative"
+ }
+diff --git a/chrome/browser/resources/sunshine/document/app.css b/chrome/browser/resources/sunshine/document/app.css
+new file mode 100644
+index 0000000..2c9d031
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document/app.css
+@@ -0,0 +1,340 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * Every colour here is read from Chromium's colour pipeline through
++ * chrome://theme/colors.css. Sunshine declares no colour of its own and no
++ * fallback, per docs/DESIGN_SYSTEM_CONTRACT.md sections 2.1 and 2.3: a missing
++ * token must fail visibly rather than silently escape the theme. The roles
++ * used here are the ones section 3 already binds -- surface background,
++ * primary and secondary foreground, outline, high-severity alert -- and no new
++ * binding is invented for this surface.
++ *
++ * Sizes come from the section 6.2 scale and are declared in rem, so they track
++ * the user's browser font-size setting. */
++
++body {
++  background-color: var(--color-dialog-background);
++  color: var(--color-primary-foreground);
++  margin: 0;
++}
++
++/* Two columns, the height of the window and no more. The rail is a fixed
++ * measure because a list of titles does not read better for being wider, and
++ * the right column takes what is left. 16.75rem is the wireframes' 268px
++ * expressed against the 16px root the design contract's arithmetic uses, so
++ * the rail tracks the user's font-size setting rather than pinning itself to a
++ * device pixel count.
++ *
++ * `height` rather than `min-height`: the page is exactly the window, and each
++ * column scrolls its own overflow. That is what lets the reading frame take
++ * the right column's remaining height instead of being pushed past the bottom
++ * of a page that grew. */
++#page {
++  box-sizing: border-box;
++  display: grid;
++  grid-template-columns: 16.75rem 1fr;
++  height: 100vh;
++  margin: 0;
++  padding: 0;
++}
++
++/* `min-height: 0` on both columns because a grid item's automatic minimum size
++ * is its content, which would otherwise make a long list push the page taller
++ * than the window instead of scrolling inside its own column. */
++#rail {
++  border-inline-end: 1px solid var(--color-midground);
++  box-sizing: border-box;
++  display: flex;
++  flex-direction: column;
++  gap: 1rem;
++  min-height: 0;
++  overflow-y: auto;
++  padding: 1rem;
++}
++
++#workspace {
++  box-sizing: border-box;
++  display: flex;
++  flex-direction: column;
++  gap: 0.5rem;
++  min-height: 0;
++  overflow-y: auto;
++  padding: 1rem 1.25rem;
++}
++
++/* The two columns space their blocks with `gap`, so the block margins the
++ * single-column layout carried would only double it. */
++#rail > *,
++#workspace > *,
++.railsec > *,
++#brand > * {
++  margin: 0;
++}
++
++#brand {
++  display: flex;
++  flex-direction: column;
++  gap: 0.25rem;
++}
++
++h1 {
++  font-size: 1rem;
++  font-weight: 500;
++  line-height: 1.25;
++}
++
++.railsec {
++  display: flex;
++  flex-direction: column;
++  gap: 0.5rem;
++}
++
++.railsec + .railsec {
++  border-top: 1px solid var(--color-midground);
++  padding-top: 1rem;
++}
++
++/* The heading row of a rail section: its name, and the affordance that adds to
++ * it. The affordance is the real control -- "+ New" is the create-project
++ * button and "+ Node" is the add-section button -- so the heading row names
++ * the section and offers the one operation that extends it. */
++.railhead {
++  align-items: center;
++  display: flex;
++  gap: 0.5rem;
++  justify-content: space-between;
++}
++
++.colhead {
++  color: var(--color-secondary-foreground);
++  font-size: 0.75rem;
++  font-weight: 600;
++  letter-spacing: 0.07em;
++  line-height: 1.33;
++  text-transform: uppercase;
++}
++
++.note {
++  color: var(--color-secondary-foreground);
++  font-size: 0.875rem;
++  line-height: 1.43;
++  margin: 0;
++}
++
++.row {
++  align-items: center;
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.5rem;
++}
++
++label {
++  font-size: 0.875rem;
++  line-height: 1.43;
++}
++
++input,
++select,
++textarea,
++button {
++  background-color: var(--color-dialog-background);
++  border: 1px solid var(--color-midground);
++  border-radius: 0.25rem;
++  color: var(--color-primary-foreground);
++  font-size: 0.875rem;
++  line-height: 1.43;
++  padding: 0.375rem 0.5rem;
++}
++
++/* A field in the rail takes the width the rail has left rather than its own
++ * intrinsic size, which at this measure would push its label onto its own
++ * line at every window width. */
++#rail input,
++#rail select {
++  flex: 1 1 6rem;
++  min-width: 0;
++}
++
++textarea {
++  /* Alignment carries meaning in markup, which section 6.1 names as the one
++   * case where the bare generic keyword is permitted. */
++  font-family: monospace;
++  flex: none;
++  min-height: 8rem;
++  resize: vertical;
++  width: 100%;
++}
++
++button {
++  cursor: pointer;
++  font-weight: 500;
++}
++
++/* The heading-row affordances. Smaller than a full control because they sit on
++ * a heading line, and otherwise the same button. */
++.mini {
++  flex: none;
++  font-size: 0.75rem;
++  line-height: 1.33;
++  padding: 0.125rem 0.5rem;
++}
++
++/* Deleting a project deletes its documents (DOC-7). The role that says so is
++ * the one patch 0004 already bound for it; nothing here decides a colour. */
++#deleteProject {
++  color: var(--color-alert-high-severity);
++}
++
++:focus-visible {
++  outline: 2px solid var(--color-primary-foreground);
++  outline-offset: 2px;
++}
++
++#contents,
++#projectList {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++}
++
++#contents li,
++#projectList li {
++  border-top: 1px solid var(--color-midground);
++}
++
++/* One row of either list. A row is a button because choosing a project and
++ * choosing a section are the same act -- they replace what the right column is
++ * showing -- and because a button is the element a keyboard already knows how
++ * to reach and activate.
++ *
++ * The transparent inline-start border is the width the current row's marker
++ * will occupy, declared on every row so that marking one does not move the
++ * text of the others. */
++.entry {
++  align-items: center;
++  background-color: var(--color-dialog-background);
++  border: 0;
++  border-inline-start: 3px solid transparent;
++  border-radius: 0;
++  box-sizing: border-box;
++  display: flex;
++  font-size: 0.875rem;
++  font-weight: 400;
++  gap: 0.5rem;
++  line-height: 1.43;
++  padding: 0.5rem;
++  text-align: start;
++  width: 100%;
++}
++
++/* Current is stated twice on purpose: in weight and in a marker along the
++ * inline start, so it survives a theme in which weight alone is hard to read.
++ * `aria-current` is the attribute both are matched on, so the visual marking
++ * cannot drift from what assistive technology is told. */
++.entry[aria-current='true'] {
++  border-inline-start-color: var(--color-primary-foreground);
++  font-weight: 600;
++}
++
++/* The title takes the row and the count keeps its own width, so a long title
++ * is elided rather than pushing the count out of the rail. */
++.entry .title {
++  flex: 1 1 auto;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.entry .marker {
++  color: var(--color-secondary-foreground);
++  flex: none;
++  font-size: 0.75rem;
++  line-height: 1.33;
++}
++
++/* The pane is the frame. It takes the right column's remaining height and
++ * gives it back as the window changes; the floor is stated so that a short
++ * window scrolls the column rather than crushing the pane down to an iframe's
++ * intrinsic 150px. */
++#pane {
++  display: flex;
++  flex: 1 1 auto;
++  min-height: 16rem;
++  position: relative;
++}
++
++/* No border, no radius and no height of its own. A document is not a widget on
++ * this page: a box drawn around it would be Sunshine claiming the edge of
++ * something it does not own. */
++#reader {
++  border: 0;
++  flex: 1 1 auto;
++}
++
++/* Floating over the frame's top corner, inset far enough along the inline axis
++ * to clear a document's own vertical scrollbar rather than sit on top of it. */
++#readerActions {
++  display: flex;
++  gap: 0.5rem;
++  inset-block-start: 0.5rem;
++  inset-inline-end: 1.5rem;
++  position: absolute;
++}
++
++/* Dimmed and semi-transparent, and dimmed with `opacity` over the surface and
++ * outline roles patch 0004 already bound -- not with a literal colour carrying
++ * an alpha channel, which would be Sunshine deciding a colour (contract §1,
++ * §2.1). Everything else is inherited from the `button` rule above.
++ *
++ * Full strength on hover and on `:focus-visible`, so a control that is being
++ * used is never the dim one; the focus ring itself comes from the
++ * `:focus-visible` rule above, which is where this surface states it. */
++.overlay {
++  align-items: center;
++  display: flex;
++  opacity: 0.4;
++  padding: 0.25rem;
++}
++
++.overlay:hover,
++.overlay:focus-visible {
++  opacity: 1;
++}
++
++/* Nothing selected is nothing to reload and nothing to download. */
++.overlay[disabled] {
++  cursor: default;
++  opacity: 0.2;
++}
++
++.empty {
++  color: var(--color-secondary-foreground);
++  font-size: 0.875rem;
++  line-height: 1.43;
++  margin: 0;
++}
++
++/* Depth is expressed as a declared attribute and matched here, rather than as
++ * an inline style built from a number at runtime. Six steps is what the rules
++ * cover; a deeper node keeps the sixth indent rather than growing without
++ * bound, which is a presentation decision and touches nothing stored. */
++.entry[data-depth='1'] {
++  padding-inline-start: 1.5rem;
++}
++
++.entry[data-depth='2'] {
++  padding-inline-start: 2.5rem;
++}
++
++.entry[data-depth='3'] {
++  padding-inline-start: 3.5rem;
++}
++
++.entry[data-depth='4'] {
++  padding-inline-start: 4.5rem;
++}
++
++.entry[data-depth='5'] {
++  padding-inline-start: 5.5rem;
++}
+diff --git a/chrome/browser/resources/sunshine/document/app.html b/chrome/browser/resources/sunshine/document/app.html
+new file mode 100644
+index 0000000..3548278
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document/app.html
+@@ -0,0 +1,143 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Sunshine Documents</title>
++  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
++  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- Two columns, full height. The left rail owns structure -- which projects
++       exist and what is inside the open one -- and the right column owns the
++       one document that structure has selected. The rail comes first in the
++       markup as well as on the screen, so tabbing through the page walks the
++       structure before the document rather than crossing back and forth. -->
++  <main id="page">
++    <div id="rail">
++      <header id="brand">
++        <h1>Sunshine Documents</h1>
++        <p class="note">
++          A project is a hierarchy of documents. The contents list below is the
++          reading order: the depth-first traversal of that hierarchy, so a node
++          moved in the tree moves in the reading order with it.
++        </p>
++      </header>
++
++      <section class="railsec">
++        <div class="railhead">
++          <h2 class="colhead" id="projectsHeading">Projects</h2>
++          <button id="createProject" class="mini" type="button">+ New</button>
++        </div>
++        <div class="row">
++          <label for="projectTitle">New project</label>
++          <input id="projectTitle" type="text" autocomplete="off">
++        </div>
++        <!-- Projects stay reachable from here while a project is open, which
++             is the whole reason this list replaced a <select>. Every row is
++             created by app.js as an element whose text is assigned with
++             textContent; no project string is ever parsed as markup in this
++             document (DOC-1, DOCA-1). The open project carries aria-current,
++             so "which one is open" reaches assistive technology as a fact
++             rather than as a font weight. -->
++        <ul id="projectList" aria-labelledby="projectsHeading"></ul>
++        <p class="empty" id="noProjects" hidden>
++          There are no projects yet. Create one to begin.
++        </p>
++        <div class="row">
++          <button id="deleteProject" type="button">Delete project</button>
++        </div>
++      </section>
++
++      <section class="railsec">
++        <div class="railhead">
++          <h2 class="colhead" id="contentsHeading">Contents</h2>
++          <button id="createNode" class="mini" type="button">+ Node</button>
++        </div>
++        <div class="row">
++          <label for="nodeParent">Inside</label>
++          <select id="nodeParent"></select>
++        </div>
++        <div class="row">
++          <label for="nodeTitle">New section</label>
++          <input id="nodeTitle" type="text" autocomplete="off">
++        </div>
++        <!-- Moving between sections is navigation, so the list is a navigation
++             landmark and takes its accessible name from the heading above it.
++             Depth is carried by the declared data-depth attribute the
++             stylesheet matches; nothing here builds an indent from a number at
++             runtime. -->
++        <nav aria-labelledby="contentsHeading">
++          <ol id="contents"></ol>
++        </nav>
++        <p class="empty" id="noNodes" hidden>
++          This project has no sections yet.
++        </p>
++      </section>
++    </div>
++
++    <div id="workspace">
++      <h2 class="colhead">Source &mdash; the privileged shell</h2>
++      <p class="note">
++        What you write here is stored exactly as typed and is never rendered on
++        this page. It is shown in the reading frame below, which runs at no
++        privilege and can reach no network.
++      </p>
++      <label for="editor">HTML for the selected section</label>
++      <textarea id="editor" spellcheck="false"></textarea>
++      <div class="row">
++        <button id="saveDocument" type="button">Save document</button>
++        <span class="note" id="saveState" role="status"></span>
++      </div>
++
++      <h2 class="colhead">Reading &mdash; the untrusted frame</h2>
++      <div class="row">
++        <button id="previous" type="button">Previous</button>
++        <button id="next" type="button">Next</button>
++        <span class="note" id="position" role="status"></span>
++      </div>
++      <!-- The one place project content is rendered. The frame is Chromium's own
++           untrusted scheme; Sunshine registers no scheme (SEC-13, ADR 0003). -->
++      <div id="pane">
++        <!-- These two controls are the shell's and stay in the shell. They are
++             drawn over the frame, never inside it, for two reasons that hold
++             independently. A control inside the frame would be the frame naming
++             an operation, which DOC-2 forbids outright. And a control inside the
++             frame would be indistinguishable from one the document drew itself:
++             here it sits in the privileged document above the iframe, where the
++             document underneath can neither intercept its clicks nor restyle it
++             nor cover it. Nothing about them changes what the frame receives --
++             still one bare string, still no reply.
++
++             The icons are inline markup served with this page. Nothing builds an
++             element from a string at runtime (SEC-14). -->
++        <div id="readerActions">
++          <button id="refreshDocument" class="overlay" type="button" disabled
++                  aria-label="Reload this section into the reading frame"
++                  title="Reload this section into the reading frame">
++            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
++                 focusable="false">
++              <path d="M8 3A5 5 0 1 1 5.5 3.67" fill="none"
++                    stroke="currentColor" stroke-width="1.5"></path>
++              <path d="M7.23 2.67 6.1 4.71 4.9 2.63Z" fill="currentColor"></path>
++            </svg>
++          </button>
++          <button id="downloadDocument" class="overlay" type="button" disabled
++                  aria-label="Download this section as an HTML file"
++                  title="Download this section as an HTML file">
++            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
++                 focusable="false">
++              <path d="M8 2.5v7M4.8 6.8 8 10l3.2-3.2M3 13h10" fill="none"
++                    stroke="currentColor" stroke-width="1.5"></path>
++            </svg>
++          </button>
++        </div>
++        <iframe id="reader" title="Document content"
++                src="chrome-untrusted://sunshine-document-content/"></iframe>
++      </div>
++    </div>
++  </main>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/document/app.ts b/chrome/browser/resources/sunshine/document/app.ts
+new file mode 100644
+index 0000000..32674ac
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document/app.ts
+@@ -0,0 +1,385 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import type {DocumentNode, DocumentProject, DocumentStructure} from './host.js';
++import {documentHost} from './host.js';
++
++/**
++ * The privileged shell: project list, table of contents, controls.
++ *
++ * Two rules govern everything below, and both are absences rather than
++ * filters.
++ *
++ * **No project content is rendered here** (DOC-1, DOCA-1). Titles reach the
++ * document through `textContent` on elements this file created; nothing is
++ * ever assigned to `innerHTML`, no markup is parsed, and no template is filled
++ * with project strings. A document body passes through this file as a string
++ * on its way to the frame and is never put into this document at all -- not
++ * even into the textarea's markup, which is set through `value`.
++ *
++ * **The frame is sent content, never capability** (DOC-2). The only thing this
++ * file posts to the frame is the document body: one string, whole, with no
++ * field beside it. There is no identifier, no name and no verb in the message,
++ * so there is nothing in it the frame could use to ask for something else. In
++ * the other direction this file registers no message listener at all, which is
++ * the strongest available reading of "the frame sends back nothing that can
++ * name a resource, a path, or an operation" -- it can send nothing that is
++ * listened to. Readiness comes from the iframe's own `load` event, which is a
++ * fact about the element rather than a claim by its content.
++ *
++ * The two controls floating over the frame belong to this file for the same
++ * reason. Reload re-reads through the `ReadDocument` call the selection
++ * already uses and posts the result on; download hands the string this file is
++ * already holding to Chromium's download flow. Neither adds a Mojo method,
++ * neither writes a path, and neither puts a control inside the frame -- which
++ * would have been the frame naming an operation, the thing DOC-2 rules out.
++ *
++ * Everything it asks of its host goes through `documentHost` (./host.ts), per
++ * section 2.5 of docs/decisions/0013-module-data-portability.md.
++ */
++
++/** The origin of the reading frame. Chromium's scheme, not Sunshine's. */
++const READER_ORIGIN = 'chrome-untrusted://sunshine-document-content';
++
++interface State {
++  structure: DocumentStructure;
++  projectId: string;
++  nodeId: string;
++  readerReady: boolean;
++  pending: string|null;
++  // The body last sent to the frame. Held so that downloading needs no second
++  // read and no second Mojo call: it is the same string, unchanged.
++  body: string;
++}
++
++const state: State = {
++  structure: {projects: []},
++  projectId: '',
++  nodeId: '',
++  readerReady: false,
++  pending: null,
++  body: '',
++};
++
++/** Whether a section is selected, and so whether there is anything to act
++ * on. */
++function selected(): boolean {
++  return state.projectId !== '' && state.nodeId !== '';
++}
++
++function required<T extends HTMLElement>(id: string): T {
++  const element = document.body.querySelector<T>('#' + id);
++  if (!element) {
++    throw new Error('missing element: ' + id);
++  }
++  return element;
++}
++
++function currentProject(): DocumentProject|null {
++  for (const project of state.structure.projects) {
++    if (project.id === state.projectId) {
++      return project;
++    }
++  }
++  return null;
++}
++
++function reveal(id: string, visible: boolean) {
++  required(id).toggleAttribute('hidden', !visible);
++}
++
++/**
++ * Sends one document body to the frame. The message is the body and nothing
++ * else; see the DOC-2 note above.
++ */
++function showInReader(body: string) {
++  state.body = body;
++  const frame = required<HTMLIFrameElement>('reader');
++  if (!state.readerReady || !frame.contentWindow) {
++    state.pending = body;
++    return;
++  }
++  state.pending = null;
++  frame.contentWindow.postMessage(body, READER_ORIGIN);
++}
++
++/**
++ * Opens a project. What a `<select>`'s `change` event used to do, reached now
++ * from the row the user clicked: the list in the left rail is the same
++ * operation with the same consequences, and it stays reachable while a project
++ * is open, which a `<select>` collapsed away.
++ */
++function selectProject(projectId: string) {
++  state.projectId = projectId;
++  state.nodeId = '';
++  required<HTMLTextAreaElement>('editor').value = '';
++  showInReader('');
++  render();
++}
++
++function renderProjects() {
++  const list = required<HTMLUListElement>('projectList');
++  list.replaceChildren();
++  for (const project of state.structure.projects) {
++    const item = document.createElement('li');
++    const entry = document.createElement('button');
++    entry.type = 'button';
++    entry.className = 'entry';
++    // The open project, said once, to the screen and to assistive technology
++    // together. app.css matches this same attribute.
++    entry.setAttribute('aria-current', String(project.id === state.projectId));
++
++    const title = document.createElement('span');
++    title.className = 'title';
++    // Assigned as text. A project title is data and is never markup here.
++    title.textContent = project.title;
++    entry.appendChild(title);
++
++    // What the data layer holds about a project, and the whole of what may be
++    // shown beside its title: a count of nodes. Not a preview, because a
++    // preview would be project content rendered in the privileged document
++    // (DOC-1).
++    const count = document.createElement('span');
++    count.className = 'marker';
++    count.textContent = project.nodes.length === 1 ?
++        '1 node' :
++        String(project.nodes.length) + ' nodes';
++    entry.appendChild(count);
++
++    entry.addEventListener('click', () => {
++      selectProject(project.id);
++    });
++    item.appendChild(entry);
++    list.appendChild(item);
++  }
++  reveal('noProjects', state.structure.projects.length === 0);
++}
++
++function renderContents() {
++  const project = currentProject();
++  const nodes: DocumentNode[] = project ? project.nodes : [];
++
++  const parents = required<HTMLSelectElement>('nodeParent');
++  parents.replaceChildren();
++  const top = document.createElement('option');
++  top.value = '';
++  top.textContent = 'Top level';
++  parents.appendChild(top);
++
++  const contents = required<HTMLOListElement>('contents');
++  contents.replaceChildren();
++
++  nodes.forEach((node) => {
++    const parentOption = document.createElement('option');
++    parentOption.value = node.id;
++    parentOption.textContent = node.title;
++    parents.appendChild(parentOption);
++
++    const item = document.createElement('li');
++    const entry = document.createElement('button');
++    entry.type = 'button';
++    entry.className = 'entry';
++    // Six indents are declared in app.css; deeper nodes keep the last one.
++    entry.dataset['depth'] = String(Math.min(node.depth, 5));
++    entry.setAttribute('aria-current', String(node.id === state.nodeId));
++
++    const title = document.createElement('span');
++    title.className = 'title';
++    title.textContent = node.title;
++    entry.appendChild(title);
++
++    const marker = document.createElement('span');
++    marker.className = 'marker';
++    marker.textContent = node.hasDocument ? 'has a document' : 'empty';
++    entry.appendChild(marker);
++
++    entry.addEventListener('click', () => {
++      void selectNode(node.id);
++    });
++    item.appendChild(entry);
++    contents.appendChild(item);
++  });
++
++  reveal('noNodes', nodes.length === 0);
++
++  // Where the selected section sits in the reading order. This is a count of
++  // positions in the depth-first traversal, not a page count: nothing here
++  // divides a document into pages, and nothing stored is rewritten to produce
++  // it (DOC-4).
++  const position = nodes.findIndex((node) => node.id === state.nodeId);
++  if (nodes.length === 0) {
++    required('position').textContent = '';
++  } else if (position < 0) {
++    required('position').textContent = 'Nothing selected';
++  } else {
++    required('position').textContent = 'Reading ' + String(position + 1) +
++        ' of ' + String(nodes.length) + ' in reading order';
++  }
++
++  required<HTMLButtonElement>('refreshDocument').disabled = !selected();
++  required<HTMLButtonElement>('downloadDocument').disabled = !selected();
++}
++
++/**
++ * Reads the selected section again and sends what comes back to the frame.
++ *
++ * The recovery path when a document did not render, and the one place DOC-4 is
++ * visible rather than asserted: the same `ReadDocument` call the selection
++ * uses returns the same bytes, because nothing between the store and the frame
++ * rewrites them. The editor is left alone -- this reloads the frame, and an
++ * unsaved edit is not the store's answer to overwrite it with.
++ */
++function reloadIntoReader() {
++  if (!selected()) {
++    return;
++  }
++  void documentHost.readDocument(state.projectId, state.nodeId)
++      .then(showInReader);
++}
++
++/**
++ * Hands the selected section to the user as an HTML file.
++ *
++ * Chromium's own download flow does the writing. Nothing here opens, names or
++ * touches a path, and no Mojo method was added to make it possible: the string
++ * is the one this file already sent to the frame, wrapped in a blob whose URL
++ * lives exactly as long as the click. That is the posture
++ * docs/SECURITY_CENTER_CONTRACT.md SC-9 takes for the security centre -- the
++ * surface performs no mutation of its own; the Chromium flow that owns the
++ * operation executes it.
++ *
++ * The file is named for what it is, never for the node it came from. A node
++ * names a document Sunshine stores and never a location on disk (DOC-6), and
++ * deriving a filename from a title is exactly the step that would make it one.
++ */
++function downloadDocument() {
++  if (!selected()) {
++    return;
++  }
++  const url = URL.createObjectURL(new Blob([state.body], {type: 'text/html'}));
++  const link = document.createElement('a');
++  link.href = url;
++  link.download = 'document.html';
++  link.click();
++  URL.revokeObjectURL(url);
++}
++
++function render() {
++  renderProjects();
++  renderContents();
++}
++
++async function selectNode(nodeId: string) {
++  state.nodeId = nodeId;
++  const body = await documentHost.readDocument(state.projectId, nodeId);
++  // `value`, not markup: the body is never parsed by this document.
++  required<HTMLTextAreaElement>('editor').value = body;
++  required('saveState').textContent = '';
++  showInReader(body);
++  renderContents();
++}
++
++function step(offset: number) {
++  const project = currentProject();
++  if (!project || project.nodes.length === 0) {
++    return;
++  }
++  let index = project.nodes.findIndex((node) => node.id === state.nodeId);
++  if (index < 0) {
++    index = offset > 0 ? -1 : project.nodes.length;
++  }
++  const next = index + offset;
++  if (next < 0 || next >= project.nodes.length) {
++    return;
++  }
++  // Moving through the reading order is presentation. Nothing stored changes,
++  // and no document is rewritten to make it possible (DOC-4).
++  void selectNode(project.nodes[next]!.id);
++}
++
++function adopt(structure: DocumentStructure) {
++  state.structure = structure;
++  const project = currentProject();
++  if (!project) {
++    const first = structure.projects[0];
++    state.projectId = first ? first.id : '';
++    state.nodeId = '';
++    required<HTMLTextAreaElement>('editor').value = '';
++    showInReader('');
++  }
++  render();
++}
++
++function attach() {
++  const frame = required<HTMLIFrameElement>('reader');
++  frame.addEventListener('load', () => {
++    state.readerReady = true;
++    if (state.pending !== null) {
++      showInReader(state.pending);
++    }
++  });
++
++  required('createProject').addEventListener('click', () => {
++    const title = required<HTMLInputElement>('projectTitle');
++    if (title.value.trim() === '') {
++      return;
++    }
++    void documentHost.createProject(title.value.trim()).then((structure) => {
++      title.value = '';
++      adopt(structure);
++    });
++  });
++
++  required('deleteProject').addEventListener('click', () => {
++    if (state.projectId === '') {
++      return;
++    }
++    // DOC-7: the documents go with the project. Nothing here has to sweep for
++    // them, because the store keeps them inside it.
++    void documentHost.deleteProject(state.projectId).then((structure) => {
++      state.projectId = '';
++      state.nodeId = '';
++      adopt(structure);
++    });
++  });
++
++  required('createNode').addEventListener('click', () => {
++    const title = required<HTMLInputElement>('nodeTitle');
++    if (state.projectId === '' || title.value.trim() === '') {
++      return;
++    }
++    const parent = required<HTMLSelectElement>('nodeParent').value;
++    void documentHost.createNode(state.projectId, parent, title.value.trim())
++        .then((structure) => {
++          title.value = '';
++          adopt(structure);
++        });
++  });
++
++  required('saveDocument').addEventListener('click', () => {
++    if (state.projectId === '' || state.nodeId === '') {
++      return;
++    }
++    const body = required<HTMLTextAreaElement>('editor').value;
++    void documentHost.writeDocument(state.projectId, state.nodeId, body)
++        .then((stored) => {
++          required('saveState').textContent =
++              stored ? 'Saved.' : 'Not saved.';
++          if (stored) {
++            showInReader(body);
++            void documentHost.load().then(adopt);
++          }
++        });
++  });
++
++  required('previous').addEventListener('click', () => step(-1));
++  required('next').addEventListener('click', () => step(1));
++  required('refreshDocument').addEventListener('click', reloadIntoReader);
++  required('downloadDocument').addEventListener('click', downloadDocument);
++}
++
++document.addEventListener('DOMContentLoaded', () => {
++  attach();
++  void documentHost.load().then(adopt);
++});
+diff --git a/chrome/browser/resources/sunshine/document/host.ts b/chrome/browser/resources/sunshine/document/host.ts
+new file mode 100644
+index 0000000..a9cc900
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document/host.ts
+@@ -0,0 +1,133 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import {DocumentHost as DocumentHostMojo} from './sunshine_document.mojom-webui.js';
++import type {DocumentHostRemote, DocumentStructure} from './sunshine_document.mojom-webui.js';
++
++/**
++ * The document surface's one interface to whatever hosts it.
++ *
++ * docs/decisions/0013-module-data-portability.md section 2.5: "A module's web
++ * assets communicate with whatever hosts them through a single, named,
++ * explicitly-declared interface, and through nothing else. No scattered calls
++ * to Chromium-specific globals, no assumption about which object delivers a
++ * message, no reaching past the interface because a browser API happens to be
++ * in scope. The interface is the module's whole contract with its container."
++ *
++ * This file is that interface's page half, and it is the only file in
++ * chrome/browser/resources/sunshine/document/ that names anything
++ * Chromium-specific. app.ts imports `documentHost` and knows nothing else about
++ * its container: it never calls chrome.send, never reads loadTimeData, never
++ * touches a chrome:// URL, and it does not name Mojo either. A second host --
++ * the WKWebView shell that section 2.5 exists for -- replaces this file and
++ * nothing else.
++ *
++ * **Mojo made section 2.5 stronger, not weaker, and the reason is where the
++ * interface is declared.** It used to be declared twice: as six message-name
++ * strings here and as six matching RegisterMessageCallback() calls in the
++ * browser, with nothing but a comment holding the two lists in agreement, and
++ * nothing at all checking that a request carried the arguments its handler
++ * expected. It is now declared once, in
++ * chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom, and both
++ * halves are generated from that one file. The six requests below are the six
++ * methods of `DocumentHost` in that .mojom; a seventh is added there and
++ * appears on both sides, or the build fails. "A single, named,
++ * explicitly-declared interface" is now a declaration rather than a
++ * convention.
++ *
++ * Nothing crossing this boundary names a file, a directory, or any other
++ * location. Identifiers are opaque strings, a node names a document Sunshine
++ * stores and never a location on disk (DOC-6), and this is the boundary at
++ * which that could otherwise be quietly reintroduced.
++ *
++ * The untrusted frame is not a party to any of this. It is given no Mojo
++ * interface at all; it receives one document body by postMessage and nothing
++ * else, which is DOC-2 as an absence rather than as a filter.
++ *
++ * **About the two import specifiers above.** The generated bindings are served
++ * out of this surface's own directory of Sunshine's one resource bundle, beside
++ * this file, so naming them is an ordinary relative import. The bindings' own
++ * import of the Mojo library is the scheme-relative
++ * "//resources/mojo/mojo/public/js/bindings.js" that
++ * mojo/public/tools/bindings/generators/mojom_ts_generator.py emits
++ * unconditionally -- `_GetBindingsLibraryPath()` returns that literal string --
++ * which is exactly the form tools/typescript/path_mappings.py provides a
++ * mapping for under the webui_context_type = "relative" that
++ * chrome/browser/resources/sunshine/BUILD.gn sets, and which resolves against
++ * the page's own scheme at runtime rather than pinning the bundle to one.
++ */
++
++/**
++ * The table of contents, its entries in reading order, and the projects they
++ * belong to.
++ *
++ * These are the mojom's structs, re-exported rather than restated. A
++ * hand-written copy of a generated shape is a copy that can disagree with the
++ * generator, and app.ts imports them from here so that it still has no reason
++ * to name the bindings.
++ */
++export type {
++  DocumentNode,
++  DocumentProject,
++  DocumentStructure,
++} from './sunshine_document.mojom-webui.js';
++
++/**
++ * What the surface may ask of its host. Structure-returning requests answer
++ * with the whole structure rather than a delta, so the page never has to keep
++ * a second copy of the model in agreement with the first.
++ */
++export interface DocumentHost {
++  load(): Promise<DocumentStructure>;
++  createProject(title: string): Promise<DocumentStructure>;
++  createNode(projectId: string, parentId: string, title: string):
++      Promise<DocumentStructure>;
++  deleteProject(projectId: string): Promise<DocumentStructure>;
++  /** The stored bytes of the document a node names, or the empty string. */
++  readDocument(projectId: string, nodeId: string): Promise<string>;
++  writeDocument(projectId: string, nodeId: string, body: string):
++      Promise<boolean>;
++}
++
++// Bound on first use rather than at import time, so nothing here reaches for a
++// pipe before the page has decided it needs its host.
++let remote: DocumentHostRemote|null = null;
++
++function host(): DocumentHostRemote {
++  if (remote === null) {
++    remote = DocumentHostMojo.getRemote();
++  }
++  return remote;
++}
++
++// The six requests, written out rather than assembled, so that a search for one
++// of them finds this file and the .mojom at once. Each unwraps the one named
++// response field the generated bindings deliver; that unwrapping is the whole
++// of the difference between this file and the interface above it.
++export const documentHost: DocumentHost = {
++  load() {
++    return host().load().then((response) => response.structure);
++  },
++  createProject(title: string) {
++    return host().createProject(title).then((response) => response.structure);
++  },
++  createNode(projectId: string, parentId: string, title: string) {
++    return host()
++        .createNode(projectId, parentId, title)
++        .then((response) => response.structure);
++  },
++  deleteProject(projectId: string) {
++    return host().deleteProject(projectId).then(
++        (response) => response.structure);
++  },
++  readDocument(projectId: string, nodeId: string) {
++    return host().readDocument(projectId, nodeId).then(
++        (response) => response.body);
++  },
++  writeDocument(projectId: string, nodeId: string, body: string) {
++    return host()
++        .writeDocument(projectId, nodeId, body)
++        .then((response) => response.stored);
++  },
++};
+diff --git a/chrome/browser/resources/sunshine/document_content/app.css b/chrome/browser/resources/sunshine/document_content/app.css
+new file mode 100644
+index 0000000..6601cdb
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document_content/app.css
+@@ -0,0 +1,44 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * This stylesheet declares no colour, and that is deliberate rather than an
++ * omission. Two reasons, either of which would be enough.
++ *
++ * First, it cannot: chrome://theme is not reachable from a chrome-untrusted://
++ * origin, whose style-src permits chrome-untrusted://resources,
++ * chrome-untrusted://theme and 'self' (ui/webui/webui_util.cc,
++ * SetJSModuleDefaults). Reaching for a colour here would mean either adding a
++ * theme source to an untrusted origin or writing a literal, and
++ * docs/DESIGN_SYSTEM_CONTRACT.md section 2.3 is explicit that a colour that
++ * escapes the theme must fail visibly rather than be papered over with a
++ * fallback.
++ *
++ * Second, it should not. Giving user-authored content the browser's own
++ * surface palette would let a document imitate the privileged shell that
++ * embeds it, which is the confusion the shell/frame split exists to prevent.
++ * The user agent's colours, under the color-scheme this page declares, are the
++ * honest ones for content that is not Sunshine's.
++ *
++ * The second reason binds harder now that a document owns the whole frame
++ * rather than a box inside it. Once the pane is the document, the only thing
++ * still distinguishing it from the shell around it is the origin boundary; a
++ * frame that lent it the browser's palette would erase the last visible
++ * difference between Sunshine's chrome and someone's file.
++ *
++ * What is left is layout, in rem, on the section 6.2 scale, and it describes
++ * the empty state alone. A document that arrives replaces the document
++ * element, the link to this stylesheet with it, so nothing here reaches a real
++ * document: its padding, its scrolling and its type are its own. Nothing in
++ * this frame fits, paginates or otherwise rewrites what was stored (DOC-4). */
++
++body {
++  margin: 0;
++}
++
++#placeholder {
++  font-size: 0.875rem;
++  line-height: 1.43;
++  margin: 0;
++  padding: 1rem;
++}
+diff --git a/chrome/browser/resources/sunshine/document_content/app.html b/chrome/browser/resources/sunshine/document_content/app.html
+new file mode 100644
+index 0000000..f8b8801
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document_content/app.html
+@@ -0,0 +1,18 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Document content</title>
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- The whole of this page is the empty state. Sunshine's own text, served
++       as markup rather than assembled at runtime (SEC-14), and captured by
++       app.js before the first document arrives. There is no container here to
++       place a document in: a document replaces this document element, this
++       <head> with it, so the page becomes the document. -->
++  <p id="placeholder">Select a section to read it.</p>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/document_content/app.ts b/chrome/browser/resources/sunshine/document_content/app.ts
+new file mode 100644
+index 0000000..46269a5
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/document_content/app.ts
+@@ -0,0 +1,116 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * The unprivileged reading frame.
++ *
++ * It renders one document and can do nothing else. It has no host interface,
++ * because it needs none: it is handed content and never asks for any. That is
++ * DOC-2 from the receiving side -- "the frame receives content, never
++ * capability" -- and it is why this file contains no `chrome.send`, no
++ * identifier, and no way to name a project, a node, or a document.
++ *
++ * It answers nothing either. There is no `postMessage` call in this file: the
++ * shell learns the frame is ready from the iframe's own `load` event, so the
++ * frame never has to say anything back, and "the frame sends back nothing that
++ * can name a resource, a path, or an operation" is satisfied by the frame
++ * sending back nothing at all.
++ *
++ * It reaches no network (DOC-5). That is enforced by the content security
++ * policy in
++ * chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc,
++ * not by anything here: a document referencing a remote image shows the image
++ * as absent because the load is refused, and nothing in this file inspects or
++ * rewrites the document to make that true.
++ *
++ * What it renders is a document, not an extract of one. The document that
++ * arrives replaces this page's document element outright, so its own <head>
++ * applies -- its <style>, its <meta> -- and so do its <body>'s own attributes.
++ * The frame lends it no container, no padding and no palette. The page becomes
++ * the document.
++ */
++
++/** The only origin whose messages are read. */
++const SHELL_ORIGIN = 'chrome://sunshine-document';
++
++/**
++ * The page as served, captured once, before anything can replace it.
++ *
++ * The empty state is Sunshine's own sentence, and SEC-14 forbids assembling
++ * markup from strings at runtime. Capturing the served page is what makes both
++ * halves possible: a document owns the whole frame when there is one, and
++ * there is still something to put back when there is not.
++ *
++ * Restoring a clone cannot re-run this module. The HTML Standard's cloning
++ * steps for `script` elements "are to set copy's already started to node's
++ * already started", so the flag is carried into every copy; this element's
++ * already started was set to true by "prepare the script element" before
++ * app.js was fetched, and that algorithm's first step is "If el's already
++ * started is true, then return". A restored clone therefore holds a script
++ * that is inert the moment it is inserted, and no script element is removed
++ * from the capture to make that true.
++ *
++ * A module script is deferred, so the parser has finished by the time this
++ * line runs and the capture is the whole page rather than a prefix of it.
++ */
++const emptyDocument = document.documentElement.cloneNode(true) as HTMLElement;
++
++/**
++ * Replaces this page with the document it was sent.
++ *
++ * `document.replaceChild` on the document element, rather than appending a
++ * parsed body into a container: a document's <head> is part of the document,
++ * and a frame that dropped it would be showing a stripped copy of what the
++ * user stored. Three security properties survive that change, each held by a
++ * different mechanism, and none of them by this function's care:
++ *
++ * - **Nothing parsed here can run.** Still `DOMParser`, never `innerHTML`: no
++ *   string on this page is ever handed to the live document's HTML parser. A
++ *   `script` element `DOMParser` produces is already started -- the parsed
++ *   document has no browsing context, so scripting is disabled for it, and
++ *   "prepare the script element" sets already started to true before it
++ *   returns for that reason -- and `document.importNode` clones, so the
++ *   cloning steps carry that flag onto the copy adopted here. This is also
++ *   what keeps the file inside SEC-14 and Chromium's Trusted Types policy for
++ *   WebUI, which scripts/verify_web_asset_security.py checks at review time.
++ *
++ * - **The policy does not move.** This frame's content security policy is
++ *   delivered in the response headers its data source sets, in
++ *   sunshine_document_content_ui.cc. None of it is written in this page's
++ *   markup, so replacing the markup relaxes nothing and DOC-5 holds for the
++ *   replacement exactly as it held for the page replaced.
++ *
++ * - **The frame keeps listening.** The `message` listener below is registered
++ *   on `window`, not on `document` and not on any element inside it.
++ *   Replacing the document element mutates the tree inside the document; it
++ *   replaces neither the document nor the global object the listener sits on.
++ *   The next document arrives by the same path this one did.
++ */
++function render(html: string) {
++  if (html === '') {
++    // Sunshine's own page, as it was served. Nothing is built from a string.
++    document.replaceChild(
++        emptyDocument.cloneNode(true), document.documentElement);
++    return;
++  }
++
++  const parsed = new DOMParser().parseFromString(html, 'text/html');
++  document.replaceChild(
++      document.importNode(parsed.documentElement, true),
++      document.documentElement);
++}
++
++window.addEventListener('message', (event: MessageEvent) => {
++  // The origin is checked before the payload is looked at, and the payload is
++  // required to be a string. A message is a document and nothing else: there is
++  // no field beside it that could carry a name, so there is nothing to
++  // validate past its type.
++  if (event.origin !== SHELL_ORIGIN) {
++    return;
++  }
++  if (typeof event.data !== 'string') {
++    return;
++  }
++  render(event.data);
++});
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index 962a315..7ba1c80 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -6,6 +6,35 @@
+ # depends on this one target, and each surface appends its own sources and deps
+ # below rather than adding a target line upstream. See
+ # docs/decisions/0007-module-contribution-seam.md.
++#
++# A surface that talks to its page over Mojo declares its interface here too.
++# A mojom() target names its .mojom sources relative to this file and derives
++# every generated path from the source's own path, so a surface keeps its
++# interface in its own subdirectory and adds one mojom() target below, which the
++# shared source_set then depends on. This costs no upstream file for the same
++# reason the rest of the seam does not: this BUILD.gn is a file the seam patch
++# created.
++
++import("//mojo/public/tools/bindings/mojom.gni")
++
++# The document surface's one host interface --
++# docs/decisions/0013-module-data-portability.md section 2.5. Declared once and
++# generated twice: C++ for chrome/browser/ui/webui/sunshine/document/ and
++# TypeScript for chrome/browser/resources/sunshine/document/.
++#
++# webui_module_path = "/" says the generated module is served from the root of
++# the page that offers it -- mojo/public/tools/bindings/mojom.gni documents the
++# value as "the path or URL at which modules generated by this target will be
++# accessible to WebUI pages", and notes that an absolute path also obliges the
++# page to add the module to its own data source. Sunshine's does:
++# chrome/browser/resources/sunshine/BUILD.gn lists the generated file in
++# mojo_files under the document surface's directory, and
++# sunshine_webui_resources.h serves that directory to this surface and to no
++# other.
++mojom("document_mojo_bindings") {
++  sources = [ "document/sunshine_document.mojom" ]
++  webui_module_path = "/"
++}
+ 
+ source_set("sunshine") {
+   sources = [
+@@ -14,12 +43,25 @@ source_set("sunshine") {
+     "sunshine_webui_resources.h",
+ 
+     # Extended by each surface patch.
++    "document/sunshine_document_content_ui.cc",
++    "document/sunshine_document_content_ui.h",
++    "document/sunshine_document_handler.cc",
++    "document/sunshine_document_handler.h",
++    "document/sunshine_document_ui.cc",
++    "document/sunshine_document_ui.h",
+     "security/sunshine_security_ui.cc",
+     "security/sunshine_security_ui.h",
+   ]
+ 
+   public_deps = [
++    # public_deps, not deps: sunshine_webui_registry.h is this target's one
++    # header an upstream file includes, and it now names the document surface's
++    # Mojo interface. A dependency that a public header exposes has to be public
++    # itself, or chrome/browser/ui/webui/chrome_web_ui_configs.cc compiles
++    # against a generated header nothing promised it would exist yet.
++    ":document_mojo_bindings",
+     "//content/public/browser",
++    "//mojo/public/cpp/bindings",
+     "//ui/base",
+   ]
+ 
+@@ -32,8 +74,20 @@ source_set("sunshine") {
+     "//components/prefs",
+     "//components/safe_browsing:buildflags",
+     "//components/safe_browsing/core/common:safe_browsing_prefs",
++
++    # The document module's data layer. The dependency runs one way -- the
++    # surface depends on the model and the model depends on neither //chrome
++    # nor //content -- which is the arrangement
++    # docs/decisions/0013-module-data-portability.md section 2.1 requires and
++    # the reason components/sunshine/document/ exists at all.
++    "//components/sunshine/document",
+     "//content/public/common",
+     "//google_apis",
++    "//services/network/public/mojom",
++
++    # //ui/webui was already here for webui::SetupWebUIDataSource(). It is also
++    # what provides ui::MojoWebUIController, which is how the document surface
++    # is granted Mojo and denied chrome.send.
+     "//ui/webui",
+   ]
+ }
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom b/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom
+new file mode 100644
+index 0000000..147f90d
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom
+@@ -0,0 +1,99 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The document surface's one interface to whatever hosts it.
++//
++// docs/decisions/0013-module-data-portability.md section 2.5: "A module's web
++// assets communicate with whatever hosts them through a single, named,
++// explicitly-declared interface, and through nothing else. No scattered calls
++// to Chromium-specific globals, no assumption about which object delivers a
++// message, no reaching past the interface because a browser API happens to be
++// in scope. The interface is the module's whole contract with its container."
++//
++// **Mojo makes that rule stronger, not weaker, and this file is why.** Under
++// the chrome.send arrangement this replaced, the interface existed twice: once
++// as a list of string message names in host.ts and once as the matching list of
++// RegisterMessageCallback() calls in the browser. Nothing but a comment tied
++// the two lists together, nothing checked that a request carried the arguments
++// the handler expected, and a seventh request could be added to one list alone
++// and fail only at runtime. Here the interface is declared once, in this file,
++// and both halves are generated from it: the page's DocumentHostRemote and the
++// browser's DocumentHost base class are the same six methods with the same six
++// signatures, and a seventh added here appears on both sides or the build
++// fails. "A single, named, explicitly-declared interface" is now a file rather
++// than a convention.
++//
++// **Nothing here names a location.** Identifiers cross this boundary as opaque
++// strings -- the UUIDs components/sunshine/document/document_model.h already
++// carries -- and no method below takes or returns a path, a filename, or a
++// directory. DOC-6 keeps paths out of the model, and this interface is the
++// boundary at which they could otherwise be quietly reintroduced.
++//
++// **The untrusted frame is not a party to this.** DOC-2 says the frame
++// "receives content, never capability". The frame at
++// chrome-untrusted://sunshine-document-content is given no Mojo interface at
++// all: it is not registered in
++// chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h, its controller
++// declares no BindInterface, and the only thing that reaches it is one document
++// body by postMessage. A pipe to the frame would be the one thing this design
++// forbids.
++
++module sunshine.document.mojom;
++
++// One entry of the table of contents, in reading order.
++struct DocumentNode {
++  // Opaque. A node identifier, never a location (DOC-6).
++  string id;
++  string title;
++  // How deep in the hierarchy, for presentation only. Derived by the browser
++  // from the hierarchy rather than stored, so a move cannot leave it stale.
++  int32 depth;
++  bool has_document;
++};
++
++struct DocumentProject {
++  // Opaque. A project identifier, never a location (DOC-6).
++  string id;
++  string title;
++  // Depth-first traversal of the hierarchy: the reading order fixed by
++  // docs/DOCUMENT_SURFACE_CONTRACT.md section 3.
++  array<DocumentNode> nodes;
++};
++
++struct DocumentStructure {
++  array<DocumentProject> projects;
++};
++
++// What the surface may ask of its host, and the whole of it.
++//
++// Structure-returning requests answer with the whole structure rather than a
++// delta, so the page never has to keep a second copy of the model in agreement
++// with the first. No document body is ever part of a DocumentStructure: DOC-1
++// forbids project content in the privileged document, so the shell is told what
++// exists and never what it says. A body travels only through ReadDocument and
++// WriteDocument, and the shell's only use for one is to hand it to the frame.
++interface DocumentHost {
++  // Every project's structure. The store is read from disk on the first call.
++  Load() => (DocumentStructure structure);
++
++  CreateProject(string title) => (DocumentStructure structure);
++
++  // `parent_id` is the empty string for a node at the top level. An unknown or
++  // unparsable parent is a root node, which is what the page means when it asks
++  // for a top-level entry.
++  CreateNode(string project_id, string parent_id, string title)
++      => (DocumentStructure structure);
++
++  // DOC-7: the documents go with the project. Nothing above the data layer has
++  // to sweep for them, because the store keeps them inside it.
++  DeleteProject(string project_id) => (DocumentStructure structure);
++
++  // The stored bytes of the document `node_id` names, or the empty string.
++  // Returned byte for byte as they were stored; nothing here paginates them
++  // (DOC-4).
++  ReadDocument(string project_id, string node_id) => (string body);
++
++  WriteDocument(string project_id, string node_id, string body)
++      => (bool stored);
++};
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc
+new file mode 100644
+index 0000000..4a5a4a7
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.cc
+@@ -0,0 +1,62 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h"
++
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "services/network/public/mojom/content_security_policy.mojom.h"
++#include "ui/webui/webui_util.h"
++#include "url/gurl.h"
++
++SunshineDocumentContentUI::SunshineDocumentContentUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  // A chrome-untrusted:// data source is named by its whole URL rather than by
++  // a bare host; content/public/browser/web_ui_data_source.h states the two
++  // forms and the origin each produces.
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      web_ui->GetWebContents()->GetBrowserContext(),
++      chrome::kChromeUISunshineDocumentContentURL);
++
++  webui::SetupWebUIDataSource(
++      source, sunshine::SurfaceResources("document_content"),
++      IDR_SUNSHINE_DOCUMENT_CONTENT_APP_HTML);
++
++  // Embeddable by the shell and by nothing else. Without this the default
++  // "frame-ancestors 'none';" would refuse the iframe outright;
++  // content::WebUIDataSourceImpl::AddFrameAncestor() CHECKs that the argument
++  // is a chrome:// or chrome-untrusted:// origin, so this cannot be widened to
++  // a website by mistake.
++  source->AddFrameAncestor(GURL(chrome::kChromeUISunshineDocumentURL));
++
++  // DOC-5, stated rather than inherited. "default-src 'self';" already blocks
++  // each of these, but a directive that is only implied is a directive the
++  // next edit can lose without anyone noticing.
++  //
++  // 'self' rather than 'none' for images and media: a document may reference
++  // its own origin, and a data: URL is inline content, not a fetch. Anything
++  // remote is refused, which is what DOCA-4 asks for -- the image shows as
++  // absent and no request leaves the browser.
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ConnectSrc, "connect-src 'none';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ImgSrc, "img-src 'self' data:;");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::MediaSrc, "media-src 'self' data:;");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::FontSrc, "font-src 'self';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ObjectSrc, "object-src 'none';");
++  // The frame embeds nothing of its own, so a document carrying an iframe gets
++  // an empty box rather than a second renderer with a different policy.
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ChildSrc, "child-src 'none';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::FormAction, "form-action 'none';");
++}
++
++SunshineDocumentContentUI::~SunshineDocumentContentUI() = default;
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h
+new file mode 100644
+index 0000000..5db43a7
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h
+@@ -0,0 +1,82 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_CONTENT_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_CONTENT_UI_H_
++
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineDocumentContentUI;
++
++// The unprivileged half of the document surface, at
++// chrome-untrusted://sunshine-document-content.
++//
++// `chrome-untrusted` is **Chromium's** scheme, not one Sunshine registers, so
++// SEC-13 and docs/decisions/0003-internal-scheme.md are untouched; the scheme
++// is already in ALLOWED_SCHEMES in scripts/verify_first_party_surfaces.py for
++// that reason. content/public/browser/webui_config_map.h distinguishes the two
++// schemes explicitly -- AddWebUIConfig() CHECKs that its argument is a
++// chrome:// config and AddUntrustedWebUIConfig() CHECKs the opposite -- which
++// is what makes this a supported arrangement rather than a workaround, and
++// what lets both registrations sit in the seam's existing
++// RegisterWebUIConfigs() with no upstream file touched.
++//
++// content::DefaultWebUIConfig, not DefaultTopChromeWebUIConfig: the latter is
++// the helper for bubble-hosted surfaces, and this frame is hosted in an iframe
++// inside an ordinary tab.
++class SunshineDocumentContentUIConfig
++    : public content::DefaultWebUIConfig<SunshineDocumentContentUI> {
++ public:
++  SunshineDocumentContentUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIUntrustedScheme,
++                           chrome::kChromeUISunshineDocumentContentHost) {}
++};
++
++// Renders one document, and can reach nothing.
++//
++// It receives that document from chrome://sunshine-document by postMessage and
++// has no other way to obtain one: it holds no reference to the store, is given
++// no identifier it could ask about, and cannot name a project, a node, or a
++// document at all. That is DOC-2 -- "the frame receives content, never
++// capability" -- expressed as an absence rather than as a filter.
++//
++// **It is given no Mojo interface either, and the absence is mechanical.** The
++// privileged shell speaks to the browser through the interface declared in
++// sunshine_document.mojom; this class does not. It is a plain
++// content::WebUIController rather than a ui::MojoWebUIController, so it is
++// never granted the kMojoWebUi binding; it declares no BindInterface overload
++// and carries no WEB_UI_CONTROLLER_TYPE_DECL, so there is no type a binder
++// could be registered against; and it is absent from
++// sunshine::RegisterWebUIInterfaceBrokers() in
++// chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h, so
++// WebUIBrowserInterfaceBrokerRegistry::CreateInterfaceBroker() finds nothing
++// for it, returns nullptr, and content/browser/webui/web_ui_impl.cc never
++// reaches the EnableMojoJsBindingsWithBroker() call that would hand this
++// renderer a pipe. Four independent absences, any one of which would be enough.
++//
++// DOC-5 says the frame reaches no network. The policy below states it
++// directly, on top of the "default-src 'self';" that
++// content::URLDataSource::GetContentSecurityPolicy() already returns for every
++// chrome-untrusted:// data source: a document referencing a remote image shows
++// it as absent because the load is refused, not because anything here
++// rewrote the document.
++class SunshineDocumentContentUI : public content::WebUIController {
++ public:
++  explicit SunshineDocumentContentUI(content::WebUI* web_ui);
++
++  SunshineDocumentContentUI(const SunshineDocumentContentUI&) = delete;
++  SunshineDocumentContentUI& operator=(const SunshineDocumentContentUI&) =
++      delete;
++
++  ~SunshineDocumentContentUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_CONTENT_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.cc
+new file mode 100644
+index 0000000..4676cbe
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.cc
+@@ -0,0 +1,154 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h"
++
++#include <map>
++#include <optional>
++#include <string>
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "base/uuid.h"
++#include "components/sunshine/document/document_model.h"
++
++// The generated interface's own namespace, spelled once. `sunshine::document`
++// (the data layer, components/sunshine/document/) and
++// `sunshine::document::mojom` (this surface's declared interface) are
++// deliberately neighbours: the second is how the first reaches the page, and
++// nothing else in Sunshine may reach it at all.
++namespace document_mojom = sunshine::document::mojom;
++
++namespace {
++
++// An identifier crosses the interface as an opaque string and becomes a
++// base::Uuid here. Nothing else is done with it: it is never joined to a path,
++// never used as a filename, and never interpreted as anything but a name the
++// store may or may not know (DOC-6). A string that is not a UUID parses to an
++// invalid one, which matches nothing, which is the behaviour the page already
++// relies on when it asks for a top-level node with an empty parent.
++base::Uuid ParseId(const std::string& text) {
++  return base::Uuid::ParseLowercase(text);
++}
++
++}  // namespace
++
++SunshineDocumentHandler::SunshineDocumentHandler(
++    const base::FilePath& profile_path)
++    : store_(std::make_unique<sunshine::document::ProjectStore>(profile_path)) {
++}
++
++SunshineDocumentHandler::~SunshineDocumentHandler() = default;
++
++void SunshineDocumentHandler::Bind(
++    mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver) {
++  receiver_.reset();
++  receiver_.Bind(std::move(receiver));
++}
++
++void SunshineDocumentHandler::Load(LoadCallback callback) {
++  if (store_->loaded()) {
++    OnStoreLoaded(std::move(callback));
++    return;
++  }
++  // base::Unretained is safe because the store is owned by this handler and
++  // cannot outlive it, so a callback the store still holds is a callback this
++  // handler is still alive to run.
++  store_->Load(base::BindOnce(&SunshineDocumentHandler::OnStoreLoaded,
++                              base::Unretained(this), std::move(callback)));
++}
++
++void SunshineDocumentHandler::OnStoreLoaded(LoadCallback callback) {
++  std::move(callback).Run(Structure());
++}
++
++void SunshineDocumentHandler::CreateProject(const std::string& title,
++                                            CreateProjectCallback callback) {
++  store_->CreateProject(title);
++  std::move(callback).Run(Structure());
++}
++
++void SunshineDocumentHandler::CreateNode(const std::string& project_id,
++                                         const std::string& parent_id,
++                                         const std::string& title,
++                                         CreateNodeCallback callback) {
++  // An absent or unparsable parent is a root node, which is what the page
++  // means when it asks for a top-level entry.
++  store_->CreateNode(ParseId(project_id), ParseId(parent_id), title);
++  std::move(callback).Run(Structure());
++}
++
++void SunshineDocumentHandler::DeleteProject(const std::string& project_id,
++                                            DeleteProjectCallback callback) {
++  store_->DeleteProject(ParseId(project_id));
++  std::move(callback).Run(Structure());
++}
++
++void SunshineDocumentHandler::ReadDocument(const std::string& project_id,
++                                           const std::string& node_id,
++                                           ReadDocumentCallback callback) {
++  const std::optional<std::string> body =
++      store_->GetDocumentBody(ParseId(project_id), ParseId(node_id));
++  // The body travels to the page so the page can hand it to the untrusted
++  // frame, which is the only place it is ever rendered (DOC-1). It is returned
++  // byte for byte as it was stored; nothing here paginates it (DOC-4).
++  std::move(callback).Run(body.value_or(std::string()));
++}
++
++void SunshineDocumentHandler::WriteDocument(const std::string& project_id,
++                                            const std::string& node_id,
++                                            const std::string& body,
++                                            WriteDocumentCallback callback) {
++  std::move(callback).Run(
++      store_->SetDocumentBody(ParseId(project_id), ParseId(node_id), body));
++}
++
++document_mojom::DocumentStructurePtr SunshineDocumentHandler::Structure()
++    const {
++  document_mojom::DocumentStructurePtr structure =
++      document_mojom::DocumentStructure::New();
++  for (const sunshine::document::Project& project : store_->projects()) {
++    // Depth is derived here rather than stored, because a stored depth is a
++    // second statement of the same fact that a move has to remember to update.
++    std::map<std::string, std::string> parents;
++    for (const sunshine::document::Node& node : project.nodes) {
++      parents[node.id.AsLowercaseString()] =
++          node.parent.is_valid() ? node.parent.AsLowercaseString()
++                                 : std::string();
++    }
++
++    document_mojom::DocumentProjectPtr stored =
++        document_mojom::DocumentProject::New();
++    stored->id = project.id.AsLowercaseString();
++    stored->title = project.title;
++
++    // Depth-first, siblings in order key order: the reading order the contract
++    // fixes in section 3, computed once in the data layer so the shell cannot
++    // invent a different one.
++    for (const sunshine::document::Node* node :
++         sunshine::document::ReadingOrder(project)) {
++      int depth = 0;
++      std::string walk = node->parent.is_valid()
++                             ? node->parent.AsLowercaseString()
++                             : std::string();
++      while (!walk.empty() && depth < static_cast<int>(project.nodes.size())) {
++        ++depth;
++        const auto found = parents.find(walk);
++        walk = found == parents.end() ? std::string() : found->second;
++      }
++
++      document_mojom::DocumentNodePtr entry =
++          document_mojom::DocumentNode::New();
++      entry->id = node->id.AsLowercaseString();
++      entry->title = node->title;
++      entry->depth = depth;
++      entry->has_document = node->document.is_valid();
++      stored->nodes.push_back(std::move(entry));
++    }
++
++    structure->projects.push_back(std::move(stored));
++  }
++
++  return structure;
++}
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h
+new file mode 100644
+index 0000000..6afec05
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h
+@@ -0,0 +1,96 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_HANDLER_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_HANDLER_H_
++
++#include <memory>
++#include <string>
++
++#include "base/files/file_path.h"
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
++#include "components/sunshine/document/project_store.h"
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "mojo/public/cpp/bindings/receiver.h"
++
++// The browser half of the document shell's one host interface.
++//
++// docs/decisions/0013-module-data-portability.md section 2.5 requires that a
++// module's web assets talk to whatever hosts them "through a single, named,
++// explicitly-declared interface, and through nothing else". That interface is
++// chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom, and this
++// class is the browser's implementation of it. The page half is
++// chrome/browser/resources/sunshine/document/host.ts.
++//
++// **What Mojo changed, and why it tightened section 2.5 rather than relaxing
++// it.** This class used to be a content::WebUIMessageHandler that registered
++// six string message names, unpacked positional base::Value arguments by index,
++// and resolved a callback id. The interface therefore existed twice -- once
++// here and once in host.ts -- with nothing but a comment holding the two copies
++// in agreement, and nothing at all checking that a request carried the
++// arguments its handler expected. Both halves are now generated from the one
++// .mojom: the six methods below are overrides, so a name, an argument or a
++// return type that drifts from the declaration does not compile. There is no
++// longer anywhere to add a seventh request to one side alone.
++//
++// The requests carry identifiers and text. None of them names a file, a
++// directory, or anything else the page could turn into a location: DOC-6 keeps
++// paths out of the model, and this interface is where that would otherwise leak
++// back in. Identifiers arrive as opaque strings and are parsed into
++// base::Uuid here; an unparsable one is simply an identifier that matches
++// nothing.
++//
++// This class holds no project state of its own. The model lives in
++// components/sunshine/document/, per section 2.1, and this handler translates
++// between it and the page.
++class SunshineDocumentHandler
++    : public sunshine::document::mojom::DocumentHost {
++ public:
++  explicit SunshineDocumentHandler(const base::FilePath& profile_path);
++
++  SunshineDocumentHandler(const SunshineDocumentHandler&) = delete;
++  SunshineDocumentHandler& operator=(const SunshineDocumentHandler&) = delete;
++
++  ~SunshineDocumentHandler() override;
++
++  // Binds the page's end of the interface. The receiver is reset first so that
++  // a reused WebUI -- content/browser/webui/web_ui_impl.h says
++  // SetUpMojoInterfaceBroker() "may be called multiple times if the WebUI is
++  // reused" -- rebinds rather than CHECK-failing on an already-bound receiver.
++  void Bind(
++      mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver);
++
++  // sunshine::document::mojom::DocumentHost:
++  void Load(LoadCallback callback) override;
++  void CreateProject(const std::string& title,
++                     CreateProjectCallback callback) override;
++  void CreateNode(const std::string& project_id,
++                  const std::string& parent_id,
++                  const std::string& title,
++                  CreateNodeCallback callback) override;
++  void DeleteProject(const std::string& project_id,
++                     DeleteProjectCallback callback) override;
++  void ReadDocument(const std::string& project_id,
++                    const std::string& node_id,
++                    ReadDocumentCallback callback) override;
++  void WriteDocument(const std::string& project_id,
++                     const std::string& node_id,
++                     const std::string& body,
++                     WriteDocumentCallback callback) override;
++
++ private:
++  void OnStoreLoaded(LoadCallback callback);
++
++  // The structure of every project: identifiers, titles, and the reading
++  // order. No document body is ever part of this -- DOC-1 forbids project
++  // content in the privileged document, so the shell is told what exists and
++  // never what it says.
++  sunshine::document::mojom::DocumentStructurePtr Structure() const;
++
++  std::unique_ptr<sunshine::document::ProjectStore> store_;
++
++  mojo::Receiver<sunshine::document::mojom::DocumentHost> receiver_{this};
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_HANDLER_H_
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
+new file mode 100644
+index 0000000..29ca52d
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
+@@ -0,0 +1,64 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
++
++#include <memory>
++#include <utility>
++
++#include "base/strings/strcat.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_handler.h"
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "services/network/public/mojom/content_security_policy.mojom.h"
++#include "ui/webui/webui_util.h"
++
++SunshineDocumentUI::SunshineDocumentUI(content::WebUI* web_ui)
++    : ui::MojoWebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++
++  // The store lives under the profile directory and nowhere else (DOC-3). The
++  // path is composed once, here, from the profile's own directory; the handler
++  // and the data layer never receive one from the page, and no method of the
++  // page's interface can carry one.
++  handler_ = std::make_unique<SunshineDocumentHandler>(profile->GetPath());
++
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, chrome::kChromeUISunshineDocumentHost);
++
++  // Every Sunshine surface is built into one resource bundle; this asks for the
++  // "document/" part of it. The untrusted frame's assets are under
++  // "document_content/", which this prefix does not match, so the privileged
++  // page cannot serve them and the two halves stay two halves.
++  // chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h.
++  //
++  // The generated Mojo bindings are part of that "document/" set:
++  // chrome/browser/resources/sunshine/BUILD.gn copies them into the bundle
++  // under the surface's own directory, so they are served from this page and
++  // from no other.
++  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("document"),
++                              IDR_SUNSHINE_DOCUMENT_APP_HTML);
++
++  // A WebUI data source forbids every frame by default -- URLDataSource's own
++  // GetContentSecurityPolicy() returns "child-src 'none';" -- so the one origin
++  // this page is allowed to embed has to be named. It is named exactly once and
++  // it is a chrome-untrusted:// origin, which is Chromium's scheme and not one
++  // Sunshine registers (SEC-13, ADR 0003).
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ChildSrc,
++      base::StrCat({"child-src ", chrome::kChromeUISunshineDocumentContentURL,
++                    ";"}));
++}
++
++SunshineDocumentUI::~SunshineDocumentUI() = default;
++
++WEB_UI_CONTROLLER_TYPE_IMPL(SunshineDocumentUI)
++
++void SunshineDocumentUI::BindInterface(
++    mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver) {
++  handler_->Bind(std::move(receiver));
++}
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h
+new file mode 100644
+index 0000000..d57ccb2
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h
+@@ -0,0 +1,91 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_UI_H_
++
++#include <memory>
++
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "ui/webui/mojo_web_ui_controller.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineDocumentHandler;
++class SunshineDocumentUI;
++
++// The privileged half of the document surface, at chrome://sunshine-document.
++//
++// Registered through content's WebUI config map, like every Sunshine surface;
++// docs/decisions/0003-internal-scheme.md records why Sunshine registers no
++// scheme of its own.
++class SunshineDocumentUIConfig
++    : public content::DefaultWebUIConfig<SunshineDocumentUI> {
++ public:
++  SunshineDocumentUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUISunshineDocumentHost) {}
++};
++
++// Lists projects, shows the hierarchy as a table of contents in reading order,
++// and lets a person create a project, add a node, and author or paste the HTML
++// of a node's document.
++//
++// It renders none of that HTML. docs/DOCUMENT_SURFACE_CONTRACT.md section 1 is
++// the one structural decision the rest of the surface follows from: project
++// content is authored by a person, a WebUI page runs at a privilege no website
++// has, and rendering the first inside the second is the failure
++// docs/SECURITY_ARCHITECTURE_CONTRACT.md exists to prevent. The content goes to
++// chrome-untrusted://sunshine-document-content, in an iframe, by postMessage.
++//
++// The content security policy set in the constructor is the browser-side half
++// of that arrangement: this page may embed exactly one origin, and it is
++// Chromium's own untrusted scheme rather than anything Sunshine registered.
++//
++// **ui::MojoWebUIController, and what it takes away.** The base class exists to
++// grant one binding and, by default, to withhold another:
++// ui/webui/mojo_web_ui_controller.cc puts kMojoWebUi into this page's
++// content::BindingsPolicySet and adds kWebUi only when `enable_chrome_send` is
++// passed. It is not passed here. The page therefore has Mojo and does not have
++// chrome.send at all -- the mechanism this surface used to be written against
++// is not merely unused, it is absent -- which is the browser-side counterpart
++// of the eslint rule that refuses `chrome.send` and `//resources/js/cr.js` in
++// any new WebUI's TypeScript.
++//
++// The single interface the page may ask for is declared in
++// sunshine_document.mojom and bound below. The binder is registered in
++// chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h, beside the config
++// registrations, so a surface that speaks Mojo still costs no upstream file.
++class SunshineDocumentUI : public ui::MojoWebUIController {
++ public:
++  explicit SunshineDocumentUI(content::WebUI* web_ui);
++
++  SunshineDocumentUI(const SunshineDocumentUI&) = delete;
++  SunshineDocumentUI& operator=(const SunshineDocumentUI&) = delete;
++
++  ~SunshineDocumentUI() override;
++
++  // The one interface this page is offered. Everything the shell may ask of
++  // the browser arrives through it, per
++  // docs/decisions/0013-module-data-portability.md section 2.5.
++  void BindInterface(
++      mojo::PendingReceiver<sunshine::document::mojom::DocumentHost> receiver);
++
++ private:
++  std::unique_ptr<SunshineDocumentHandler> handler_;
++
++  // Gives this controller the identity that
++  // content::WebUIBrowserInterfaceBrokerRegistry registers a binder against,
++  // and that content::WebUIController::GetAs() downcasts by. Without it the
++  // registration in sunshine_webui_registry.h has nothing to name.
++  WEB_UI_CONTROLLER_TYPE_DECL();
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DOCUMENT_SUNSHINE_DOCUMENT_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index adaf8ce..b04bb4d 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -13,13 +13,91 @@
+ 
+ #include <memory>
+ 
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h"
++#include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
++#include "content/public/browser/web_ui_browser_interface_broker_registry.h"
+ #include "content/public/browser/webui_config_map.h"
+ 
+ namespace sunshine {
+ 
++// The second half of the seam: which Mojo interface each Sunshine surface may
++// ask the browser for.
++//
++// **Why this is here and not where Chromium's own surfaces do it.** Chrome
++// registers its WebUI interface brokers from
++// chrome/browser/chrome_browser_interface_binders_webui.cc, through
++// ChromeContentBrowserClient::RegisterTrustedWebUIInterfaceBrokers(). That is
++// an upstream file this patch stack does not touch, and touching it would make
++// a thirteenth -- the exact cost that
++// docs/decisions/0007-module-contribution-seam.md built this seam to avoid, and
++// the same cost the seam already avoided for config registration.
++//
++// **Why registering from here works, read from the pinned sources rather than
++// assumed.** content/browser/web_ui_browser_interface_broker_registry.cc holds
++// the trusted registry in a `base::NoDestructor` behind the public static
++// WebUIBrowserInterfaceBrokerRegistry::GetTrustedRegistry(), and its own header
++// documents the call shape used below:
++//
++//     registry.ForWebUI<ControllerType>
++//        .Add<Interface1>()
++//        .Add<Interface2>();
++//
++// The registry is read, not copied, at the moment a broker is needed:
++// CreateInterfaceBroker() looks its controller type up in
++// `binder_initializers_` each time it is called, and
++// content/browser/webui/web_ui_impl.cc calls it from
++// WebUIImpl::SetUpMojoInterfaceBroker(), once per WebUI navigation. Everything
++// below therefore has to happen before the first navigation to a Sunshine
++// surface, and it does: RegisterWebUIConfigs() is called from
++// RegisterChromeWebUIConfigs(), which chrome/browser/chrome_browser_main.cc
++// calls inside PreMainMessageLoopRunImpl(), immediately after PreProfileInit()
++// and before the first profile exists -- long before any tab has navigated
++// anywhere.
++//
++// The one visible difference from upstream's arrangement is that touching the
++// registry here forces its lazy construction slightly earlier than the first
++// WebUI navigation would. That construction runs chrome's own
++// RegisterTrustedWebUIInterfaceBrokers(), which reads feature state; the
++// feature list is initialised during early startup, well before
++// PreMainMessageLoopRunImpl(), so it reads the same values either way.
++inline void RegisterWebUIInterfaceBrokers() {
++  // The document shell's single named host interface, and the whole of what the
++  // page may ask for -- docs/decisions/0013-module-data-portability.md section
++  // 2.5. It is declared once, in
++  // chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.
++  //
++  // Note which controller is named, and which is not. SunshineDocumentUI is
++  // the privileged shell at chrome://sunshine-document.
++  // SunshineDocumentContentUI -- the untrusted frame that renders project HTML
++  // -- is deliberately absent from this function, declares no BindInterface,
++  // and carries no
++  // WEB_UI_CONTROLLER_TYPE_DECL, so
++  // WebUIBrowserInterfaceBrokerRegistry::CreateInterfaceBroker() finds nothing
++  // for it and returns nullptr, and no broker is ever handed to that renderer.
++  // The frame receives a document body by postMessage and nothing else. That is
++  // DOC-2 -- "the frame receives content, never capability" -- expressed as an
++  // absence rather than as a filter, and giving that frame a pipe is the one
++  // thing this design forbids.
++  content::WebUIBrowserInterfaceBrokerRegistry::GetTrustedRegistry()
++      .ForWebUI<SunshineDocumentUI>()
++      .Add<::sunshine::document::mojom::DocumentHost>();
++}
++
+ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
++  map.AddWebUIConfig(std::make_unique<SunshineDocumentUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
++
++  // The document surface's unprivileged half. It is the same singleton and the
++  // same function: content/public/browser/webui_config_map.h declares
++  // AddUntrustedWebUIConfig() beside AddWebUIConfig() and each CHECKs the
++  // scheme of its argument, so a chrome-untrusted:// surface costs no fifth
++  // upstream file and no second registration point.
++  map.AddUntrustedWebUIConfig(
++      std::make_unique<SunshineDocumentContentUIConfig>());
++
++  RegisterWebUIInterfaceBrokers();
+ }
+ 
+ }  // namespace sunshine
+diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
+index d77e441..2ea7da4 100644
+--- a/chrome/common/sunshine/sunshine_webui_hosts.h
++++ b/chrome/common/sunshine/sunshine_webui_hosts.h
+@@ -20,6 +20,19 @@
+ 
+ namespace chrome {
+ 
++// The Sunshine document surface. Two hosts, one surface: the privileged shell
++// and the unprivileged frame it embeds. docs/DOCUMENT_SURFACE_CONTRACT.md
++// section 1 is why they are two, and `chrome-untrusted` is Chromium's own
++// scheme -- content/public/common/url_constants.h declares
++// kChromeUIUntrustedScheme -- so ADR 0003 and SEC-13 are untouched.
++inline constexpr char kChromeUISunshineDocumentHost[] = "sunshine-document";
++inline constexpr char kChromeUISunshineDocumentURL[] =
++    "chrome://sunshine-document/";
++inline constexpr char kChromeUISunshineDocumentContentHost[] =
++    "sunshine-document-content";
++inline constexpr char kChromeUISunshineDocumentContentURL[] =
++    "chrome-untrusted://sunshine-document-content/";
++
+ // The Sunshine Security Center. Sunshine registers no URL scheme of its
+ // own; see docs/decisions/0003-internal-scheme.md. The host is prefixed so
+ // that it cannot be mistaken for kSecuritySubPage in
+@@ -31,7 +44,11 @@ inline constexpr char kChromeUISunshineSecurityURL[] =
+ // Every Sunshine WebUI host, offered to the omnibox's built-in provider
+ // through the loop in ChromeURLHosts(). Empty until the first surface patch
+ // appends to it.
++// Only the chrome:// hosts are offered here. chrome-untrusted:// pages are not
++// navigated to by name -- the document frame is reachable only as the shell's
++// iframe -- and ChromeURLHosts() is the omnibox's list of chrome:// pages.
+ inline constexpr auto kSunshineWebUIHosts = std::to_array<base::cstring_view>({
++      kChromeUISunshineDocumentHost,
+       kChromeUISunshineSecurityHost,
+ });
+ 
+diff --git a/components/sunshine/document/BUILD.gn b/components/sunshine/document/BUILD.gn
+new file mode 100644
+index 0000000..2c1d1bf
+--- /dev/null
++++ b/components/sunshine/document/BUILD.gn
+@@ -0,0 +1,31 @@
++# Copyright 2026 The Sunshine OS contributors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++#
++# The document module's data layer, and the whole of it.
++# docs/decisions/0013-module-data-portability.md section 2.1 places a module's
++# model here rather than in the surface that displays it, and the reason is
++# stated in Chromium's own terms: components/ is where non-UI logic lives so
++# that ports whose UI and web engine have nothing in common can share it. The
++# dependency below is the rule in mechanical form -- //base and nothing else.
++# There is no //chrome dependency, no //content dependency, and no UI.
++#
++# There is also no network dependency, per section 2.4: a later, separately
++# reviewed component may read this data layer, but the data layer itself has
++# no client, no endpoint, and no knowledge that a second device could exist.
++#
++# This target is new. chrome/browser/ui/webui/sunshine/BUILD.gn -- a file the
++# seam patch created -- depends on it, so no upstream BUILD.gn is touched.
++
++source_set("document") {
++  sources = [
++    "document_model.cc",
++    "document_model.h",
++    "order_key.cc",
++    "order_key.h",
++    "project_store.cc",
++    "project_store.h",
++  ]
++
++  public_deps = [ "//base" ]
++}
+diff --git a/components/sunshine/document/document_model.cc b/components/sunshine/document/document_model.cc
+new file mode 100644
+index 0000000..bbde38b
+--- /dev/null
++++ b/components/sunshine/document/document_model.cc
+@@ -0,0 +1,263 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/sunshine/document/document_model.h"
++
++#include <algorithm>
++#include <map>
++#include <utility>
++
++#include "base/json/values_util.h"
++#include "components/sunshine/document/order_key.h"
++
++namespace sunshine::document {
++
++namespace {
++
++// Field names of the stored form. They are the model's names, not a path, a
++// filename, or anything else that could reintroduce the filesystem as the
++// model (DOC-6).
++constexpr char kId[] = "id";
++constexpr char kTitle[] = "title";
++constexpr char kTitleModified[] = "title_modified";
++constexpr char kNodes[] = "nodes";
++constexpr char kDocuments[] = "documents";
++constexpr char kParent[] = "parent";
++constexpr char kDocument[] = "document";
++constexpr char kOrderKey[] = "order_key";
++constexpr char kOrderModified[] = "order_modified";
++constexpr char kBody[] = "body";
++constexpr char kBodyModified[] = "body_modified";
++
++base::Uuid ReadUuid(const base::DictValue& value, const char* key) {
++  const std::string* text = value.FindString(key);
++  return text ? base::Uuid::ParseLowercase(*text) : base::Uuid();
++}
++
++base::Time ReadTime(const base::DictValue& value, const char* key) {
++  const base::Value* stored = value.Find(key);
++  if (!stored) {
++    return base::Time();
++  }
++  return base::ValueToTime(*stored).value_or(base::Time());
++}
++
++void WriteUuid(base::DictValue& value, const char* key, const base::Uuid& id) {
++  if (id.is_valid()) {
++    value.Set(key, id.AsLowercaseString());
++  }
++}
++
++}  // namespace
++
++Document::Document() = default;
++Document::Document(const Document&) = default;
++Document& Document::operator=(const Document&) = default;
++Document::Document(Document&&) = default;
++Document& Document::operator=(Document&&) = default;
++Document::~Document() = default;
++
++Node::Node() = default;
++Node::Node(const Node&) = default;
++Node& Node::operator=(const Node&) = default;
++Node::Node(Node&&) = default;
++Node& Node::operator=(Node&&) = default;
++Node::~Node() = default;
++
++Project::Project() = default;
++Project::Project(const Project&) = default;
++Project& Project::operator=(const Project&) = default;
++Project::Project(Project&&) = default;
++Project& Project::operator=(Project&&) = default;
++Project::~Project() = default;
++
++std::vector<const Node*> ReadingOrder(const Project& project) {
++  // Children keyed by parent. The empty string keys the roots, because an
++  // invalid Uuid has no lowercase form and a project's roots are exactly the
++  // nodes whose parent is invalid.
++  std::map<std::string, std::vector<const Node*>> children;
++  for (const Node& node : project.nodes) {
++    children[node.parent.is_valid() ? node.parent.AsLowercaseString()
++                                    : std::string()]
++        .push_back(&node);
++  }
++
++  for (auto& [parent, siblings] : children) {
++    // Order key first, identity second. The tie-break is on the stable
++    // identifier rather than on position in the vector, so two devices that
++    // somehow assigned the same key still agree on the order they display.
++    std::sort(siblings.begin(), siblings.end(),
++              [](const Node* left, const Node* right) {
++                if (left->order_key != right->order_key) {
++                  return left->order_key < right->order_key;
++                }
++                return left->id.AsLowercaseString() <
++                       right->id.AsLowercaseString();
++              });
++  }
++
++  std::vector<const Node*> order;
++  // An explicit stack rather than recursion: the hierarchy comes from stored
++  // data, and a deep or cyclic file must not be able to exhaust the stack.
++  // `seen` also makes a cycle terminate instead of looping.
++  std::vector<const Node*> pending;
++  std::map<std::string, bool> seen;
++  const auto roots = children.find(std::string());
++  if (roots != children.end()) {
++    for (auto sibling = roots->second.rbegin(); sibling != roots->second.rend();
++         ++sibling) {
++      pending.push_back(*sibling);
++    }
++  }
++  while (!pending.empty()) {
++    const Node* node = pending.back();
++    pending.pop_back();
++    const std::string key = node->id.AsLowercaseString();
++    if (seen[key]) {
++      continue;
++    }
++    seen[key] = true;
++    order.push_back(node);
++    const auto found = children.find(key);
++    if (found == children.end()) {
++      continue;
++    }
++    for (auto child = found->second.rbegin(); child != found->second.rend();
++         ++child) {
++      pending.push_back(*child);
++    }
++  }
++  return order;
++}
++
++const Node* FindNode(const Project& project, const base::Uuid& id) {
++  for (const Node& node : project.nodes) {
++    if (node.id == id) {
++      return &node;
++    }
++  }
++  return nullptr;
++}
++
++const Document* FindDocumentFor(const Project& project, const Node& node) {
++  if (!node.document.is_valid()) {
++    return nullptr;
++  }
++  for (const Document& document : project.documents) {
++    if (document.id == node.document) {
++      return &document;
++    }
++  }
++  return nullptr;
++}
++
++base::DictValue ToValue(const Project& project) {
++  base::ListValue nodes;
++  for (const Node& node : project.nodes) {
++    base::DictValue stored;
++    WriteUuid(stored, kId, node.id);
++    WriteUuid(stored, kParent, node.parent);
++    WriteUuid(stored, kDocument, node.document);
++    stored.Set(kTitle, node.title);
++    stored.Set(kOrderKey, node.order_key);
++    stored.Set(kTitleModified, base::TimeToValue(node.title_modified));
++    stored.Set(kOrderModified, base::TimeToValue(node.order_modified));
++    nodes.Append(std::move(stored));
++  }
++
++  base::ListValue documents;
++  for (const Document& document : project.documents) {
++    base::DictValue stored;
++    WriteUuid(stored, kId, document.id);
++    // Stored and returned unchanged; see DOC-4 and the Document comment.
++    stored.Set(kBody, document.body);
++    stored.Set(kBodyModified, base::TimeToValue(document.body_modified));
++    documents.Append(std::move(stored));
++  }
++
++  base::DictValue value;
++  WriteUuid(value, kId, project.id);
++  value.Set(kTitle, project.title);
++  value.Set(kTitleModified, base::TimeToValue(project.title_modified));
++  value.Set(kNodes, std::move(nodes));
++  value.Set(kDocuments, std::move(documents));
++  return value;
++}
++
++std::optional<Project> FromValue(const base::DictValue& value) {
++  Project project;
++  project.id = ReadUuid(value, kId);
++  if (!project.id.is_valid()) {
++    // A project with no identity is not a project this layer can talk about:
++    // nothing could name it, and a later merge could not match it. Dropping it
++    // is the only honest reading, because inventing an identifier here is the
++    // retrofit section 2.2 describes, one file at a time.
++    return std::nullopt;
++  }
++  const std::string* title = value.FindString(kTitle);
++  project.title = title ? *title : std::string();
++  project.title_modified = ReadTime(value, kTitleModified);
++
++  if (const base::ListValue* nodes = value.FindList(kNodes)) {
++    for (const base::Value& entry : *nodes) {
++      const base::DictValue* stored = entry.GetIfDict();
++      if (!stored) {
++        continue;
++      }
++      Node node;
++      node.id = ReadUuid(*stored, kId);
++      if (!node.id.is_valid()) {
++        continue;
++      }
++      node.parent = ReadUuid(*stored, kParent);
++      node.document = ReadUuid(*stored, kDocument);
++      const std::string* node_title = stored->FindString(kTitle);
++      node.title = node_title ? *node_title : std::string();
++      const std::string* order_key = stored->FindString(kOrderKey);
++      node.order_key = order_key ? *order_key : std::string();
++      node.title_modified = ReadTime(*stored, kTitleModified);
++      node.order_modified = ReadTime(*stored, kOrderModified);
++      project.nodes.push_back(std::move(node));
++    }
++  }
++
++  if (const base::ListValue* documents = value.FindList(kDocuments)) {
++    for (const base::Value& entry : *documents) {
++      const base::DictValue* stored = entry.GetIfDict();
++      if (!stored) {
++        continue;
++      }
++      Document document;
++      document.id = ReadUuid(*stored, kId);
++      if (!document.id.is_valid()) {
++        continue;
++      }
++      const std::string* body = stored->FindString(kBody);
++      document.body = body ? *body : std::string();
++      document.body_modified = ReadTime(*stored, kBodyModified);
++      project.documents.push_back(std::move(document));
++    }
++  }
++
++  // Re-key anything the order-key type cannot use. A stored key that violates
++  // order_key.h's invariant would leave a gap nothing can be inserted into, so
++  // it is repaired on the way in rather than allowed to wedge the tree. The
++  // repair preserves the order the file already expressed: the keys are
++  // rebuilt in the order the malformed values sorted in.
++  std::vector<Node*> unusable;
++  for (Node& node : project.nodes) {
++    if (!IsWellFormedOrderKey(node.order_key)) {
++      unusable.push_back(&node);
++    }
++  }
++  std::string previous;
++  for (Node* node : unusable) {
++    node->order_key = OrderKeyBetween(previous, std::string_view());
++    previous = node->order_key;
++  }
++
++  return project;
++}
++
++}  // namespace sunshine::document
+diff --git a/components/sunshine/document/document_model.h b/components/sunshine/document/document_model.h
+new file mode 100644
+index 0000000..3cadbbc
+--- /dev/null
++++ b/components/sunshine/document/document_model.h
+@@ -0,0 +1,128 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_SUNSHINE_DOCUMENT_DOCUMENT_MODEL_H_
++#define COMPONENTS_SUNSHINE_DOCUMENT_DOCUMENT_MODEL_H_
++
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "base/time/time.h"
++#include "base/uuid.h"
++#include "base/values.h"
++
++namespace sunshine::document {
++
++// A project of documents, arranged in a hierarchy.
++//
++// Two rules shape every type below and are worth stating once here rather than
++// on each field.
++//
++// **Identity is not position** --
++// docs/decisions/0013-module-data-portability.md section 2.2. Every project,
++// node and document carries a `base::Uuid` that survives being moved in the
++// hierarchy, renamed, or edited on another device. The shape is Chromium's
++// own: components/bookmarks/browser/bookmark_node.h at 152.0.7977.42 carries
++// an `int64_t id_` that is local to one device beside a UUID whose header says
++// it "is consistent across different clients". A model with only the first
++// kind of identifier cannot say "this is the same node you have". Sunshine
++// keeps only the second kind, because it has no session-restore mapping that
++// needs a small integer and a second identifier nothing reads is a second
++// identifier that can drift.
++//
++// **A node names a document; it never names a location on disk** -- DOC-6.
++// `Node::document` is a `base::Uuid`, and no type here has a path field. How
++// the bytes reach the disk is `ProjectStore`'s business and appears nowhere in
++// the model, which is what makes DOCA-2 decidable by reading this header.
++
++// One stored document body.
++//
++// The body is opaque to this layer. DOC-4 fixes that "the stored document is
++// never rewritten to paginate, so what is read back is what was stored", so
++// nothing here parses, normalises, or re-serialises it -- pagination is the
++// shell's presentation problem and never reaches storage.
++struct Document {
++  Document();
++  Document(const Document&);
++  Document& operator=(const Document&);
++  Document(Document&&);
++  Document& operator=(Document&&);
++  ~Document();
++
++  base::Uuid id;
++  std::string body;
++  base::Time body_modified;
++};
++
++// One node of the hierarchy: a title, an order among its siblings, and either
++// children or a document.
++struct Node {
++  Node();
++  Node(const Node&);
++  Node& operator=(const Node&);
++  Node(Node&&);
++  Node& operator=(Node&&);
++  ~Node();
++
++  base::Uuid id;
++  // Invalid for a node at the root of its project.
++  base::Uuid parent;
++  // Invalid for a node that carries children rather than a body.
++  base::Uuid document;
++  std::string title;
++  // See components/sunshine/document/order_key.h.
++  std::string order_key;
++
++  // Section 2.3 rules out "last-write-wins over a whole record where a
++  // field-level merge was possible": a title edit on one device and a reorder
++  // on the other are independent changes, and collapsing them into one
++  // last-modified stamp destroys one of them for no reason but the storage
++  // shape. These two fields do not decide a conflict policy -- the ADR leaves
++  // that open -- they preserve the possibility of deciding it well.
++  base::Time title_modified;
++  base::Time order_modified;
++};
++
++// A named hierarchy of documents.
++struct Project {
++  Project();
++  Project(const Project&);
++  Project& operator=(const Project&);
++  Project(Project&&);
++  Project& operator=(Project&&);
++  ~Project();
++
++  base::Uuid id;
++  std::string title;
++  base::Time title_modified;
++  std::vector<Node> nodes;
++  std::vector<Document> documents;
++};
++
++// The reading order: the depth-first traversal of the hierarchy, siblings in
++// order key order. docs/DOCUMENT_SURFACE_CONTRACT.md section 3 fixes this and
++// says why -- it makes the structure the table of contents rather than
++// something separate to maintain, and a node moved in the tree moves in the
++// reading order too. Nothing else in Sunshine may define a second order.
++//
++// Nodes whose parent is missing are unreachable rather than silently promoted
++// to the root: promoting them would invent an order the author never gave.
++std::vector<const Node*> ReadingOrder(const Project& project);
++
++// The node with `id`, or null.
++const Node* FindNode(const Project& project, const base::Uuid& id);
++
++// The document body `node` names, or null when it names none.
++const Document* FindDocumentFor(const Project& project, const Node& node);
++
++// Serialisation. The on-disk representation is an implementation detail of
++// this layer: it is a `base::DictValue` here and JSON on disk, and no caller
++// above this layer sees either.
++base::DictValue ToValue(const Project& project);
++std::optional<Project> FromValue(const base::DictValue& value);
++
++}  // namespace sunshine::document
++
++#endif  // COMPONENTS_SUNSHINE_DOCUMENT_DOCUMENT_MODEL_H_
+diff --git a/components/sunshine/document/order_key.cc b/components/sunshine/document/order_key.cc
+new file mode 100644
+index 0000000..a7c29d8
+--- /dev/null
++++ b/components/sunshine/document/order_key.cc
+@@ -0,0 +1,69 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/sunshine/document/order_key.h"
++
++#include <stddef.h>
++
++namespace sunshine::document {
++
++namespace {
++
++// ASCII order, so lexicographic comparison of two keys is comparison of the
++// digit sequences they denote.
++constexpr std::string_view kDigits =
++    "0123456789"
++    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
++    "abcdefghijklmnopqrstuvwxyz";
++
++// The position of `digit` in kDigits, or kDigits.size() if it is not a digit.
++// `find` rather than arithmetic on a pointer: Chromium compiles this tree with
++// -Wunsafe-buffer-usage promoted to an error, and pointer arithmetic on a
++// character buffer is exactly what that rejects.
++size_t IndexOf(char digit) {
++  const size_t position = kDigits.find(digit);
++  return position == std::string_view::npos ? kDigits.size() : position;
++}
++
++}  // namespace
++
++std::string OrderKeyBetween(std::string_view before, std::string_view after) {
++  std::string key;
++  for (size_t index = 0;; ++index) {
++    // `before` runs out into the lowest digit; `after` runs out into one past
++    // the highest, which is why an empty `after` yields a key above every
++    // existing one rather than a key equal to the last.
++    const size_t lower = index < before.size() ? IndexOf(before[index]) : 0;
++    const size_t upper =
++        index < after.size() ? IndexOf(after[index]) : kDigits.size();
++
++    // `lower + 1` rather than `upper - lower`: on a malformed stored key the
++    // subtraction can wrap, and a wrapped size_t compares greater than 1.
++    if (upper > lower + 1) {
++      // The midpoint is at least lower + 1, so the last character is never the
++      // lowest digit. That is the invariant the header describes.
++      key.push_back(kDigits[lower + (upper - lower) / 2]);
++      return key;
++    }
++
++    // Nothing fits between the two digits at this position, so copy this
++    // position and decide at the next one. The loop always terminates: once
++    // `index` passes both inputs, lower is 0 and upper is kDigits.size().
++    key.push_back(index < before.size() ? before[index] : kDigits.front());
++  }
++}
++
++bool IsWellFormedOrderKey(std::string_view key) {
++  if (key.empty()) {
++    return false;
++  }
++  for (const char digit : key) {
++    if (IndexOf(digit) == kDigits.size()) {
++      return false;
++    }
++  }
++  return key.back() != kDigits.front();
++}
++
++}  // namespace sunshine::document
+diff --git a/components/sunshine/document/order_key.h b/components/sunshine/document/order_key.h
+new file mode 100644
+index 0000000..f83ffc7
+--- /dev/null
++++ b/components/sunshine/document/order_key.h
+@@ -0,0 +1,45 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_SUNSHINE_DOCUMENT_ORDER_KEY_H_
++#define COMPONENTS_SUNSHINE_DOCUMENT_ORDER_KEY_H_
++
++#include <string>
++#include <string_view>
++
++namespace sunshine::document {
++
++// An explicit order key for one node among its siblings.
++//
++// docs/decisions/0013-module-data-portability.md section 2.3 rules out
++// "ordering that depends on insertion sequence alone": a dense 0, 1, 2 index
++// has to renumber every later sibling on each insert, which turns one user
++// action into an edit of every neighbour and a merge into a conflict on nodes
++// nobody touched. A key that can be assigned *between* two existing
++// neighbours without disturbing either is the alternative, and the ADR is
++// explicit that it is "a choice about the field's type, made once".
++//
++// The type is a string ordered lexicographically over the 62 characters
++// '0'-'9', 'A'-'Z', 'a'-'z', in that order -- which is plain ASCII order, so
++// std::string's own comparison is the ordering and no comparator has to
++// travel with the data.
++//
++// One invariant makes the type dense: a key returned here never ends in the
++// lowest digit '0'. Without it there is no key between "V" and "V0", because
++// anything between must begin "V" and continue with a digit below '0'. With
++// it, a key strictly between any two keys this function produced always
++// exists. `ProjectStore` re-keys any stored value that violates the invariant
++// when it loads, so a hand-edited file cannot get the tree stuck.
++//
++// `before` empty means "before every sibling"; `after` empty means "after
++// every sibling". Both empty asks for the first key in an empty list.
++std::string OrderKeyBetween(std::string_view before, std::string_view after);
++
++// Whether `key` is one this file could have produced: non-empty, drawn from
++// the 62 digits, and not ending in the lowest one.
++bool IsWellFormedOrderKey(std::string_view key);
++
++}  // namespace sunshine::document
++
++#endif  // COMPONENTS_SUNSHINE_DOCUMENT_ORDER_KEY_H_
+diff --git a/components/sunshine/document/project_store.cc b/components/sunshine/document/project_store.cc
+new file mode 100644
+index 0000000..c151868
+--- /dev/null
++++ b/components/sunshine/document/project_store.cc
+@@ -0,0 +1,296 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/sunshine/document/project_store.h"
++
++#include <utility>
++
++#include "base/files/file_util.h"
++#include "base/functional/bind.h"
++#include "base/functional/callback.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/task/sequenced_task_runner.h"
++#include "base/task/task_traits.h"
++#include "base/task/thread_pool.h"
++#include "base/time/time.h"
++#include "base/values.h"
++#include "components/sunshine/document/order_key.h"
++
++namespace sunshine::document {
++
++namespace {
++
++// One file, inside the profile directory, named for what it holds and not for
++// any project in it. DOC-3 is the reason there is exactly one place this
++// string appears.
++constexpr base::FilePath::CharType kStoreFileName[] =
++    FILE_PATH_LITERAL("Sunshine Document Projects");
++
++constexpr char kProjects[] = "projects";
++
++// A malformed file must not be able to make the browser read an arbitrary
++// amount into memory. The contract makes no claim about a document larger than
++// memory (docs/DOCUMENT_SURFACE_CONTRACT.md section 6) and this bound is not
++// that claim -- it is the refusal to try.
++constexpr size_t kMaximumStoreBytes = 64u * 1024u * 1024u;
++
++std::optional<std::string> ReadStoreFile(const base::FilePath& path) {
++  std::string contents;
++  if (!base::ReadFileToStringWithMaxSize(path, &contents,
++                                         kMaximumStoreBytes)) {
++    return std::nullopt;
++  }
++  return contents;
++}
++
++}  // namespace
++
++ProjectStore::ProjectStore(const base::FilePath& profile_path)
++    : path_(profile_path.Append(kStoreFileName).AddExtensionASCII("json")) {
++  writer_ = std::make_unique<base::ImportantFileWriter>(
++      path_, base::ThreadPool::CreateSequencedTaskRunner(
++                 {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
++                  base::TaskShutdownBehavior::BLOCK_SHUTDOWN}));
++}
++
++ProjectStore::~ProjectStore() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  // Nothing to flush. base/files/important_file_writer.h requires that "there
++  // are no pending writes at the moment of destruction", and there never are:
++  // every mutation calls WriteNow() rather than ScheduleWrite(), so the write
++  // is already on its way to the blocking sequence before the mutator returns.
++  // The batching ScheduleWrite() buys is not worth the flush-on-shutdown
++  // question it opens, for a store a person edits by hand a few times a
++  // minute.
++}
++
++void ProjectStore::Load(base::OnceClosure loaded) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  base::ThreadPool::PostTaskAndReplyWithResult(
++      FROM_HERE,
++      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
++       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
++      base::BindOnce(&ReadStoreFile, path_),
++      base::BindOnce(&ProjectStore::OnRead, weak_factory_.GetWeakPtr(),
++                     std::move(loaded)));
++}
++
++void ProjectStore::OnRead(base::OnceClosure loaded,
++                          std::optional<std::string> contents) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  loaded_ = true;
++  if (contents.has_value()) {
++    std::optional<base::DictValue> stored =
++        base::JSONReader::ReadDict(*contents, base::JSON_PARSE_RFC);
++    if (stored.has_value()) {
++      if (const base::ListValue* projects = stored->FindList(kProjects)) {
++        for (const base::Value& entry : *projects) {
++          const base::DictValue* value = entry.GetIfDict();
++          if (!value) {
++            continue;
++          }
++          std::optional<Project> project = FromValue(*value);
++          if (project.has_value()) {
++            projects_.push_back(std::move(*project));
++          }
++        }
++      }
++    }
++  }
++  std::move(loaded).Run();
++}
++
++bool ProjectStore::loaded() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  return loaded_;
++}
++
++const std::vector<Project>& ProjectStore::projects() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  return projects_;
++}
++
++const Project* ProjectStore::FindProject(const base::Uuid& id) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  for (const Project& project : projects_) {
++    if (project.id == id) {
++      return &project;
++    }
++  }
++  return nullptr;
++}
++
++Project* ProjectStore::FindProjectMutable(const base::Uuid& id) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  for (Project& project : projects_) {
++    if (project.id == id) {
++      return &project;
++    }
++  }
++  return nullptr;
++}
++
++base::Uuid ProjectStore::CreateProject(const std::string& title) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  // Nothing is written before the file has been read. A mutation applied to an
++  // empty in-memory model would be saved over a store whose contents are still
++  // arriving, and the read would then merge into a file that had already been
++  // overwritten. Every mutator below refuses for the same reason.
++  if (!loaded_) {
++    return base::Uuid();
++  }
++  Project project;
++  // Random, not sequential. Section 2.3 of ADR 0013 rules out an
++  // auto-increment counter as identity precisely because a per-device sequence
++  // produces the same value on two devices for different objects.
++  project.id = base::Uuid::GenerateRandomV4();
++  project.title = title;
++  project.title_modified = base::Time::Now();
++  const base::Uuid id = project.id;
++  projects_.push_back(std::move(project));
++  Save();
++  return id;
++}
++
++base::Uuid ProjectStore::CreateNode(const base::Uuid& project_id,
++                                    const base::Uuid& parent,
++                                    const std::string& title) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!loaded_) {
++    return base::Uuid();
++  }
++  Project* project = FindProjectMutable(project_id);
++  if (!project) {
++    return base::Uuid();
++  }
++  if (parent.is_valid() && !FindNode(*project, parent)) {
++    return base::Uuid();
++  }
++
++  // The new node goes after the last of its siblings, which means one key is
++  // assigned and no neighbour is touched. That is the whole point of the
++  // explicit key: an insert is an edit of one node, so a later merge has no
++  // conflict on nodes nobody moved.
++  std::string last;
++  for (const Node& sibling : project->nodes) {
++    if (sibling.parent == parent && sibling.order_key > last) {
++      last = sibling.order_key;
++    }
++  }
++
++  Node node;
++  node.id = base::Uuid::GenerateRandomV4();
++  node.parent = parent;
++  node.title = title;
++  node.order_key = OrderKeyBetween(last, std::string_view());
++  node.title_modified = base::Time::Now();
++  node.order_modified = node.title_modified;
++  const base::Uuid id = node.id;
++  project->nodes.push_back(std::move(node));
++  Save();
++  return id;
++}
++
++bool ProjectStore::SetDocumentBody(const base::Uuid& project_id,
++                                   const base::Uuid& node_id,
++                                   const std::string& body) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!loaded_) {
++    return false;
++  }
++  Project* project = FindProjectMutable(project_id);
++  if (!project) {
++    return false;
++  }
++  Node* target = nullptr;
++  for (Node& node : project->nodes) {
++    if (node.id == node_id) {
++      target = &node;
++      break;
++    }
++  }
++  if (!target) {
++    return false;
++  }
++
++  if (!target->document.is_valid()) {
++    // The document gets its own identity, distinct from the node's, so that a
++    // node moved in the hierarchy carries the same document rather than a copy
++    // of it (section 2.2).
++    Document document;
++    document.id = base::Uuid::GenerateRandomV4();
++    target->document = document.id;
++    project->documents.push_back(std::move(document));
++  }
++  for (Document& document : project->documents) {
++    if (document.id == target->document) {
++      // Stored exactly as handed over. Nothing here paginates, normalises, or
++      // rewrites the bytes (DOC-4).
++      document.body = body;
++      document.body_modified = base::Time::Now();
++      break;
++    }
++  }
++  Save();
++  return true;
++}
++
++std::optional<std::string> ProjectStore::GetDocumentBody(
++    const base::Uuid& project_id,
++    const base::Uuid& node_id) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  const Project* project = FindProject(project_id);
++  if (!project) {
++    return std::nullopt;
++  }
++  const Node* node = FindNode(*project, node_id);
++  if (!node) {
++    return std::nullopt;
++  }
++  const Document* document = FindDocumentFor(*project, *node);
++  if (!document) {
++    return std::nullopt;
++  }
++  return document->body;
++}
++
++bool ProjectStore::DeleteProject(const base::Uuid& project_id) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!loaded_) {
++    return false;
++  }
++  for (auto project = projects_.begin(); project != projects_.end();
++       ++project) {
++    if (project->id == project_id) {
++      // The documents are inside the project, so removing the project removes
++      // them. DOC-7 is a property of the layout rather than a sweep that could
++      // miss one.
++      projects_.erase(project);
++      Save();
++      return true;
++    }
++  }
++  return false;
++}
++
++void ProjectStore::Save() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  base::ListValue projects;
++  for (const Project& project : projects_) {
++    projects.Append(ToValue(project));
++  }
++  base::DictValue root;
++  root.Set(kProjects, std::move(projects));
++
++  std::optional<std::string> serialised = base::WriteJson(root);
++  if (!serialised.has_value()) {
++    // Refusing to write is the right failure: a partial store would be read
++    // back as a store with things missing from it.
++    return;
++  }
++  writer_->WriteNow(std::move(*serialised));
++}
++
++}  // namespace sunshine::document
+diff --git a/components/sunshine/document/project_store.h b/components/sunshine/document/project_store.h
+new file mode 100644
+index 0000000..8922b56
+--- /dev/null
++++ b/components/sunshine/document/project_store.h
+@@ -0,0 +1,114 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_SUNSHINE_DOCUMENT_PROJECT_STORE_H_
++#define COMPONENTS_SUNSHINE_DOCUMENT_PROJECT_STORE_H_
++
++#include <memory>
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "base/files/file_path.h"
++#include "base/files/important_file_writer.h"
++#include "base/functional/callback_forward.h"
++#include "base/memory/weak_ptr.h"
++#include "base/sequence_checker.h"
++#include "base/uuid.h"
++#include "components/sunshine/document/document_model.h"
++
++namespace sunshine::document {
++
++// Every project in one profile, and the only thing that knows where they are
++// kept.
++//
++// **Where.** DOC-3: "A project is profile-scoped data Sunshine owns. No path
++// outside the profile directory is read or written." The constructor takes the
++// profile directory and derives one file inside it; nothing else in Sunshine
++// composes a path, and no caller passes one in.
++//
++// **How.** base::ImportantFileWriter, whose header
++// (base/files/important_file_writer.h) states what it buys: writing "to ensure
++// that it won't be corrupted by *application* crash during write (implemented
++// as create, flush, rename)". The same header is equally clear about what it
++// does not buy -- it "can be *really* slow" and is "not a valid substitute for
++// file integrity checks and recovery codepaths for malformed files" -- so the
++// reader here treats an unreadable or malformed file as an empty store rather
++// than as a reason to fail, and every project that survives parsing is kept.
++// One JSON file holds the hierarchy and the document bodies together, which is
++// what makes DOC-7 ("deleting a project deletes its documents") a property of
++// the format rather than a cleanup pass that can be forgotten.
++//
++// **Not the network.** Section 2.4 of
++// docs/decisions/0013-module-data-portability.md: this layer has no network
++// code, no client, no endpoint, and no knowledge that a second device could
++// exist. A later, separately reviewed component may read it.
++//
++// **Threading.** Reads and writes happen on a blocking sequence; the model
++// itself lives on the sequence that constructed the store, and every method
++// below is called there.
++class ProjectStore {
++ public:
++  // `profile_path` is the profile directory. The store keeps one file inside
++  // it and never looks above it.
++  explicit ProjectStore(const base::FilePath& profile_path);
++
++  ProjectStore(const ProjectStore&) = delete;
++  ProjectStore& operator=(const ProjectStore&) = delete;
++
++  ~ProjectStore();
++
++  // Reads the store from disk and runs `loaded` when the model is ready. A
++  // missing or unreadable file is an empty store, not an error: a profile that
++  // has never opened this surface has no file, and that is the ordinary case
++  // rather than a failure to report.
++  void Load(base::OnceClosure loaded);
++
++  bool loaded() const;
++
++  const std::vector<Project>& projects() const;
++
++  // The project with `id`, or null.
++  const Project* FindProject(const base::Uuid& id) const;
++
++  // Creates a project and returns its identifier.
++  base::Uuid CreateProject(const std::string& title);
++
++  // Creates a node under `parent` -- invalid for a root -- as the last of its
++  // siblings, and returns its identifier. Returns an invalid Uuid if the
++  // project or the parent is unknown.
++  base::Uuid CreateNode(const base::Uuid& project,
++                        const base::Uuid& parent,
++                        const std::string& title);
++
++  // Replaces the body of the document `node` names, creating the document if
++  // the node had none. The bytes are stored as given; see DOC-4.
++  bool SetDocumentBody(const base::Uuid& project,
++                       const base::Uuid& node,
++                       const std::string& body);
++
++  // The body of the document `node` names, or nullopt when it names none.
++  std::optional<std::string> GetDocumentBody(const base::Uuid& project,
++                                             const base::Uuid& node) const;
++
++  // Deletes a project and, with it, every document it owned (DOC-7).
++  bool DeleteProject(const base::Uuid& project);
++
++ private:
++  void OnRead(base::OnceClosure loaded, std::optional<std::string> contents);
++  void Save();
++  Project* FindProjectMutable(const base::Uuid& id);
++
++  const base::FilePath path_;
++  std::unique_ptr<base::ImportantFileWriter> writer_;
++  std::vector<Project> projects_;
++  bool loaded_ = false;
++
++  SEQUENCE_CHECKER(sequence_checker_);
++  base::WeakPtrFactory<ProjectStore> weak_factory_{this};
++};
++
++}  // namespace sunshine::document
++
++#endif  // COMPONENTS_SUNSHINE_DOCUMENT_PROJECT_STORE_H_

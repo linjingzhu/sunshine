@@ -20,6 +20,26 @@ FORK_REACHABLE_EVENTS = (
 )
 
 
+def runs_self_hosted(text: str) -> bool:
+    """Whether a workflow actually runs on the physical machine.
+
+    Read from `runs-on:` rather than from the word appearing anywhere. A hosted
+    workflow that merely *mentions* the self-hosted one -- to say what it does
+    not replace -- was being held to the physical machine's rules, which meant a
+    sentence in a comment silently decided which rules applied to a file. The
+    rule is about where the job runs.
+
+    Comments are stripped first, so `# ... self-hosted ...` cannot make a
+    workflow look like one either way.
+    """
+
+    for line in text.splitlines():
+        stripped = line.split("#", 1)[0]
+        if "runs-on:" in stripped and "self-hosted" in stripped:
+            return True
+    return False
+
+
 class WindowsBuildContractTests(unittest.TestCase):
     def test_workflow_requires_dedicated_self_hosted_runner(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
@@ -44,7 +64,7 @@ class WindowsBuildContractTests(unittest.TestCase):
 
         for workflow in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
             text = workflow.read_text(encoding="utf-8")
-            if "self-hosted" not in text:
+            if not runs_self_hosted(text):
                 continue
             for event in FORK_REACHABLE_EVENTS:
                 with self.subTest(workflow=workflow.name, event=event):
@@ -53,6 +73,31 @@ class WindowsBuildContractTests(unittest.TestCase):
                         text,
                         f"{workflow.name} exposes a self-hosted runner to {event}",
                     )
+
+    def test_self_hosted_is_decided_by_where_the_job_runs(self) -> None:
+        """The predicate that selects which workflows the rule above binds."""
+
+        self.assertTrue(
+            runs_self_hosted("jobs:\n  x:\n    runs-on: [self-hosted, Windows, X64]\n")
+        )
+        self.assertTrue(runs_self_hosted("    runs-on: self-hosted\n"))
+        self.assertFalse(
+            runs_self_hosted("# same checks as the self-hosted guard\n    runs-on: ubuntu-latest\n")
+        )
+        self.assertFalse(runs_self_hosted("    runs-on: ubuntu-latest  # not self-hosted\n"))
+
+    def test_the_repositorys_workflows_split_the_way_they_claim(self) -> None:
+        """Reads the real files, so a workflow that changed runners without
+        changing its rules fails here."""
+
+        by_name = {
+            path.name: runs_self_hosted(path.read_text(encoding="utf-8"))
+            for path in sorted(WORKFLOW_DIR.glob("*.yml"))
+        }
+        self.assertTrue(by_name["native-chromium-windows.yml"])
+        self.assertTrue(by_name["architecture-guard-self-hosted.yml"])
+        self.assertFalse(by_name["architecture-guard-hosted.yml"])
+        self.assertFalse(by_name["patch-apply-hosted.yml"])
 
     def test_build_uses_native_chromium_targets(self) -> None:
         text = SCRIPT.read_text(encoding="utf-8")
@@ -142,6 +187,58 @@ class WindowsBuildContractTests(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("ninja_jobs:", workflow)
         self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
+
+
+class RunnerEncodingTests(unittest.TestCase):
+    """Every file a tool reads is read as UTF-8, explicitly.
+
+    `Path.read_text()` with no encoding uses the process's locale encoding.
+    On the machine that is this project's only CI -- a Korean Windows
+    workstation -- that is `cp949`, not UTF-8, and the difference is not
+    academic: build run `32250667556` died on
+    `UnicodeDecodeError: 'cp949' codec can't decode byte 0xe2`, which was an em
+    dash inside a comment in `0007-sunshine-modules-webui.patch`.
+
+    The quieter half is the reason this is a test rather than a fix. The same
+    reader had been mis-decoding `0006-sunshine-document-webui.patch` for as
+    long as it existed -- a section sign there is `0xC2 0xA7`, which `cp949`
+    accepts and turns into a different character entirely. It happened to be
+    harmless because the mangled text was in a comment rather than in a
+    `+++ b/` line. A defect that fails loudly is the lucky case; this rule is
+    about the one that does not.
+
+    Every prose file in this repository is UTF-8 and several deliberately
+    contain typographic punctuation, so "avoid non-ASCII" is not the fix and
+    never was.
+    """
+
+    def test_no_tool_reads_a_file_in_the_locale_encoding(self) -> None:
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            text = script.read_text(encoding="utf-8")
+            with self.subTest(script=script.name):
+                self.assertNotIn(
+                    ".read_text()",
+                    text,
+                    f"{script.name} reads a file in the locale encoding; "
+                    'pass encoding="utf-8"',
+                )
+
+    def test_no_tool_writes_a_file_in_the_locale_encoding(self) -> None:
+        """The same hazard in the other direction, and the more damaging one:
+        a file written in `cp949` is corrupt on disk rather than merely
+        misread."""
+
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            text = script.read_text(encoding="utf-8")
+            for index, line in enumerate(text.splitlines(), start=1):
+                if ".write_text(" not in line:
+                    continue
+                with self.subTest(script=script.name, line=index):
+                    self.assertIn(
+                        "encoding=",
+                        line,
+                        f"{script.name}:{index} writes a file in the locale encoding",
+                    )
 
 
 class SelfHostedGuardTests(unittest.TestCase):

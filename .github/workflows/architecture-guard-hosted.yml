@@ -1,0 +1,153 @@
+name: Architecture Guard (hosted)
+
+# The same checks as `architecture-guard-self-hosted.yml`, on a GitHub-hosted
+# runner. It exists for two reasons the self-hosted one cannot serve.
+#
+# **It does not occupy the owner's workstation.** The self-hosted runner is a
+# physical machine that is also the only machine able to build Chromium, so a
+# guard queued during a compile waits behind hours of work, and a guard run at
+# all is the workstation being borrowed.
+#
+# **It has ordinary network access.** `verify_pinned_upstream.py` and the S1
+# criterion of `verify_design_tokens.py` read the pinned Chromium sources over
+# HTTPS. They are the only checks in this repository that cannot run in a
+# development container, so until now they ran on the workstation or nowhere.
+#
+# It does not replace the self-hosted guard, which stays as the path that works
+# when hosted minutes do not -- that workflow's own header records a day when
+# no hosted runner could be allocated, which is what moved CI onto the
+# workstation in the first place.
+#
+# No `uses:` here either. The reason is different from the self-hosted case: a
+# hosted runner has no rate-limit history, but `actions/checkout` and
+# `actions/setup-python` would buy nothing that `git` and the preinstalled
+# `python3` do not already provide, and keeping both workflows to the same
+# idiom means they cannot drift into checking different things for reasons
+# nobody chose.
+#
+# `push` is safe here in a way it is not on the self-hosted guard, and the
+# difference is the runner rather than the trigger: a hosted runner is a
+# disposable container GitHub allocates, so running a branch's code on it
+# exposes no machine. It also fixes the practical problem, which is that
+# `workflow_dispatch` alone requires the workflow to exist on the default
+# branch before it can be dispatched at all.
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-guard-hosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-guard-hosted:
+    name: Guard the repository on a hosted runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # The one step that cannot be Python, because the repository holding the
+      # Python is what it fetches. The token reaches git through the remote URL
+      # rather than `.git/config`, so it is not left on disk afterwards.
+      - name: Check out Sunshine source only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init -q .
+          git fetch --no-tags --depth=1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${GITHUB_SHA}"
+          git checkout -q --detach FETCH_HEAD
+
+      - name: Report the environment this ran in
+        run: python3 -c "import platform, sys; print(platform.platform()); print(sys.version)"
+
+      - name: Reject Electron and confirm the native downstream
+        run: python3 scripts/verify_architecture.py
+
+      - name: Verify Chromium's sandbox and site isolation are intact
+        run: python3 scripts/verify_chromium_security_invariants.py
+
+      - name: Verify Sunshine interposes on nothing Chromium owns
+        run: python3 scripts/verify_no_interposition.py
+
+      - name: Verify the patch stack is well-formed
+        run: python3 scripts/verify_patch_integrity.py
+
+      - name: Verify the patch manifest
+        run: python3 scripts/patch_manifest.py
+
+      - name: Verify the first-party module registry
+        run: python3 scripts/validate_first_party_modules.py
+
+      - name: Verify first-party surfaces do not collide or duplicate
+        run: python3 scripts/verify_first_party_surfaces.py
+
+      - name: Verify the module home is served the registry first_party/ declares
+        run: python3 scripts/verify_module_registry_sync.py
+
+      - name: Verify the product rename is only the product rename
+        run: python3 scripts/verify_branding_substitution.py
+
+      - name: Verify the module shell matches its geometry contract
+        run: python3 scripts/verify_shell_geometry.py
+
+      - name: Check the installer front-end against its contract
+        run: python3 scripts/verify_installer_frontend.py
+
+      - name: Check the mouse gesture bindings against their contract
+        run: python3 scripts/verify_gesture_bindings.py
+
+      - name: Check the New Tab background rule against its contract
+        run: python3 scripts/verify_newtab_background.py
+
+      - name: Verify the module mount port matches its contract
+        run: python3 scripts/verify_module_mount.py
+
+      - name: Verify every reference in the patch stack resolves
+        run: python3 scripts/verify_patch_references.py
+
+      - name: Verify Sunshine-authored web assets execute and load nothing remote
+        run: python3 scripts/verify_web_asset_security.py
+
+      - name: Verify the build cannot acquire an account identity
+        run: python3 scripts/verify_account_freedom.py
+
+      - name: Validate policy document metadata and references
+        run: python3 scripts/validate_doc_metadata.py
+
+      - name: Verify the open-decisions index agrees with its sources
+        run: python3 scripts/verify_decision_index.py
+
+      - name: Verify stated counts still match the repository
+        run: python3 scripts/verify_stated_counts.py
+
+      - name: Verify the acceptance index's own claims resolve
+        run: python3 scripts/verify_acceptance_claims.py
+
+      - name: Verify runtime-verification evidence
+        run: python3 scripts/verify_verification_evidence.py
+
+      - name: Verify the binary asset overlay
+        run: python3 scripts/verify_asset_overlay.py
+
+      - name: Trace contract invariant coverage
+        run: python3 scripts/trace_invariants.py
+
+      - name: Compile-check repository tools
+        run: python3 scripts/compile_check.py
+
+      - name: Run architecture guard regression tests
+        run: python3 -m unittest discover -s tests -v
+
+      # The two that need the network, and the reason this workflow exists.
+      # They read the pinned Chromium sources over HTTPS, so they cannot run in
+      # a development container and until now ran only on the workstation.
+      - name: Verify Sunshine-authored CSS against the design system
+        run: python3 scripts/verify_design_tokens.py
+
+      - name: Verify the pinned revision still supports the patch stack
+        run: python3 scripts/verify_pinned_upstream.py

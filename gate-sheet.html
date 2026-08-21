@@ -1,0 +1,913 @@
+<title>Sunshine 런타임 게이트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#16191F; --ink-2:#454D59; --ink-3:#6B7480;
+  --ground:#EEF1F5; --surface:#FFFFFF; --surface-2:#F7F9FB;
+  --rule:#D3D9E1; --rule-2:#E4E9EF;
+  --accent:#2B5CE6; --accent-soft:#E7EDFD;
+  --pass:#136F42; --pass-soft:#DFF1E7;
+  --fail:#B3312A; --fail-soft:#FBE5E3;
+  --na:#6B7480;  --na-soft:#E9ECF1;
+  --warn:#9A6512; --warn-soft:#FAEEDA;
+  --shadow:0 1px 2px rgba(22,25,31,.06),0 8px 24px -16px rgba(22,25,31,.28);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ink:#E6EAF1; --ink-2:#A9B2BF; --ink-3:#7F8895;
+  --ground:#101318; --surface:#191D24; --surface-2:#1F242C;
+  --rule:#2E353F; --rule-2:#252B33;
+  --accent:#7CA2FF; --accent-soft:#1B2740;
+  --pass:#54C48A; --pass-soft:#14301F;
+  --fail:#F27C6B; --fail-soft:#3A1D19;
+  --na:#8A93A0;  --na-soft:#22272F;
+  --warn:#D9A24E; --warn-soft:#332612;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  --ink:#E6EAF1; --ink-2:#A9B2BF; --ink-3:#7F8895;
+  --ground:#101318; --surface:#191D24; --surface-2:#1F242C;
+  --rule:#2E353F; --rule-2:#252B33;
+  --accent:#7CA2FF; --accent-soft:#1B2740;
+  --pass:#54C48A; --pass-soft:#14301F;
+  --fail:#F27C6B; --fail-soft:#3A1D19;
+  --na:#8A93A0;  --na-soft:#22272F;
+  --warn:#D9A24E; --warn-soft:#332612;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px 96px}
+/* ---- masthead ---- */
+.mast{padding:44px 0 24px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
+h1{font-family:Archivo,system-ui,sans-serif;font-weight:700;font-size:clamp(28px,4.6vw,44px);
+  line-height:1.04;letter-spacing:-.021em;margin:0;text-wrap:balance}
+.sub{margin:12px 0 0;max-width:64ch;color:var(--ink-2)}
+.sub strong{color:var(--ink);font-weight:600}
+/* ---- summary ---- */
+.summary{position:sticky;top:0;z-index:30;background:var(--ground);
+  border-bottom:1px solid var(--rule);margin:0 -20px;padding:12px 20px}
+.srow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;max-width:1080px;margin:0 auto}
+.tally{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;
+  padding:5px 9px;border-radius:3px;border:1px solid var(--rule);background:var(--surface);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip.c-pass{color:var(--pass);background:var(--pass-soft);border-color:transparent}
+.chip.c-fail{color:var(--fail);background:var(--fail-soft);border-color:transparent}
+.chip.c-na{color:var(--na);background:var(--na-soft);border-color:transparent}
+.chip.c-left{color:var(--ink-2)}
+.bar{flex:1 1 180px;min-width:140px;height:6px;border-radius:99px;background:var(--rule-2);
+  overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .b-pass{background:var(--pass)} .bar .b-fail{background:var(--fail)} .bar .b-na{background:var(--na)}
+.acts{display:flex;gap:8px;margin-left:auto}
+button.act{font-family:"IBM Plex Sans",sans-serif;font-size:13px;font-weight:600;cursor:pointer;
+  padding:8px 14px;border-radius:4px;border:1px solid var(--rule);background:var(--surface);color:var(--ink)}
+button.act:hover{border-color:var(--accent);color:var(--accent)}
+button.act.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.act.primary:hover{filter:brightness(1.08);color:#fff}
+button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* ---- stop rules ---- */
+.start{margin:28px 0 0;border:1px solid var(--rule);border-left:3px solid var(--accent);
+  border-radius:4px;background:var(--surface);padding:18px 20px}
+.start h3{font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  margin:0 0 10px;color:var(--accent)}
+.start p{margin:0 0 10px;font-size:14px;line-height:1.6;max-width:70ch}
+.start ul{margin:0 0 10px;padding-left:20px;font-size:14px;line-height:1.6;max-width:70ch}
+.start li{margin-bottom:5px}
+.start em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:12px;
+  background:var(--surface-2);border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px}
+.startnote{color:var(--ink-3);font-size:13px}
+.rules{margin:20px 0 0;border:1px solid var(--rule);border-left:3px solid var(--warn);
+  border-radius:4px;background:var(--surface);padding:16px 18px}
+.rules h3{font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
+  margin:0 0 10px;color:var(--warn)}
+.rules dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
+.rules dt{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:12.5px;white-space:nowrap;color:var(--ink)}
+.rules dd{margin:0;color:var(--ink-2)}
+/* ---- blocks ---- */
+.block{margin-top:38px}
+.bhead{display:flex;align-items:flex-start;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--ink)}
+.letter{font-family:Archivo,sans-serif;font-weight:700;font-size:26px;line-height:1;
+  min-width:44px;height:38px;display:flex;align-items:center;justify-content:center;
+  background:var(--ink);color:var(--ground);border-radius:3px;letter-spacing:-.02em}
+.bmeta{flex:1}
+.bmeta h2{font-family:Archivo,sans-serif;font-weight:600;font-size:19px;margin:0;letter-spacing:-.012em}
+.needs{margin:3px 0 0;font-size:13px;color:var(--ink-3)}
+.nlabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin-right:7px}
+.mins{font-variant-numeric:tabular-nums}
+.dot{opacity:.5;margin:0 2px}
+.bcount{font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;padding-top:9px;white-space:nowrap}
+.blocknote{margin:12px 0 0;font-size:13.5px;color:var(--ink-2);border-left:2px solid var(--rule);
+  padding-left:12px;max-width:70ch}
+.gates{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+/* ---- one gate ---- */
+.gate{position:relative;display:grid;grid-template-columns:104px minmax(0,1fr) 268px;gap:16px;
+  background:var(--surface);border:1px solid var(--rule-2);border-radius:4px;
+  padding:14px 16px 14px 19px;box-shadow:var(--shadow);overflow:hidden}
+.stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--rule)}
+.gate[data-result="pass"] .stripe{background:var(--pass)}
+.gate[data-result="fail"] .stripe{background:var(--fail)}
+.gate[data-result="na"]   .stripe{background:var(--na)}
+.gate[data-result="fail"]{border-color:var(--fail)}
+.gid{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.idtag{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;letter-spacing:-.01em}
+.badge{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.05em;
+  padding:3px 6px;border-radius:3px;white-space:nowrap}
+.badge.stop{background:var(--fail-soft);color:var(--fail)}
+.badge.stopb{background:var(--warn-soft);color:var(--warn)}
+.badge.cond{background:var(--na-soft);color:var(--na)}
+.body{min-width:0}
+.step{margin:0;font-size:14.5px;line-height:1.5}
+.exp{margin:7px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.5}
+.explabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin-right:7px}
+.do{margin:9px 0 0;padding-left:20px;font-size:13.5px;line-height:1.6;color:var(--ink)}
+.do li{margin-bottom:3px}
+.do li::marker{color:var(--ink-3);font-family:"IBM Plex Mono",monospace;font-size:11px}
+.verdict{margin:8px 0 0;font-size:13.5px;line-height:1.5;padding-left:10px;border-left:3px solid}
+.verdict.ok{border-color:var(--pass)}
+.verdict.no{border-color:var(--fail)}
+.vlabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
+  font-weight:600;margin-right:8px}
+.verdict.ok .vlabel{color:var(--pass)}
+.verdict.no .vlabel{color:var(--fail)}
+.exp{margin-top:10px}
+.src{margin-top:9px}
+.src summary{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);cursor:pointer;list-style:none;
+  display:inline-block;padding:2px 7px;border:1px solid var(--rule-2);border-radius:3px}
+.src summary::-webkit-details-marker{display:none}
+.src summary:hover{color:var(--accent);border-color:var(--accent)}
+.src[open] summary{margin-bottom:7px}
+.src .step,.src .exp{font-size:12.5px;color:var(--ink-3);margin:0 0 4px;padding-left:10px;
+  border-left:2px solid var(--rule-2)}
+.step code,.exp code{font-family:"IBM Plex Mono",monospace;font-size:.9em;
+  background:var(--surface-2);border:1px solid var(--rule-2);border-radius:3px;padding:1px 4px}
+.step strong,.exp strong{font-weight:600;color:var(--ink)}
+.inv{display:inline-block;margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  color:var(--ink-3);background:var(--surface-2);border:1px solid var(--rule-2);
+  padding:2px 6px;border-radius:3px}
+.controls{display:flex;flex-direction:column;gap:8px}
+.states{display:flex;gap:5px}
+.st{flex:1;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.03em;
+  cursor:pointer;padding:7px 4px;border-radius:3px;border:1px solid var(--rule);
+  background:var(--surface);color:var(--ink-3);transition:background .12s,color .12s,border-color .12s}
+.st:hover{border-color:var(--ink-3);color:var(--ink)}
+.st-pass[aria-pressed="true"]{background:var(--pass);border-color:var(--pass);color:#fff}
+.st-fail[aria-pressed="true"]{background:var(--fail);border-color:var(--fail);color:#fff}
+.st-na[aria-pressed="true"]{background:var(--na);border-color:var(--na);color:#fff}
+.note{width:100%;resize:vertical;min-height:34px;font-family:"IBM Plex Sans",sans-serif;font-size:13px;
+  color:var(--ink);background:var(--surface-2);border:1px solid var(--rule-2);border-radius:3px;
+  padding:7px 9px;line-height:1.45}
+.note::placeholder{color:var(--ink-3)}
+.gate[data-result="fail"] .note{border-color:var(--fail);background:var(--fail-soft)}
+.rowhint{margin:0 0 0 4px;font-size:12.5px;color:var(--ink-3);border-left:2px solid var(--rule);padding-left:10px}
+.locknote,.lockdone{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  padding:7px 9px;border-radius:3px;text-align:center}
+.locknote{background:var(--na-soft);color:var(--na)}
+.lockdone{background:var(--pass-soft);color:var(--pass)}
+.gate.is-blocked,.gate.is-done{opacity:.85}
+.gate.is-blocked .stripe{background:var(--na)}
+.gate.is-done .stripe{background:var(--pass)}
+.gate.is-ungated .stripe{background:var(--accent)}
+/* ---- report ---- */
+.report{margin-top:44px;border-top:2px solid var(--ink);padding-top:20px}
+.report h2{font-family:Archivo,sans-serif;font-size:19px;margin:0 0 6px}
+.report p{margin:0 0 14px;color:var(--ink-2);max-width:66ch;font-size:14px}
+#out{width:100%;min-height:190px;font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.5;
+  background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:12px}
+.saved{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3)}
+@media (max-width:860px){
+  .gate{grid-template-columns:1fr;gap:12px}
+  .gid{flex-direction:row;align-items:center;gap:8px}
+  .summary{position:static}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #42 (da64842)</p>
+    <h1>다시 볼 열일곱 가지</h1>
+    <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
+    제 설명이 부실해서 손대지 못하신 항목들입니다.
+    문서 표면(<code>chrome://sunshine-document</code>) 설명은 <strong>제가 계약서만 보고 지어낸 것</strong>이라
+    실제 화면과 달랐습니다. 실제 화면을 확인하고 다시 썼습니다.</p>
+  </header>
+
+  <div class="summary">
+    <div class="srow">
+      <div class="tally">
+        <span class="chip c-pass" id="t-pass">PASS 0</span>
+        <span class="chip c-fail" id="t-fail">FAIL 0</span>
+        <span class="chip c-na"   id="t-na">NOT RUN 0</span>
+        <span class="chip c-left" id="t-left">남음 0</span>
+      </div>
+      <div class="bar" aria-hidden="true"><i class="b-pass" id="bp"></i><i class="b-fail" id="bf"></i><i class="b-na" id="bn"></i></div>
+      <div class="acts">
+        <button type="button" class="act" id="reset">비우기</button>
+        <button type="button" class="act primary" id="copy">결과 복사</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="rules">
+    <h3>지난 결과 — 중단 규칙은 걸리지 않았습니다</h3>
+    <p style="margin:0 0 12px;font-size:14px;color:var(--ink-2);max-width:70ch">
+    <strong>RV-1 · RV-2 · RV-3 · RV-4 가 모두 통과했습니다.</strong> 샌드박스도, 사이트 격리도,
+    스킴 미등록도 계약대로입니다. 세션을 중단시킬 실패는 없었고, 이건 오늘 나온 것 중 가장 큰 결과입니다.
+    아래는 참고용으로 남겨둔 원래 규칙입니다.</p>
+    <dl>
+      <dt>RV-1 · RV-2 · RV-3</dt>
+      <dd><strong>세션 중단.</strong> 샌드박스나 격리 posture가 틀렸다면, 그 아래 모든 게이트는 계약이 설명하는 것과 다른 보안 모델의 브라우저에서 도는 것입니다. 기록할 가치가 없습니다.</dd>
+      <dt>RV-26 · RV-29 · RV-30</dt>
+      <dd>블록 A를 끝내고 중단. 인스톨러 정체성이고 ADR 0015의 주제 전체이며, 실패는 나머지를 돌기 전에 인스톨러를 다시 만들어야 한다는 뜻입니다.</dd>
+      <dt>그 외</dt>
+      <dd>기록하고 계속. 한 표면의 실패가 다음 표면에 대해 말해주는 것은 없습니다.</dd>
+    </dl>
+  </section>
+
+  <section class="start">
+    <h3>읽어주십시오</h3>
+    <p><strong>가장 먼저 답해주실 것 하나:</strong> 설치할 때 <strong>내 계정</strong>과 <strong>전체 사용자</strong> 중
+    무엇을 고르셨습니까? RV-26 의 첫 줄입니다. 전체 사용자를 고르셨다면 설치 폴더가 Program Files 이고,
+    그건 <strong>정상</strong>인데 제가 지난 설명에 <code>%LOCALAPPDATA%</code> 만 적어놨습니다.
+    그 한 가지로 지난번 실패 두 개가 설명될 수 있습니다.</p>
+    <ul>
+      <li><strong>모르겠거나 화면을 못 찾으면 NOT RUN 입니다.</strong> 추측해서 PASS 를 누르지 마십시오 —
+      모른다는 것도 결과이고, 그게 제일 쓸모 있는 답입니다.</li>
+      <li><strong>메모칸이 이번에는 중요합니다.</strong> 실패한 항목은 <em>무엇이 보였는지</em> 한 줄만 적어주십시오.
+      지난번에는 결과만 있고 관찰이 없어서 원인을 좁힐 수 없었습니다.</li>
+      <li><strong>순서는 아무래도 괜찮습니다.</strong> 다만 <strong>RV-13 을 먼저</strong> 하시면 그 뒤 다섯 개
+      (RV-14~19)가 거기서 만든 것을 이어서 씁니다.</li>
+      <li><strong>페이지를 저장해서 보내지 마십시오.</strong> 저장하면 선택은 남지만 <strong>메모가 사라집니다</strong>.
+      맨 아래 <strong>결과 복사</strong> 버튼을 쓰시면 둘 다 담깁니다.</li>
+    </ul>
+    <p class="startnote">항목마다 <em>계약 문구</em>와 <em>원문</em>이 접혀 있습니다. 읽지 않으셔도 됩니다 —
+    번역이 원문과 어긋났을 때 그 자리에서 보이라고 남겨둔 것입니다.</p>
+  </section>
+
+    <section class="block" id="block-A">
+      <header class="bhead">
+        <span class="letter">A</span>
+        <div class="bmeta">
+          <h2>실행 전 — 파일과 레지스트리</h2>
+          <p class="needs"><span class="nlabel">준비</span>The installer, Explorer, regedit <span class="dot">·</span> <span class="mins">15 min</span></p>
+        </div>
+        <span class="bcount" data-block="A">0/3</span>
+      </header>
+      <p class="blocknote">A가 먼저인 이유: 여기 게이트는 실행이 바꿀 수 없는 파일과 레지스트리 키에 관한 것입니다. 아무것도 돌지 않을 때 답해야 모호하지 않습니다.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-26">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-26</span><span class="badge stopb">블록 후 중단</span></div>
+        <div class="body">
+          <p class="step">설치한 뒤 설치 디렉터리, 시작 메뉴 항목, 작업표시줄 항목, Windows 기본 앱 목록을 본다</p>
+          <ol class="do"><li><strong>먼저 답해주실 것: 설치할 때 &#x27;내 계정&#x27; 과 &#x27;전체 사용자&#x27; 중 무엇을 고르셨습니까?</strong></li><li>탐색기 주소창에 <code>%LOCALAPPDATA%\Sunshine\Application</code> 을 넣고 Enter — 폴더가 있으면 <strong>내 계정</strong> 설치입니다</li><li>없다면 <code>C:\Program Files\Sunshine\Application</code> 을 넣고 Enter — 있으면 <strong>전체 사용자</strong> 설치입니다</li><li>둘 중 찾은 쪽 경로를 메모에 적어주십시오</li><li>시작 메뉴에서 Sunshine 을 찾아 이름을 본다</li><li>Windows 설정 → 앱 → 기본 앱 에서 Sunshine 을 찾는다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>설치 폴더가 <strong>위 둘 중 하나</strong>이고(어느 쪽이든 정상입니다), 시작 메뉴와 기본 앱 목록이 Sunshine 이라고 한다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>둘 다 아닌 곳에 설치됐거나, 어딘가 <strong>Chromium</strong> 이라고 표시된다. 지난번 실패가 &#x27;전체 사용자로 설치했는데 제 설명이 내 계정 경로만 적어둔 것&#x27; 이라면 <strong>제 잘못이고 합격입니다</strong></p>
+          <p class="exp"><span class="explabel">계약 문구</span>네 곳 모두 Sunshine 이라고 한다. 특히 설치 디렉터리가 <code>Chromium</code> 이 아니라 <code>%LOCALAPPDATA%\Sunshine\Application</code> 이다 — 진짜 Chromium 이 깔린 기계였다면 충돌했을 자리다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Install, then look at the install directory, the Start menu entry, the taskbar item and Windows&#x27; Default Apps list</p>
+            <p class="exp"><span class="explabel">expected</span>All four say Sunshine. In particular the install directory is `%LOCALAPPDATA%\Sunshine\Application`, not `Chromium` — which is where a machine with real Chromium on it would have collided</p>
+          </details>
+          <span class="inv">ADR 0015 §1</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-26 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-29">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-29</span><span class="badge stopb">블록 후 중단</span></div>
+        <div class="body">
+          <p class="step">설치 후 프로필을 찾는다: <code>%LOCALAPPDATA%\Sunshine\User Data</code></p>
+          <ol class="do"><li>탐색기 주소창에 <code>%LOCALAPPDATA%\Sunshine\User Data</code> 를 넣고 Enter</li><li>폴더가 열리면 안에 <code>Default</code> 같은 폴더나 파일이 있는지 본다</li><li><strong>설치 위치와 무관하게 이 경로여야 합니다</strong> — 전체 사용자로 설치하셨어도 프로필은 여기입니다</li><li>이어서 주소창에 <code>%LOCALAPPDATA%\Chromium</code> 을 넣고 Enter</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>앞쪽이 존재하고 안에 내용이 있다. 뒤쪽은 <strong>폴더가 없거나</strong>, 원래 Chromium 을 쓰셨다면 그대로 남아 있다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><code>Sunshine\User Data</code> 가 없다 → 프로필이 어디에 생겼는지 메모에 적어주십시오. 또는 <code>Chromium</code> 폴더가 방금 새로 생겼다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>존재하고 프로필을 담고 있다. <code>%LOCALAPPDATA%\Chromium</code> 은 <strong>손대지 않은 상태</strong>다 — 진짜 Chromium 이 있는 기계에서는 그 브라우저의 프로필이고, 이 변경 전에는 같은 디렉터리였다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">After installing, look for the profile: `%LOCALAPPDATA%\Sunshine\User Data`</p>
+            <p class="exp"><span class="explabel">expected</span>It exists and holds the profile. `%LOCALAPPDATA%\Chromium` is untouched — which on a machine with real Chromium is that browser&#x27;s profile, and was the same directory before this change</p>
+          </details>
+          <span class="inv">ADR 0015 §1</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-29 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-30">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-30</span><span class="badge stopb">블록 후 중단</span></div>
+        <div class="body">
+          <p class="step">설치 후 <code>HKCR</code> 에서 <code>chromium</code> 키와 <code>sunshine</code> 키를 확인한다</p>
+          <ol class="do"><li>Win+R 를 누르고 <code>regedit</code> 입력 후 Enter (관리자 확인이 뜨면 예)</li><li><strong>왼쪽 트리 맨 위</strong>의 <code>HKEY_CLASSES_ROOT</code> 를 한 번 클릭해 선택한다</li><li>Ctrl+F 를 누르고 <code>sunshine</code> 을 입력, <strong>&#x27;키&#x27; 만 체크</strong>하고 &#x27;다음 찾기&#x27;</li><li>찾은 항목이 있으면 그 안에 <code>URL Protocol</code> 이라는 값이 있는지 오른쪽 목록에서 본다</li><li>F3 으로 몇 번 더 찾아본 뒤, 같은 방법으로 <code>chromium</code> 도 찾는다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span><code>sunshine</code> 이나 <code>chromium</code> 이라는 <strong>키가 아예 없거나</strong>, 있어도 그 안에 <code>URL Protocol</code> 값이 <strong>없다</strong></p>
+          <p class="verdict no"><span class="vlabel">불합격</span>어느 한쪽에 <code>URL Protocol</code> 값이 있다. 레지스트리 편집기를 못 여시겠으면 <strong>NOT RUN</strong> 으로 두십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>둘 다 URL 프로토콜로 <strong>등록돼 있지 않다</strong>. <code>direct_launch_url_scheme</code> 이 비어 있다는 것은 인스톨러가 <code>Software\Classes\&lt;scheme&gt;</code> 항목을 아예 쓰지 않는다는 뜻이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Check `HKCR` for a `chromium` and a `sunshine` key after installing</p>
+            <p class="exp"><span class="explabel">expected</span>Neither is registered as a URL protocol. The empty `direct_launch_url_scheme` means the installer writes no `Software\Classes\&lt;scheme&gt;` entry at all</p>
+          </details>
+          <span class="inv">ADR 0015 §3, SEC-13</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-30 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-E2">
+      <header class="bhead">
+        <span class="letter">E2</span>
+        <div class="bmeta">
+          <h2>마우스 제스처</h2>
+          <p class="needs"><span class="nlabel">준비</span>Any page with history in both directions; a link, an image and some selected text to try it on <span class="dot">·</span> <span class="mins">15 min</span></p>
+        </div>
+        <span class="bcount" data-block="E2">0/1</span>
+      </header>
+      <p class="blocknote">빌드 #40에서 처음 컴파일된 패치 0017입니다. 이 인스톨러 또는 이후 것으로만 실행하십시오.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-20">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-20</span></div>
+        <div class="body">
+          <p class="step">페이지 본문에서 오른쪽 버튼을 누른 채 왼쪽으로 200 px 끌고 놓는다. 오른쪽으로도 반복하고, 50 px 만 끄는 것도 반복한다</p>
+          <ol class="do"><li>아무 사이트를 열고 링크를 <strong>두세 번</strong> 눌러 페이지를 이동한다 (뒤로 갈 곳을 만드는 것)</li><li>글자나 이미지가 없는 <strong>빈 여백</strong>에 마우스를 둔다</li><li><strong>오른쪽 버튼을 누른 채로</strong> 왼쪽으로 화면 폭의 1/5 정도(대략 5cm) 끌고, 버튼을 놓는다</li><li>같은 방식으로 오른쪽으로 끌고 놓는다</li><li>마지막으로 <strong>아주 짧게</strong>(1cm 정도) 끌고 놓는다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>왼쪽 = 뒤로 감, 오른쪽 = 앞으로 감. <strong>짧게 끌면 오른쪽 클릭 메뉴가 뜬다</strong></p>
+          <p class="verdict no"><span class="vlabel">불합격</span>아무 반응이 없거나, 길게 끌었는데 메뉴가 같이 뜬다. <strong>어떤 일이 일어났는지 메모에 적어주십시오</strong> — &#x27;아무 일도 안 일어남&#x27; 도 중요한 답입니다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>왼쪽은 뒤로, 오른쪽은 앞으로 가고, <strong>짧은 드래그는 대신 컨텍스트 메뉴</strong>를 띄운다. 긴 드래그는 둘 다 메뉴를 띄우지 않으며, 어떤 누름도 두 가지를 동시에 하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px</p>
+            <p class="exp"><span class="explabel">expected</span>Left goes back, right goes forward, and the short drag shows the context menu instead. Neither long drag shows a menu, and no press does both</p>
+          </details>
+          <span class="inv">GESTURE contract §3.2, patch 0017</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-20 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-F">
+      <header class="bhead">
+        <span class="letter">F</span>
+        <div class="bmeta">
+          <h2>북마크바와 모듈 홈</h2>
+          <p class="needs"><span class="nlabel">준비</span>The bookmark bar shown; first_party/registry.json open beside it <span class="dot">·</span> <span class="mins">25 min</span></p>
+        </div>
+        <span class="bcount" data-block="F">0/2</span>
+      </header>
+      
+      <div class="gates">
+      <div class="gate" data-gate="RV-23">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-23</span></div>
+        <div class="body">
+          <p class="step"><code>chrome://sunshine-modules</code> 에서 왼쪽 열을 <code>first_party/registry.json</code> 과 대조한다</p>
+          <ol class="do"><li>북마크바 맨 왼쪽 Sunshine 버튼을 눌러 모듈 홈을 연다</li><li>왼쪽 목록의 항목이 <strong>몇 개</strong>인지 센다</li><li>그 목록 위 제목에 적힌 <strong>숫자</strong>를 본다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>센 개수와 제목의 숫자가 <strong>같다</strong></p>
+          <p class="verdict no"><span class="vlabel">불합격</span>둘이 다르다. (원래 계약은 저장소 파일과 대조하는 것인데 그 파일이 대표님 화면에 없어서, 실제로 하실 수 있는 확인으로 낮춰 적었습니다)</p>
+          <p class="exp"><span class="explabel">계약 문구</span>같은 모듈, 같은 순서이고 제목의 개수도 일치한다. 이것은 동기화 가드가 닿을 수 없는 게이트다 — 가드는 패치와 <code>first_party/</code> 를 비교하지, <strong>실행 중인 페이지</strong>를 어느 쪽과도 비교하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json`</p>
+            <p class="exp"><span class="explabel">expected</span>The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either</p>
+          </details>
+          <span class="inv">patch 0007, `verify_module_registry_sync.py`</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-23 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RVV-5">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RVV-5</span></div>
+        <div class="body">
+          <p class="step">북마크바를 키보드만으로 이동한다</p>
+          <ol class="do"><li>Ctrl+Shift+B 로 북마크바를 켠다</li><li>주소창을 클릭해 커서를 둔다</li><li><strong>Tab 키를 여러 번</strong> 눌러 초점이 북마크바로 넘어갈 때까지 이동한다</li><li>북마크바에 들어간 <strong>첫 순간</strong> 어느 버튼에 테두리가 생기는지 본다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>북마크바에서 <strong>가장 먼저</strong> 테두리가 생기는 것이 맨 왼쪽 Sunshine 버튼이다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>다른 버튼이 먼저 선택된다. 어느 것이 먼저였는지 메모에 적어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>Sunshine 버튼이 <strong>첫 번째 정지점</strong>이고, 그려진 위치와 일치한다 — <code>Init()</code> 의 자식 순서가 곧 포커스 순서다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Keyboard-only traversal of the bookmark bar</p>
+            <p class="exp"><span class="explabel">expected</span>The Sunshine button is the first stop, matching where it is drawn — the child order in `Init()` is the focus order</p>
+          </details>
+          
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RVV-5 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-G">
+      <header class="bhead">
+        <span class="letter">G</span>
+        <div class="bmeta">
+          <h2>모듈 셸</h2>
+          <p class="needs"><span class="nlabel">준비</span>chrome://sunshine-shell; a window narrow enough to hit the clamp <span class="dot">·</span> <span class="mins">30 min</span></p>
+        </div>
+        <span class="bcount" data-block="G">0/1</span>
+      </header>
+      
+      <div class="gates">
+      <div class="gate" data-gate="RV-31">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-31</span></div>
+        <div class="body">
+          <p class="step"><code>chrome://sunshine-shell</code> 을 열고 셸 계약 §3 의 아홉 가지 상태에 모두 도달한 뒤, 각각에서 되돌아온다</p>
+          <ol class="do"><li>주소창에 <code>chrome://sunshine-shell</code> 을 넣고 Enter</li><li>화면에 세로로 나뉜 영역들이 보입니다. 각 영역을 <strong>접었다 폈다</strong> 해본다 (경계선이나 토글 버튼)</li><li>가능한 조합을 몇 가지 만들어 보고, <strong>매번 원래대로 되돌아오는지</strong> 확인한다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>어떤 조합을 만들어도 <strong>되돌릴 수 있고</strong>, 화면 틀이 깨지지 않는다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>어떤 상태에서 빠져나올 수 없거나 화면이 깨진다. <strong>무엇이 안 됐는지 메모에 적어주십시오</strong> — 계약상 &#x27;아홉 가지 상태&#x27;가 있지만 그걸 다 세실 필요는 없습니다. 되돌릴 수 없는 상태가 하나라도 있으면 불합격입니다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>모든 상태에 도달 가능하고 되돌릴 수 있다. 뼈대는 전부 동일하고 내용만 바뀐다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://sunshine-shell` and reach all nine states in §3 of the shell contract, then reach each one back</p>
+            <p class="exp"><span class="explabel">expected</span>Every state is reachable and reversible. The skeleton is the same in all of them; only content changes</p>
+          </details>
+          <span class="inv">MS-6, MS-8</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-31 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-H">
+      <header class="bhead">
+        <span class="letter">H</span>
+        <div class="bmeta">
+          <h2>문서 표면</h2>
+          <p class="needs"><span class="nlabel">준비</span>chrome://sunshine-document, DevTools open for RV-16 <span class="dot">·</span> <span class="mins">40 min</span></p>
+        </div>
+        <span class="bcount" data-block="H">0/7</span>
+      </header>
+      
+      <div class="gates">
+      <div class="gate" data-gate="RV-13">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-13</span></div>
+        <div class="body">
+          <p class="step"><code>chrome://sunshine-document</code> 를 열고 1 → 1.1 → 1.2 → 1.2.1 → 2 계층을 만든 뒤, 1.2 에서 다음을 누른다</p>
+          <ol class="do"><li>주소창에 <code>chrome://sunshine-document</code> 를 넣고 Enter</li><li>화면은 왼쪽부터 <strong>Projects / Contents / Source / Reading</strong> 네 칸입니다</li><li>왼쪽 <strong>Projects</strong> 의 <code>New project</code> 칸에 아무 이름이나 넣고 <code>+ New</code> 를 누른다</li><li>가운데 <strong>Contents</strong> 로 갑니다. <code>New section</code> 에 <code>1</code> 을 넣고 <code>+ Node</code> — 이때 <code>Inside</code> 는 비워둡니다</li><li><code>New section</code> 에 <code>1.1</code> 을 넣고, <strong><code>Inside</code> 에서 방금 만든 <code>1</code> 을 고른 뒤</strong> <code>+ Node</code></li><li>같은 방식으로 <code>1.2</code> 도 <code>Inside = 1</code> 로 만든다</li><li><code>1.2.1</code> 은 <strong><code>Inside = 1.2</code></strong> 로 만든다</li><li><code>2</code> 는 <code>Inside</code> 를 비우고 만든다</li><li>목록에서 <code>1.2</code> 를 클릭해 선택한 뒤 <code>Next</code> 를 누른다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span><code>2</code> 가 아니라 <strong><code>1.2.1</code></strong> 이 선택된다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><code>2</code> 로 건너뛴다. 화면 구조가 위 설명과 다르면 <strong>NOT RUN</strong> 으로 두고 무엇이 달랐는지 적어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>2가 아니라 <strong>1.2.1</strong>. 목차는 깊이 우선의 읽기 순서다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://sunshine-document`, build a hierarchy 1 → 1.1 → 1.2 → 1.2.1 → 2, then press Next from 1.2</p>
+            <p class="exp"><span class="explabel">expected</span>1.2.1, not 2. The contents list is the reading order, depth first</p>
+          </details>
+          <span class="inv">DOC contract §3</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-13 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-14">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-14</span></div>
+        <div class="body">
+          <p class="step">HTML이 자체 <code>&lt;head&gt;&lt;style&gt;</code> 을 담은 섹션을 읽는다</p>
+          <ol class="do"><li>RV-13 에서 만든 섹션을 하나 선택한다</li><li><strong>Source</strong> 칸(<code>HTML for the selected section</code>)에 아래를 붙여넣는다</li><li><code>&lt;style&gt;body{background:#fee;font-size:28px}&lt;/style&gt;&lt;p&gt;테스트&lt;/p&gt;</code></li><li><code>Save document</code> 를 누른다</li><li>맨 오른쪽 <strong>Reading</strong> 칸을 본다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>Reading 칸의 배경이 <strong>연분홍색</strong>이 되고 글자가 크게 보인다 — 즉 붙여넣은 스타일이 적용된다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>스타일이 무시되고 평범한 글자로만 보인다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>그 스타일이 적용되고, 창 전체가 <strong>그 문서 자체</strong>다 — Sunshine 프레임 안에 끼워진 벗겨진 조각이 아니다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Read a section whose HTML carries its own `&lt;head&gt;&lt;style&gt;`</p>
+            <p class="exp"><span class="explabel">expected</span>That styling applies and the pane *is* the document, edge to edge — not a stripped fragment inside Sunshine&#x27;s own frame</p>
+          </details>
+          <span class="inv">DOC-1</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-14 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-15">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-15</span></div>
+        <div class="body">
+          <p class="step">실행되면 눈에 보였을 <code>&lt;script&gt;</code> 를 담은 섹션을 읽는다</p>
+          <ol class="do"><li>같은 섹션의 <strong>Source</strong> 칸 내용을 아래로 바꾼다</li><li><code>&lt;p&gt;보이는 글&lt;/p&gt;&lt;script&gt;document.body.innerHTML=&#x27;스크립트가 실행됨&#x27;&lt;/script&gt;</code></li><li><code>Save document</code> 를 누르고 <strong>Reading</strong> 칸을 본다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>Reading 칸에 <strong>&#x27;보이는 글&#x27;</strong> 이 그대로 보인다 (스크립트가 실행되지 않음)</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>&#x27;스크립트가 실행됨&#x27; 으로 바뀐다 → 스크립트가 실행된 것이고 <strong>불합격</strong></p>
+          <p class="exp"><span class="explabel">계약 문구</span>문서는 렌더링되고, 스크립트는 <strong>실행되지 않는다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Read a section whose HTML contains a `&lt;script&gt;` that would be visible if it ran</p>
+            <p class="exp"><span class="explabel">expected</span>The document renders; the script does not run</p>
+          </details>
+          <span class="inv">DOCA-3</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-15 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-16">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-16</span></div>
+        <div class="body">
+          <p class="step">원격 이미지를 참조하는 섹션을 읽는다</p>
+          <ol class="do"><li>같은 섹션의 Source 를 <code>&lt;img src=&#x27;https://picsum.photos/200&#x27;&gt;</code> 로 바꾸고 <code>Save document</code></li><li><strong>F12</strong> 를 눌러 개발자도구를 연다</li><li>위쪽 탭에서 <strong>Network</strong> 를 고른다</li><li><code>Ctrl+R</code> 로 페이지를 새로고침한 뒤, Network 목록에서 <code>picsum</code> 을 찾는다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>Reading 칸에 이미지가 <strong>안 보이고</strong>, Network 목록에 <code>picsum</code> 요청이 <strong>없다</strong></p>
+          <p class="verdict no"><span class="vlabel">불합격</span>이미지가 보이거나 Network 에 그 요청이 나타난다. 개발자도구를 못 여시겠으면 <strong>NOT RUN</strong></p>
+          <p class="exp"><span class="explabel">계약 문구</span>이미지는 없는 것으로 표시되고, DevTools 네트워크 패널에 그 <strong>요청이 나타나지 않는다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Read a section referencing a remote image</p>
+            <p class="exp"><span class="explabel">expected</span>Shown as absent, and no request for it appears in DevTools&#x27; network panel</p>
+          </details>
+          <span class="inv">DOC-5, DOCA-4</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-16 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-17">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-17</span></div>
+        <div class="body">
+          <p class="step">문서를 저장하고, 다른 곳으로 갔다가, 돌아와서 비교한다</p>
+          <ol class="do"><li>섹션의 Source 칸에 줄바꿈과 공백이 섞인 HTML 을 넣는다 (예: 들여쓰기를 일부러 넣은 여러 줄)</li><li><code>Save document</code> 를 누른다</li><li>다른 섹션을 클릭했다가 <strong>다시 돌아온다</strong></li><li>Source 칸의 내용을 처음 넣은 것과 비교한다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span><strong>글자 하나, 공백 하나까지 그대로</strong>다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>들여쓰기나 줄바꿈이 임의로 정리돼 있다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>저장한 것과 <strong>바이트 단위로 동일</strong>하다. 정규화도, 들여쓰기 재조정도, 페이지 나눔의 역기록도 없다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Store a document, navigate away, come back, and compare</p>
+            <p class="exp"><span class="explabel">expected</span>Byte-identical to what was stored; no normalisation, no re-indentation, no pagination written back</p>
+          </details>
+          <span class="inv">DOC-4, DOCA-5</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-17 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-18">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-18</span></div>
+        <div class="body">
+          <p class="step">문서가 있던 프로젝트를 삭제한 뒤 표면을 다시 연다</p>
+          <ol class="do"><li>Projects 칸에서 방금 만든 프로젝트가 선택된 상태인지 확인한다</li><li><code>Delete project</code> 를 누른다</li><li>브라우저 탭을 닫았다가 <code>chrome://sunshine-document</code> 를 다시 연다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>그 프로젝트와 그 안의 섹션들이 <strong>모두 사라져 있다</strong></p>
+          <p class="verdict no"><span class="vlabel">불합격</span>프로젝트나 섹션 일부가 남아 있다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>그 프로젝트와 그에 속한 모든 문서가 사라져 있다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Delete a project that had documents, then reopen the surface</p>
+            <p class="exp"><span class="explabel">expected</span>The project and every document of it are gone</p>
+          </details>
+          <span class="inv">DOC-7, DOCA-6</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-18 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-19">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-19</span></div>
+        <div class="body">
+          <p class="step">섹션을 연 채로 새로고침을 누르고, 이어서 내려받는다</p>
+          <ol class="do"><li>섹션을 하나 열고 Source 칸의 내용을 <strong>조금 고친다. 저장하지 마십시오</strong></li><li><strong>Reading 칸 위/아래의 새로고침 버튼</strong>(refresh)을 누른다</li><li>Source 칸의 고치던 내용이 남아 있는지 본다</li><li>이어서 <strong>다운로드 버튼</strong>을 누른다</li><li>받아진 <code>.html</code> 파일을 메모장으로 열어본다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>새로고침이 <strong>고치던 내용을 지우지 않고</strong>, 받은 파일 내용이 <strong>저장돼 있던 내용</strong>과 같다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>새로고침이 편집 중인 내용을 날리거나, 받은 파일이 비어 있다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>새로고침은 편집기의 <strong>저장되지 않은 편집을 건드리지 않고</strong> 저장소에서 다시 읽는다. 내려받기는 저장된 문서를 내용으로 하는 <code>.html</code> 파일을 저장한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With a section open, press refresh, then download</p>
+            <p class="exp"><span class="explabel">expected</span>Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document</p>
+          </details>
+          <span class="inv">DOC-3, DOC-8</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-19 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+
+  <section class="block">
+    <header class="bhead">
+      <span class="letter" style="background:var(--na)">—</span>
+      <div class="bmeta">
+        <h2>실행할 수 없는 게이트</h2>
+        <p class="needs"><span class="nlabel">이유</span>마운트를 선언한 모듈이 없음 <span class="dot">·</span> 마운트 생명주기는 셸 seam이 존재하는 이유입니다</p>
+      </div>
+    </header>
+    <div class="gates"></div>
+  </section>
+
+  <section class="block">
+    <header class="bhead">
+      <span class="letter" style="background:var(--pass)">✓</span>
+      <div class="bmeta">
+        <h2>이미 증거가 있는 게이트</h2>
+        <p class="needs"><span class="nlabel">범위</span>기록된 빌드가 담고 있던 것만 해소합니다</p>
+      </div>
+    </header>
+    <div class="gates"></div>
+  </section>
+
+  <section class="block">
+    <header class="bhead">
+      <span class="letter" style="background:var(--accent)">?</span>
+      <div class="bmeta">
+        <h2>아직 게이트가 없는 표면</h2>
+        <p class="needs"><span class="nlabel">주의</span>계약이 정한 게이트가 아닙니다 — 자유 관찰입니다</p>
+      </div>
+      <span class="bcount" data-block="UG">0/3</span>
+    </header>
+    <p class="blocknote">이 셋은 빌드에 들어 있지만 RV 번호가 없습니다. 여기 적어주시는 관찰이 게이트를 정의하는 입력이 됩니다 — 그래서 PASS/FAIL 대신 좋음/문제로 두었습니다.</p>
+    <div class="gates">
+      <div class="gate is-ungated" data-gate="UG-1">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">UG-1</span></div>
+        <div class="body">
+          <p class="step">인스톨러 대화창</p>
+          <p class="exp"><span class="explabel">배경</span>sunshine-setup.exe 를 실행했을 때 창이 뜨는가. 경로 선택, 바로가기 체크박스, 배너 이미지. 배너는 플레이스홀더이고 비율이 약 7% 눌려 보이는 것이 알려진 상태입니다.</p>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="UG-1 결과">
+            <button type="button" class="st st-pass" data-state="pass">좋음</button>
+            <button type="button" class="st st-fail" data-state="fail">문제</button>
+            <button type="button" class="st st-na"   data-state="na">안 봄</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="본 것을 그대로"></textarea>
+        </div>
+      </div>
+      <div class="gate is-ungated" data-gate="UG-2">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">UG-2</span></div>
+        <div class="body">
+          <p class="step">계정 페이지</p>
+          <p class="exp"><span class="explabel">배경</span>chrome://sunshine-account. 이 빌드에는 OAuth 클라이언트가 없으므로 &#x27;이 빌드는 제공하지 않는다&#x27;가 정상 동작입니다. 모듈 홈에 줄이 있는지도 함께.</p>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="UG-2 결과">
+            <button type="button" class="st st-pass" data-state="pass">좋음</button>
+            <button type="button" class="st st-fail" data-state="fail">문제</button>
+            <button type="button" class="st st-na"   data-state="na">안 봄</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="본 것을 그대로"></textarea>
+        </div>
+      </div>
+      <div class="gate is-ungated" data-gate="UG-3">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">UG-3</span></div>
+        <div class="body">
+          <p class="step">새 탭 배경</p>
+          <p class="exp"><span class="explabel">배경</span>설치 폴더의 chrome.exe 옆(버전 디렉터리 아님)에 newtab-background.png / .jpg / .webp 를 놓고 새 탭을 여십시오. PNG·JPEG·WebP만 받고, APNG와 애니메이션 WebP도 각각 png·webp로 들어갑니다. 32MB를 넘으면 거부됩니다. 안 나올 경우 이유를 알 방법이 없습니다 — 파일 없음, 크기 초과, 형식 불일치가 모두 같은 결과입니다. 그리고 브라우저를 켠 직후 첫 새 탭은 배경이 없을 수 있습니다(탐지가 프로세스당 한 번, 그리는 스레드 밖에서 돕니다). 두 번째 탭부터 정상이면 그것은 알려진 경합이지 결함이 아닙니다. 파일을 넣기 전에 새 탭을 한 번 열어보시면 대조가 됩니다 — 배경이 없을 때는 프레임 자체가 만들어지지 않습니다.</p>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="UG-3 결과">
+            <button type="button" class="st st-pass" data-state="pass">좋음</button>
+            <button type="button" class="st st-fail" data-state="fail">문제</button>
+            <button type="button" class="st st-na"   data-state="na">안 봄</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="본 것을 그대로"></textarea>
+        </div>
+      </div></div>
+  </section>
+
+  <section class="report">
+    <h2>결과 넘기기</h2>
+    <p><strong>결과 복사</strong>를 누르면 아래 상자가 채워지고 클립보드에 들어갑니다. 그대로 붙여넣어 주시면 됩니다.
+    입력은 이 브라우저에 자동 저장되니 중간에 닫으셔도 됩니다.</p>
+    <p><strong>답하지 않은 항목도 함께 나옵니다.</strong> 설명이 부족해서 못 하신 것이라면 비워둔 채로 복사해 주십시오 —
+    그 목록이 제가 다시 써야 할 항목입니다. 페이지를 저장해서 보내주시는 것보다 이 버튼이 확실합니다
+    (저장한 페이지에는 입력하신 내용이 함께 담기지 않습니다).</p>
+    <textarea id="out" readonly placeholder="아직 표시할 결과가 없습니다."></textarea>
+    <p class="saved" id="saved" style="margin-top:8px"></p>
+  </section>
+</div>
+
+<script>
+(function(){
+  var KEY = "sunshine-gate-sheet-retest-v1";
+  var gates = Array.prototype.slice.call(document.querySelectorAll(".gate"));
+  var live  = gates.filter(function(g){ return g.querySelector(".states"); });
+
+  function load(){
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ return {}; }
+  }
+  function save(state){
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+      document.getElementById("saved").textContent =
+        "이 브라우저에 저장됨 · " + new Date().toLocaleString();
+    } catch(e){
+      document.getElementById("saved").textContent =
+        "저장할 수 없습니다 (비공개 창이거나 사이트 데이터가 차단됨). 창을 닫기 전에 결과를 복사하십시오.";
+    }
+  }
+  var state = load();
+
+  function paint(){
+    var n = {pass:0, fail:0, na:0};
+    live.forEach(function(g){
+      var id = g.dataset.gate, r = (state[id]||{}).r || "";
+      if (r) { g.setAttribute("data-result", r); n[r]++; }
+      else g.removeAttribute("data-result");
+      g.querySelectorAll(".st").forEach(function(b){
+        b.setAttribute("aria-pressed", String(b.dataset.state === r));
+      });
+      var note = g.querySelector(".note");
+      if (note && note.value !== ((state[id]||{}).n || "")) note.value = (state[id]||{}).n || "";
+    });
+    var total = live.length, answered = n.pass + n.fail + n.na;
+    document.getElementById("t-pass").textContent = "PASS " + n.pass;
+    document.getElementById("t-fail").textContent = "FAIL " + n.fail;
+    document.getElementById("t-na").textContent   = "NOT RUN " + n.na;
+    document.getElementById("t-left").textContent = "남음 " + (total - answered);
+    document.getElementById("bp").style.width = (n.pass/total*100) + "%";
+    document.getElementById("bf").style.width = (n.fail/total*100) + "%";
+    document.getElementById("bn").style.width = (n.na/total*100)   + "%";
+    document.querySelectorAll(".bcount").forEach(function(c){
+      var sec = c.closest(".block");
+      var rows = sec.querySelectorAll(".gate .states");
+      var doneN = 0;
+      sec.querySelectorAll(".gate").forEach(function(g){
+        if (g.querySelector(".states") && (state[g.dataset.gate]||{}).r) doneN++;
+      });
+      c.textContent = doneN + "/" + rows.length;
+    });
+  }
+
+  document.addEventListener("click", function(e){
+    var b = e.target.closest(".st");
+    if (!b) return;
+    var g = b.closest(".gate"), id = g.dataset.gate;
+    state[id] = state[id] || {};
+    state[id].r = (state[id].r === b.dataset.state) ? "" : b.dataset.state;
+    save(state); paint();
+  });
+  document.addEventListener("input", function(e){
+    var t = e.target;
+    if (!t.classList || !t.classList.contains("note")) return;
+    var id = t.closest(".gate").dataset.gate;
+    state[id] = state[id] || {};
+    state[id].n = t.value;
+    t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px";
+    save(state);
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    if (!confirm("입력한 결과와 메모를 모두 지웁니다. 계속할까요?")) return;
+    state = {}; save(state); paint();
+    document.getElementById("out").value = "";
+  });
+
+  function report(){
+    var L = [];
+    L.push("# Sunshine 재테스트 결과 (17개)");
+    L.push("");
+    L.push("- 빌드: #42 (da64842), 152.0.7977.42");
+    L.push("- 작성: " + new Date().toLocaleString());
+    var n = {pass:0, fail:0, na:0};
+    live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });
+    L.push("- 합계: PASS " + n.pass + " / FAIL " + n.fail + " / NOT RUN " + n.na +
+           " / 남음 " + (live.length - n.pass - n.fail - n.na));
+    L.push("");
+    document.querySelectorAll(".block").forEach(function(sec){
+      var rows = Array.prototype.slice.call(sec.querySelectorAll(".gate"))
+        .filter(function(g){ return g.querySelector(".states") && (state[g.dataset.gate]||{}).r; });
+      if (!rows.length) return;
+      var head = sec.querySelector(".letter").textContent.trim() + " — " +
+                 sec.querySelector("h2").textContent.trim();
+      L.push("## " + head);
+      L.push("");
+      rows.forEach(function(g){
+        var id = g.dataset.gate, s = state[id];
+        var mark = s.r === "pass" ? "PASS" : s.r === "fail" ? "FAIL" : "NOT RUN";
+        L.push("- **" + id + "** — " + mark);
+        if (s.n && s.n.trim()) {
+          s.n.trim().split("\n").forEach(function(line){ L.push("  - " + line); });
+        }
+      });
+      L.push("");
+    });
+    // The unanswered gates, by name. This is the half of the report that
+    // matters most: the owner's first pass through the sheet left rows blank
+    // because they could not tell what to do, and a report that listed only
+    // answers made that invisible -- I could see what worked and not what was
+    // unusable, which is the thing I need to fix.
+    var blank = live.filter(function(g){ return !(state[g.dataset.gate]||{}).r; })
+                    .map(function(g){ return g.dataset.gate; });
+    if (blank.length) {
+      L.push("## 따라 하지 못한 항목");
+      L.push("");
+      L.push("아래는 답하지 않은 항목입니다. 설명이 부족해서 못 하신 것이라면 그대로 두시면 됩니다 — 이 목록이 다시 쓸 대상입니다.");
+      L.push("");
+      L.push(blank.join(", "));
+      L.push("");
+    }
+    if (n.pass + n.fail + n.na === 0 && !blank.length) return "아직 표시할 결과가 없습니다.";
+    if (n.pass + n.fail + n.na === 0) return L.join("\n");
+    return L.join("\n");
+  }
+
+  document.getElementById("copy").addEventListener("click", function(){
+    var text = report(), out = document.getElementById("out");
+    out.value = text;
+    out.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){}
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){
+        this.textContent = "복사됨";
+      }.bind(this)).catch(function(){});
+    }
+    this.textContent = ok ? "복사됨" : "아래에서 선택해 복사하십시오";
+    var btn = this;
+    setTimeout(function(){ btn.textContent = "결과 복사"; }, 2200);
+  });
+
+  paint();
+  live.forEach(function(g){
+    var t = g.querySelector(".note");
+    if (t && t.value) { t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; }
+  });
+})();
+</script>

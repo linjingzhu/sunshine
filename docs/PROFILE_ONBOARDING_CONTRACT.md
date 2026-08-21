@@ -510,12 +510,17 @@ Every criterion below is **NOT RUN**, and every one that is not class O is
 | PO-A13 | With canary values in an account-shaped fixture (an email-like string in a profile name, a fixture Gaia cookie), exercise creation, first run, and deletion; assert no canary appears in logs, crash reports, exported configuration, or workflow artifacts. | B |
 | PO-A14 | Walk the first run, where one is shown, declining every step. Assert each step had a visible decline, that the end state matches PO-R12, that no step reappears on the next launch, and that every declined option is reachable from settings. | H |
 | PO-A15 | Confirm no product surface describes local-only operation as an error, a warning, or an incomplete setup, and that no surface claims permanent or secure erasure on deletion. | H |
+| PO-A16 | No Sunshine-named credential — client id, client secret, or API key — carries a literal value anywhere in the searched tree. The name may be declared; the value arrives from the release pipeline. A placeholder is the failure this catches: it is shaped like no real credential and sets none of Chrome's arguments, and it would still make the link available in every build made from this repository. | O |
+| PO-A17 | No Sunshine source reaches Chromium's identity surface: no identity manager, primary account, OAuth token service, signin or Gaia component, sync service, or read of the profile's cookie jar. PO-A2 forbids *patching* those areas; this forbids *calling into* them, which a file can do while leaving every upstream source untouched. | O |
 
-PO-A1 through PO-A4 are class O and are the first criteria in this contract set
-addressed to onboarding that could run today; `docs/ACCEPTANCE_SUITES.md` §1.2
-records that no line of any stage acceptance suite is class O. None of them is
-wired to a check in `scripts/` by this wave, and doing so is the natural next
-piece of work.
+PO-A1 through PO-A4, PO-A16 and PO-A17 are class O and are the first criteria in
+this contract set addressed to onboarding that could run today;
+`docs/ACCEPTANCE_SUITES.md` §1.2 records that no line of any stage acceptance
+suite is class O.
+
+PO-A16 and PO-A17 exist because `docs/ACCOUNT_LINK_PLAN.md` §8 asked for them
+before the code they constrain was written, and `scripts/verify_account_freedom.py`
+enforces them alongside PO-A1 through PO-A3.
 
 ---
 

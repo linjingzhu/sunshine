@@ -154,6 +154,208 @@ class WebAssetSecurityTests(TreeTestCase):
         self.assertTrue(any("innerHTML" in failure for failure in self.failures()))
 
 
+
+class LitBindingTests(TreeTestCase):
+    """Enforces: WA-2."""
+
+    def failures(self) -> list[str]:
+        found: list[str] = []
+        assets.check_lit_bindings_are_declared(self.root, found)
+        return found
+
+    def test_a_binding_without_a_declaration_is_rejected(self) -> None:
+        """Build #38's second failure.
+
+        Chromium's lit-reactive-properties rule wants every property a
+        template reads declared in the properties block, and
+        lit-property-accessor then wants the accessor keyword. Omit the
+        declaration and both fire -- one omission seen from two sides.
+        """
+
+        self.write("downstream/patches/0093-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.sunshineBackgroundPath_}\"></iframe>",
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,1 +1,2 @@",
+            "+  protected accessor sunshineBackgroundPath_: string = 'x';",
+        ]))
+        failures = self.failures()
+        self.assertTrue(failures, "the violation was accepted")
+        self.assertTrue(any("WA-2" in failure for failure in failures), failures)
+
+    def test_a_binding_with_its_declaration_is_accepted(self) -> None:
+        self.write("downstream/patches/0094-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.sunshineBackgroundPath_}\"></iframe>",
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,1 +1,3 @@",
+            "+      sunshineBackgroundPath_: {type: String},",
+            "+  protected accessor sunshineBackgroundPath_: string = 'x';",
+        ]))
+        self.assertEqual([], self.failures())
+
+    def test_an_upstream_binding_on_a_context_line_is_not_checked(self) -> None:
+        """Upstream declares its own properties upstream.
+
+        A rule that demanded the stack re-declare them would fail on every
+        patch that touches a template, which is every patch that touches the
+        New Tab page.
+        """
+
+        self.write("downstream/patches/0095-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,2 +1,2 @@",
+            " <div ?hidden=\"${this.logoEnabled_}\">",
+            "+  <div id=\"sunshineWordmark\">SUNSHINE</div>",
+        ]))
+        self.assertEqual([], self.failures())
+
+
+class GuardWiringTests(TreeTestCase):
+    """Enforces: WA-1, WA-2 — through the entry point CI actually runs.
+
+    Every other test in this file calls a check function directly, which
+    proves the function works and nothing about whether it is reached. An
+    adversarial reviewer deleted both calls from `check()` and all nineteen
+    tests still passed: the guards were correct and disconnected, and CI would
+    have reported success on a violating tree.
+    """
+
+    def test_check_reaches_the_backtick_rule(self) -> None:
+        self.write("downstream/patches/0096-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <!-- the `hidden` attribute -->",
+        ]))
+        self.assertTrue(any("WA-1" in f for f in assets.check(self.root)))
+
+    def test_check_reaches_the_binding_rule(self) -> None:
+        self.write("downstream/patches/0097-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.sunshineUndeclared_}\"></iframe>",
+        ]))
+        self.assertTrue(any("WA-2" in f for f in assets.check(self.root)))
+
+    def test_check_reaches_the_binding_rule_through_a_negated_form(self) -> None:
+        """`${!this.x}` is the form this repository's own patch uses.
+
+        The first version of WA-2 required `}` immediately after the
+        identifier, so it saw one of the two bindings patch 0002 adds and
+        would have let build #38's failure recur.
+        """
+
+        self.write("downstream/patches/0098-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe ?hidden=\"${!this.sunshineUndeclared_}\"></iframe>",
+        ]))
+        self.assertTrue(any("WA-2" in f for f in assets.check(self.root)))
+
+    def test_a_method_call_is_not_a_reactive_property(self) -> None:
+        """Lit's rule is about properties. A method needs no declaration, and
+        demanding one would fail on correct code."""
+
+        self.write("downstream/patches/0099-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.computeSunshineSrc_()}\"></iframe>",
+        ]))
+        self.assertEqual([], [f for f in assets.check(self.root) if "WA-2" in f])
+
+
+class HtmlBacktickTests(TreeTestCase):
+    """Enforces: WA-1."""
+
+    def _backtick_failures(self) -> list[str]:
+        found: list[str] = []
+        assets.check_no_backtick_in_html(self.root, found)
+        return found
+
+    def test_a_backtick_in_a_patched_html_file_is_rejected(self) -> None:
+        """The failure that killed build #38.
+
+        The backtick was inside an HTML comment -- punctuation quoting an
+        attribute name. Chromium preprocesses the file into a TypeScript
+        template literal, so the backtick ended the string and tsc reported a
+        syntax error in a generated file no one had written.
+        """
+
+        self.write("downstream/patches/0090-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <!-- the `hidden` attribute goes on when hidden -->",
+        ]))
+        failures = self._backtick_failures()
+        self.assertTrue(failures, "the violation was accepted")
+        self.assertTrue(any("WA-1" in failure for failure in failures), failures)
+
+    def test_lit_conditional_rendering_is_accepted(self) -> None:
+        """The form the guard used to forbid.
+
+        `${cond ? html`...` : ''}` is how a Lit template renders nothing, and
+        upstream's own app.html is full of it. The first version of WA-1
+        refused a backtick on any added line and blocked a correct patch --
+        the one that stopped creating a background frame when no background
+        exists. Template syntax lives outside comments; prose lives inside.
+        """
+
+        self.write("downstream/patches/0093-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,3 @@",
+            "+  ${this.showIt_ ? html`",
+            "+    <div>shown</div>",
+            "+  ` : ''}",
+        ]))
+        self.assertEqual([], self._backtick_failures())
+
+    def test_a_backtick_in_a_patched_typescript_file_is_accepted(self) -> None:
+        """A `.ts` file is already TypeScript.
+
+        Its comments are comments, and backticks in them are punctuation. A
+        rule that fired here would forbid ordinary prose in the one place the
+        stack writes most of it.
+        """
+
+        self.write("downstream/patches/0091-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,1 +1,2 @@",
+            "+// `ReadInstalledBackground` returns the bytes, or empty.",
+        ]))
+        self.assertEqual([], self._backtick_failures())
+
+    def test_a_backtick_on_a_context_line_is_not_an_addition(self) -> None:
+        """Upstream's own HTML is full of Lit template syntax.
+
+        Those lines arrive as context in every patch that touches the file. A
+        rule that read them would fail on the first hunk of the New Tab page
+        and never pass again.
+        """
+
+        self.write("downstream/patches/0092-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,2 +1,2 @@",
+            " ${this.lazyRender_ ? html`",
+            "+  <div id=\"sunshineWordmark\">SUNSHINE</div>",
+        ]))
+        self.assertEqual([], self._backtick_failures())
+
+
 class RepositoryIsCleanTests(unittest.TestCase):
     def test_the_repository_passes_both_guards_today(self) -> None:
         self.assertEqual([], assets.check(REPOSITORY_ROOT))

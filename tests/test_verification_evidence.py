@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 import trace_invariants as tracer  # noqa: E402
 import validate_first_party_modules as modules  # noqa: E402
 import verify_verification_evidence as guard  # noqa: E402
+import verify_pinned_upstream as upstream_module  # noqa: E402
 
 CONTRACT = """# Security architecture
 
@@ -390,6 +391,109 @@ class DerivedShapeTests(unittest.TestCase):
         self.assertEqual({"PB-2a"}, tracer._identifiers("PB-2a"))
 
 
+class UpstreamPathReferenceTests(unittest.TestCase):
+    """A gate may name the Chromium file it is about.
+
+    Every backticked path in the document must exist, which is right for the
+    repository's own files and impossible for Chromium's: this guard is offline
+    and `chrome/` is not in the working tree. Requiring it anyway would have
+    meant RV-10's cause -- found in `chrome/app/chrome_exe.rc`, where an
+    undefined `IDR_MAINFRAME` makes the icon resource names strings -- could not
+    be written down beside the gate it explains.
+
+    Upstream paths are not unchecked. `verify_pinned_upstream.py` reads every
+    path cited anywhere in `docs/` and asks whether it exists at the pinned
+    revision, which is the question worth asking about an upstream file.
+    """
+
+    def setUp(self) -> None:
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.root = Path(directory)
+        (self.root / "docs").mkdir()
+        self.document = self.root / guard.DOCUMENT
+        self.document.parent.mkdir(parents=True, exist_ok=True)
+
+    def write(self, body: str) -> list[str]:
+        self.document.write_text(body, encoding="utf-8")
+        _, failures = guard.check(self.root)
+        return failures
+
+    def test_a_chromium_path_is_left_to_the_guard_that_can_check_it(self) -> None:
+        failures = self.write("Cause: `chrome/app/chrome_exe.rc`.\n")
+        self.assertEqual(
+            [], [f for f in failures if "chrome_exe.rc" in f], failures
+        )
+
+    def test_a_repository_path_that_does_not_exist_still_fails(self) -> None:
+        """The exemption is by prefix, and `scripts/` is ours."""
+
+        failures = self.write("See `scripts/verify_nothing_at_all.py`.\n")
+        self.assertTrue(
+            any("verify_nothing_at_all.py" in f for f in failures), failures
+        )
+
+    def test_the_prefixes_are_the_shared_ones(self) -> None:
+        """Two lists would drift. This is the same set
+        `verify_pinned_upstream.py` uses to decide the same question."""
+
+        self.assertIs(guard.upstream.OWN_PREFIXES, upstream_module.OWN_PREFIXES)
+        for ours in ("scripts", "docs", "downstream", "first_party", "tests", "config"):
+            self.assertIn(ours, guard.upstream.OWN_PREFIXES)
+        self.assertNotIn("chrome", guard.upstream.OWN_PREFIXES)
+        self.assertNotIn("components", guard.upstream.OWN_PREFIXES)
+
+
+class RunSheetTests(GuardTestCase):
+    """Rule 7 -- the run sheet schedules exactly what is still owed.
+
+    The sheet exists because the gates are cheap individually and unmanageable
+    as a list of forty-three, and it is allowed to hold no expectations at all.
+    What it can do is go stale, in three ways, and each has a case here.
+    """
+
+    SHEET = "docs/RETURN_RUN_SHEET.md"
+
+    def sheet(self, text: str) -> None:
+        self.write(self.SHEET, text)
+
+    def test_a_sheet_naming_every_unrun_gate_is_accepted(self) -> None:
+        self.sheet("Run R1, then R2, then V1.\n")
+        self.assertEqual([], self.failures())
+
+    def test_a_gate_left_off_the_sheet_is_reported(self) -> None:
+        self.sheet("Run R1, then V1.\n")
+        failures = self.failures()
+        self.assertTrue(any("R2" in failure for failure in failures), failures)
+
+    def test_a_gate_with_a_pass_need_not_be_scheduled(self) -> None:
+        """The other direction of staleness: a gate already run stays off the
+        sheet, and the sheet must not be forced to keep telling someone to run
+        it."""
+
+        self.sheet("Run R2, then V1.\n")
+        self.assertEqual([], self.failures(records=record("R1")))
+
+    def test_a_gate_the_document_does_not_define_is_reported(self) -> None:
+        self.sheet("Run R1, R2, V1 and R9.\n")
+        failures = self.failures()
+        self.assertTrue(any("R9" in failure for failure in failures), failures)
+
+    def test_an_identifier_from_another_series_is_not_read_as_a_gate(self) -> None:
+        """A stop rule naming SEC-1 is citing a contract invariant, not
+        mistyping a gate. Reading it as one would make every sheet that
+        explains *why* a gate matters fail."""
+
+        self.sheet("Run R1, R2, V1. If R1 fails, SEC-1 is not what it claims.\n")
+        self.assertEqual([], self.failures())
+
+    def test_no_sheet_leaves_the_rule_with_nothing_to_say(self) -> None:
+        """Deliberate, and the reason the repository-level test below exists:
+        absence is not a failure here, so absence must be a failure there."""
+
+        self.assertEqual([], self.failures())
+
+
 class RepositoryStateTests(unittest.TestCase):
     """The repository as it stands, and what of this guard is live in it.
 
@@ -405,7 +509,7 @@ class RepositoryStateTests(unittest.TestCase):
     def test_the_repository_passes(self) -> None:
         self.assertEqual([], self.failures, "\n".join(self.report))
 
-    def test_the_document_defines_fourteen_gates_in_two_series(self) -> None:
+    def test_the_document_defines_forty_three_gates_in_two_series(self) -> None:
         sections = guard.parse_sections(
             (REPOSITORY_ROOT / guard.DOCUMENT).read_text(encoding="utf-8")
         )
@@ -415,7 +519,7 @@ class RepositoryStateTests(unittest.TestCase):
         # tracer reported this document's gates as declared by both -- while
         # `V` belonged to no family and so could never be claimed at all.
         self.assertEqual(
-            [f"RV-{n}" for n in range(1, 12)] + [f"RVV-{n}" for n in range(1, 4)],
+            [f"RV-{n}" for n in range(1, 39)] + [f"RVV-{n}" for n in range(1, 6)],
             [gate.label for gate in found],
         )
 
@@ -465,6 +569,17 @@ class RepositoryStateTests(unittest.TestCase):
         self.assertEqual(["RV-7"], [record.gate for record in records])
         self.assertEqual(["PASS"], [record.result for record in records])
         self.assertIn("6aa75ff", records[0].build)
+
+    def test_the_run_sheet_exists_and_rule_seven_is_live(self) -> None:
+        """Rule 7 is a no-op where there is no sheet, so this is the assertion
+        that the repository is not that case. Forty-two of the forty-three
+        gates are owed, and the sheet has to say when to run every one."""
+
+        self.assertTrue((REPOSITORY_ROOT / guard.RUN_SHEET).is_file())
+        self.assertTrue(
+            any(guard.RUN_SHEET in line for line in self.report),
+            "\n".join(self.report),
+        )
 
     def test_evidence_alone_advances_no_manifest(self) -> None:
         """A gate passing is not a module being verified.

@@ -30,6 +30,194 @@ Set the repository Actions variable `SUNSHINE_CHROMIUM_WORKSPACE` to the persist
 
 The runner also needs `DEPOT_TOOLS_WIN_TOOLCHAIN=0` in the machine environment. Without it `gclient sync` tries to fetch a Google-internal toolchain and fails.
 
+## Before dispatching a build, read the pinned tree and run the toolchain
+
+A build is six hours on the machine the owner also works on, so the question
+worth asking before every dispatch is *what would waste it*. Three kinds of
+failure can be found in about twenty minutes, off the build machine entirely,
+and the first time this was done it found three real ones.
+
+**1. Symbols, not just paths.** The guards read the patch stack; none of them
+reads Chromium's headers, so a C++ patch naming an API that does not exist at
+the pin passes everything and dies in the compiler. `raw.githubusercontent.com`
+is reachable from an agent session even where `chromium.googlesource.com` is
+not, so any header can be read directly:
+
+```text
+curl -s https://raw.githubusercontent.com/chromium/chromium/<pin>/base/values.h
+```
+
+Before build #31 this found three in one 40-line function: `base::Value::Dict`
+and `base::Value::List` are `base::DictValue` and `base::ListValue` at this
+revision with no compatibility alias, and `GURL::path_piece()` does not exist
+because `path()` already returns a `std::string_view`. Each would have ended
+the build.
+
+**Grep for the name, then read the whole declaration.** Build #32 died on the
+same function anyway, because `base::JSONReader::Read` exists but its `options`
+parameter has no default here — the name was confirmed and the signature was
+not. Reading four more lines of `base/json/json_reader.h` would have caught it,
+and would also have found `ReadDict()`, which is what the call should have been
+in the first place. A grep answers *is it there*; only the declaration answers
+*can I call it that way*.
+
+**Also confirm the include a generated header comes from.** A `.mojom.h` is not
+in the source tree and will 404; find an upstream `.cc` that uses the same
+symbol and copy its include line. `new_tab_page_ui.cc` is the worked example
+for `network::mojom::CSPDirectiveName`.
+
+**2. TypeScript, actually compiled.** `tsc` type-checks the surfaces without a
+Chromium checkout. Use Chromium's own settings from
+`tools/typescript/tsconfig_base.json` rather than a guess — it is stricter
+than the obvious defaults, in particular `noUncheckedIndexedAccess` and
+`noPropertyAccessFromIndexSignature`. Stub `//resources/js/load_time_data.js`
+and `/strings.m.js` through `paths`.
+
+**3. eslint, with Chromium's own configuration.** One of two linters that run
+*inside* `build_webui()`. `tools/web_dev_style/eslint.config.mjs` can be used
+directly by rewriting its four plugin imports to locally installed copies of
+`@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser`,
+`@stylistic/eslint-plugin` and `eslint-plugin-lit`. Approximating the rules by
+hand is not the same thing and misses the project-specific
+`no-restricted-syntax` cases.
+
+**4. stylelint, likewise.** The CSS is linted too, by a separate `lint_css`
+action, and **this is the step that failed build #31** — `no-duplicate-selectors`
+on a `.tab-button` block a later patch added beside the one an earlier patch
+had written. Nothing else in this project would ever have noticed: two patches
+each producing a valid rule, and the defect existing only in their sum.
+
+Use `ui/webui/resources/tools/stylelint.config_base.mjs` with its one plugin
+import rewritten to a local `@stylistic/stylelint-plugin`, and run it over
+**every** surface's stylesheet at once rather than the one just edited — the
+build lints them as one list, and a duplicate selector is a property of a whole
+file rather than of a hunk.
+
+The lesson is more general than the rule: **a patch stack can be correct patch
+by patch and wrong in its sum**, and every check here reads the *reconstructed*
+file for that reason.
+
+**5. A Lit template's `.html` is TypeScript, and a backtick in it is code.**
+**This is the step that failed build #38.** Chromium preprocesses such a file
+into a `.html.ts` whose entire body is one template literal, so a backtick ends
+the string and `${` starts an expression. An HTML *comment* quoting an
+attribute name in backticks produced `TS1005: ';' expected` in generated
+`app.html.ts` — a syntax error in a file no one had written, reported at a line
+that does not exist in the source anyone edited.
+
+The signal had been there and was not read: the upstream comment that patch
+replaced wrote its own binding as a backslash-escaped dollar, `\${...}`, which
+is only necessary if the file is a template literal.
+
+`scripts/verify_web_asset_security.py` refuses a backtick **inside an HTML
+comment** on a line the stack adds, which is WA-1.
+
+The scope was wrong first and is worth keeping as written. The original rule
+refused a backtick on *any* added `.html` line — broader than the defect — and
+it promptly blocked correct work: `${cond ? html`…`  : ''}` is how a Lit
+template renders nothing, upstream's own `app.html` is built from it, and the
+patch that stopped creating a background frame when no background exists could
+not pass. Template syntax lives outside comments and prose lives inside them,
+and only prose becomes punctuation by mistake.
+
+**6. eslint runs on the generated TypeScript too, with Lit-specific rules.**
+**This is the step that failed build #38's second attempt**, after the
+backtick was fixed and `tsc` passed. Two errors, on one property:
+
+```
+app.html.ts  Missing Lit reactive property declaration for 'sunshineBackgroundPath_'
+app.ts       Unnecessary 'accessor' keyword when declaring regular
+             (non Lit reactive) property 'sunshineBackgroundPath_'
+```
+
+`@webui-eslint/lit-reactive-properties` holds that every property a template
+reads is declared in `static get properties()`;
+`@webui-eslint/lit-property-accessor` then holds that `accessor` belongs only
+on a property that is. **They are one omission seen from two sides**, and
+reading them as two problems is how the fix gets guessed at rather than made.
+A property that never changes still needs the declaration, because the rule is
+about what the template reads and not about what varies.
+
+WA-2 holds it: a `${this.name}` binding the stack adds to a template must have
+a matching declaration in the added lines of the sibling `.ts`. Bindings on
+context lines are upstream's and are not checked — a rule that demanded the
+stack re-declare those would fail on every patch that touches a template.
+
+The four together took about half an hour and found four real defects across
+two build attempts. A build takes six.
+
+**Prove each harness before trusting it.** Inject a fault and check it fails.
+A checker that passes because it matched no files is worse than no checker,
+and both of these can do that silently — `tsc` on an empty include list and
+`eslint` on a glob that matches nothing both exit 0.
+
+None of this is a substitute for the build. It removes the failures that are
+decidable without one, which is most of the ones this project has actually hit.
+
+## Why the build is not on a GitHub-hosted runner
+
+It was asked for, and the answer is arithmetic rather than preference.
+
+| | This build needs | A GitHub-hosted standard runner offers |
+| --- | --- | --- |
+| Free disk | 180 GB | 36 GB after deleting the image's unused toolchains, measured |
+| Cores | 12, for the six-hour figure below | 4 |
+| Wall clock | ~6 h at 12 cores, so ~18 h at 4 | 6 h, a hard per-job ceiling |
+
+Larger runners would close the first two rows and are configured in
+**organisation** settings; this repository belongs to a personal account, so
+there is no place to enable them. Nothing here is tunable: two of the three
+rows are out by more than an order of magnitude, and the third is a limit the
+job cannot ask to have raised.
+
+A hosted compile therefore needs a machine this project rents rather than one
+GitHub provides -- a cloud VM registered as a self-hosted runner, which is the
+same workflow file with a different label. That is a cost decision and it is
+the owner's.
+
+### What does run on a hosted runner
+
+`.github/workflows/patch-apply-hosted.yml` clones `src` alone at the pinned
+revision -- one revision deep, no DEPS, no submodules -- and applies the whole
+stack to it. Every upstream file the stack touches is under `chrome/` or
+`tools/`, so the dependency tree a compile would need is never fetched.
+
+Measured on run 1, `5899580`:
+
+| | |
+| --- | --- |
+| `src` at `152.0.7977.42` | 6.8 GB, 497,194 files |
+| Clone | 5 min 50 s |
+| Applying all thirteen patches | under one second |
+| Whole job | 6 min 53 s |
+| Free disk left | 29 GB |
+
+The clone is the job. The thing the job exists to do costs nothing, which is
+the argument for running it on every push that touches a patch.
+
+It answers the one question no offline guard can. `verify_patch_integrity.py`
+checks each hunk's arithmetic, `verify_patch_references.py` replays hunks
+against files the stack itself creates, and `verify_pinned_upstream.py` asks
+whether cited upstream files exist -- but none of them reads an upstream file's
+*contents*, because those are not in this repository. Until this job existed,
+the first thing that ever read a patch against the real tree was `git apply` on
+the build machine, and build #18 died there twenty minutes in.
+
+**It is not a build and does not stand in for one.** A stack that applies can
+still fail on eslint, on `gn`, or in the compiler. What it removes is the class
+of failure that used to cost a whole build slot to discover.
+
+### What run 1 established
+
+Patches 0009 to 0013 had never touched a real Chromium tree. They apply.
+
+It also confirmed a count that had only ever been asserted.
+`scripts/patch_manifest.py` reports 16 upstream files exclusively owned by the
+stack; after applying, `git status` in the checkout listed exactly those 16 as
+modified, plus the four Sunshine directories the stack creates and nothing
+else. The manifest's model of what this project touches upstream is now
+git's answer as well as its own.
+
 ## Authenticate to googlesource before the first sync
 
 Syncing Chromium clones well over a hundred dependency repositories. Anonymous requests share one server-side quota pool, and a multi-core runner exhausts it:

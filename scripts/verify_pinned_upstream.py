@@ -43,6 +43,9 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import patch_manifest  # noqa: E402
 
 SOURCES = {
     "googlesource": (
@@ -121,7 +124,7 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 # upstream asks for a path that was never meant to be there.
 OWN_PREFIXES = frozenset({
     ".ai", ".git", ".github", "config", "docs", "downstream", "first_party",
-    "scripts", "tests",
+    "installer", "scripts", "tests",
     # Ours, but present only after a build, so absent from a fresh clone and
     # from this list until the first CI run on the build machine failed for
     # exactly that reason. `artifacts/` holds the installer and size report the
@@ -262,6 +265,32 @@ def section(text: str, opening: str) -> str:
     return text[start : end if end != -1 else len(text)]
 
 
+def stack_created_paths(root: Path) -> set[str]:
+    """Paths inside Chromium's tree that the patch stack creates.
+
+    These live under `chrome/`, `components/` and the like, so nothing about
+    their spelling distinguishes them from upstream ones -- but Chromium does
+    not have them and must not. `scripts/patch_manifest.py` already refuses to
+    let a created path also be an upstream target, so this set and the set of
+    paths that must exist upstream cannot overlap.
+    """
+
+    # A root with no patch directory has no stack, so nothing is created. This
+    # is not defensive padding: `check_citations` is called on fixture roots
+    # that hold only `docs/`, and a citation check that needs a patch series to
+    # run would be coupled to something it does not check.
+    if not (root / "downstream/patches/series").is_file():
+        return set()
+
+    created: set[str] = set()
+    for entry in patch_manifest.read_manifest(root):
+        text = (root / "downstream/patches" / entry).read_text(encoding="utf-8")
+        created.update(
+            target for target, creates in patch_manifest.patch_sections(text) if creates
+        )
+    return created
+
+
 def cited_paths(root: Path) -> dict[str, set[str]]:
     """Upstream source paths the contracts cite, mapped to the docs citing them."""
 
@@ -374,6 +403,27 @@ def check_citations(source: str, version: str, root: Path, report: list[str]) ->
     """
 
     citations = cited_paths(root)
+
+    # A path the stack creates is a Sunshine file that happens to live in
+    # Chromium's tree, and asking whether Chromium has it is asking the wrong
+    # question -- the correct answer upstream is "absent", which this check
+    # would report as a failure. It is not skipped silently: the count is in
+    # the report, so a citation that quietly stopped being checked is visible.
+    #
+    # This appeared the first time a contract cited such a file --
+    # `chrome/common/sunshine/sunshine_webui_hosts.h`, cited by
+    # OMNIBOX_CONTRACT.md for the host constants the module home added. Until
+    # then every cited path really was upstream and the distinction had never
+    # come up.
+    created = stack_created_paths(root) & set(citations)
+    for path in sorted(created):
+        del citations[path]
+    if created:
+        report.append(
+            f"  OK   {len(created)} cited path(s) are created by the patch stack, "
+            "so upstream is not asked for them"
+        )
+
     if not citations:
         report.append("  OK   no upstream paths cited by the contracts")
         return True

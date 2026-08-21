@@ -98,6 +98,38 @@ FAMILIES = (
     "RV", "RVV",
     # The document surface: DOC-n invariants, DOCA-n acceptance criteria.
     "DOC", "DOCA",
+    # The module home: MH-n invariants, MHA-n acceptance criteria.
+    "MH", "MHA",
+    # Module apps -- the projects that mount as modules: MA-n invariants,
+    # MAA-n acceptance criteria.
+    "MA", "MAA",
+    # The two capabilities ADR 0016 unblocked: host allowlist and file broker.
+    "HA", "HAA", "FB", "FBA",
+    # Web assets as *build inputs* rather than as security surface: WA-n.
+    # Separate from SEC-14/SECA-9, which the same guard also enforces, because
+    # a backtick in a Lit template is not a security defect -- it is a syntax
+    # error in a generated file, and filing it under SEC would make that
+    # family mean two different things.
+    "WA",
+    # The New Tab background: NTB-n, the source-decidable half of the rule.
+    # Its runtime half lives in PERFORMANCE_BUDGET's PB-5a rather than gaining
+    # NTB numbers of its own, because a criterion with two homes is a criterion
+    # that drifts between them.
+    "NTB",
+    # The module shell's regions and the port that mounts into them: MS-n and
+    # MM-n. "MS" was missing until the mount work, which is exactly the failure
+    # the comment above describes -- verify_shell_geometry.py had claimed MS-4
+    # since the shell landed, and the claim was neither counted nor rejected,
+    # because an unparsed token is absent rather than refused.
+    "MS", "MM",
+    # The document store: DS-n. Distinct from DSA-n, which is the design
+    # system's acceptance series -- _family() reads the leading capitals, so
+    # "DS-1" and "DSA-1" are two families and not one.
+    "DS",
+    # The installer front-end: IU-n. The installer is the one Sunshine surface
+    # that runs before the browser exists, so none of the web-surface families
+    # can speak for it.
+    "IU",
 )
 
 

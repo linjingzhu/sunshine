@@ -55,6 +55,14 @@ jobs:
         env:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
           SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}
+          # The account link's OAuth client, if this repository has been given
+          # one. A secret rather than a variable: the id is public by Google's
+          # own account of installed apps, but a secret is redacted from logs
+          # and a variable is not, and nothing is gained by watching it scroll
+          # past. Unset resolves to the empty string, and the build then makes
+          # a browser with no account link -- which is what every build from
+          # this repository does today and what any fork will keep doing.
+          SUNSHINE_ACCOUNT_CLIENT_ID: ${{ secrets.SUNSHINE_ACCOUNT_CLIENT_ID }}
         run: ./scripts/build_chromium_windows.ps1
 
       # The first check in this project that reads the output rather than the
@@ -64,6 +72,27 @@ jobs:
         env:
           SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
         run: python scripts/verify_installed_build.py
+
+      # The dialog, with mini_installer.exe inside it. Its own compiler
+      # invocation rather than a GN target: it links against nothing Chromium
+      # produces except the engine it embeds as a blob, so it does not belong
+      # in that build graph, and a dialog change costs a link rather than a
+      # browser.
+      - name: Build the installer front-end
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: ./scripts/build_installer_frontend.ps1
+
+      # docs/SIZE_BUDGET.md names an installed-bundle threshold that nothing
+      # has ever measured: the size report reads chrome.exe, which build #33
+      # measured at 4.1 MB because it is a launcher stub. This reads upstream's
+      # own shipped-file manifest and sums what the installer actually packs.
+      - name: Measure the shipped payload
+        env:
+          SUNSHINE_CHROMIUM_WORKSPACE: ${{ vars.SUNSHINE_CHROMIUM_WORKSPACE }}
+        run: >
+          python scripts/measure_shipped_size.py
+          --json artifacts\windows-x64\shipped-size.json
 
       # Where the installer is, rather than a copy of it. The build script has
       # already written it to the runner's own disk.
@@ -77,3 +106,10 @@ jobs:
           $megabytes = [math]::Round((Get-Item $installer).Length / 1MB, 1)
           Write-Host "Installer ($megabytes MB): $installer"
           Get-Content (Join-Path $directory "size-report.json")
+          # The front-end is a separate artifact from a separate compiler run,
+          # and without this a step that silently produced nothing would leave
+          # the job green.
+          $frontEnd = Join-Path $directory "sunshine-setup.exe"
+          if (-not (Test-Path $frontEnd)) { throw "the installer front-end is missing: $frontEnd" }
+          $feMegabytes = [math]::Round((Get-Item $frontEnd).Length / 1MB, 1)
+          Write-Host "Front-end ($feMegabytes MB): $frontEnd"

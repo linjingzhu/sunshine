@@ -5,7 +5,14 @@ param(
   # 0 lets autoninja saturate the machine. Set this when the runner is also a
   # workstation: ninja otherwise schedules roughly core count plus two jobs and
   # leaves nothing for interactive use.
-  [int]$NinjaJobs = $(if ($env:SUNSHINE_NINJA_JOBS) { [int]$env:SUNSHINE_NINJA_JOBS } else { 0 })
+  [int]$NinjaJobs = $(if ($env:SUNSHINE_NINJA_JOBS) { [int]$env:SUNSHINE_NINJA_JOBS } else { 0 }),
+  # The OAuth client this build is given, or nothing. Read from the environment
+  # so the release pipeline can supply it from a secret and it never appears on
+  # a command line, where Windows shows it to every process that can enumerate
+  # them. Empty is the normal case: a build without it simply has no account
+  # link, which is the state docs/ACCOUNT_LINK_PLAN.md section 5 describes as
+  # absent rather than broken.
+  [string]$AccountClientId = $env:SUNSHINE_ACCOUNT_CLIENT_ID
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,6 +75,23 @@ $gnArgs = @(
   "proprietary_codecs=true",
   'ffmpeg_branding="Chrome"'
 )
+
+# Appended only when a client was supplied, so args.gn in a build without one
+# is byte-identical to what it was before this feature existed. That matters
+# more than it looks: args.gn stays in the output directory and is the first
+# thing anyone reads to find out what a build actually is, so an argument that
+# is present but empty would invite the reader to wonder which builds have a
+# credential and which do not.
+#
+# The id is a public identifier -- Google's own installed-app documentation
+# says so -- but it is still not echoed. `gn gen` prints args.gn back on
+# failure, and a build log is a more durable place than anyone intends.
+if (-not [string]::IsNullOrWhiteSpace($AccountClientId)) {
+  $gnArgs += ("sunshine_account_client_id=" + [char]34 + $AccountClientId + [char]34)
+  Write-Host "Account link: a client id was supplied."
+} else {
+  Write-Host "Account link: no client id supplied; this build will not offer one."
+}
 
 # Written to args.gn rather than passed through --args. PowerShell strips the
 # embedded quotes when it hands an argument to a native command, so GN received

@@ -1,0 +1,127 @@
+diff --git a/chrome/browser/ui/webui/new_tab_page/BUILD.gn b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
+index 15bf03e..c524d3f 100644
+--- a/chrome/browser/ui/webui/new_tab_page/BUILD.gn
++++ b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
+@@ -107,6 +107,7 @@ source_set("impl") {
+     "//chrome/browser/ui/color:color_headers",
+     "//chrome/browser/ui/search",
+     "//chrome/browser/ui/search:impl",
++    "//chrome/browser/ui/sunshine",
+     "//chrome/browser/ui/tabs:tabs_public",
+     "//chrome/browser/ui/webui:favicon_source",
+     "//chrome/browser/ui/webui:plural_string_handler",
+diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+index 2bf1f80..5a5f665 100644
+--- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
++++ b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+@@ -68,6 +68,7 @@
+ #include "chrome/browser/ui/webui/new_tab_page/action_chips/action_chips_metrics.h"
+ #include "chrome/browser/ui/webui/new_tab_page/action_chips/tab_id_generator.h"
+ #include "chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h"
++#include "chrome/browser/ui/sunshine/newtab_background.h"
+ #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h"
+ #include "chrome/browser/ui/webui/new_tab_page/untrusted_source.h"
+ #include "chrome/browser/ui/webui/page_not_available_for_guest/page_not_available_for_guest_ui.h"
+@@ -283,6 +284,18 @@ content::WebUIDataSource* CreateAndAddNewTabPageUiHtmlSource(
+       base::FeatureList::IsEnabled(ntp_features::kNtpOneGoogleBar));
+   source->AddBoolean("shortcutsEnabled",
+                      base::FeatureList::IsEnabled(ntp_features::kNtpShortcuts));
++  // Whether a New Tab background is installed beside chrome.exe.
++  //
++  // Read from a cache the browser filled once per process; this never touches
++  // the disk. The page uses it to decide whether to create its background
++  // frame at all, which is the whole point: the earlier design created the
++  // frame unconditionally and let the request fail when no file existed,
++  // costing three file probes on every New Tab. `docs/PERFORMANCE_BUDGET.md`
++  // PB-4 forbids opening a file per tab on the startup path, and the feature
++  // had been reasoned against PB-5 alone.
++  source->AddBoolean("sunshineBackgroundAvailable",
++                     sunshine::background::AvailableFromCache());
++
+   source->AddBoolean("logoEnabled",
+                      base::FeatureList::IsEnabled(ntp_features::kNtpLogo));
+   source->AddBoolean(
+diff --git a/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc b/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
+index ae1df07..1e0db70 100644
+--- a/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
++++ b/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
+@@ -31,6 +31,7 @@
+ #include "chrome/browser/search/background/ntp_custom_background_service.h"
+ #include "chrome/browser/search/background/ntp_custom_background_service_factory.h"
+ #include "chrome/browser/ui/search/ntp_user_data_logger.h"
++#include "chrome/browser/ui/sunshine/newtab_background.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/new_tab_page_untrusted_resources.h"
+ #include "components/policy/core/browser/url_list/policy_blocklist_service.h"
+@@ -94,6 +95,16 @@ std::string AsyncParamDataAsCSV(
+ // logic can be found in
+ // `NtpCustomBackgroundService::SetBackgroundToLocalResourceWithId()` and
+ // `WallpaperSearchBackgroundManager::SelectLocalBackgroundImage()`.
++// Sunshine's New Tab background, named once.
++//
++// It has to appear in two places -- the allowlist in `ShouldServiceRequest`
++// and the branch in `StartDataRequest` -- and naming it twice is how the
++// feature shipped broken: the branch was written and the allowlist was not,
++// so every request was refused with ERR_INVALID_URL before reaching it, and
++// the handler was unreachable code that no compiler and no guard objected to.
++// A constant makes the two references one fact.
++constexpr char kSunshineBackgroundPath[] = "sunshine-background.png";
++
+ bool IsValidBackgroundImagePath(std::string_view path) {
+   std::optional<std::string_view> prefix =
+       base::RemoveSuffix(path, "background.jpg");
+@@ -281,6 +292,26 @@ void UntrustedSource::StartDataRequest(
+         base::BindOnce(&ServeBackgroundImageData, std::move(callback)));
+     return;
+   }
++  // Sunshine's own New Tab background, from the install directory.
++  //
++  // Deliberately not routed through the profile path above. That one is the
++  // *user's* uploaded background, keyed per profile and validated against
++  // directory traversal because its name comes from a preference. This one
++  // takes no name from anywhere: `ReadInstalledBackground` looks only beside
++  // `chrome.exe`, only for names it holds itself, and returns nothing unless
++  // the file's own first bytes say it is a format
++  // `docs/NEWTAB_BACKGROUND_CONTRACT.md` permits. There is no path to
++  // traverse because there is no path from the request.
++  //
++  // Empty bytes are the normal answer: no file installed means no background,
++  // which is what makes the feature opt-in under PB-5a.
++  if (path == kSunshineBackgroundPath) {
++    base::ThreadPool::PostTaskAndReplyWithResult(
++        FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++        base::BindOnce(&sunshine::background::ReadInstalledBackground),
++        base::BindOnce(&ServeBackgroundImageData, std::move(callback)));
++    return;
++  }
+   std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>());
+ }
+ 
+@@ -294,6 +325,17 @@ std::string UntrustedSource::GetMimeType(const GURL& url) {
+                      base::CompareCase::INSENSITIVE_ASCII)) {
+     return "image/jpg";
+   }
++  // The declared type names the path, and the bytes may be any of the three
++  // formats the contract permits -- a `.png` request can return JPEG or WebP
++  // bytes when that is what was installed. That is not a mismatch this file
++  // introduces: Blink chooses an image decoder by signature rather than by
++  // declared type, which is the same fact `sunshine::background::DetectFormat`
++  // is built on, and this page already relies on it -- a PNG uploaded as a
++  // custom background is served above as `image/jpg` and renders.
++  if (base::EndsWith(stripped_path, ".png",
++                     base::CompareCase::INSENSITIVE_ASCII)) {
++    return "image/png";
++  }
+ 
+   return "text/html";
+ }
+@@ -321,7 +363,8 @@ bool UntrustedSource::ShouldServiceRequest(
+   return path == "one-google-bar" || path == "one_google_bar.js" ||
+          path == "one_google_bar_api.js" || path == "image" ||
+          path == "background_image" || path == "custom_background_image" ||
+-         path == "background_image.js" || IsValidBackgroundImagePath(path);
++         path == "background_image.js" || path == kSunshineBackgroundPath ||
++         IsValidBackgroundImagePath(path);
+ }
+ 
+ void UntrustedSource::OnOneGoogleBarDataUpdated() {

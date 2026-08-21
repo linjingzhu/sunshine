@@ -27,6 +27,14 @@ FILESYSTEM_ACCESS = {"none", "user_selected"}
 # shapes SEC-6 exists to keep out of a manifest, and a scheme or path here would
 # mean the allowlist was being read as a URL matcher, which it is not.
 HOST = re.compile(r"^(?!-)[a-z0-9-]+(?:\.(?!-)[a-z0-9-]+)+$")
+# The one URL a manifest may carry, and the only shape it may carry it in.
+# `chrome-untrusted://` is Chromium's scheme rather than one Sunshine registers
+# (SEC-13, ADR 0003), a bare host, and the root path -- no query, no fragment,
+# no deeper path. The shell re-checks this at run time in
+# `chrome/browser/resources/sunshine/shell/mount_port.ts`; the two are compared
+# by `scripts/verify_module_mount.py` so that neither can drift into being the
+# lenient one.
+CONTENT_URL = re.compile(r"^chrome-untrusted://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?/$")
 
 
 class ModuleValidationError(ValueError):
@@ -74,10 +82,21 @@ def validate_security(security: object, source: str) -> None:
     They are stated per module rather than assumed globally because a manifest
     that is silent about credentials reads the same as one that was never asked.
 
-    `allowlist` and `user_selected` are expressible and currently refused. The
-    schema has to carry the shape before a broker exists, or every module would
-    need editing on the day one arrives; refusing them keeps the guarantee that
-    no module reaches the network or the disk in the meantime.
+    `allowlist` and `user_selected` were expressible and refused outright,
+    "pending a contract". `docs/decisions/0016-relaxations-for-porting.md` is
+    where that ended: the refusal was a placeholder for work nobody had done
+    rather than a security position, so the contracts were written and the
+    refusals lifted. `docs/HOST_ALLOWLIST_CONTRACT.md` and
+    `docs/FILE_BROKER_CONTRACT.md` now carry the terms, and what is checkable
+    in a manifest is checked below.
+
+    **This is weaker in kind than what it replaces**, and ADR 0016 says so: a
+    value that cannot be declared cannot be misused, and a value that is checked
+    can be. The compensation is that the terms are specific and tested rather
+    than described, and that neither capability exists in the browser yet -- a
+    manifest may now claim them, and nothing acts on the claim.
+
+    Enforces: SEC-5, SEC-6, SEC-7, SEC-8, HA-2, HA-4, HA-5.
     """
 
     keys = {"remote_content", "requires_user_activation", "profile_modes",
@@ -108,29 +127,69 @@ def validate_security(security: object, source: str) -> None:
     for host in allow:
         if not HOST.fullmatch(host):
             raise ModuleValidationError(f"{source}: not a concrete host: {host!r}")
-    if network["access"] == "allowlist":
-        raise ModuleValidationError(f"{source}: network access requires a future host-allowlist contract")
+    # HA-4. `allowlist` with nothing on it is not a narrower allowlist, it is a
+    # module that should have said `deny` -- and the difference matters because
+    # the module home shows the user what a module may reach.
+    if network["access"] == "allowlist" and not allow:
+        raise ModuleValidationError(
+            f"{source}: network access is allowlist with no hosts; declare deny instead"
+        )
 
     filesystem = security["filesystem"]
     if not isinstance(filesystem, dict) or set(filesystem) != {"access"}:
         raise ModuleValidationError(f"{source}: invalid filesystem declaration")
     if filesystem["access"] not in FILESYSTEM_ACCESS:
         raise ModuleValidationError(f"{source}: filesystem access must be one of {sorted(FILESYSTEM_ACCESS)}")
-    if filesystem["access"] == "user_selected":
-        raise ModuleValidationError(f"{source}: scoped file access requires a future file-broker contract")
+    # `user_selected` is admitted by docs/FILE_BROKER_CONTRACT.md. Nothing else
+    # about it is decidable from a manifest: the contract's terms are about a
+    # grant, and a manifest declares only that the module may ask for one.
+    # FB-9 -- declaring the capability is not holding it.
 
     credentials = security["credentials"]
     if not isinstance(credentials, dict) or set(credentials) != {"direct_access"}:
         raise ModuleValidationError(f"{source}: invalid credentials declaration")
+    # SEC-7, and HA-5 with it: reaching a host is not authenticating to one, so
+    # an allowlist does not become an exemption from this. The rule below is
+    # unconditional, which is what makes HA-5 unreachable rather than merely
+    # unviolated -- `tests/test_first_party_modules.py` pins that.
     if credentials["direct_access"] is not False:
         raise ModuleValidationError(f"{source}: a module never receives a credential directly")
+
+
+def validate_mount(mount: object, kind: str, source: str) -> None:
+    """A module's declaration that the shell can mount it.
+
+    Enforces: MM-1, MM-2.
+
+    Optional, and most modules will not carry it: a service has no UI to mount
+    and `docs/MODULE_SHELL_CONTRACT.md` section 1 still requires the dock to
+    list it. What this checks is that a module which *does* claim to be
+    mountable claims it in the one shape the shell accepts, because a mistyped
+    URL that reached the shell would be a navigation nobody wrote.
+    """
+
+    if not isinstance(mount, dict) or set(mount) != {"content_url"}:
+        raise ModuleValidationError(f"{source}: invalid mount declaration")
+    url = mount["content_url"]
+    if not isinstance(url, str) or not CONTENT_URL.fullmatch(url):
+        raise ModuleValidationError(
+            f"{source}: mount content_url must be chrome-untrusted://<host>/ : {url!r}"
+        )
+    # MM-2. A service is a module with no surface of its own; letting one
+    # declare a mount would put something in D that nothing in the registry
+    # says exists.
+    if kind != "surface":
+        raise ModuleValidationError(f"{source}: only a surface module may declare a mount")
 
 
 def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
     required = {"schema_version", "id", "display_name", "owner", "kind", "lifecycle", "status",
                 "entrypoints", "capabilities", "data", "security", "verification"}
+    # Optional keys are listed rather than tolerated: an unknown key is still a
+    # defect, and this is the set that stops being unknown.
+    optional = {"mount"}
     missing = sorted(required - manifest.keys())
-    unknown = sorted(manifest.keys() - required)
+    unknown = sorted(manifest.keys() - required - optional)
     if missing or unknown:
         raise ModuleValidationError(f"{source}: missing={missing}, unknown={unknown}")
     if manifest["schema_version"] != 2:
@@ -146,6 +205,8 @@ def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
         raise ModuleValidationError(f"{source}: invalid kind or lifecycle")
     if manifest["status"] not in STATUSES:
         raise ModuleValidationError(f"{source}: invalid status")
+    if "mount" in manifest:
+        validate_mount(manifest["mount"], manifest["kind"], source)
     entrypoints = manifest["entrypoints"]
     if not isinstance(entrypoints, list) or not entrypoints:
         raise ModuleValidationError(f"{source}: entrypoints must be a non-empty list")

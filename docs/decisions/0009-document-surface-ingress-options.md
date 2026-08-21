@@ -164,6 +164,39 @@ is waiting on. The product owner may choose Option B first — for instance if
 import is judged the only ingress worth shipping — and nothing here forces
 otherwise.
 
+## The egress decision narrowed Option B's question
+
+Written after this ADR, and it changes what Option B still has to argue.
+
+A download control was added to the reading pane, and it collided with DOC-3 as
+that invariant was then worded — "no path outside the profile directory is read
+or written". `docs/DOCUMENT_SURFACE_CONTRACT.md` resolved it by narrowing the
+wording rather than granting a permission: handing content to a user-driven flow
+Chromium owns is not a write by Sunshine, because Sunshine supplies bytes and
+never learns, chooses, or retains a destination. DOC-8 was added to keep that a
+handoff — no accepted path, none remembered, none reused, nothing written
+without the user asking each time. The module manifest still declares
+`filesystem: none`, because it holds no grant and receives no path.
+
+**The argument is symmetric, and Option B is its inbound case.** This ADR's §71
+frames Reading B as turning on whether importing from a user-picked file "is
+outside what SEC-8 forbids" or "is exactly what SEC-8 defers". A picker the user
+drives, read once, with no path retained, differs from the download in direction
+and in nothing else that the reasoning above depends on. If the outbound handoff
+is not filesystem access, the inbound one is not either — by the same argument,
+not by a second concession.
+
+What that leaves genuinely open is smaller than it was. It is no longer whether
+a one-shot user-driven import is permissible in principle; it is whether the
+import Sunshine actually wants stays one-shot. A picker that reads a file and
+forgets it is the symmetric case. A directory import, a re-import that
+remembers where it read from, or a watched folder are not — each retains
+something, and DOC-8 names retention as the line. The file-broker contract SEC-8
+anticipates is needed for those and not for the first.
+
+This does not settle the P0. It narrows it to a question the owner can answer
+without first deciding a security architecture: **is one-shot import enough?**
+
 ## NOT VERIFIED
 
 - Whether the multi-file/directory read Option B needs is "exactly what SEC-8

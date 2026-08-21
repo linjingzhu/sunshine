@@ -1,0 +1,310 @@
+diff --git a/chrome/browser/ui/sunshine/BUILD.gn b/chrome/browser/ui/sunshine/BUILD.gn
+index e9a4eee..3270d2d 100644
+--- a/chrome/browser/ui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/sunshine/BUILD.gn
+@@ -30,10 +30,12 @@ source_set("sunshine") {
+   public = [
+     "account_link.h",
+     "mouse_gesture.h",
++    "newtab_background.h",
+   ]
+   sources = [
+     "account_link.cc",
+     "mouse_gesture.cc",
++    "newtab_background.cc",
+   ]
+ 
+   # Passed as a define rather than read from a generated header: the value is
+diff --git a/chrome/browser/ui/sunshine/newtab_background.cc b/chrome/browser/ui/sunshine/newtab_background.cc
+new file mode 100644
+index 0000000..9c8f9f5
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/newtab_background.cc
+@@ -0,0 +1,152 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/sunshine/newtab_background.h"
++
++#include <atomic>
++#include <string>
++
++#include "base/containers/span.h"
++#include "base/files/file_path.h"
++#include "base/files/file_util.h"
++#include "base/functional/bind.h"
++#include "base/path_service.h"
++#include "base/task/thread_pool.h"
++
++namespace sunshine::background {
++
++namespace {
++
++// The signatures the owner's rule admits, and nothing else.
++//
++// A GIF (`GIF87a`/`GIF89a`) and an AVIF (`....ftypavif`) are absent on
++// purpose, and both are formats Blink would decode perfectly well if they
++// were allowed to reach the decoder. The refusal is a product rule rather
++// than a capability limit, which is exactly why it has to be written down
++// somewhere a reader can find it.
++constexpr uint8_t kPngSignature[] = {0x89, 0x50, 0x4E, 0x47,
++                                     0x0D, 0x0A, 0x1A, 0x0A};
++
++// JPEG has no fixed-length header the way PNG does. Every JPEG begins
++// SOI (`FF D8`) followed by the first marker's `FF`; the byte after that
++// varies by encoder, so three bytes is the whole of what is common.
++constexpr uint8_t kJpegSignature[] = {0xFF, 0xD8, 0xFF};
++
++// **WebP's identity is not a prefix, and treating it as one is a real bug
++// rather than a sloppy one.**
++//
++// `RIFF` is a container tag, not a format: WAV and AVI open with the same
++// four bytes. What says WebP is the `WEBP` tag at offset 8, after the
++// container's 32-bit length field. A check that accepted anything beginning
++// `RIFF` would accept a renamed WAV as a New Tab background -- and would look,
++// in the source, exactly like a signature check.
++//
++// Both tags are required, at both offsets. That is what
++// `scripts/verify_newtab_background.py` holds: declaring `kRiffTag` without
++// `kWebpTag` is refused, because the first alone is the bug.
++constexpr uint8_t kRiffTag[] = {0x52, 0x49, 0x46, 0x46};   // "RIFF"
++constexpr uint8_t kWebpTag[] = {0x57, 0x45, 0x42, 0x50};   // "WEBP"
++constexpr size_t kWebpTagOffset = 8;
++
++constexpr const base::FilePath::CharType* const kAssetFileNames[] = {
++    FILE_PATH_LITERAL("newtab-background.png"),
++    FILE_PATH_LITERAL("newtab-background.jpg"),
++    FILE_PATH_LITERAL("newtab-background.webp"),
++};
++
++// -1 not probed, 0 absent, 1 present. Written once on a pool thread and read
++// on the UI thread, so it is atomic; `relaxed` is enough because nothing else
++// is ordered against it.
++std::atomic<int> g_available{-1};
++
++void StoreAvailability(bool available) {
++  g_available.store(available ? 1 : 0, std::memory_order_relaxed);
++}
++
++bool ProbeAvailability() {
++  return !ReadInstalledBackground().empty();
++}
++
++bool MatchesAt(base::span<const uint8_t> head,
++               size_t offset,
++               base::span<const uint8_t> tag) {
++  if (head.size() < offset + tag.size()) {
++    return false;
++  }
++  return head.subspan(offset, tag.size()) == tag;
++}
++
++}  // namespace
++
++Format DetectFormat(base::span<const uint8_t> head) {
++  if (MatchesAt(head, 0, kPngSignature)) {
++    return Format::kPng;
++  }
++  if (MatchesAt(head, 0, kJpegSignature)) {
++    return Format::kJpeg;
++  }
++  if (MatchesAt(head, 0, kRiffTag) &&
++      MatchesAt(head, kWebpTagOffset, kWebpTag)) {
++    return Format::kWebp;
++  }
++  return Format::kNone;
++}
++
++base::span<const base::FilePath::CharType* const> AssetFileNames() {
++  return kAssetFileNames;
++}
++
++base::FilePath InstallDirectory() {
++  base::FilePath directory;
++  if (!base::PathService::Get(base::DIR_EXE, &directory)) {
++    return base::FilePath();
++  }
++  return directory;
++}
++
++void WarmAvailability() {
++  int expected = -1;
++  // Claim the probe exactly once. A second window opening while the first
++  // probe is in flight must not start another.
++  if (!g_available.compare_exchange_strong(expected, -2,
++                                           std::memory_order_relaxed)) {
++    return;
++  }
++  base::ThreadPool::PostTaskAndReplyWithResult(
++      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++      base::BindOnce(&ProbeAvailability), base::BindOnce(&StoreAvailability));
++}
++
++bool AvailableFromCache() {
++  return g_available.load(std::memory_order_relaxed) == 1;
++}
++
++std::string ReadInstalledBackground() {
++  const base::FilePath directory = InstallDirectory();
++  if (directory.empty()) {
++    return std::string();
++  }
++
++  for (const base::FilePath::CharType* const name : kAssetFileNames) {
++    std::string contents;
++    // Refuses an oversized file rather than truncating one: this returns
++    // false when the file is larger than the cap, and `contents` is then a
++    // prefix of an image, which is a worse thing to serve than nothing.
++    if (!base::ReadFileToStringWithMaxSize(directory.Append(name), &contents,
++                                           kMaxAssetBytes)) {
++      continue;
++    }
++    if (contents.size() < kSignatureBytes) {
++      continue;
++    }
++    if (DetectFormat(base::as_byte_span(contents).first(kSignatureBytes)) ==
++        Format::kNone) {
++      continue;
++    }
++    return contents;
++  }
++  return std::string();
++}
++
++}  // namespace sunshine::background
+diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
+new file mode 100644
+index 0000000..638f4c0
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/newtab_background.h
+@@ -0,0 +1,129 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_
++#define CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_
++
++#include <stddef.h>
++#include <stdint.h>
++
++#include <string>
++
++#include "base/containers/span.h"
++#include "base/files/file_path.h"
++
++namespace sunshine::background {
++
++// What a New Tab background may be.
++//
++// PNG, JPEG and WebP, and nothing else.
++//
++// **Neither animated form gets an entry of its own, and that is not an
++// oversight.** An APNG *is* a PNG -- the same eight-byte signature, the same
++// `.png` name, the animation carried in ancillary chunks a decoder either
++// understands or skips -- and an animated WebP *is* a WebP, animation living
++// in the same RIFF container as a still one. A build that accepts the still
++// format accepts the animated one without being told about it. Adding `kApng`
++// or `kAnimatedWebp` here would mean claiming to distinguish two things that
++// are one thing, and would then have to answer what to do when the claim was
++// wrong.
++//
++// The still fallback falls out of the same fact: a decoder that does not know
++// APNG shows its first frame, which is a valid standalone PNG.
++enum class Format {
++  kNone,
++  kPng,
++  kJpeg,
++  kWebp,
++};
++
++// Enough bytes to reach the furthest tag any signature below inspects.
++//
++// Twelve rather than eight because of WebP: its identity is not a prefix. See
++// the comment on `kWebpTag` in the implementation -- the four bytes that say
++// "WebP" sit at offset 8, after a length field, and a check that stopped at
++// eight bytes would be reading the container and calling it the format.
++inline constexpr size_t kSignatureBytes = 12;
++
++// What the file says it is, read from the file's own first bytes.
++//
++// **Never from the name.** A `.png` that begins with `GIF89a` is a GIF, and
++// the owner's rule is that a background may be PNG or JPEG -- a rule about
++// the bytes, not about what someone typed after the dot. Deciding by
++// extension would accept exactly the files this is meant to refuse, and
++// Chromium would then happily decode the GIF because Blink sniffs the same
++// bytes this function does.
++//
++// `head` shorter than a signature is `kNone`, not a guess.
++Format DetectFormat(base::span<const uint8_t> head);
++
++// The names a background may have, beside `chrome.exe`.
++//
++// One per permitted format, because asking the owner to rename a JPEG to
++// `.png` would be asking them to write down something untrue. The extension
++// selects which file is *looked for*; it never decides what the file *is*,
++// which is `DetectFormat`'s job alone.
++base::span<const base::FilePath::CharType* const> AssetFileNames();
++
++// The install directory -- where `chrome.exe` is, not the versioned directory
++// beside it.
++//
++// That distinction is the whole point of the choice. An update replaces the
++// versioned directory wholesale, so a background left there would vanish the
++// first time Sunshine updated itself, silently and with nothing to point at.
++// The install root survives, which is what makes "replace the file" a durable
++// instruction rather than one that works until Tuesday.
++//
++// Empty if the path service cannot answer.
++base::FilePath InstallDirectory();
++
++// The largest file that will be read.
++//
++// A background is decoration, and decoration that can exhaust memory is a
++// denial of service with a friendly name. The cap is generous rather than
++// tuned -- it exists so that the answer to "what if someone drops a 4 GB file
++// in the install directory" is a number rather than a shrug.
++inline constexpr size_t kMaxAssetBytes = 32u * 1024u * 1024u;
++
++// The installed background's bytes, or empty.
++//
++// Blocking: reads from disk, so it must run somewhere that may block.
++//
++// Empty covers every way there is no background to show -- no file, a file
++// too large, or a file whose first bytes are not one of the permitted
++// formats. **Those are not distinguished, and that is a real limitation
++// rather than a simplification**: an asset rejected for its format looks
++// exactly like no asset at all, and nothing anywhere tells the owner which
++// happened. `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 records it.
++std::string ReadInstalledBackground();
++
++// Probe for an installed background, once per process, off the calling thread.
++//
++// Idempotent and cheap to call again: the first call posts the probe, every
++// later call returns immediately. Called when a browser window is created
++// rather than when a New Tab is, so the answer is normally settled before any
++// New Tab asks for it.
++//
++// **This is why the page is told rather than left to ask.** An earlier design
++// had the page create its background frame unconditionally and let the request
++// fail when no file existed, which cost three file probes on every New Tab --
++// `docs/PERFORMANCE_BUDGET.md` PB-4 forbids opening a file per tab on the
++// startup path, in the same existence-not-size language PB-5 uses, and the
++// feature was reasoned against PB-5 alone. One probe per process is what
++// replaced it.
++void WarmAvailability();
++
++// What the probe found, or `false` if it has not finished.
++//
++// Never blocks and never reads the disk, so it is safe on the UI thread. A New
++// Tab created in the window between the first browser window opening and the
++// probe returning is told `false` and shows no background; the next one is
++// told the truth. That race is recorded in
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 rather than hidden, and it is the
++// price of not doing file I/O on the thread that draws.
++bool AvailableFromCache();
++
++}  // namespace sunshine::background
++
++#endif  // CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_

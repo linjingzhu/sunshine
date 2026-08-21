@@ -1,0 +1,32 @@
+// Copyright 2026 The Sunshine Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef SUNSHINE_INSTALLER_RESOURCE_H_
+#define SUNSHINE_INSTALLER_RESOURCE_H_
+
+// The embedded engine. `mini_installer.exe`, exactly as upstream built it,
+// carried as an opaque blob. IU-2: the front-end runs it and never replaces it.
+#define IDR_ENGINE 101
+
+// The banner image, compiled in at build time from downstream/assets. IU-6:
+// nothing is read from disk at run time.
+#define IDR_BANNER 102
+
+#define IDI_SETUP 103
+
+#define IDD_SETUP 200
+#define IDC_BANNER 1001
+#define IDC_HEADLINE 1002
+#define IDC_LOCATION 1003
+#define IDC_SCOPE_USER 1004
+#define IDC_SCOPE_MACHINE 1005
+#define IDC_DESKTOP_SHORTCUT 1006
+#define IDC_TASKBAR_SHORTCUT 1007
+#define IDC_QUICK_LAUNCH_SHORTCUT 1008
+#define IDC_MAKE_DEFAULT 1009
+#define IDC_LAUNCH_WHEN_DONE 1010
+#define IDC_INSTALL 1011
+#define IDC_STATUS 1012
+
+#endif  // SUNSHINE_INSTALLER_RESOURCE_H_

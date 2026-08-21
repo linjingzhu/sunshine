@@ -22,7 +22,6 @@ direction sees the same thing.
 | Are the Stage 1 and Stage 2 acceptance suites gates or reports? Handoff §10 forbids starting a wave while a gate knowingly fails, and no item in any suite can be decided offline today. | `docs/ACCEPTANCE_SUITES.md` §9 | Stage 1 exit |
 | What may a provider `block` verdict actually do? Held at an attributed advisory; anything stronger is a second blocking path beside Chromium's. | `docs/SECURITY_CENTER_CONTRACT.md` §14 | Security Center |
 | Is origin-only egress accepted, given it reduces detection for path-specific threats and constrains which providers are compatible? | `docs/SECURITY_CENTER_CONTRACT.md` §14 | Security Center |
-| Is a permanently account-free browser the product, or is local-only the Stage 1 state of a browser that later gains sign-in? | `docs/PROFILE_ONBOARDING_CONTRACT.md` §9 | onboarding scope |
 | Is **no first run at all** acceptable? A keyless build suppresses the first-run experience entirely. | `docs/PROFILE_ONBOARDING_CONTRACT.md` §9 | Stage 1 UX |
 | Is Fork C accepted — record, do not report? It is also a decision not to build a data pipeline. | `docs/TELEMETRY_CONTRACT.md` §12 | Stage 2 exit |
 | What behaviour is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | handoff §11, `docs/DOWNLOAD_SAFETY.md` | download release |
@@ -31,7 +30,7 @@ direction sees the same thing.
 | How does content reach the document surface — authored in the shell, or imported from files the user picks? The second is either outside SEC-8 (one-shot, no path retained, no handle held) or exactly what SEC-8 defers; that reading decides whether a file-broker contract has to come first. **Still open. Implementation of Reading A has been started ahead of the answer — see the note below.** | `docs/DOCUMENT_SURFACE_CONTRACT.md` §4, `docs/decisions/0009-document-surface-ingress-options.md` | the first document surface |
 | What is the Chromium roll cadence? A roll costs a patch-stack rebase, re-verification of 204 cited paths, and a 6 h 31 min build on the project's only machine, which is also its only CI. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §8 | security update posture |
 | When, if ever, is Sunshine distributed? The answer gates code signing and auto-update, and re-opens ADR 0004 (codec licensing) and ADR 0005 (no Safe Browsing) together. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §9 | distribution |
-| May a broker spawn a child process under the pinned revision's sandbox policy? If it may not, no first-party module can run a tool, a Git surface cannot exist as a module in any form, and R2 of the file-broker requirements is unsatisfiable. | `docs/FILE_BROKER_CONTRACT.md` §5 Q1 | the file broker, and every module that needs a tool |
+| May a broker spawn a child process under the pinned revision's sandbox policy? If it may not, no first-party module can run a tool, a Git surface cannot exist as a module in any form, and R2 of the file-broker requirements is unsatisfiable. | `docs/FILE_BROKER_REQUIREMENTS.md` §5 Q1 | the file broker, and every module that needs a tool |
 
 ### Note — document surface ingress is being built before it is decided
 
@@ -59,7 +58,7 @@ while the code has quietly answered it.
 
 Recorded in their owning documents; named here so they are not rediscovered.
 
-- File broker: hardened invocation or honest consent, given that a granted directory's own configuration and hooks execute programs (measured)? destructive-operation classification, or a separately-granted destructive capability? does a grant survive a restart? is credential delegation per-operation or per-grant? — `docs/FILE_BROKER_CONTRACT.md` §5
+- File broker: hardened invocation or honest consent, given that a granted directory's own configuration and hooks execute programs (measured)? destructive-operation classification, or a separately-granted destructive capability? does a grant survive a restart? is credential delegation per-operation or per-grant? — `docs/FILE_BROKER_REQUIREMENTS.md` §5
 - Split view: enable `kSplitViewHorizontal` (stacked)? enable `kSplitViewTabRestore`? what happens when one member of a split moves workspace? may a workspace contain a split in the MVP? — `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md`, `docs/ADVANCED_TABS_CONTRACT.md`
 - Can a workspace span multiple windows? — handoff §11, and it gates three other answers
 - On returning to a workspace whose tabs were discarded: restore one tab or all? — `docs/TAB_LIFECYCLE_CONTRACT.md`
@@ -91,6 +90,7 @@ reader may arrive holding the old question.
 | Is `proprietary_codecs=false` intended? | `docs/decisions/0004-media-codecs.md` — enabled under a personal-use premise, to be revisited before any distribution |
 | May the build warn that Google API keys are missing? | `docs/decisions/0005-google-api-keys.md` — no; PO-A15 forbids presenting local-only operation as an incomplete setup, and the infobar is patched out |
 | Should `GOOGLE_API_KEY` be set on the owner's machine? | `docs/decisions/0005-google-api-keys.md` — no. Sunshine runs without Safe Browsing; reversing it needs a machine environment variable, not a code change |
+| Is a permanently account-free browser the product, or is local-only the Stage 1 state of a browser that later gains sign-in? | `docs/decisions/0018-sunshine-account-link.md` — the second, and the identity is an application link rather than a browser sign-in; `docs/ACCOUNT_LINK_PLAN.md` holds the procedure |
 | Is a Sunshine module a compiled capability or a loaded web-app bundle? | `docs/decisions/0006-module-execution-model.md` — a compiled capability. Position B deferred, not rejected; revisit when the Stage 1–3 gates close |
 
 ## Keeping this honest

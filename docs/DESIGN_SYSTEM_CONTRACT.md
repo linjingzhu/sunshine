@@ -261,9 +261,28 @@ the New Tab Page stack.
 
 Sizes are drawn from a fixed scale. Arbitrary sizes are rejected.
 
+`label-xs` was added by `docs/decisions/0016-relaxations-for-porting.md`. The
+owner's own `Module shell layout rules` specifies an 11px mono path line beside
+a 14px title, and the scale had no step for it — so the module shell rendered
+that line at 12px and `docs/MODULE_SHELL_CONTRACT.md` §7 recorded the
+substitution as a deviation. A scale that cannot express what the project's own
+design asks for is a scale with a gap, and the honest repair is a step rather
+than an exception.
+
+**The unit does not move.** The scale is in `rem` because `px` ignores the
+user's browser font-size setting and breaks WCAG 1.4.4, and that is an
+accessibility property rather than house style — it is outside what ADR 0016's
+boundary bends. Adding a step keeps every property the scale has; permitting
+`px` would keep none of them.
+
+`label-xs` is deliberately narrow in its use column. 11px is small enough that
+using it for anything a person has to *read*, rather than *identify*, is a
+defect the scale cannot catch.
+
 | Step | Size | Line height | Use |
 |---|---|---|---|
-| `label-sm` | 0.75rem | 1.33 | Dense metadata. Smallest size permitted anywhere. |
+| `label-xs` | 0.6875rem | 1.45 | A path, an identifier, a timestamp beside something it belongs to. Smallest size permitted anywhere. Never for prose, never for a control's only label. |
+| `label-sm` | 0.75rem | 1.33 | Dense metadata |
 | `label` | 0.875rem | 1.43 | Control labels, secondary rows |
 | `body` | 1rem | 1.5 | Default surface text |
 | `title` | 1.25rem | 1.30 | Section heading |
@@ -276,7 +295,7 @@ Rules:
 - Font sizes are declared in `rem`, or in a `clamp()` whose bounds are in `rem`.
   A `px` font size in Sunshine CSS is a defect: it ignores the user's browser
   font-size setting and breaks WCAG 1.4.4.
-- No computed size below `label-sm`.
+- No computed size below `label-xs`.
 - `!important` on a typography declaration is a defect.
 - Weights are drawn from {400, 500, 600, 700}. Any other value requires evidence
   that the pinned build's UI font exposes a continuous weight axis on **every**
@@ -407,7 +426,7 @@ Each is a pass/fail check over Sunshine-authored CSS in the patch stack.
 | S3 | No token reassignment | Sunshine CSS assigns to a `--color-*`, `--cr-*`, or `--ntp-*` custom property. |
 | S4 | Fallback discipline | A `var()` on a colour token supplies a fallback, or a non-colour token's fallback differs from its documented upstream default. |
 | S5 | No typeface declaration | A `font-family` appears in Sunshine surface CSS with any value other than the bare keyword `monospace`. |
-| S6 | Type scale conformance | A `font-size` is in `px`, is below 0.75rem, is off the §6.2 scale, or carries `!important`. |
+| S6 | Type scale conformance | A `font-size` is in `px`, is below 0.6875rem, is off the §6.2 scale, or carries `!important`. |
 | S7 | Clamp bounding | A `clamp()` font size violates any of the four conditions in §6.3, or its fluid band is not stated at the declaration. |
 | S8 | Weight resolvability | A `font-weight` outside {400, 500, 600, 700} without a recorded R10 result. **Currently failing:** `font-weight: 650`. |
 | S9 | Direction declared | An element in the §7.2 lockup set applies a logical inline property without declaring `direction` on the same element. |

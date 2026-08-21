@@ -101,8 +101,8 @@ whitesmoke yellow yellowgreen
 DOCUMENTED_DEFAULTS = {"--ntp-logo-margin-bottom": "38px"}
 
 # §6.2's scale, in rem. `display` is the fluid step and is checked by S7.
-TYPE_SCALE_REM = (0.75, 0.875, 1.0, 1.25, 1.5, 2.0)
-SMALLEST_REM = 0.75
+TYPE_SCALE_REM = (0.6875, 0.75, 0.875, 1.0, 1.25, 1.5, 2.0)
+SMALLEST_REM = 0.6875
 DISPLAY_BOUNDS_REM = (2.0, 3.5)
 
 # §6.2: weights are drawn from this set; anything else needs a recorded R10.

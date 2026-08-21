@@ -1,0 +1,182 @@
+diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
+index 79828c5..c6ec318 100644
+--- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
++++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
+@@ -81,6 +81,7 @@
+ #include "chrome/common/extensions/extension_constants.h"
+ #include "chrome/common/extensions/extension_metrics.h"
+ #include "chrome/common/pref_names.h"
++#include "chrome/common/sunshine/sunshine_webui_hosts.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "chrome/grit/theme_resources.h"
+@@ -713,6 +714,10 @@ gfx::Size BookmarkBarView::GetMinimumSize() const {
+     gfx::Size size = apps_page_shortcut_->GetPreferredSize();
+     width += size.width() + bookmark_bar_button_padding;
+   }
++  // Unconditional, because the button is. Leaving it out of the minimum is how
++  // a button ends up drawn over the one beside it in a narrow window.
++  width += sunshine_module_home_->GetPreferredSize().width() +
++           bookmark_bar_button_padding;
+ 
+   return gfx::Size(width, height);
+ }
+@@ -775,6 +780,15 @@ void BookmarkBarView::Layout(PassKey) {
+     max_x -= all_bookmarks_pref.width() + bookmark_bar_button_padding;
+   }
+ 
++  // The Sunshine module home comes before everything, including the apps page
++  // shortcut. It is always visible, so unlike the buttons below it there is no
++  // condition to test.
++  const gfx::Size sunshine_module_home_pref =
++      sunshine_module_home_->GetPreferredSize();
++  sunshine_module_home_->SetBounds(x, y, sunshine_module_home_pref.width(),
++                                   button_height);
++  x += sunshine_module_home_pref.width() + bookmark_bar_button_padding;
++
+   // Start with the apps page shortcut button.
+   if (apps_page_shortcut_->GetVisible()) {
+     apps_page_shortcut_->SetBounds(x, y, apps_page_shortcut_pref.width(),
+@@ -1444,6 +1458,22 @@ void BookmarkBarView::AppsPageShortcutPressed(const ui::Event& event) {
+   chrome::UpdateBookmarkBarVisibilityPrefOnUserAction(browser_->GetProfile());
+ }
+ 
++void BookmarkBarView::SunshineModuleHomePressed(const ui::Event& event) {
++  // `page_navigator_` is set by SetPageNavigator() after construction, and this
++  // button exists from Init(), so a press before that is reachable in a way it
++  // is not for the buttons around it -- those are hidden behind preferences
++  // that are off by default. Dropping the press is the correct response: there
++  // is no window to open into yet.
++  if (!page_navigator_) {
++    return;
++  }
++  content::OpenURLParams params(GURL(chrome::kChromeUISunshineModulesURL),
++                                content::Referrer(),
++                                ui::DispositionFromEventFlags(event.flags()),
++                                ui::PAGE_TRANSITION_AUTO_BOOKMARK, false);
++  page_navigator_->OpenURL(params, /*navigation_handle_callback=*/{});
++}
++
+ void BookmarkBarView::OnButtonPressed(const bookmarks::BookmarkNode* node,
+                                       const ui::Event& event) {
+   // Only URL nodes have regular buttons on the bookmarks bar; folder clicks
+@@ -1628,6 +1658,13 @@ void BookmarkBarView::Init() {
+ 
+   // Child views are traversed in the order they are added. Make sure the order
+   // they are added matches the visual order.
++  //
++  // The Sunshine module home is added first because it is drawn first, and the
++  // comment above is the reason that matters: this list is also the focus
++  // order, so a button drawn at the leading edge but added last would be
++  // reached last by the keyboard.
++  sunshine_module_home_ = AddChildView(CreateSunshineModuleHomeButton());
++
+   apps_page_shortcut_ = AddChildView(CreateAppsPageShortcutButton());
+ 
+   managed_bookmarks_button_ = AddChildView(CreateManagedBookmarksButton());
+@@ -1835,6 +1872,34 @@ BookmarkBarView::CreateAppsPageShortcutButton() {
+   return button;
+ }
+ 
++std::unique_ptr<views::LabelButton>
++BookmarkBarView::CreateSunshineModuleHomeButton() {
++  // A ShortcutButton like the apps page shortcut, and for the same reason: it
++  // opens a page rather than dropping a menu, so it must not look like the
++  // folder buttons that do.
++  //
++  // The strings are literals rather than IDS_ constants. Adding one would mean
++  // owning chrome/app/generated_resources.grd, which is among the files that
++  // churn hardest upstream, for two strings -- and this stack rebases onto a
++  // new Chromium tag by hand. That is a real cost accepted knowingly: it means
++  // this button does not translate.
++  // docs/decisions/0014-bookmark-bar-contribution-point.md section 4.
++  auto button = std::make_unique<ShortcutButton>(
++      base::BindRepeating(&BookmarkBarView::SunshineModuleHomePressed,
++                          base::Unretained(this)),
++      std::u16string());
++  button->SetTooltipText(u"Sunshine modules");
++  button->GetViewAccessibility().SetName(u"Sunshine modules");
++  // Deliberately not VIEW_ID_BOOKMARK_BAR_ELEMENT. That id marks a view this
++  // bar treats as one of its bookmark elements -- for its context menu and its
++  // drag handling -- and this button is neither. Borrowing the id to look
++  // native would enlist it in behaviour it cannot honour.
++
++  // No text, so no label to size. The icon itself is set in
++  // UpdateAppearanceForTheme(), which is the only place a colour is available.
++  return button;
++}
++
+ void BookmarkBarView::ConfigureButton(const BookmarkNode* node,
+                                       views::LabelButton* button) {
+   button->SetText(node->GetTitle());
+@@ -2221,6 +2286,33 @@ void BookmarkBarView::UpdateAppearanceForTheme() {
+ 
+   apps_page_shortcut_->SetEnabledTextColors(color);
+ 
++  {
++    // Same colour role, same 16dp, and the same SkColor overload as the
++    // overflow button below, so the one button Sunshine adds to this bar
++    // carries the same weight as Chromium's own rather than sitting on it as a
++    // foreign object.
++    //
++    // kWebAssetIcon is borrowed, not designed. Chromium has no glyph meaning
++    // "the parts this browser is made of", and the nearest one -- kGridViewIcon
++    // -- is what the saved tab group button immediately to the right already
++    // uses, so it was rejected: two adjacent buttons sharing a glyph is worse
++    // than a glyph that means little. kWebAssetIcon appears nowhere on the
++    // browser frame (its one use is the app menu's "Name window" item), so
++    // nothing here collides.
++    // docs/decisions/0014-bookmark-bar-contribution-point.md section 5 records
++    // what a Sunshine-owned icon would cost and why it is not this patch.
++    const SkColor modules_color =
++        color_provider->GetColor(kColorBookmarkButtonIcon);
++    ui::ImageModel modules_icon =
++        ui::ImageModel::FromVectorIcon(kWebAssetIcon, modules_color, 16);
++    sunshine_module_home_->SetImageModel(views::Button::STATE_NORMAL,
++                                         modules_icon);
++    sunshine_module_home_->SetImageModel(
++        views::Button::STATE_DISABLED,
++        ui::GetDefaultDisabledIconFromImageModel(modules_icon,
++                                                 color_provider));
++  }
++
+   const SkColor overflow_color =
+       color_provider->GetColor(kColorBookmarkButtonIcon);
+   const int overflow_size = 16;
+diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
+index 4c0cb50..7f74583 100644
+--- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
++++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
+@@ -284,6 +284,10 @@ class BookmarkBarView : public views::AccessiblePaneView,
+   void Init();
+ 
+   void AppsPageShortcutPressed(const ui::Event& event);
++
++  // Opens the Sunshine module home. Sunshine's one addition to this bar; see
++  // docs/decisions/0014-bookmark-bar-contribution-point.md.
++  void SunshineModuleHomePressed(const ui::Event& event);
+   void OnButtonPressed(const bookmarks::BookmarkNode* node,
+                        const ui::Event& event);
+   void OnMenuButtonPressed(const BookmarkParentFolder& folder,
+@@ -334,6 +338,9 @@ class BookmarkBarView : public views::AccessiblePaneView,
+   // Creates the button for rendering the apps page shortcut.
+   std::unique_ptr<views::LabelButton> CreateAppsPageShortcutButton();
+ 
++  // Creates the button that opens the Sunshine module home.
++  std::unique_ptr<views::LabelButton> CreateSunshineModuleHomeButton();
++
+   // Configures the button from the specified node. This sets the text,
+   // and icon.
+   void ConfigureButton(const bookmarks::BookmarkNode* node,
+@@ -498,6 +505,11 @@ class BookmarkBarView : public views::AccessiblePaneView,
+   // Shows the Apps page shortcut.
+   raw_ptr<views::LabelButton> apps_page_shortcut_ = nullptr;
+ 
++  // Opens the Sunshine module home. Always present and always visible: it is
++  // not behind a preference, unlike everything else on the leading edge of
++  // this bar. docs/decisions/0014-bookmark-bar-contribution-point.md section 3.
++  raw_ptr<views::LabelButton> sunshine_module_home_ = nullptr;
++
+   // Used to track drops on the bookmark bar view.
+   std::unique_ptr<DropInfo> drop_info_;
+ 
