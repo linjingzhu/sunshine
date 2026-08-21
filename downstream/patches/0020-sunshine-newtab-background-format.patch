@@ -1,0 +1,165 @@
+diff --git a/chrome/browser/ui/sunshine/BUILD.gn b/chrome/browser/ui/sunshine/BUILD.gn
+index e9a4eee..3270d2d 100644
+--- a/chrome/browser/ui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/sunshine/BUILD.gn
+@@ -30,10 +30,12 @@ source_set("sunshine") {
+   public = [
+     "account_link.h",
+     "mouse_gesture.h",
++    "newtab_background.h",
+   ]
+   sources = [
+     "account_link.cc",
+     "mouse_gesture.cc",
++    "newtab_background.cc",
+   ]
+ 
+   # Passed as a define rather than read from a generated header: the value is
+diff --git a/chrome/browser/ui/sunshine/newtab_background.cc b/chrome/browser/ui/sunshine/newtab_background.cc
+new file mode 100644
+index 0000000..38794df
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/newtab_background.cc
+@@ -0,0 +1,66 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/sunshine/newtab_background.h"
++
++#include "base/files/file_path.h"
++#include "base/path_service.h"
++
++namespace sunshine::background {
++
++namespace {
++
++// The two signatures the owner's rule admits, and nothing else.
++//
++// A GIF (`GIF87a`/`GIF89a`), a WebP (`RIFF....WEBP`) and an AVIF (`....ftyp`)
++// are absent on purpose, and each is a format Blink would decode perfectly
++// well if it were allowed to reach the decoder. The refusal is a product rule
++// rather than a capability limit, which is exactly why it has to be written
++// down somewhere a reader can find it.
++constexpr uint8_t kPngSignature[] = {0x89, 0x50, 0x4E, 0x47,
++                                     0x0D, 0x0A, 0x1A, 0x0A};
++
++// JPEG has no fixed-length header the way PNG does. Every JPEG begins
++// SOI (`FF D8`) followed by the first marker's `FF`; the byte after that
++// varies by encoder, so three bytes is the whole of what is common.
++constexpr uint8_t kJpegSignature[] = {0xFF, 0xD8, 0xFF};
++
++constexpr const base::FilePath::CharType* const kAssetFileNames[] = {
++    FILE_PATH_LITERAL("newtab-background.png"),
++    FILE_PATH_LITERAL("newtab-background.jpg"),
++};
++
++bool StartsWith(base::span<const uint8_t> head,
++                base::span<const uint8_t> signature) {
++  if (head.size() < signature.size()) {
++    return false;
++  }
++  return head.first(signature.size()) == signature;
++}
++
++}  // namespace
++
++Format DetectFormat(base::span<const uint8_t> head) {
++  if (StartsWith(head, kPngSignature)) {
++    return Format::kPng;
++  }
++  if (StartsWith(head, kJpegSignature)) {
++    return Format::kJpeg;
++  }
++  return Format::kNone;
++}
++
++base::span<const base::FilePath::CharType* const> AssetFileNames() {
++  return kAssetFileNames;
++}
++
++base::FilePath InstallDirectory() {
++  base::FilePath directory;
++  if (!base::PathService::Get(base::DIR_EXE, &directory)) {
++    return base::FilePath();
++  }
++  return directory;
++}
++
++}  // namespace sunshine::background
+diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
+new file mode 100644
+index 0000000..ee344b4
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/newtab_background.h
+@@ -0,0 +1,70 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_
++#define CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_
++
++#include <stddef.h>
++#include <stdint.h>
++
++#include "base/containers/span.h"
++#include "base/files/file_path.h"
++
++namespace sunshine::background {
++
++// What a New Tab background may be.
++//
++// PNG and JPEG, and nothing else.
++//
++// **APNG needs no entry of its own, and that is not an oversight.** An APNG
++// *is* a PNG: the same eight-byte signature, the same `.png` name, and the
++// animation carried in ancillary chunks that a decoder either understands or
++// skips. A build that accepts PNG accepts APNG without being told about it,
++// and a decoder that did not would show the first frame rather than fail --
++// which is why the format was designed that way. Adding a `kApng` here would
++// mean claiming to distinguish two things that are one thing.
++enum class Format {
++  kNone,
++  kPng,
++  kJpeg,
++};
++
++// Enough bytes for the longest signature below.
++inline constexpr size_t kSignatureBytes = 8;
++
++// What the file says it is, read from the file's own first bytes.
++//
++// **Never from the name.** A `.png` that begins with `GIF89a` is a GIF, and
++// the owner's rule is that a background may be PNG or JPEG -- a rule about
++// the bytes, not about what someone typed after the dot. Deciding by
++// extension would accept exactly the files this is meant to refuse, and
++// Chromium would then happily decode the GIF because Blink sniffs the same
++// bytes this function does.
++//
++// `head` shorter than a signature is `kNone`, not a guess.
++Format DetectFormat(base::span<const uint8_t> head);
++
++// The names a background may have, beside `chrome.exe`.
++//
++// Two, because the two permitted formats have two conventional extensions and
++// asking the owner to rename a JPEG to `.png` would be asking them to write
++// down something untrue. The extension selects which file is *looked for*; it
++// never decides what the file *is*, which is `DetectFormat`'s job alone.
++base::span<const base::FilePath::CharType* const> AssetFileNames();
++
++// The install directory -- where `chrome.exe` is, not the versioned directory
++// beside it.
++//
++// That distinction is the whole point of the choice. An update replaces the
++// versioned directory wholesale, so a background left there would vanish the
++// first time Sunshine updated itself, silently and with nothing to point at.
++// The install root survives, which is what makes "replace the file" a durable
++// instruction rather than one that works until Tuesday.
++//
++// Empty if the path service cannot answer.
++base::FilePath InstallDirectory();
++
++}  // namespace sunshine::background
++
++#endif  // CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_

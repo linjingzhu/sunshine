@@ -118,6 +118,9 @@ jobs:
       - name: Check the mouse gesture bindings against their contract
         run: python scripts/verify_gesture_bindings.py
 
+      - name: Check the New Tab background rule against its contract
+        run: python scripts/verify_newtab_background.py
+
       - name: Verify the module mount port matches its contract
         run: python scripts/verify_module_mount.py
 

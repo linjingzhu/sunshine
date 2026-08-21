@@ -105,6 +105,11 @@ FAMILIES = (
     "MA", "MAA",
     # The two capabilities ADR 0016 unblocked: host allowlist and file broker.
     "HA", "HAA", "FB", "FBA",
+    # The New Tab background: NTB-n, the source-decidable half of the rule.
+    # Its runtime half lives in PERFORMANCE_BUDGET's PB-5a rather than gaining
+    # NTB numbers of its own, because a criterion with two homes is a criterion
+    # that drifts between them.
+    "NTB",
     # The module shell's regions and the port that mounts into them: MS-n and
     # MM-n. "MS" was missing until the mount work, which is exactly the failure
     # the comment above describes -- verify_shell_geometry.py had claimed MS-4
