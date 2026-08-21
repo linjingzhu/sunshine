@@ -33,7 +33,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "gate-sheet.html"
 
-BUILD = "#41 (779ef04)"
+BUILD = "#42 (da64842)"
 # Named for the revision, not "pinned": `scripts/verify_no_interposition.py`
 # reads a field called `PINNED` as a tab-pinned flag, and it is right to --
 # the word means two unrelated things in this project and this one is the
@@ -635,6 +635,17 @@ def locked_row(gate: dict[str, str], label: str, why: str, kind: str, control: s
 
 
 def build(root: Path = ROOT) -> str:
+    # The stamp used to exist twice -- once in the header, once inside the
+    # export text -- and the second copy went two builds stale without anything
+    # noticing. A result that names the wrong build is a result about an unknown
+    # binary, so there is now one stamp and nothing else may spell one.
+    hardcoded = re.findall(r"#\d\d\b", SCRIPT + SHELL)
+    if hardcoded:
+        raise SystemExit(
+            f"a build number is written into the page instead of coming from "
+            f"BUILD: {hardcoded}"
+        )
+
     gate = gates(root)
     if len(gate) != 43:
         raise SystemExit(f"expected 43 gates in RUNTIME_VERIFICATION.md, parsed {len(gate)}")
@@ -737,7 +748,7 @@ def build(root: Path = ROOT) -> str:
         total=len(gate), blocks="".join(sections),
         blocked=blocked_html, done=done_html, ungated=ungated_html,
         ungated_count=len(UNGATED),
-    ) + SCRIPT
+    ) + SCRIPT.replace("__BUILD_STAMP__", esc(f"{BUILD}, {REVISION}"))
 
 
 def main() -> int:
@@ -1137,7 +1148,7 @@ SCRIPT = r"""<script>
     var L = [];
     L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
-    L.push("- 빌드: #40 (6b86cc7), 152.0.7977.42");
+    L.push("- 빌드: __BUILD_STAMP__");
     L.push("- 작성: " + new Date().toLocaleString());
     var n = {pass:0, fail:0, na:0};
     live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });
