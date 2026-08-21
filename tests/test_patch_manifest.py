@@ -27,6 +27,31 @@ KNOWN_EXTENDED_REGISTRIES = frozenset({
     "chrome/browser/ui/webui/sunshine/BUILD.gn",
     "chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h",
     "chrome/common/sunshine/sunshine_webui_hosts.h",
+    # Not registry files. The module shell landed in patch 0011 as a skeleton
+    # with three empty mount points, and patch 0012 filled them by implementing
+    # the mount port -- so 0012 extends a surface's own files rather than a
+    # seam registry. That is a legitimate shape for an ordered stack and it is
+    # listed rather than tolerated: every entry here is a decision someone made
+    # on purpose, which is the whole value of the list.
+    "chrome/browser/resources/sunshine/shell/app.css",
+    "chrome/browser/resources/sunshine/shell/app.html",
+    "chrome/browser/resources/sunshine/shell/app.ts",
+    # Patch 0013 gives the module home the one route to the shell that is not
+    # typing its address, so it extends the surface patch 0007 created.
+    "chrome/browser/resources/sunshine/modules/app.css",
+    "chrome/browser/resources/sunshine/modules/app.html",
+    # Patch 0015 gives the shell 0011 created the framing policy it shipped
+    # without, so it extends that surface's C++ too.
+    "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc",
+    # Patch 0016 gives the port 0012 created its storage vocabulary.
+    "chrome/browser/resources/sunshine/shell/mount.ts",
+    "chrome/browser/resources/sunshine/shell/mount_port.ts",
+    # Patch 0017 created this build file for the gesture recognizer, the first
+    # browser-side Sunshine target outside the WebUI seam; patch 0018 adds the
+    # account link's two files to it. The same shape as 0012 extending 0011 --
+    # a Sunshine-created file extended by a later Sunshine patch -- and it
+    # stays a Sunshine file, so no upstream ownership is claimed either time.
+    "chrome/browser/ui/sunshine/BUILD.gn",
 })
 
 
@@ -284,10 +309,10 @@ class PatchManifestTests(unittest.TestCase):
         A path may legitimately be both created and modified now:
         `docs/decisions/0007-module-contribution-seam.md`'s seam creates a
         registry file empty, and a surface patch later extends it, which is
-        exactly `SeamExtensionTests` above. That is allowed only for the
-        registry files the seam actually built this way, named in
-        `KNOWN_EXTENDED_REGISTRIES` below -- an unlisted overlap is still
-        almost certainly a mistake, not a seam.
+        exactly `SeamExtensionTests` above. A later patch may also extend a
+        surface's own files, as 0012 extends the shell 0011 built. Both shapes
+        are allowed only for the paths named in `KNOWN_EXTENDED_REGISTRIES`
+        below -- an unlisted overlap is still almost certainly a mistake.
         """
 
         directory = ROOT / "downstream/patches"

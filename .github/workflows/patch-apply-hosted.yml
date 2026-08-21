@@ -1,0 +1,116 @@
+name: Patch Stack Apply (hosted)
+
+# The build that produces a browser cannot run here, and this is not it.
+#
+# `docs/WINDOWS_CHROMIUM_BUILD.md` requires 180 GB of free disk and records a
+# six-hour compile on a twelve-core machine. A GitHub-hosted standard runner
+# offers four cores and about 14 GB free before cleanup, with a six-hour ceiling
+# per job. Larger runners are configured in organisation settings and this
+# repository belongs to a personal account. Those are not tuning parameters;
+# they are an order of magnitude in two directions at once.
+#
+# What *does* fit here is the checkout. `src` alone -- no DEPS, no submodules,
+# one revision deep -- is a few gigabytes, and every upstream file the stack
+# touches lives in `chrome/` or `tools/`. So this job answers the question that
+# has cost this project whole build slots:
+#
+#     do the patches apply to the real tree at the pinned revision?
+#
+# Build #18 died on exactly that, twenty minutes into a build, on the machine
+# that is also the owner's workstation. Nothing offline can decide it: the
+# guards read the stack against itself, and the contents of an upstream file are
+# not in this repository.
+#
+# No `uses:` anywhere, for the reason the Windows workflow gives: actions are
+# downloaded from codeload.github.com during `Set up job` and this account has
+# been rate-limited there. git and python3 are preinstalled on the image.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'downstream/patches/**'
+      - 'downstream/assets/**'
+      - 'config/chromium.version'
+      - 'scripts/apply_patch_stack.py'
+      - 'scripts/bootstrap_chromium.py'
+      - '.github/workflows/patch-apply-hosted.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patch-apply-hosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    name: Apply the stack to the pinned Chromium tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Report the machine
+        run: |
+          set -eux
+          nproc
+          free -g
+          df -h /
+
+      # The image ships toolchains this job will never use, and they are the
+      # difference between a checkout that fits and one that does not. Removed
+      # rather than pruned: nothing here compiles anything.
+      - name: Free the disk
+        run: |
+          set -eu
+          before=$(df --output=avail -BG / | tail -1)
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/share/swift \
+                      /opt/hostedtoolcache/CodeQL || true
+          after=$(df --output=avail -BG / | tail -1)
+          echo "free before:$before after:$after"
+          df -h /
+
+      - name: Check out Sunshine downstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          git init -q .
+          git fetch --no-tags --depth=1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "${GITHUB_SHA}"
+          git checkout -q --detach FETCH_HEAD
+
+      # One revision, one branch, no tags beyond the one asked for, no
+      # submodules. The stack touches only chrome/ and tools/, so the DEPS tree
+      # a build would need is not fetched -- which is the whole reason this job
+      # fits on this machine.
+      - name: Clone the pinned Chromium revision
+        run: |
+          set -eu
+          revision=$(sed -n 's/^CHROMIUM_REVISION=refs\/tags\///p' config/chromium.version)
+          test -n "$revision"
+          echo "pinned revision: $revision"
+          git clone --depth 1 --single-branch --branch "$revision" \
+            https://chromium.googlesource.com/chromium/src.git "${RUNNER_TEMP}/src"
+          df -h /
+          du -sh "${RUNNER_TEMP}/src"
+
+      # The one check in this repository that reads an upstream file's contents.
+      # `--skip-overlay` because scripts/verify_asset_overlay.py already decides
+      # the overlay offline, and copying binaries here would prove nothing new.
+      - name: Apply the patch stack
+        run: python3 scripts/apply_patch_stack.py --src "${RUNNER_TEMP}/src" --skip-overlay
+
+      # A patch can apply and still leave the tree wrong -- a hunk landing in
+      # the right file at the wrong place is `git apply` succeeding. This is the
+      # cheapest available second opinion: the files the stack claims to have
+      # changed are the files git reports as changed.
+      - name: Report what the stack changed
+        run: |
+          set -eu
+          cd "${RUNNER_TEMP}/src"
+          git status --porcelain | sort
+          echo "---"
+          git status --porcelain | wc -l

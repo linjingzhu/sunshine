@@ -1,0 +1,1085 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index e4cd689..d2fa882 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -65,6 +65,8 @@
+     "security/app.ts",
+     "shell/app.ts",
+     "shell/geometry.ts",
++    "shell/mount.ts",
++    "shell/mount_port.ts",
+   ]
+ 
+   # Generated Mojo bindings, extended by each surface patch that has an
+diff --git a/chrome/browser/resources/sunshine/shell/mount.ts b/chrome/browser/resources/sunshine/shell/mount.ts
+new file mode 100644
+index 0000000..a55fd36
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/shell/mount.ts
+@@ -0,0 +1,258 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import * as geometry from './geometry.js';
++import * as port from './mount_port.js';
++
++/**
++ * The shell's half of the module mount port.
++ *
++ * `mount_port.ts` says what may cross; this file is what crosses it in
++ * Sunshine, and it is the only file in the shell that touches a frame or a
++ * message. app.ts asks a `Mount` to open a module and is handed validated data
++ * -- it never sees a `MessageEvent`, never sees an origin, and never sees a
++ * URL. That separation is the point: everything that could go wrong about
++ * receiving from an unprivileged frame is in one file, of one page, and it is
++ * this one.
++ *
++ * **A module's content never enters the shell's document.** MS-3. It is
++ * rendered in an iframe at a `chrome-untrusted://` origin the module supplies
++ * through the registry, and the only things that come back out are the strings
++ * `mount_port.ts` validates. What the shell then draws from those strings, it
++ * draws with `createElement` and `textContent`, in app.ts.
++ *
++ * **Three independent checks stand between a frame and the shell.** The
++ * listener compares `event.source` against this frame's own `contentWindow`,
++ * so a message from any other frame or window is not this mount's; it compares
++ * `event.origin` against the origin the frame was opened at, so a frame that
++ * navigated elsewhere stops being heard; and it validates the payload, so a
++ * message from the right frame at the right origin still has to be a message.
++ * Any one of the three would catch the ordinary mistake. The other two are for
++ * the case where the first was wrong.
++ */
++
++/** What a mounted module has told the shell about itself. */
++export interface MountView {
++  title: string;
++  path: string;
++  icon: port.IconName|null;
++  dirty: boolean;
++  tabs: port.MountTab[];
++  activeTab: string;
++  actions: port.MountAction[];
++}
++
++/** The registry's description of something mountable. */
++export interface Mountable {
++  id: string;
++  displayName: string;
++  contentUrl: string;
++}
++
++export interface MountCallbacks {
++  /** The module described itself, or changed its description. */
++  describe(view: MountView): void;
++  /** The module moved its own selection. C follows; it does not argue. */
++  select(tab: string): void;
++  /** The module asked for a panel role. E's container is the shell's. */
++  requestPanel(role: string): void;
++}
++
++/** The empty description, which is also what a mount reverts to when closed. */
++export function emptyView(): MountView {
++  return {
++    title: '',
++    path: '',
++    icon: null,
++    dirty: false,
++    tabs: [],
++    activeTab: '',
++    actions: [],
++  };
++}
++
++/**
++ * Reads a module's mount declaration out of a registry entry.
++ *
++ * Returns null for a module that declares none, which is not an error: most
++ * modules are not mountable, and `docs/MODULE_SHELL_CONTRACT.md` section 1
++ * requires the dock to list every module regardless. A module in the dock with
++ * nothing to mount shows the shell's empty state, which is state 09 and a
++ * legitimate thing for the shell to be in.
++ */
++export function mountable(entry: unknown): Mountable|null {
++  if (typeof entry !== 'object' || entry === null) {
++    return null;
++  }
++  const fields = entry as Record<string, unknown>;
++  const id = port.identifier(fields['id']);
++  const displayName = port.label(fields['display_name']);
++  const mount = fields['mount'];
++  if (id === null || displayName === null || typeof mount !== 'object' ||
++      mount === null) {
++    return null;
++  }
++  const url =
++      port.contentUrl((mount as Record<string, unknown>)['content_url']);
++  return url === null ? null : {id, displayName, contentUrl: url};
++}
++
++/**
++ * One mount point: one region, at most one frame, at most one module.
++ *
++ * A `Mount` is created once per region and reused. Opening a different module
++ * replaces the frame rather than reusing it -- a frame that had navigated
++ * would keep its old document's state, and there is no message in the port
++ * that means "forget everything", because a new frame is a better way to say
++ * it than a message a module could ignore.
++ */
++export class Mount {
++  private readonly container: HTMLElement;
++  private readonly region: port.Region;
++  private readonly callbacks: MountCallbacks;
++  private frame: HTMLIFrameElement|null = null;
++  private origin = '';
++  private open_: Mountable|null = null;
++  private ready = false;
++  private pending: port.HostMessage[] = [];
++
++  constructor(
++      container: HTMLElement, region: port.Region, callbacks: MountCallbacks) {
++    this.container = container;
++    this.region = region;
++    this.callbacks = callbacks;
++    window.addEventListener('message', (event) => this.receive(event));
++  }
++
++  get module(): Mountable|null {
++    return this.open_;
++  }
++
++  /**
++   * Puts `target` in this region, or clears it when `target` is null.
++   *
++   * Opening the module already open is a no-op rather than a reload: the dock
++   * is clicked to switch modules, and switching to the one you are in should
++   * not throw away what you were doing in it.
++   */
++  openModule(
++      target: Mountable|null, activeTab: string, panelRole: string): void {
++    if (target !== null && this.open_?.id === target.id) {
++      return;
++    }
++    this.close();
++    if (target === null) {
++      return;
++    }
++
++    const frame = document.createElement('iframe');
++    frame.className = 'module-frame';
++    frame.title = target.displayName;
++    // The one navigation the shell performs, to a URL the registry compiled
++    // into the binary supplied and mount_port.contentUrl() accepted.
++    frame.src = target.contentUrl;
++    frame.addEventListener('load', () => this.introduce(activeTab, panelRole));
++
++    this.open_ = target;
++    this.origin = port.originOf(target.contentUrl);
++    this.frame = frame;
++    this.container.append(frame);
++  }
++
++  close(): void {
++    this.frame?.remove();
++    this.frame = null;
++    this.open_ = null;
++    this.origin = '';
++    this.ready = false;
++    this.pending = [];
++  }
++
++  activate(tab: string): void {
++    this.post({type: 'activate', tab});
++  }
++
++  invoke(action: string): void {
++    this.post({type: 'action', action});
++  }
++
++  setPanelRole(role: string): void {
++    this.post({type: 'panel', role});
++  }
++
++  // -- the wire -------------------------------------------------------------
++
++  /**
++   * The first message, sent on the frame's own `load` event.
++   *
++   * Readiness comes from `load` rather than from a message the module sends,
++   * for the reason `docs/DOCUMENT_SURFACE_CONTRACT.md` gives about its own
++   * frame: `load` is the browser's fact about the frame, and a readiness
++   * message would be the frame's claim about itself. A module that never
++   * claims to be ready would then never be mounted.
++   */
++  private introduce(activeTab: string, panelRole: string): void {
++    this.ready = true;
++    this.send({
++      type: 'mount',
++      module: this.open_?.id ?? '',
++      region: this.region,
++      activeTab,
++      panelRole,
++    });
++    for (const message of this.pending) {
++      this.send(message);
++    }
++    this.pending = [];
++  }
++
++  /** Queued until the frame has loaded, because postMessage before it is lost. */
++  private post(message: port.HostMessage): void {
++    if (this.ready) {
++      this.send(message);
++    } else if (this.frame !== null) {
++      this.pending.push(message);
++    }
++  }
++
++  private send(message: port.HostMessage): void {
++    // The target origin is stated rather than '*': a frame that navigated away
++    // must not be handed the shell's messages on its way out.
++    this.frame?.contentWindow?.postMessage(message, this.origin);
++  }
++
++  private receive(event: MessageEvent): void {
++    if (this.frame === null || event.source !== this.frame.contentWindow ||
++        event.origin !== this.origin) {
++      return;
++    }
++    const message = port.moduleMessage(event.data);
++    if (message === null) {
++      return;
++    }
++
++    if (message.type === 'select') {
++      this.callbacks.select(message.tab);
++      return;
++    }
++    if (message.type === 'request-panel') {
++      this.callbacks.requestPanel(message.role);
++      return;
++    }
++
++    // The header holds HEADER_ACTIONS_MAX of them and no more. Truncating
++    // rather than refusing the message: a module that offered four actions has
++    // said something true about three of them, and dropping the description
++    // whole would cost the title and the tabs as well.
++    this.callbacks.describe({
++      title: message.title,
++      path: message.path,
++      icon: message.icon,
++      dirty: message.dirty,
++      tabs: message.tabs,
++      activeTab: message.activeTab,
++      actions: message.actions.slice(0, geometry.HEADER_ACTIONS_MAX),
++    });
++  }
++}
+diff --git a/chrome/browser/resources/sunshine/shell/mount_port.ts b/chrome/browser/resources/sunshine/shell/mount_port.ts
+new file mode 100644
+index 0000000..031ad67
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/shell/mount_port.ts
+@@ -0,0 +1,352 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * The module mount port: the whole vocabulary a mounted module and its shell
++ * exchange.
++ *
++ * `docs/MODULE_MOUNT_CONTRACT.md` is the contract; this file is its executable
++ * form, and `scripts/verify_module_mount.py` compares the two.
++ *
++ * **This file imports nothing.** Not the shell, not geometry, not Chromium,
++ * not the Mojo bindings -- nothing. That is what makes it a file a module app
++ * copies rather than depends on: `docs/MODULE_APP_GUIDE.md` MA-1 says an app
++ * imports nothing only Sunshine provides, and a port declared in a file that
++ * reaches for a browser is not a port. The iPad shell of
++ * `docs/decisions/0013-module-data-portability.md` implements the same
++ * messages against the same validators, and this file is the thing both hosts
++ * agree on.
++ *
++ * **Everything here is data.** No message carries a path, a handle, a URL, a
++ * function or a capability -- MA-2. The strongest form of that is structural
++ * rather than declared: an identifier is constrained by `IDENTIFIER` to
++ * characters that cannot spell a scheme or a path, and a label is display text
++ * the shell only ever writes with `textContent`. There is no field a host
++ * could navigate to even if it wanted to.
++ *
++ * **Validation is total and returns null.** Every inbound message is untrusted
++ * -- the module half runs in an unprivileged frame whose content may have been
++ * authored anywhere -- so nothing here throws, nothing here repairs a message
++ * into something usable, and a message wrong in any particular is dropped
++ * whole. A partially-accepted message is how a shell ends up drawing half of
++ * something a module did not say.
++ */
++
++/** Shell to module. A closed set: a name not here is not a message. */
++export const HOST_MESSAGES = ['mount', 'activate', 'action', 'panel'] as const;
++
++/** Module to shell. Also closed, and also the whole of it. */
++export const MODULE_MESSAGES = ['describe', 'select', 'request-panel'] as const;
++
++export type HostMessageType = (typeof HOST_MESSAGES)[number];
++export type ModuleMessageType = (typeof MODULE_MESSAGES)[number];
++
++/**
++ * The two regions a module is mounted into. D's body and E's role content are
++ * separate frames of the same module, told apart by this and by nothing else,
++ * so a module can render one document differently in each without the shell
++ * needing a second content URL for it.
++ */
++export const REGIONS = ['body', 'panel'] as const;
++export type Region = (typeof REGIONS)[number];
++
++/**
++ * The icons a module may ask for, by name.
++ *
++ * A closed set rather than an image, because an image is a URL and a URL is
++ * the one thing MA-2 keeps off this port. A module names a role and the shell
++ * draws whatever it draws for that role, which also means the icon follows the
++ * theme instead of being a picture that does not.
++ */
++export const ICONS = [
++  'module',
++  'document',
++  'list',
++  'table',
++  'console',
++  'chart',
++  'inbox',
++  'settings',
++] as const;
++export type IconName = (typeof ICONS)[number];
++
++/**
++ * Identifiers cross the port; locations do not. The character set is the
++ * enforcement: no slash, no colon, so nothing shaped like a path or a scheme
++ * survives validation, and the shell never has to inspect a string for what it
++ * might mean.
++ */
++export const IDENTIFIER = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
++
++/** Display text is capped so one module cannot make the shell unreadable. */
++export const MAX_LABEL = 120;
++/** A tab list longer than this is a module using C as a data store. */
++export const MAX_TABS = 200;
++
++export interface MountTab {
++  id: string;
++  label: string;
++  icon: IconName|null;
++}
++
++export interface MountAction {
++  id: string;
++  label: string;
++  icon: IconName|null;
++}
++
++/**
++ * Everything the shell draws on a module's behalf, in one message.
++ *
++ * Whole state, never a delta. The document surface's host takes the same
++ * position for the same reason: a delta obliges the receiver to keep a second
++ * copy of the model in agreement with the first, and the copy is where the two
++ * drift apart.
++ */
++export interface MountDescription {
++  type: 'describe';
++  title: string;
++  path: string;
++  icon: IconName|null;
++  dirty: boolean;
++  tabs: MountTab[];
++  activeTab: string;
++  actions: MountAction[];
++}
++
++export interface MountSelection {
++  type: 'select';
++  tab: string;
++}
++
++export interface MountPanelRequest {
++  type: 'request-panel';
++  role: string;
++}
++
++export type ModuleMessage = MountDescription|MountSelection|MountPanelRequest;
++
++export interface HostMount {
++  type: 'mount';
++  /** The module's own id, so a frame knows which module it is rendering. */
++  module: string;
++  region: Region;
++  activeTab: string;
++  panelRole: string;
++}
++
++export interface HostActivate {
++  type: 'activate';
++  tab: string;
++}
++
++export interface HostAction {
++  type: 'action';
++  action: string;
++}
++
++export interface HostPanel {
++  type: 'panel';
++  role: string;
++}
++
++export type HostMessage = HostMount|HostActivate|HostAction|HostPanel;
++
++// -- validation ---------------------------------------------------------------
++//
++// Each of these takes `unknown` and returns either the typed value or null.
++// They are a chain of refusals rather than a schema, so that the reason a
++// message was dropped is readable at the line that dropped it.
++
++function record(value: unknown): Record<string, unknown>|null {
++  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
++    return null;
++  }
++  return value as Record<string, unknown>;
++}
++
++export function identifier(value: unknown): string|null {
++  return typeof value === 'string' && IDENTIFIER.test(value) ? value : null;
++}
++
++/**
++ * Display text. Empty is allowed -- a module with no path to show should be
++ * able to say so -- but a non-string, an over-long string, or one carrying a
++ * control character is not: the last of those is how a label smuggles a line
++ * break into a single-line region.
++ */
++export function label(value: unknown): string|null {
++  if (typeof value !== 'string' || value.length > MAX_LABEL) {
++    return null;
++  }
++  return /[\u0000-\u001f\u007f]/.test(value) ? null : value;
++}
++
++export function icon(value: unknown): IconName|null {
++  return typeof value === 'string' &&
++          (ICONS as readonly string[]).includes(value) ?
++      value as IconName :
++      null;
++}
++
++function tab(value: unknown): MountTab|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const id = identifier(fields['id']);
++  const text = label(fields['label']);
++  if (id === null || text === null) {
++    return null;
++  }
++  return {id, label: text, icon: icon(fields['icon'])};
++}
++
++/**
++ * One inbound message from a module.
++ *
++ * `actions` is capped by the caller rather than here: the cap is
++ * `HEADER_ACTIONS_MAX`, a measurement of the header, and it belongs with the
++ * other measurements in geometry.ts. This file owns the shape of a message;
++ * the shell owns how much of it fits.
++ */
++export function moduleMessage(value: unknown): ModuleMessage|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const type = fields['type'];
++  if (typeof type !== 'string' ||
++      !(MODULE_MESSAGES as readonly string[]).includes(type)) {
++    return null;
++  }
++
++  if (type === 'select') {
++    const selected = identifier(fields['tab']);
++    return selected === null ? null : {type: 'select', tab: selected};
++  }
++
++  if (type === 'request-panel') {
++    const role = identifier(fields['role']);
++    return role === null ? null : {type: 'request-panel', role};
++  }
++
++  const title = label(fields['title']);
++  const path = label(fields['path']);
++  if (title === null || path === null) {
++    return null;
++  }
++  const rawTabs = fields['tabs'];
++  const rawActions = fields['actions'];
++  if (!Array.isArray(rawTabs) || !Array.isArray(rawActions) ||
++      rawTabs.length > MAX_TABS) {
++    return null;
++  }
++
++  const tabs: MountTab[] = [];
++  for (const entry of rawTabs) {
++    const parsed = tab(entry);
++    if (parsed === null) {
++      return null;
++    }
++    tabs.push(parsed);
++  }
++
++  const actions: MountAction[] = [];
++  for (const entry of rawActions) {
++    const parsed = tab(entry);
++    if (parsed === null) {
++      return null;
++    }
++    actions.push(parsed);
++  }
++
++  // An active tab naming nothing in the list is not something the shell can
++  // resolve for the module, so it becomes "none selected" rather than a guess.
++  const active = identifier(fields['activeTab']) ?? '';
++  return {
++    type: 'describe',
++    title,
++    path,
++    icon: icon(fields['icon']),
++    dirty: fields['dirty'] === true,
++    tabs,
++    activeTab: tabs.some((entry) => entry.id === active) ? active : '',
++    actions,
++  };
++}
++
++/**
++ * The same treatment in the other direction.
++ *
++ * A module validating what its host sends is not suspicion of Sunshine: the
++ * point of the port is that Sunshine is one host of several, and a module that
++ * trusted every host would be a module that works only with the careful ones.
++ */
++export function hostMessage(value: unknown): HostMessage|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const type = fields['type'];
++  if (typeof type !== 'string' ||
++      !(HOST_MESSAGES as readonly string[]).includes(type)) {
++    return null;
++  }
++
++  if (type === 'activate') {
++    const activated = identifier(fields['tab']);
++    return activated === null ? null : {type: 'activate', tab: activated};
++  }
++  if (type === 'action') {
++    const invoked = identifier(fields['action']);
++    return invoked === null ? null : {type: 'action', action: invoked};
++  }
++  if (type === 'panel') {
++    const role = identifier(fields['role']);
++    return role === null ? null : {type: 'panel', role};
++  }
++
++  const module = identifier(fields['module']);
++  const region = fields['region'];
++  const panelRole = identifier(fields['panelRole']);
++  if (module === null || panelRole === null || typeof region !== 'string' ||
++      !(REGIONS as readonly string[]).includes(region)) {
++    return null;
++  }
++  return {
++    type: 'mount',
++    module,
++    region: region as Region,
++    activeTab: identifier(fields['activeTab']) ?? '',
++    panelRole,
++  };
++}
++
++/**
++ * Whether a string is a content URL the shell will mount.
++ *
++ * `chrome-untrusted://` and nothing else, a bare host, and the root path. The
++ * registry is compiled into the binary rather than accepted from anywhere, so
++ * this is not filtering hostile input -- it keeps the one place a URL enters
++ * the shell at all in the shape the contract says it is, and makes a mistyped
++ * manifest fail visibly instead of navigating somewhere.
++ */
++export function contentUrl(value: unknown): string|null {
++  if (typeof value !== 'string' || !value.startsWith('chrome-untrusted://')) {
++    return null;
++  }
++  const rest = value.slice('chrome-untrusted://'.length);
++  const slash = rest.indexOf('/');
++  if (slash === -1 || rest.slice(slash) !== '/') {
++    return null;
++  }
++  const host = rest.slice(0, slash);
++  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(host) ? value : null;
++}
++
++/** The origin a frame at `url` posts from, for the equality check. */
++export function originOf(url: string): string {
++  return url.slice(0, url.length - 1);
++}
+diff --git a/chrome/browser/resources/sunshine/shell/app.css b/chrome/browser/resources/sunshine/shell/app.css
+index c043ed9..1bfbfd8 100644
+--- a/chrome/browser/resources/sunshine/shell/app.css
++++ b/chrome/browser/resources/sunshine/shell/app.css
+@@ -141,6 +141,18 @@
+   flex: 0 0 auto;
+ }
+ 
++/* The mark a module asks for by name, drawn as its initial rather than as a
++ * picture. An image would be a URL, and a URL is the one thing the mount port
++ * keeps out (MA-2); a letter the shell draws follows the theme and needs no
++ * asset. docs/MODULE_MOUNT_CONTRACT.md MM-5. */
++.tile[data-icon] {
++  align-items: center;
++  display: flex;
++  font-size: 0.6875rem;
++  font-weight: 600;
++  justify-content: center;
++}
++
+ .tile {
+   block-size: 1.25rem;
+   border: 1px solid currentcolor;
+@@ -194,14 +206,18 @@
+   padding: 0;
+ }
+ 
++/* A mark, then the label. The label is allowed to run out of room and is never
++ * allowed to change the row's height. */
+ .tab-button {
++  align-items: center;
+   background: none;
+   border: 0;
+   border-inline-start: var(--sunshine-marker) solid transparent;
+   color: inherit;
+   cursor: pointer;
+-  display: block;
++  display: flex;
+   font: inherit;
++  gap: 0.5rem;
+   inline-size: 100%;
+   padding: 0.375rem 1rem;
+   text-align: start;
+@@ -214,6 +230,12 @@
+ .tab-button[aria-current='true'] {
+   background-color: var(--color-midground);
+   border-inline-start-color: var(--color-primary-foreground);
++}
++
++.tab-label {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
+ }
+ 
+ /* D -- the body ------------------------------------------------------------ */
+@@ -282,6 +304,23 @@
+   min-height: 0;
+   overflow: auto;
+   padding: 1rem var(--sunshine-header-pad-left);
++}
++
++/* A mounted module fills its region exactly. The padding above is for the
++ * shell's own empty text; a frame that inherited it would be a module drawn
++ * inside a margin it can neither see nor use. */
++.mount[data-mounted='true'] {
++  overflow: hidden;
++  padding: 0;
++}
++
++/* The module's whole presence in this document. Nothing it sends is ever
++ * drawn outside this element except as text the shell writes itself -- MS-3. */
++.module-frame {
++  block-size: 100%;
++  border: 0;
++  display: block;
++  inline-size: 100%;
+ }
+ 
+ /* E -- the aux panel ------------------------------------------------------- */
+diff --git a/chrome/browser/resources/sunshine/shell/app.html b/chrome/browser/resources/sunshine/shell/app.html
+index 54814a1..898eb21 100644
+--- a/chrome/browser/resources/sunshine/shell/app.html
++++ b/chrome/browser/resources/sunshine/shell/app.html
+@@ -64,6 +64,14 @@
+             title="Show the module panel">
+           <span class="glyph" aria-hidden="true"></span>
+         </button>
++        <!-- C's own toggle. It lives here rather than in C because a control
++             inside the tab list would go away with the tab list, and state 03
++             has to be reachable back as well as forward -- MS-8. -->
++        <button id="tabsToggle" class="header-button" type="button"
++            aria-expanded="true" aria-controls="tabs"
++            title="Show or hide the tab list">
++          <span class="glyph" aria-hidden="true"></span>
++        </button>
+         <span id="headerIcon" class="tile" aria-hidden="true"></span>
+         <span id="headerTitle"></span>
+         <span id="headerPath" class="path"></span>
+diff --git a/chrome/browser/resources/sunshine/shell/app.ts b/chrome/browser/resources/sunshine/shell/app.ts
+index bb135bb..d5e64f8 100644
+--- a/chrome/browser/resources/sunshine/shell/app.ts
++++ b/chrome/browser/resources/sunshine/shell/app.ts
+@@ -7,6 +7,8 @@
+ import {loadTimeData} from '//resources/js/load_time_data.js';
+ 
+ import * as geometry from './geometry.js';
++import {emptyView, Mount, mountable} from './mount.js';
++import type {Mountable, MountView} from './mount.js';
+ 
+ /**
+  * The browser's half of the module shell.
+@@ -17,16 +19,25 @@
+  * short form is that these regions carry every way out of a module, so a
+  * module that drew them could omit them.
+  *
+- * The three content areas are mount points. They hold the shell's own empty
+- * state today because the host port has no implementation yet, and when they
+- * hold a module they will hold a frame -- module markup does not enter this
+- * document. MS-3.
++ * The three content areas are mount points. D's body and E's role content
++ * hold a frame when a module declares one, and C's list is built here from
++ * what that module sent -- as nodes, with `textContent`, never as markup.
++ * Module markup does not enter this document. MS-3.
++ *
++ * Everything that receives from a module is in mount.ts, and everything that
++ * says what may be received is in mount_port.ts. This file draws.
+  */
+ 
+ interface ModuleEntry {
+   id: string;
+   display_name: string;
+   kind: string;
++  /**
++   * Present only on a module the shell can mount. Read through
++   * `mountable()` rather than here, so that the one place a URL is accepted is
++   * also the one place it is checked.
++   */
++  mount?: {content_url: string};
+ }
+ 
+ interface Registry {
+@@ -146,14 +157,43 @@
+ 
+ class Shell {
+   private readonly modules: ModuleEntry[];
++  private readonly mounts = new Map<string, Mountable>();
+   private readonly global = new GlobalState();
++  private readonly body: Mount;
++  private readonly panel: Mount;
+   private current: ModuleEntry|null = null;
+   private stored: Stored;
++  private view: MountView = emptyView();
+ 
+   constructor(registry: Registry) {
+     this.modules = registry.modules;
+     this.global.load();
+     this.stored = ModuleState.load(this.modules[0]?.id ?? '');
++
++    // Which modules are mountable is decided once, here, from the registry the
++    // binary carries. A module that declares no mount is still in the dock --
++    // the contract says B lists every module -- and selecting it shows the
++    // shell's empty state rather than nothing at all.
++    for (const module of this.modules) {
++      const target = mountable(module);
++      if (target !== null) {
++        this.mounts.set(module.id, target);
++      }
++    }
++
++    this.body = new Mount(element('bodyMount'), 'body', {
++      describe: (view) => this.describe(view),
++      select: (tab) => this.selectTab(tab, /*tell=*/ false),
++      requestPanel: (role) => this.requestPanel(role),
++    });
++    // E's frame is the same module rendering a different region. It describes
++    // nothing: the header and the tab list belong to D's module, and a panel
++    // that could rewrite them would be E deciding what D is.
++    this.panel = new Mount(element('panelMount'), 'panel', {
++      describe: () => {},
++      select: () => {},
++      requestPanel: (role) => this.requestPanel(role),
++    });
+ 
+     this.buildDock();
+     this.buildRoles();
+@@ -221,6 +261,7 @@
+       button.addEventListener('click', () => {
+         this.stored.panelRole = role;
+         this.persist();
++        this.panel.setPanelRole(role);
+         this.apply();
+       });
+       host.append(button);
+@@ -241,6 +282,14 @@
+   }
+ 
+   private wireHeader(): void {
++    // C's toggle -- state 03. Without it the tab list can be hidden by a
++    // narrow window and never by the user, which leaves a state in the
++    // contract that the shell cannot reach on purpose (MS-8).
++    element('tabsToggle').addEventListener('click', () => {
++      this.stored.tabsVisible = !this.stored.tabsVisible;
++      this.persist();
++      this.apply();
++    });
+     // The restore control appears only in state 04, and only in the header,
+     // because that is the only chrome still on screen when B and C are gone.
+     element('restore').addEventListener('click', () => {
+@@ -251,6 +300,14 @@
+     element('panelToggle').addEventListener('click', () => {
+       this.stored.panelOpen = !this.stored.panelOpen;
+       this.persist();
++      // A closed panel holds no frame. Keeping one alive behind a hidden
++      // region would be a module still running where the user cannot see it.
++      const target = this.current === null ?
++          null :
++          this.mounts.get(this.current.id) ?? null;
++      this.panel.openModule(
++          this.stored.panelOpen ? target : null, this.stored.activeTab,
++          this.stored.panelRole);
+       this.apply();
+     });
+   }
+@@ -328,6 +385,61 @@
+     if (module) {
+       this.stored = ModuleState.load(module.id);
+     }
++    // The view is the previous module's until the next one describes itself.
++    // Clearing it here rather than on the first message means the header is
++    // briefly empty instead of briefly wrong.
++    this.view = emptyView();
++
++    const target = module === null ? null : this.mounts.get(module.id) ?? null;
++    this.body.openModule(target, this.stored.activeTab, this.stored.panelRole);
++    this.panel.openModule(
++        this.stored.panelOpen ? target : null, this.stored.activeTab,
++        this.stored.panelRole);
++    this.apply();
++  }
++
++  // -- the module's half ----------------------------------------------------
++
++  /** A module said what it is. Everything the shell draws for it comes here. */
++  private describe(view: MountView): void {
++    this.view = view;
++    // A module that names an active tab on arrival is restoring its own state,
++    // and the shell's stored value is what it was told last time. The module
++    // wins: it is the one that knows whether the tab still exists.
++    if (view.activeTab !== '') {
++      this.stored.activeTab = view.activeTab;
++      this.persist();
++    }
++    this.apply();
++  }
++
++  /**
++   * A tab became the active one, either because the user clicked it in C or
++   * because the module moved its own selection. `tell` is the difference: a
++   * click has to reach the module, and the module's own move does not need
++   * telling back.
++   */
++  private selectTab(tab: string, tell: boolean): void {
++    this.stored.activeTab = tab;
++    this.persist();
++    if (tell) {
++      this.body.activate(tab);
++    }
++    this.apply();
++  }
++
++  /** A module asked for a panel role. E's container stays the shell's. */
++  private requestPanel(role: string): void {
++    if (!ROLES.includes(role)) {
++      return;
++    }
++    this.stored.panelRole = role;
++    this.stored.panelOpen = true;
++    this.persist();
++    const target =
++        this.current === null ? null : this.mounts.get(this.current.id) ?? null;
++    this.panel.openModule(target, this.stored.activeTab, role);
++    this.panel.setPanelRole(role);
+     this.apply();
+   }
+ 
+@@ -355,10 +467,13 @@
+     element('panel').hidden = computed.panel === 0;
+     element('panelSplitter').hidden = computed.panel === 0;
+     element('restore').hidden = this.global.leftVisible;
++    element('tabsToggle').hidden = !this.global.leftVisible;
+     element('densityNote').hidden = geometry.densityAllows(window.innerWidth);
+ 
+     element('leftToggle')
+         .setAttribute('aria-expanded', String(this.global.leftVisible));
++    element('tabsToggle')
++        .setAttribute('aria-expanded', String(this.stored.tabsVisible));
+     element('dockToggle')
+         .setAttribute('aria-expanded', String(this.global.dockExpanded));
+     element('panelToggle')
+@@ -381,35 +496,133 @@
+   }
+ 
+   /**
+-   * What the shell shows where a module would be.
++   * What the shell draws on the module's behalf, and what it draws instead.
++   *
++   * Every string here arrived through mount.ts, which means it was validated
++   * by mount_port.ts, which means it is display text and an identifier and
++   * nothing else. It is written with `textContent` -- MS-3 and MA-6 -- and the
++   * one place a module's own markup exists is inside its frame.
+    *
+    * State 09: the skeleton does not change when there is nothing to show. The
+-   * empty text goes in the mount points, and every width above is computed the
+-   * same way it would be with a module present.
++   * empty text goes in the mount points, and every width is computed the same
++   * way it would be with a module present.
+    */
+   private applyContent(): void {
+     const name = this.current?.display_name ?? 'No module';
++    const mounted = this.current !== null && this.mounts.has(this.current.id);
++
+     element('tabsTitle').textContent = name;
+-    element('tabsCount').textContent = '0';
+-    element('headerTitle').textContent = name;
+-    element('headerPath').textContent = this.current?.id ?? '';
++    element('tabsCount').textContent = String(this.view.tabs.length);
++    element('headerTitle').textContent =
++        this.view.title === '' ? name : this.view.title;
++    element('headerPath').textContent =
++        this.view.path === '' ? (this.current?.id ?? '') : this.view.path;
++    element('headerDirty').hidden = !this.view.dirty;
++    this.applyIcon(element('headerIcon'), this.view.icon);
++
++    this.buildTabs();
++    this.buildActions();
++
++    element('bodyMount').dataset['mounted'] = String(mounted);
++    element('panelMount').dataset['mounted'] =
++        String(mounted && this.stored.panelOpen);
+ 
+     const tabsEmpty = element('tabsEmpty');
+-    tabsEmpty.hidden = false;
+-    tabsEmpty.textContent =
+-        'This module contributes no tabs yet. The list is the module\'s to ' +
+-        'fill; its width, its collapse and its selection are not.';
+-
+-    element('bodyEmpty').textContent = this.current ?
+-        `${name} is declared in the registry and has no body to mount yet. ` +
+-            'The header above belongs to the shell and does not change when ' +
+-            'one arrives.' :
++    tabsEmpty.hidden = this.view.tabs.length > 0;
++    tabsEmpty.textContent = mounted ?
++        'This module contributes no tabs. The list is the module\'s to fill; ' +
++            'its width, its collapse and its selection are not.' :
++        'A module that is not mounted contributes no tabs.';
++
++    const bodyEmpty = element('bodyEmpty');
++    bodyEmpty.hidden = mounted;
++    bodyEmpty.textContent = this.current ?
++        `${name} is declared in the registry and declares no mount, so there ` +
++            'is nothing to render here. The header above belongs to the shell ' +
++            'and does not change when something arrives.' :
+         'No modules are registered.';
+ 
+-    element('panelEmpty').textContent = `Nothing is mounted in the ${
++    const panelEmpty = element('panelEmpty');
++    panelEmpty.hidden = mounted && this.stored.panelOpen;
++    panelEmpty.textContent = `Nothing is mounted in the ${
+         this.stored.panelRole} role. One container, ${
+         geometry.PANEL_ROLES} roles; the shell switches between them and the ` +
+         'module fills them.';
++  }
++
++  /**
++   * C's rows.
++   *
++   * Rebuilt whole on every apply rather than reconciled. The list is bounded
++   * by MAX_TABS and this is not a hot path -- it runs on a click, a resize or
++   * a message -- and a reconciler is a second model of the list that can
++   * disagree with the first.
++   */
++  private buildTabs(): void {
++    const list = element<HTMLUListElement>('tabsList');
++    list.replaceChildren();
++    for (const tab of this.view.tabs) {
++      const item = document.createElement('li');
++      const button = document.createElement('button');
++      button.className = 'tab-button';
++      button.type = 'button';
++      button.dataset['id'] = tab.id;
++      button.setAttribute(
++          'aria-current', String(tab.id === this.stored.activeTab));
++
++      const mark = document.createElement('span');
++      mark.className = 'tile';
++      mark.setAttribute('aria-hidden', 'true');
++      this.applyIcon(mark, tab.icon);
++
++      const label = document.createElement('span');
++      label.className = 'tab-label';
++      label.textContent = tab.label;
++
++      button.append(mark, label);
++      button.addEventListener(
++          'click', () => this.selectTab(tab.id, /*tell=*/ true));
++      item.append(button);
++      list.append(item);
++    }
++  }
++
++  /**
++   * The header's actions, at most `HEADER_ACTIONS_MAX` of them.
++   *
++   * mount.ts has already truncated the list, so the cap is applied once and
++   * this loop cannot exceed it by forgetting to.
++   */
++  private buildActions(): void {
++    const host = element('headerActions');
++    host.replaceChildren();
++    for (const action of this.view.actions) {
++      const button = document.createElement('button');
++      button.className = 'header-button';
++      button.type = 'button';
++      button.dataset['id'] = action.id;
++      button.textContent = action.label;
++      button.title = action.label;
++      button.addEventListener('click', () => this.body.invoke(action.id));
++      host.append(button);
++    }
++  }
++
++  /**
++   * The mark for an icon a module named.
++   *
++   * A letter, not a picture: an image would be a URL and the port carries
++   * none. The name also lands in `data-icon`, so a later icon treatment has
++   * something to select on without the port changing.
++   */
++  private applyIcon(node: HTMLElement, name: string|null): void {
++    if (name === null) {
++      node.removeAttribute('data-icon');
++      node.textContent = '';
++      return;
++    }
++    node.dataset['icon'] = name;
++    node.textContent = name.charAt(0).toUpperCase();
+   }
+ }
+ 

@@ -301,6 +301,36 @@ as a fallback, and it is now the chosen state.
 | OS-9 | No first-party WebUI page, Mojo handler, or module may accept a string and navigate the browser to it. Text submitted from a Sunshine surface takes the same classification path as typed text, and every handler validates its calling WebUI origin per section 5.5 of the handoff. |
 | OS-10 | If any invariant above cannot be met, the surface is reached through an internal page under Chromium's existing internal scheme instead. Product branding is not a reason to open a new trust boundary. |
 
+### What OS-9 does not cover, and how the check learned it
+
+`scripts/verify_no_interposition.py` enforces OS-9 by finding navigation
+symbols — `OpenURLParams`, `location.href =`, and the rest — in
+Sunshine-authored text. For as long as no Sunshine file navigated anywhere, the
+check and the invariant were indistinguishable.
+
+`downstream/patches/0008-sunshine-module-home-button.patch` was the first to
+navigate: a bookmark bar button that opens `chrome://sunshine-modules`. The
+check rejected it, and the check was wrong to. OS-9 forbids *accepting a string
+and navigating to it* — text crossing from a surface into the browser without
+taking the classification path typed text takes. A `GURL` built in place from
+one of the compile-time constants in
+`chrome/common/sunshine/sunshine_webui_hosts.h` accepts nothing: there is no
+string, the value is fixed at build time, and the omnibox already offers the
+same hosts by name through `kSunshineWebUIHosts`.
+
+So the check was narrowed to admit exactly that shape and nothing adjacent to
+it — not a variable, not a parameter, not a concatenation that merely contains
+the constant, not a Chromium host constant, and no JavaScript form. **The
+invariant above is unchanged.** Narrowing a security check so that new code
+passes is usually the wrong instinct, and the reason this is not that is worth
+stating plainly: the check was broader than the rule it enforces, and the
+first real navigation in the repository is what exposed the gap.
+
+`tests/test_no_interposition.py` pins each rejected shape, and one further
+test asserts that patch 0008 is still the only patch in the stack that
+navigates at all — so a second user of the allowance fails a test rather than
+inheriting it silently.
+
 ## 7. Valid URL and plausible search term
 
 Some inputs are simultaneously a well-formed URL and an ordinary thing to search

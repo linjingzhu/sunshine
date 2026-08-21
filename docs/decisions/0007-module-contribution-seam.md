@@ -155,6 +155,28 @@ reported the same **12 upstream (exclusive)** targets as without it, and
 `scripts/verify_pinned_upstream.py` applied all six patches cleanly to
 152.0.7977.42. The probe was then deleted.
 
+**The fourth surface then paid the same price, with no probe involved.**
+`downstream/patches/0007-sunshine-modules-webui.patch` adds
+`chrome://sunshine-modules` — three web assets, three browser sources, and one
+line in each of the four registries — and `scripts/patch_manifest.py` still
+reports **12 upstream (exclusive)** targets. The whole stack applies cleanly to
+a fresh checkout of 152.0.7977.42, which was run rather than assumed.
+
+That is the seam's claim discharged by an actual surface rather than by a
+throwaway: the probe showed the cost *could* be zero, and 0007 is a surface
+someone will use for which it *was*.
+
+**The number moved for a different reason, and the distinction matters.** The
+stack now owns 14 upstream files, not 12, because
+`downstream/patches/0008-sunshine-module-home-button.patch` puts a button on
+Chromium's bookmark bar — `chrome/browser/ui/views/bookmarks/bookmark_bar_view.h`
+and its `.cc`. That is not a surface and this seam does not serve it: a button
+registers no host and needs no resource, it needs a place in a views hierarchy
+that upstream lays out by hand.
+`docs/decisions/0014-bookmark-bar-contribution-point.md` records why no second
+seam was built for it, and the short version is that ADR 0007 built one here
+only after measuring a collision. There is no second button.
+
 ## NOT VERIFIED
 
 - Neither the seam nor the surface patch has been compiled. `verify_pinned_upstream.py`

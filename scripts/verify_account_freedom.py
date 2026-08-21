@@ -16,7 +16,7 @@ API key, and patches none of the identity machinery. Both are checkable here,
 today, without a build -- which is what makes these the first acceptance criteria
 in the contract set that a check can actually decide.
 
-Enforces: PO-A1, PO-A2, PO-A3.
+Enforces: PO-A1, PO-A2, PO-A3, PO-A16, PO-A17.
 """
 
 from __future__ import annotations
@@ -59,6 +59,113 @@ PROTECTED_AREAS = (
 
 # Command surfaces that would put an account action behind a Sunshine command.
 ACCOUNT_COMMAND_WORDS = ("signin", "sign_in", "sync", "account", "profile.create", "profile.delete")
+
+# PO-A16. Sunshine's own credential name carries no value in this tree.
+#
+# PO-A1 above refuses Chrome's three build arguments and anything shaped like a
+# real Google credential. Neither rule sees the failure this one is about: a
+# *placeholder*. `#define SUNSHINE_ACCOUNT_CLIENT_ID "test-1234"` is not shaped
+# like a Google client id, sets none of Chrome's arguments, and still makes
+# `LinkAvailable()` return true in every build made from this tree -- which is
+# exactly the state section 5 of the plan promises cannot exist.
+#
+# The value has to arrive from the release pipeline or not at all, so the rule
+# is that the name may appear here but a literal value may not.
+# The value must be a quoted run with **no whitespace in it**, and the quotes
+# must match. Both halves of that were learned by getting it wrong: an earlier
+# version accepted any `"..."` after the name, and the first thing it rejected
+# was `scripts/build_chromium_windows.ps1` assembling the argument from a
+# variable --
+#
+#     $gnArgs += ("sunshine_account_client_id=" + [char]34 + $Id + [char]34)
+#
+# where the quote it read as opening a value is the one closing the argument
+# *name*. Requiring no whitespace is not a patch over that one line; it is the
+# property that separates a credential from code, because no client id, secret
+# or API key contains a space.
+# The escaped form counts too. `chrome/browser/ui/sunshine/BUILD.gn` spells the
+# define as `"SUNSHINE_ACCOUNT_CLIENT_ID=\\"$sunshine_account_client_id\\""`, so a
+# rule that only understood a bare quote would read the one shape the feature
+# actually uses as no value at all -- and would have accepted a real id written
+# the same way.
+#
+# What separates the two is not the quoting: it is that a GN or shell
+# **reference** begins with `$` and a literal does not. That is the check.
+SUNSHINE_CREDENTIAL_VALUE = re.compile(
+    r"\bSUNSHINE_[A-Z0-9_]*(?:CLIENT_ID|CLIENT_SECRET|API_KEY)\b\s*=?\s*"
+    r"\\?(?P<quote>[\"'])(?!\$)(?P<value>[^\"'\s\\]+)\\?(?P=quote)",
+    re.I,
+)
+
+# PO-A16, second half. The value does not live under the macro's name.
+#
+# The rule above keys on `SUNSHINE_*CLIENT_ID`, and an adversarial reviewer
+# walked straight past it with the one line patch 0018 actually ships:
+#
+#     constexpr char kClientId[] = "test-1234";
+#
+# No `SUNSHINE_` prefix, so no match -- and `LinkAvailable()` returns true in
+# every build made from this tree, which is the exact state the rule exists to
+# make impossible. The macro name is where the value *comes from*; this is
+# where it *lands*, and only the second one matters.
+#
+# So: any identifier that reads as a credential, holding a non-empty literal
+# that is not a reference or a macro. Deliberately not a list of the names in
+# use today -- a rule that had to be told about `kClientId` would need telling
+# again about the next one.
+CREDENTIAL_IDENTIFIER = re.compile(
+    r"\b[kg]?_?[A-Za-z0-9_]*(?:ClientId|ClientSecret|ApiKey|CLIENT_ID|CLIENT_SECRET|API_KEY|"
+    r"client_id|client_secret|api_key)[A-Za-z0-9_]*\s*(?:\[\s*\])?\s*=\s*"
+    r"\\?(?P<quote>[\"'])(?!\$)(?P<value>[^\"'\s\\]+)(?P=quote)",
+    re.I,
+)
+
+# PO-A17. Sunshine's own code reaches none of Chromium's identity surface.
+#
+# PO-A2 above forbids *patching* the identity, sync and first-run areas. That is
+# not the same rule as this one, and the difference is the whole reason this
+# exists: a file can leave every upstream source untouched and still call into
+# it. `docs/ACCOUNT_LINK_PLAN.md` section 1 calls the account link **L4** -- an
+# ordinary OAuth client held by an application -- and L4 is only true for as
+# long as the code stays outside the machinery that makes L2 and L3 true. The
+# moment a Sunshine file holds an `IdentityManager`, the profile has a browser
+# identity no matter what the plan says it is.
+#
+# Scope is **every Sunshine source**, not the account files. Scoping it by path
+# would mean naming the files the rule is about, and a rule that must be told
+# where to look stops applying the moment someone adds a file it was not told
+# about. `docs/memory/PROJECT_LESSONS.md`'s IU-15 is this exact mistake made
+# once already. Nothing in the tree reaches any of these today, so the broad
+# form costs nothing and cannot be quietly outgrown.
+#
+# Written before the code it constrains rather than alongside it: section 8 of
+# the plan asks for the guard to land with the authorization, and landing it
+# first means the authorization is written under the rule instead of audited
+# against it afterwards.
+IDENTITY_SYMBOLS = (
+    ("IdentityManager", "Chromium's identity manager"),
+    ("PrimaryAccount", "the profile's primary account"),
+    ("ProfileOAuth2TokenService", "the profile's OAuth token service"),
+    ("OAuth2AccessTokenManager", "the profile's access token manager"),
+    ("signin::", "the signin component"),
+    ("SigninManager", "the signin manager"),
+    ("AccountTrackerService", "the account tracker"),
+    ("AccountInfo", "Chromium's account record"),
+    ("GaiaAuthFetcher", "Gaia's authentication fetcher"),
+    ("GaiaCookieManagerService", "Gaia's cookie manager"),
+    ("GoogleServiceAuthError", "Chromium's Google-service error type"),
+    ("kSigninAllowed", "the preference that gates browser sign-in"),
+    ("CanEnableDiceForBuild", "the Dice build predicate"),
+    ("SyncService", "the sync service"),
+    ("syncer::", "the sync component"),
+    ("sync_pb", "sync's wire types"),
+    # The cookie jar. Step 4 of the plan's section 4 turns on the authorization
+    # code arriving on a socket Sunshine opened rather than out of the jar, and
+    # PO-R7's credential rule is true only while nothing is promoted out of it.
+    ("CookieManager", "the profile's cookie jar"),
+    ("GetCookieList", "a read of the profile's cookie jar"),
+    ("CanonicalCookie", "the profile's cookie jar"),
+)
 
 
 def _candidates(text: str) -> list[str]:
@@ -120,11 +227,90 @@ def check_no_account_commands(root: Path, failures: list[str]) -> None:
                 failures.append(f"{identifier}: registers an account or profile-lifecycle action")
 
 
+def _is_guard(path: Path) -> bool:
+    """A guard names what it prohibits, so it cannot be scanned for it.
+
+    Same convention as `scripts/verify_no_interposition.py`: this repository's
+    checks are `verify_*`/`validate_*`, and the symbol tables inside them are
+    prohibitions rather than uses.
+    """
+
+    return path.name.startswith(("verify_", "validate_", "trace_"))
+
+
+def sunshine_sources(root: Path) -> list[tuple[str, str]]:
+    """(label, text) for every piece of Sunshine-authored text in scope.
+
+    A patch contributes only its **added** lines. Its `+++ b/path` headers name
+    upstream files and also begin with `+`, which is the likeliest false
+    positive in the whole check, so they are dropped.
+    """
+
+    sources: list[tuple[str, str]] = []
+    for directory in SEARCHED:
+        base = root / directory
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            if _is_guard(path):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            relative = path.relative_to(root).as_posix()
+            if path.suffix == ".patch":
+                kept = [
+                    line[1:]
+                    for line in text.splitlines()
+                    if line.startswith("+") and not line.startswith("+++ ")
+                ]
+                sources.append((f"{relative} (added lines)", "\n".join(kept)))
+            else:
+                sources.append((relative, text))
+    return sources
+
+
+def check_no_sunshine_credential_value(root: Path, failures: list[str]) -> None:
+    """PO-A16: Sunshine's own credential name is declared, never given a value."""
+
+    for label, text in sunshine_sources(root):
+        for match in CREDENTIAL_IDENTIFIER.finditer(text):
+            value = match.group("value")
+            # A macro name on the right-hand side is the supported shape: the
+            # value arrives at compile time and is not written here.
+            if re.fullmatch(r"[A-Z][A-Z0-9_]*", value):
+                continue
+            failures.append(
+                f"{label}: gives a credential identifier the literal value "
+                f"{value!r} -- PO-A16, it must come from the release pipeline"
+            )
+        for match in SUNSHINE_CREDENTIAL_VALUE.finditer(text):
+            value = match.group("value")
+            failures.append(
+                f"{label}: gives a Sunshine credential the literal value {value!r} -- "
+                "PO-A16, it must come from the release pipeline"
+            )
+
+
+def check_no_identity_surface(root: Path, failures: list[str]) -> None:
+    """PO-A17: no Sunshine source reaches Chromium's identity surface."""
+
+    for label, text in sunshine_sources(root):
+        for symbol, description in IDENTITY_SYMBOLS:
+            if symbol in text:
+                failures.append(f"{label}: reaches {description} ({symbol!r}) -- PO-A17")
+
+
 def validate(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     check_no_credentials(root, failures)
     check_patch_stack_avoids_identity(root, failures)
     check_no_account_commands(root, failures)
+    check_no_sunshine_credential_value(root, failures)
+    check_no_identity_surface(root, failures)
     return failures
 
 
@@ -133,7 +319,9 @@ def main() -> int:
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
-    print("Account-freedom check passed: no credentials, no identity patches, no account commands.")
+    print("Account-freedom check passed: no credentials, no identity patches, no "
+          "account commands, no Sunshine credential value, no reach into "
+          "Chromium's identity surface.")
     return 0
 
 

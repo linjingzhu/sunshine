@@ -62,7 +62,7 @@ def run(*args: str, cwd: pathlib.Path | None = None) -> None:
 
 
 def read_revision() -> str:
-    for line in (ROOT / "config/chromium.version").read_text().splitlines():
+    for line in (ROOT / "config/chromium.version").read_text(encoding="utf-8").splitlines():
         if line.startswith("CHROMIUM_REVISION="):
             return line.split("=", 1)[1].strip()
     raise RuntimeError("CHROMIUM_REVISION is missing")
@@ -70,13 +70,13 @@ def read_revision() -> str:
 
 def read_series() -> list[str]:
     path = ROOT / "downstream/patches/series"
-    return [line.strip() for line in path.read_text().splitlines() if line.strip() and not line.startswith("#")]
+    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
 
 
 def patch_paths(patch_path: pathlib.Path) -> set[str]:
     """Return repository paths changed by a unified diff."""
     paths: set[str] = set()
-    for line in patch_path.read_text().splitlines():
+    for line in patch_path.read_text(encoding="utf-8").splitlines():
         match = re.match(r"^\+\+\+ b/(.+)$", line)
         if match:
             paths.add(match.group(1))
@@ -100,7 +100,7 @@ def patch_created_paths(patch_path: pathlib.Path) -> set[str]:
     """
 
     paths: set[str] = set()
-    lines = patch_path.read_text().splitlines()
+    lines = patch_path.read_text(encoding="utf-8").splitlines()
     for index, line in enumerate(lines):
         match = re.match(r"^\+\+\+ b/(.+)$", line)
         if match and index and lines[index - 1].rstrip() == "--- /dev/null":

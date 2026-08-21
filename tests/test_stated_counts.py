@@ -272,6 +272,33 @@ class RevisionCitationTests(TreeTestCase):
     def test_a_section_number_is_not_a_revision(self) -> None:
         self.assertUnmatched("Section 4.2.1 and rule 13.20 are unchanged.")
 
+    def test_the_roll_cost_measurement_may_name_a_revision_that_is_not_the_pin(self) -> None:
+        """`docs/BROWSER_OR_APP_REVIEW.md` section 10 measures what the stack
+        costs at another revision. Its literal is the experiment's subject, not
+        a link into upstream source, so a roll must leave it alone."""
+
+        exempt, = counts.NOT_THE_PIN["docs/BROWSER_OR_APP_REVIEW.md"]
+        self.doc(f"| `{exempt}` — the next milestone | 3 of 16 |",
+                 name="docs/BROWSER_OR_APP_REVIEW.md")
+        self.assertEqual([], self.failures())
+
+    def test_the_exemption_does_not_spread_to_another_document(self) -> None:
+        """The reason it is keyed by document. A second file naming the same
+        revision is naming it as a link, which is exactly what the rule is for."""
+
+        exempt, = counts.NOT_THE_PIN["docs/BROWSER_OR_APP_REVIEW.md"]
+        self.doc(f"Read against Chromium {exempt}.", name="docs/OTHER_CONTRACT.md")
+        failures = self.failures()
+        self.assertEqual(1, len(failures))
+        self.assertIn(f"cites Chromium {exempt}", failures[0])
+
+    def test_the_exempt_document_is_still_held_to_every_other_revision(self) -> None:
+        self.doc("Read against Chromium 151.0.7000.10.",
+                 name="docs/BROWSER_OR_APP_REVIEW.md")
+        failures = self.failures()
+        self.assertEqual(1, len(failures))
+        self.assertIn("cites Chromium 151.0.7000.10", failures[0])
+
 
 # --- Forms the matcher deliberately does not match ----------------------------
 

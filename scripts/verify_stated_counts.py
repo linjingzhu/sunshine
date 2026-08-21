@@ -748,6 +748,29 @@ def _claims_in_block(
 
 # --- The pinned revision ------------------------------------------------------
 
+# Revisions a document may name **because** they are not the pin.
+#
+# One thing in this repository has that shape: the roll-cost measurement in
+# `docs/BROWSER_OR_APP_REVIEW.md` section 10, whose entire subject is what the
+# patch stack costs at a revision other than the pinned one. Its literal is a
+# record of an experiment, not a link into upstream source, so a roll must
+# leave it alone -- which is the opposite of what the rule below enforces.
+#
+# Keyed by document, so the exemption cannot spread on its own. A file not
+# listed here that names the same revision is still a failure -- adding one is a
+# visible edit to this table and not something a document can do to itself.
+NOT_THE_PIN: dict[str, tuple[str, ...]] = {
+    "docs/BROWSER_OR_APP_REVIEW.md": ("153.0.8000.0",),
+    # The gesture patch's roll cost, measured against the same milestone before
+    # the patch was committed. Same shape as above: a record of what the next
+    # roll will require, which a roll must not rewrite.
+    "docs/GESTURE_CONTRACT.md": ("153.0.8000.0",),
+    # The store's roll-cost measurement, taken before the store was written.
+    # Same shape again: a record of what the next milestone costs, which a roll
+    # must not rewrite.
+    "docs/DOCUMENT_STORE_CONTRACT.md": ("153.0.8000.0",),
+}
+
 
 @dataclass(frozen=True)
 class Citation:
@@ -786,6 +809,8 @@ def revision_citations(root: Path) -> list[Citation]:
         label = path.relative_to(root).as_posix()
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             for match in VERSION_LITERAL.finditer(line):
+                if match.group(0) in NOT_THE_PIN.get(label, ()):
+                    continue
                 citations.append(
                     Citation(
                         document=label,

@@ -58,7 +58,7 @@ def validate_revision(failures: list[str]) -> None:
         failures.append("CHROMIUM_REVISION file missing: config/chromium.version")
         return
     revision = ""
-    for line in version_path.read_text().splitlines():
+    for line in version_path.read_text(encoding="utf-8").splitlines():
         if line.startswith("CHROMIUM_REVISION="):
             revision = line.split("=", 1)[1].strip()
             break
@@ -71,7 +71,7 @@ def validate_patch_series(failures: list[str]) -> None:
     if not series_path.is_file():
         failures.append("patch series missing: downstream/patches/series")
         return
-    for entry in series_path.read_text().splitlines():
+    for entry in series_path.read_text(encoding="utf-8").splitlines():
         patch_name = entry.strip()
         if not patch_name or patch_name.startswith("#"):
             continue
@@ -87,7 +87,7 @@ def validate_new_tab_patch(failures: list[str]) -> None:
     if not patch_path.is_file():
         failures.append("Sunshine New Tab patch missing")
         return
-    text = patch_path.read_text()
+    text = patch_path.read_text(encoding="utf-8")
     for marker in REQUIRED_NEW_TAB_MARKERS:
         if marker not in text:
             failures.append(f"Sunshine New Tab patch missing required marker: {marker}")
@@ -123,7 +123,7 @@ def main() -> int:
             failures.append(f"excluded wrapper manifest: {reported}")
             continue
         try:
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
         for marker in EXCLUDED_TEXT:

@@ -103,6 +103,30 @@ jobs:
       - name: Verify the open-decisions index agrees with its sources
         run: python scripts/verify_decision_index.py
 
+      - name: Verify the module home is served the registry first_party/ declares
+        run: python scripts/verify_module_registry_sync.py
+
+      - name: Verify the product rename is only the product rename
+        run: python scripts/verify_branding_substitution.py
+
+      - name: Verify the module shell matches its geometry contract
+        run: python scripts/verify_shell_geometry.py
+
+      - name: Check the installer front-end against its contract
+        run: python scripts/verify_installer_frontend.py
+
+      - name: Check the mouse gesture bindings against their contract
+        run: python scripts/verify_gesture_bindings.py
+
+      - name: Check the New Tab background rule against its contract
+        run: python scripts/verify_newtab_background.py
+
+      - name: Verify the module mount port matches its contract
+        run: python scripts/verify_module_mount.py
+
+      - name: Verify every reference in the patch stack resolves
+        run: python scripts/verify_patch_references.py
+
       - name: Verify stated counts still match the repository
         run: python scripts/verify_stated_counts.py
 

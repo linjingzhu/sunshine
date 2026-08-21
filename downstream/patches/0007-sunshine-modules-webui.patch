@@ -1,0 +1,1094 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index 1892558..c9209a5 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -50,6 +50,8 @@ build_webui("build") {
+     "document/app.html",
+     "document_content/app.css",
+     "document_content/app.html",
++    "modules/app.css",
++    "modules/app.html",
+     "security/app.css",
+     "security/app.html",
+   ]
+@@ -57,6 +59,7 @@ build_webui("build") {
+     "document/app.ts",
+     "document/host.ts",
+     "document_content/app.ts",
++    "modules/app.ts",
+     "security/app.ts",
+   ]
+ 
+diff --git a/chrome/browser/resources/sunshine/modules/app.css b/chrome/browser/resources/sunshine/modules/app.css
+new file mode 100644
+index 0000000..4c6864f
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/modules/app.css
+@@ -0,0 +1,222 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * Every colour is read from Chromium's colour pipeline through
++ * chrome://theme/colors.css, per docs/DESIGN_SYSTEM_CONTRACT.md sections 2.1
++ * and 2.3: Sunshine declares no colour of its own and no fallback, so a token
++ * that stops existing fails visibly instead of silently escaping the theme.
++ * The five roles used here are the five the rest of the stack already uses;
++ * this surface introduces none. */
++
++body {
++  background-color: var(--color-dialog-background);
++  color: var(--color-primary-foreground);
++  margin: 0;
++}
++
++#page {
++  display: grid;
++  grid-template-columns: 236px 1fr;
++  height: 100vh;
++}
++
++/* The left column ------------------------------------------------------- */
++
++#nav {
++  border-inline-end: 1px solid var(--color-midground);
++  overflow-y: auto;
++  padding: 1.5rem 0.75rem;
++}
++
++.navsec {
++  align-items: center;
++  color: var(--color-secondary-foreground);
++  display: flex;
++  font-size: 0.75rem;
++  font-weight: 600;
++  gap: 0.5rem;
++  letter-spacing: 0.04em;
++  padding: 0 0.75rem 0.5rem;
++  text-transform: uppercase;
++}
++
++.count {
++  font-weight: 400;
++}
++
++#navList {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++}
++
++.navitem {
++  align-items: center;
++  border: 0;
++  background: none;
++  border-radius: 0.5rem;
++  color: inherit;
++  cursor: pointer;
++  display: flex;
++  font: inherit;
++  gap: 0.625rem;
++  padding: 0.5rem 0.75rem;
++  text-align: start;
++  width: 100%;
++}
++
++.navitem:hover {
++  background-color: var(--color-midground);
++}
++
++/* The current item is marked by aria-current, so the highlight and the
++ * accessible state cannot disagree -- there is only one of them. */
++.navitem[aria-current='true'] {
++  background-color: var(--color-midground);
++  font-weight: 500;
++}
++
++.tile {
++  block-size: 1.25rem;
++  border: 1px solid var(--color-secondary-foreground);
++  border-radius: 0.25rem;
++  flex: 0 0 auto;
++  inline-size: 1.25rem;
++}
++
++.navtext {
++  min-width: 0;
++}
++
++.navname {
++  display: block;
++  font-size: 0.875rem;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.navid {
++  color: var(--color-secondary-foreground);
++  display: block;
++  font-size: 0.75rem;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++/* The right column ------------------------------------------------------ */
++
++#main {
++  overflow-y: auto;
++  padding: 1.5rem 2rem 3rem;
++}
++
++.crumb {
++  color: var(--color-secondary-foreground);
++  font-size: 0.75rem;
++  margin: 0 0 0.5rem;
++}
++
++h1 {
++  font-size: 1.5rem;
++  font-weight: 500;
++  margin: 0;
++}
++
++h2 {
++  font-size: 1rem;
++  font-weight: 600;
++  margin: 2rem 0 0.5rem;
++}
++
++.lede {
++  color: var(--color-secondary-foreground);
++  font-size: 0.875rem;
++  line-height: 1.6;
++  margin: 0.5rem 0 1.5rem;
++  max-width: 44rem;
++}
++
++table {
++  border-collapse: collapse;
++  font-size: 0.875rem;
++  width: 100%;
++}
++
++th,
++td {
++  border-bottom: 1px solid var(--color-midground);
++  padding: 0.75rem 0.5rem;
++  text-align: start;
++  vertical-align: top;
++}
++
++th {
++  color: var(--color-secondary-foreground);
++  font-size: 0.75rem;
++  font-weight: 600;
++  letter-spacing: 0.04em;
++  text-transform: uppercase;
++}
++
++.rowname {
++  font-weight: 500;
++}
++
++.rowid {
++  color: var(--color-secondary-foreground);
++  font-size: 0.75rem;
++}
++
++/* A permission that is held reads as a warning, because on this page the
++ * unusual value is the one worth finding. "deny" and "none" are the ordinary
++ * state and get no colour at all. */
++.granted {
++  color: var(--color-alert-high-severity);
++  font-weight: 500;
++}
++
++.facts {
++  margin: 0;
++}
++
++.fact {
++  border-top: 1px solid var(--color-midground);
++  display: flex;
++  gap: 1rem;
++  justify-content: space-between;
++  padding: 0.75rem 0;
++}
++
++.fact dt {
++  color: var(--color-secondary-foreground);
++  font-size: 0.875rem;
++}
++
++.fact dd {
++  font-size: 0.875rem;
++  font-weight: 500;
++  margin: 0;
++  text-align: end;
++}
++
++.plain {
++  font-size: 0.875rem;
++  line-height: 1.7;
++  margin: 0;
++  padding-inline-start: 1.25rem;
++}
++
++.mono {
++  font-family: monospace;
++}
++
++.note {
++  color: var(--color-secondary-foreground);
++  font-size: 0.75rem;
++  line-height: 1.6;
++  margin: 1.5rem 0 0;
++  max-width: 44rem;
++}
+diff --git a/chrome/browser/resources/sunshine/modules/app.html b/chrome/browser/resources/sunshine/modules/app.html
+new file mode 100644
+index 0000000..dce4a99
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/modules/app.html
+@@ -0,0 +1,79 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Sunshine Modules</title>
++  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
++  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- Two columns, permanently. The left one is the module list; the right one
++       is either the overview table or one module's detail. Both are built by
++       app.ts from the registry the browser hands the page, so neither is
++       written out here: markup that named a module would be a third place a
++       module is declared, after first_party/ and the baked copy. -->
++  <div id="page">
++    <nav id="nav" aria-label="Modules">
++      <div class="navsec">
++        <span>Modules</span><span id="moduleCount" class="count"></span>
++      </div>
++      <ul id="navList"></ul>
++    </nav>
++
++    <main id="main">
++      <p id="crumb" class="crumb"></p>
++      <h1 id="title"></h1>
++      <p id="lede" class="lede"></p>
++
++      <section id="overview">
++        <table id="overviewTable">
++          <thead>
++            <tr>
++              <th scope="col">Module</th>
++              <th scope="col">Kind</th>
++              <th scope="col">Status</th>
++              <th scope="col">Network</th>
++              <th scope="col">Filesystem</th>
++              <th scope="col">Verified</th>
++            </tr>
++          </thead>
++          <tbody id="overviewBody"></tbody>
++        </table>
++        <p class="note">
++          The table stays even though the list on the left names the same
++          modules, because a list answers &ldquo;where do I go&rdquo; and a
++          table answers &ldquo;which of these holds a permission&rdquo;. With
++          three modules those look alike; they stop looking alike at ten.
++        </p>
++      </section>
++
++      <section id="detail" hidden>
++        <dl id="detailFacts" class="facts"></dl>
++
++        <h2>Entry points</h2>
++        <ul id="detailEntrypoints" class="plain"></ul>
++
++        <h2>Capabilities</h2>
++        <ul id="detailCapabilities" class="plain"></ul>
++        <p id="noCapabilities" class="note" hidden>
++          This module asks Chromium for nothing.
++        </p>
++
++        <h2>Data</h2>
++        <ul id="detailData" class="plain"></ul>
++
++        <h2>Verification</h2>
++        <dl id="detailVerification" class="facts"></dl>
++        <p class="note">
++          <strong>Pending</strong> means nobody has run the gate, not that it
++          failed. docs/RUNTIME_VERIFICATION.md holds the gates and their state;
++          this page reports what the manifest claims and does not decide it.
++        </p>
++      </section>
++    </main>
++  </div>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/modules/app.ts b/chrome/browser/resources/sunshine/modules/app.ts
+new file mode 100644
+index 0000000..9ec65b8
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/modules/app.ts
+@@ -0,0 +1,278 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import '/strings.m.js';
++
++import {loadTimeData} from '//resources/js/load_time_data.js';
++
++/**
++ * The module home.
++ *
++ * Every node below is built with createElement and textContent. Nothing here
++ * assigns markup, and that is a rule rather than a style: the registry is
++ * first-party build-time data today, but this is a privileged page, and the
++ * moment a module id could come from anywhere else an innerHTML here would be
++ * the whole vulnerability. Writing it the safe way while the data is trusted
++ * costs nothing; retrofitting it after the data changes costs an audit.
++ */
++
++interface Entrypoint {
++  type: string;
++  target: string;
++}
++
++interface Capability {
++  name: string;
++  access: string;
++}
++
++interface DataDeclaration {
++  owner: string;
++  scope: string;
++  access: string;
++  retention: string;
++}
++
++interface Security {
++  remote_content: boolean;
++  requires_user_activation: boolean;
++  profile_modes: string[];
++  network: {access: string, allow: string[]};
++  filesystem: {access: string};
++  credentials: {direct_access: boolean};
++}
++
++interface Verification {
++  native_build: string;
++  runtime: string;
++  visual: string;
++}
++
++interface Module {
++  schema_version: number;
++  id: string;
++  display_name: string;
++  owner: string;
++  kind: string;
++  lifecycle: string;
++  status: string;
++  entrypoints: Entrypoint[];
++  capabilities: Capability[];
++  data: DataDeclaration[];
++  security: Security;
++  verification: Verification;
++}
++
++interface Registry {
++  schema_version: number;
++  modules: Module[];
++}
++
++function element<T extends HTMLElement>(id: string): T {
++  const found = document.getElementById(id);
++  if (!found) {
++    throw new Error(`sunshine-modules: #${id} is missing from app.html`);
++  }
++  return found as T;
++}
++
++function text(tag: string, value: string, className?: string): HTMLElement {
++  const node = document.createElement(tag);
++  node.textContent = value;
++  if (className) {
++    node.className = className;
++  }
++  return node;
++}
++
++function fact(list: HTMLElement, label: string, value: string): void {
++  const row = document.createElement('div');
++  row.className = 'fact';
++  row.append(text('dt', label), text('dd', value));
++  list.append(row);
++}
++
++/**
++ * Whether a declared permission is more than the ordinary none. Used only to
++ * decide emphasis: the value shown is always the manifest's own word, never a
++ * verdict this page invented.
++ */
++function isGranted(value: string): boolean {
++  return value !== 'deny' && value !== 'none';
++}
++
++function permissionCell(value: string): HTMLElement {
++  return text('td', value, isGranted(value) ? 'granted' : '');
++}
++
++function verifiedSummary(verification: Verification): string {
++  const states = [
++    verification.native_build,
++    verification.runtime,
++    verification.visual,
++  ];
++  const passed = states.filter(state => state === 'passed').length;
++  return `${passed} of ${states.length}`;
++}
++
++class ModuleHome {
++  private readonly modules: Module[];
++  private readonly navList = element<HTMLUListElement>('navList');
++  private readonly overview = element('overview');
++  private readonly detail = element('detail');
++  private readonly crumb = element('crumb');
++  private readonly title = element('title');
++  private readonly lede = element('lede');
++
++  constructor(registry: Registry) {
++    this.modules = registry.modules;
++    element('moduleCount').textContent = String(this.modules.length);
++    this.buildNav();
++    this.showOverview();
++  }
++
++  private buildNav(): void {
++    this.navList.append(this.navItem('All modules', 'overview', null));
++    for (const module of this.modules) {
++      this.navList.append(
++          this.navItem(module.display_name, module.id, module));
++    }
++  }
++
++  private navItem(name: string, id: string, module: Module|null): HTMLLIElement {
++    const item = document.createElement('li');
++    const button = document.createElement('button');
++    button.className = 'navitem';
++    button.type = 'button';
++    button.dataset['key'] = id;
++
++    const tile = document.createElement('span');
++    tile.className = 'tile';
++
++    const label = document.createElement('span');
++    label.className = 'navtext';
++    label.append(text('span', name, 'navname'));
++    label.append(text('span', module ? module.id : 'overview', 'navid'));
++
++    button.append(tile, label);
++    button.addEventListener('click', () => {
++      if (module) {
++        this.showModule(module);
++      } else {
++        this.showOverview();
++      }
++    });
++    item.append(button);
++    return item;
++  }
++
++  private markCurrent(key: string): void {
++    for (const button of this.navList.querySelectorAll('button.navitem')) {
++      const current = (button as HTMLElement).dataset['key'] === key;
++      // Set rather than toggled: aria-current is both the highlight and the
++      // announced state, so there is no second place for them to disagree.
++      button.setAttribute('aria-current', String(current));
++    }
++  }
++
++  private showOverview(): void {
++    this.markCurrent('overview');
++    this.crumb.textContent = 'Sunshine';
++    this.title.textContent = 'All modules';
++    this.lede.textContent =
++        'Modules built into this browser. This list is fixed at build time: ' +
++        'nothing here can be installed, removed, or reordered from the ' +
++        'running browser.';
++    this.overview.hidden = false;
++    this.detail.hidden = true;
++
++    const body = element('overviewBody');
++    body.replaceChildren();
++    for (const module of this.modules) {
++      const row = document.createElement('tr');
++
++      const name = document.createElement('td');
++      name.append(text('div', module.display_name, 'rowname'));
++      name.append(text('div', module.id, 'rowid'));
++
++      row.append(
++          name,
++          text('td', module.kind),
++          text('td', module.status),
++          permissionCell(module.security.network.access),
++          permissionCell(module.security.filesystem.access),
++          text('td', verifiedSummary(module.verification)));
++      body.append(row);
++    }
++  }
++
++  private showModule(module: Module): void {
++    this.markCurrent(module.id);
++    this.crumb.textContent = `Sunshine / ${module.id}`;
++    this.title.textContent = module.display_name;
++    this.lede.textContent =
++        `A ${module.kind} module owned by ${module.owner}, living for the ` +
++        `lifetime of a ${module.lifecycle}.`;
++    this.overview.hidden = true;
++    this.detail.hidden = false;
++
++    const facts = element('detailFacts');
++    facts.replaceChildren();
++    fact(facts, 'Identifier', module.id);
++    fact(facts, 'Status', module.status);
++    fact(facts, 'Network', module.security.network.access);
++    fact(facts, 'Filesystem', module.security.filesystem.access);
++    fact(
++        facts, 'Remote content',
++        module.security.remote_content ? 'allowed' : 'no');
++    fact(
++        facts, 'Direct credential access',
++        module.security.credentials.direct_access ? 'allowed' : 'no');
++    fact(facts, 'Profiles', module.security.profile_modes.join(', '));
++
++    const entrypoints = element('detailEntrypoints');
++    entrypoints.replaceChildren();
++    for (const entrypoint of module.entrypoints) {
++      const item = document.createElement('li');
++      item.append(text('span', entrypoint.target, 'mono'));
++      item.append(text('span', ` — ${entrypoint.type}`));
++      entrypoints.append(item);
++    }
++
++    const capabilities = element('detailCapabilities');
++    capabilities.replaceChildren();
++    for (const capability of module.capabilities) {
++      const item = document.createElement('li');
++      item.append(text('span', capability.name, 'mono'));
++      item.append(text('span', ` — ${capability.access}`));
++      capabilities.append(item);
++    }
++    const empty = module.capabilities.length === 0;
++    capabilities.hidden = empty;
++    element('noCapabilities').hidden = !empty;
++
++    const data = element('detailData');
++    data.replaceChildren();
++    for (const declaration of module.data) {
++      data.append(text(
++          'li',
++          `${declaration.owner} data, ${declaration.scope} scope, ` +
++              `${declaration.access}, retained ${declaration.retention}`));
++    }
++
++    const verification = element('detailVerification');
++    verification.replaceChildren();
++    fact(verification, 'Native build', module.verification.native_build);
++    fact(verification, 'Runtime', module.verification.runtime);
++    fact(verification, 'Visual', module.verification.visual);
++  }
++}
++
++document.addEventListener('DOMContentLoaded', function() {
++  // JSON.parse, not eval and not a generated module: SEC-14 forbids dynamic
++  // code in a Sunshine web asset, and the registry is data.
++  const registry = JSON.parse(loadTimeData.getString('moduleRegistry')) as
++      Registry;
++  new ModuleHome(registry);
++});
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index 7ba1c80..86e295f 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -49,6 +49,9 @@ source_set("sunshine") {
+     "document/sunshine_document_handler.h",
+     "document/sunshine_document_ui.cc",
+     "document/sunshine_document_ui.h",
++    "modules/sunshine_module_registry.h",
++    "modules/sunshine_modules_ui.cc",
++    "modules/sunshine_modules_ui.h",
+     "security/sunshine_security_ui.cc",
+     "security/sunshine_security_ui.h",
+   ]
+diff --git a/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h b/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h
+new file mode 100644
+index 0000000..9ccd297
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h
+@@ -0,0 +1,307 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_MODULES_SUNSHINE_MODULE_REGISTRY_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_MODULES_SUNSHINE_MODULE_REGISTRY_H_
++
++namespace sunshine {
++
++// The first-party module registry, as chrome://sunshine-modules is served it.
++//
++// GENERATED CONTENT -- DO NOT EDIT BY HAND. This is a copy of the manifests in
++// `first_party/`, which is the Sunshine repository and not something a Chromium
++// build can read: the manifests are a directory of JSON files on the other side
++// of the patch stack, and nothing carries them across. So the registry is baked
++// in here, and `scripts/verify_module_registry_sync.py` recomputes this exact
++// string from `first_party/` and fails the guard job when the two disagree.
++//
++// The canonical form is defined once, in `scripts/module_registry_payload.py`:
++// `json.dumps(..., indent=2, sort_keys=True)` over the whole manifests, in the
++// order `first_party/registry.json` lists them. Regenerate rather than edit --
++// the guard compares bytes, so a hand-edit that is merely equivalent still
++// fails, which is the point.
++//
++// Whole manifests, not a projection of the fields the page happens to show. A
++// projection is a second schema: it would need keeping in step with the first,
++// and the drift it allowed would be invisible in exactly the surface whose job
++// is to say what is installed.
++inline constexpr char kSunshineModuleRegistryJson[] = R"json(
++{
++  "modules": [
++    {
++      "capabilities": [],
++      "data": [
++        {
++          "access": "write",
++          "owner": "sunshine",
++          "retention": "persistent",
++          "scope": "profile"
++        }
++      ],
++      "display_name": "Sunshine Documents",
++      "entrypoints": [
++        {
++          "target": "chrome://sunshine-document",
++          "type": "chromium_webui"
++        }
++      ],
++      "id": "sunshine.document",
++      "kind": "surface",
++      "lifecycle": "profile",
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular"
++        ],
++        "remote_content": false,
++        "requires_user_activation": true
++      },
++      "status": "prepared",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    },
++    {
++      "capabilities": [],
++      "data": [
++        {
++          "access": "read",
++          "owner": "sunshine",
++          "retention": "none",
++          "scope": "profile"
++        }
++      ],
++      "display_name": "Sunshine Modules",
++      "entrypoints": [
++        {
++          "target": "chrome://sunshine-modules",
++          "type": "chromium_webui"
++        }
++      ],
++      "id": "sunshine.modules",
++      "kind": "surface",
++      "lifecycle": "profile",
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular"
++        ],
++        "remote_content": false,
++        "requires_user_activation": false
++      },
++      "status": "prepared",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    },
++    {
++      "capabilities": [
++        {
++          "access": "decorate",
++          "name": "chromium.new_tab.presentation"
++        }
++      ],
++      "data": [
++        {
++          "access": "read",
++          "owner": "chromium",
++          "retention": "none",
++          "scope": "profile"
++        }
++      ],
++      "display_name": "Sunshine New Tab",
++      "entrypoints": [
++        {
++          "target": "chrome://new-tab-page",
++          "type": "chromium_webui_overlay"
++        }
++      ],
++      "id": "sunshine.new_tab",
++      "kind": "surface",
++      "lifecycle": "profile",
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular"
++        ],
++        "remote_content": false,
++        "requires_user_activation": false
++      },
++      "status": "prepared",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    },
++    {
++      "capabilities": [
++        {
++          "access": "read",
++          "name": "chromium.safe_browsing.state"
++        }
++      ],
++      "data": [
++        {
++          "access": "read",
++          "owner": "chromium",
++          "retention": "none",
++          "scope": "profile"
++        }
++      ],
++      "display_name": "Sunshine Security Center",
++      "entrypoints": [
++        {
++          "target": "chrome://sunshine-security",
++          "type": "chromium_webui"
++        }
++      ],
++      "id": "sunshine.security",
++      "kind": "surface",
++      "lifecycle": "profile",
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular"
++        ],
++        "remote_content": false,
++        "requires_user_activation": false
++      },
++      "status": "prepared",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    },
++    {
++      "capabilities": [
++        {
++          "access": "read",
++          "name": "chromium.tabs.strip_model"
++        },
++        {
++          "access": "write",
++          "name": "chromium.sessions.tab_extra_data"
++        }
++      ],
++      "data": [
++        {
++          "access": "write",
++          "owner": "sunshine",
++          "retention": "persistent",
++          "scope": "profile"
++        },
++        {
++          "access": "write",
++          "owner": "chromium",
++          "retention": "persistent",
++          "scope": "tab"
++        }
++      ],
++      "display_name": "Sunshine Workspaces",
++      "entrypoints": [
++        {
++          "target": "workspace.create",
++          "type": "native_command"
++        },
++        {
++          "target": "workspace.switch",
++          "type": "native_command"
++        },
++        {
++          "target": "workspace.tab.move",
++          "type": "native_command"
++        },
++        {
++          "target": "workspace.close",
++          "type": "native_command"
++        }
++      ],
++      "id": "sunshine.workspace",
++      "kind": "service",
++      "lifecycle": "profile",
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular",
++          "incognito"
++        ],
++        "remote_content": false,
++        "requires_user_activation": true
++      },
++      "status": "prepared",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    }
++  ],
++  "schema_version": 2
++}
++)json";
++
++}  // namespace sunshine
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_MODULES_SUNSHINE_MODULE_REGISTRY_H_
+diff --git a/chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.cc b/chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.cc
+new file mode 100644
+index 0000000..cf26987
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.cc
+@@ -0,0 +1,40 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h"
++
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h"
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "ui/webui/webui_util.h"
++
++SunshineModulesUI::SunshineModulesUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, chrome::kChromeUISunshineModulesHost);
++
++  // The registry, handed over as the JSON text it already is rather than
++  // unpacked into a pile of AddString calls. Two reasons, and neither is
++  // convenience: the manifest schema is defined in `first_party/`, so a C++
++  // projection of it here would be a second schema to keep in step; and the
++  // guard that keeps this copy honest --
++  // `scripts/verify_module_registry_sync.py` -- can only compare bytes if
++  // there are bytes to compare.
++  //
++  // The page parses it with JSON.parse. That is data, not code: SEC-14 forbids
++  // eval and dynamically generated code in a Sunshine web asset, and nothing
++  // here generates any.
++  source->AddString("moduleRegistry", sunshine::kSunshineModuleRegistryJson);
++
++  // Every Sunshine surface is built into one resource bundle; this asks for
++  // the "modules/" part of it, served from the root of this host.
++  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("modules"),
++                              IDR_SUNSHINE_MODULES_APP_HTML);
++}
++
++SunshineModulesUI::~SunshineModulesUI() = default;
+diff --git a/chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h b/chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h
+new file mode 100644
+index 0000000..867482b
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h
+@@ -0,0 +1,51 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_MODULES_SUNSHINE_MODULES_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_MODULES_SUNSHINE_MODULES_UI_H_
++
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineModulesUI;
++
++// The Sunshine module home, at chrome://sunshine-modules.
++//
++// Registered through content's WebUI config map rather than through a Sunshine
++// URL scheme; docs/decisions/0003-internal-scheme.md records why Sunshine
++// registers no scheme of its own.
++class SunshineModulesUIConfig
++    : public content::DefaultWebUIConfig<SunshineModulesUI> {
++ public:
++  SunshineModulesUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUISunshineModulesHost) {}
++};
++
++// Lists the first-party modules built into this browser and what each one
++// declares. It is a report, not a control panel: nothing on this page installs,
++// removes, enables, or reorders anything, because there is nothing to install
++// -- the registry is fixed when the browser is built.
++//
++// A plain content::WebUIController, not ui::MojoWebUIController: the page needs
++// one string that is known before it loads, so it arrives through the data
++// source and there is no interface to grant. A surface with no host interface
++// should not have the machinery for one.
++class SunshineModulesUI : public content::WebUIController {
++ public:
++  explicit SunshineModulesUI(content::WebUI* web_ui);
++
++  SunshineModulesUI(const SunshineModulesUI&) = delete;
++  SunshineModulesUI& operator=(const SunshineModulesUI&) = delete;
++
++  ~SunshineModulesUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_MODULES_SUNSHINE_MODULES_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index b04bb4d..fb18b87 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -16,6 +16,7 @@
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
++#include "chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
+ #include "content/public/browser/web_ui_browser_interface_broker_registry.h"
+ #include "content/public/browser/webui_config_map.h"
+@@ -87,6 +88,7 @@ inline void RegisterWebUIInterfaceBrokers() {
+ 
+ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
+   map.AddWebUIConfig(std::make_unique<SunshineDocumentUIConfig>());
++  map.AddWebUIConfig(std::make_unique<SunshineModulesUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
+ 
+   // The document surface's unprivileged half. It is the same singleton and the
+diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
+index 2ea7da4..e452afc 100644
+--- a/chrome/common/sunshine/sunshine_webui_hosts.h
++++ b/chrome/common/sunshine/sunshine_webui_hosts.h
+@@ -33,6 +33,13 @@ inline constexpr char kChromeUISunshineDocumentContentHost[] =
+ inline constexpr char kChromeUISunshineDocumentContentURL[] =
+     "chrome-untrusted://sunshine-document-content/";
+ 
++// The Sunshine module home: what is built into this browser and what each
++// module declares. Reached from the bookmark bar button that
++// docs/decisions/0014-bookmark-bar-contribution-point.md adds, and by name.
++inline constexpr char kChromeUISunshineModulesHost[] = "sunshine-modules";
++inline constexpr char kChromeUISunshineModulesURL[] =
++    "chrome://sunshine-modules/";
++
+ // The Sunshine Security Center. Sunshine registers no URL scheme of its
+ // own; see docs/decisions/0003-internal-scheme.md. The host is prefixed so
+ // that it cannot be mistaken for kSecuritySubPage in
+@@ -49,6 +56,7 @@ inline constexpr char kChromeUISunshineSecurityURL[] =
+ // iframe -- and ChromeURLHosts() is the omnibox's list of chrome:// pages.
+ inline constexpr auto kSunshineWebUIHosts = std::to_array<base::cstring_view>({
+       kChromeUISunshineDocumentHost,
++      kChromeUISunshineModulesHost,
+       kChromeUISunshineSecurityHost,
+ });
+ 

@@ -1,0 +1,477 @@
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index 1317d71..c2e2670 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -88,6 +88,7 @@
+ #include "chrome/browser/tips/core/tips_prefs.h"
+ #include "chrome/browser/tracing/chrome_tracing_delegate.h"
+ #include "chrome/browser/ui/browser_ui_prefs.h"
++#include "chrome/browser/ui/sunshine/mouse_gesture.h"
+ #include "chrome/browser/ui/network_profile_bubble.h"
+ #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
+ #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
+@@ -1868,6 +1869,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+   skills::prefs::RegisterProfilePrefs(registry);
+   subscription_eligibility::prefs::RegisterProfilePrefs(registry);
+   supervised_user::RegisterProfilePrefs(registry);
++  sunshine::RegisterProfilePrefs(registry);
+   sync_sessions::SessionSyncPrefs::RegisterProfilePrefs(registry);
+   syncer::DeviceInfoPrefs::RegisterProfilePrefs(registry);
+   syncer::DeviceStatisticsScheduler::RegisterProfilePrefs(registry);
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+index 4ecd2c2..7997d1e 100644
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -1790,6 +1790,7 @@ static_library("ui") {
+       "//chrome/browser/ui/signin",
+       "//chrome/browser/ui/signin:impl",
+       "//chrome/browser/ui/startup:startup_tab",
++      "//chrome/browser/ui/sunshine",
+       "//chrome/browser/ui/tabs",
+       "//chrome/browser/ui/tabs:favicon_theming",
+       "//chrome/browser/ui/tabs:impl",
+diff --git a/chrome/browser/ui/browser.cc b/chrome/browser/ui/browser.cc
+index 47c68b1..1f63f21 100644
+--- a/chrome/browser/ui/browser.cc
++++ b/chrome/browser/ui/browser.cc
+@@ -109,6 +109,8 @@
+ #include "chrome/browser/ui/browser_ui_prefs.h"
+ #include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
+ #include "chrome/browser/ui/browser_window.h"
++#include "chrome/browser/ui/sunshine/mouse_gesture.h"
++#include "chrome/browser/ui/sunshine/newtab_background.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+@@ -549,6 +551,16 @@ Browser::Browser(const CreateParams& params)
+   }
+ #endif  // BUILDFLAG(IS_OZONE)
+ 
++  // Ask once per process whether a New Tab background is installed, off this
++  // thread. Here rather than in the New Tab page because a window is created
++  // before any tab in it, so the answer is normally settled before a New Tab
++  // asks -- and because the alternative, letting each New Tab find out for
++  // itself, cost three file probes per tab and broke PB-4's rule against
++  // opening a file per tab on the startup path.
++  //
++  // Idempotent: the second window and the two-hundredth do nothing.
++  sunshine::background::WarmAvailability();
++
+   if (params.window) {
+     CHECK_IS_TEST() << "Browser::CreateParams::window is a test-only param";
+   }
+@@ -1518,6 +1530,13 @@ void Browser::UpdateTargetURL(WebContents* source, const GURL& url) {
+ }
+ 
+ void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
++  // Sunshine's mouse gestures observe here and nowhere else. This hook returns
++  // void, so recognition cannot consume, rewrite or reorder an event even by
++  // accident -- which is what the GESTURE contract's section 1 asks for, made
++  // structural instead of promised.
++  sunshine::MouseGesture::CreateForWebContents(source);
++  sunshine::MouseGesture::FromWebContents(source)->OnMouseEvent(event);
++
+   const ui::EventType type = event.type();
+   const bool exited = type == ui::EventType::kMouseExited;
+   // Disregard synthesized events, and mouse enter and exit, which may occur
+@@ -1545,6 +1564,36 @@ void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
+   }
+ }
+ 
++bool Browser::HandleContextMenu(content::RenderFrameHost& render_frame_host,
++                                const content::ContextMenuParams& params) {
++  // The gesture's one dispatch point, and the only place in this feature that
++  // knows a Chromium command identifier. Recognition resolved a registered
++  // command name; mapping that name to an IDC and asking the command layer
++  // whether it is available is the browser's job, not the recogniser's --
++  // GESTURE contract invariants 5 and 7.
++  content::WebContents* contents =
++      content::WebContents::FromRenderFrameHost(&render_frame_host);
++  sunshine::MouseGesture* gesture =
++      contents ? sunshine::MouseGesture::FromWebContents(contents) : nullptr;
++  if (!gesture) {
++    return false;
++  }
++  const sunshine::MouseGesture::Decision decision =
++      gesture->DecideContextMenu(params);
++  if (!decision.command.empty()) {
++    const int command = decision.command == sunshine::kBackCommand
++                            ? IDC_BACK
++                            : IDC_FORWARD;
++    // An unavailable command performs no action and raises no dialog. Asking
++    // first is also what keeps this off the DCHECK inside the command
++    // controller at the first entry of session history.
++    if (chrome::IsCommandEnabled(this, command)) {
++      chrome::ExecuteCommand(this, command);
++    }
++  }
++  return decision.suppress_menu;
++}
++
+ void Browser::ContentsZoomChange(bool zoom_in) {
+   chrome::ExecuteCommand(this, zoom_in ? IDC_ZOOM_PLUS : IDC_ZOOM_MINUS);
+ }
+diff --git a/chrome/browser/ui/browser.h b/chrome/browser/ui/browser.h
+index 324951c..0433193 100644
+--- a/chrome/browser/ui/browser.h
++++ b/chrome/browser/ui/browser.h
+@@ -613,6 +613,8 @@ class Browser : public TabStripModelObserver,
+   void UpdateTargetURL(content::WebContents* source, const GURL& url) override;
+   void ContentsMouseEvent(content::WebContents* source,
+                           const ui::Event& event) override;
++  bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
++                         const content::ContextMenuParams& params) override;
+   void ContentsZoomChange(bool zoom_in) override;
+   bool TakeFocus(content::WebContents* source, bool reverse) override;
+   bool DidAddMessageToConsole(content::WebContents* source,
+diff --git a/chrome/browser/ui/sunshine/BUILD.gn b/chrome/browser/ui/sunshine/BUILD.gn
+new file mode 100644
+index 0000000..9be4fbc
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/BUILD.gn
+@@ -0,0 +1,24 @@
++# Copyright 2026 The Sunshine Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++# Deliberately depends on no part of //chrome/browser/ui. Recognition and
++# binding are two of the three stages the GESTURE contract separates, and the
++# third -- dispatch -- stays in Browser, where the command layer already is. A
++# target that could see Browser could navigate one, and section 1 forbids
++# exactly that.
++source_set("sunshine") {
++  public = [ "mouse_gesture.h" ]
++  sources = [ "mouse_gesture.cc" ]
++
++  deps = [
++    "//base",
++    "//components/pref_registry",
++    "//components/prefs",
++    "//components/user_prefs",
++    "//content/public/browser",
++    "//ui/base/mojom:ui_base_types",
++    "//ui/events",
++    "//ui/gfx/geometry",
++  ]
++}
+diff --git a/chrome/browser/ui/sunshine/mouse_gesture.cc b/chrome/browser/ui/sunshine/mouse_gesture.cc
+new file mode 100644
+index 0000000..61c8848
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/mouse_gesture.cc
+@@ -0,0 +1,176 @@
++// Copyright 2026 The Sunshine Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/sunshine/mouse_gesture.h"
++
++#include <algorithm>
++#include <cstdlib>
++
++#include "components/pref_registry/pref_registry_syncable.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "components/prefs/pref_service.h"
++#include "components/user_prefs/user_prefs.h"
++#include "content/public/browser/browser_context.h"
++#include "content/public/browser/context_menu_params.h"
++#include "content/public/browser/web_contents.h"
++#include "third_party/blink/public/mojom/context_menu/context_menu.mojom-shared.h"
++#include "ui/base/mojom/menu_source_type.mojom-shared.h"
++#include "ui/events/event.h"
++#include "ui/events/event_constants.h"
++
++namespace sunshine {
++
++namespace {
++
++// GESTURE contract section 3.1, answered with Chromium's own hit test rather
++// than a second one. Every category the contract names as clear context-menu
++// intent has a field here, and a category with no field would be a category
++// this build cannot honour -- which is why the list is written out rather than
++// collapsed into "params has anything interesting".
++bool IsProtectedTarget(const content::ContextMenuParams& params) {
++  return params.link_url.is_valid() || params.unfiltered_link_url.is_valid() ||
++         params.src_url.is_valid() || params.has_image_contents ||
++         params.is_editable || params.form_control_type.has_value() ||
++         !params.selection_text.empty() ||
++         params.media_type != blink::mojom::ContextMenuDataMediaType::kNone;
++}
++
++}  // namespace
++
++void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
++  registry->RegisterBooleanPref(prefs::kGesturesEnabled, true);
++  registry->RegisterIntegerPref(prefs::kGesturesActivationDistance,
++                                kDefaultActivationDistance);
++  registry->RegisterBooleanPref(prefs::kGesturesBackEnabled, true);
++  registry->RegisterBooleanPref(prefs::kGesturesForwardEnabled, true);
++}
++
++int ClampActivationDistance(int distance) {
++  return std::clamp(distance, kMinimumActivationDistance,
++                    kMaximumActivationDistance);
++}
++
++MouseGesture::MouseGesture(content::WebContents* contents)
++    : content::WebContentsUserData<MouseGesture>(*contents),
++      prefs_(user_prefs::UserPrefs::Get(contents->GetBrowserContext())) {}
++
++MouseGesture::~MouseGesture() = default;
++
++bool MouseGesture::GesturesEnabled() const {
++  return prefs_ && prefs_->GetBoolean(prefs::kGesturesEnabled);
++}
++
++bool MouseGesture::BindingEnabled(std::string_view command) const {
++  if (!prefs_) {
++    return false;
++  }
++  return command == kBackCommand
++             ? prefs_->GetBoolean(prefs::kGesturesBackEnabled)
++             : prefs_->GetBoolean(prefs::kGesturesForwardEnabled);
++}
++
++int MouseGesture::ActivationDistance() const {
++  return ClampActivationDistance(
++      prefs_ ? prefs_->GetInteger(prefs::kGesturesActivationDistance)
++             : kDefaultActivationDistance);
++}
++
++void MouseGesture::Reset() {
++  state_ = State::kIdle;
++  command_ = std::string_view();
++}
++
++void MouseGesture::Track(const gfx::Point& location) {
++  const int dx = location.x() - origin_.x();
++  const int dy = location.y() - origin_.y();
++  if (std::abs(dx) < ActivationDistance()) {
++    return;
++  }
++  // Travel is sufficient from here on, so the press can no longer end in an
++  // ordinary context menu even if the direction never resolves. Section 3.3
++  // calls that `direction_ambiguous`: no navigation and no menu.
++  state_ = State::kAmbiguous;
++  if (std::abs(dx) < kDirectionRatio * std::abs(dy)) {
++    return;
++  }
++  const std::string_view command = dx < 0 ? kBackCommand : kForwardCommand;
++  if (!BindingEnabled(command)) {
++    // A disabled binding must leave the press behaving unusually in no way at
++    // all -- section 5 -- so this is not an ambiguous gesture, it is not a
++    // gesture.
++    Reset();
++    return;
++  }
++  command_ = command;
++  state_ = State::kRecognised;
++}
++
++void MouseGesture::OnMouseEvent(const ui::Event& event) {
++  if (!event.IsMouseEvent()) {
++    return;
++  }
++  const ui::MouseEvent& mouse = *event.AsMouseEvent();
++  switch (mouse.type()) {
++    case ui::EventType::kMousePressed:
++      // Any press ends whatever was pending. That is invariant 12 -- gesture
++      // state is transient -- and it is also what stops a recognition that
++      // never met a context menu from being applied to someone else's.
++      Reset();
++      if (GesturesEnabled() && mouse.IsOnlyRightMouseButton() &&
++          (mouse.changed_button_flags() & ui::EF_RIGHT_MOUSE_BUTTON)) {
++        origin_ = mouse.root_location();
++        state_ = State::kTracking;
++      }
++      break;
++    case ui::EventType::kMouseDragged:
++      if (state_ == State::kTracking) {
++        Track(mouse.root_location());
++      }
++      break;
++    case ui::EventType::kMouseReleased:
++      if (state_ == State::kTracking) {
++        // Released below the activation distance: the deferred context menu is
++        // the whole of what this press does.
++        Reset();
++      }
++      break;
++    case ui::EventType::kMouseCaptureChanged:
++    case ui::EventType::kMouseExited:
++      // Section 3.3 `focus_lost`, and the cancellation a native drag session
++      // produces, which reaches this class as capture moving elsewhere.
++      Reset();
++      break;
++    default:
++      break;
++  }
++}
++
++MouseGesture::Decision MouseGesture::DecideContextMenu(
++    const content::ContextMenuParams& params) {
++  const State state = state_;
++  const std::string_view command = command_;
++  Reset();
++
++  // A menu the keyboard asked for was never a gesture, and swallowing it would
++  // be this feature reaching a surface it has no business in.
++  if (params.source_type != ui::mojom::MenuSourceType::kMouse) {
++    return Decision();
++  }
++  if (state == State::kAmbiguous) {
++    return Decision{.suppress_menu = true, .command = std::string_view()};
++  }
++  if (state != State::kRecognised) {
++    return Decision();
++  }
++  // Section 3.1: where intent is ambiguous the context menu wins, and a press
++  // that landed on something with its own menu entries is not ambiguous at all.
++  if (IsProtectedTarget(params)) {
++    return Decision();
++  }
++  return Decision{.suppress_menu = true, .command = command};
++}
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(MouseGesture);
++
++}  // namespace sunshine
+diff --git a/chrome/browser/ui/sunshine/mouse_gesture.h b/chrome/browser/ui/sunshine/mouse_gesture.h
+new file mode 100644
+index 0000000..47d4043
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/mouse_gesture.h
+@@ -0,0 +1,133 @@
++// Copyright 2026 The Sunshine Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_SUNSHINE_MOUSE_GESTURE_H_
++#define CHROME_BROWSER_UI_SUNSHINE_MOUSE_GESTURE_H_
++
++#include <string>
++#include <string_view>
++
++#include "base/memory/raw_ptr.h"
++#include "content/public/browser/web_contents_user_data.h"
++#include "ui/gfx/geometry/point.h"
++
++namespace content {
++struct ContextMenuParams;
++}  // namespace content
++
++namespace ui {
++class Event;
++}  // namespace ui
++
++class PrefService;
++
++namespace user_prefs {
++class PrefRegistrySyncable;
++}  // namespace user_prefs
++
++namespace sunshine {
++
++// The command identifiers this feature may resolve, spelled exactly as
++// `first_party/commands.json` registers them. GESTURE contract invariant 6
++// makes a binding to anything else a build failure rather than a special case,
++// and `scripts/verify_gesture_bindings.py` is what decides that offline.
++inline constexpr char kBackCommand[] = "browser.back";
++inline constexpr char kForwardCommand[] = "browser.forward";
++
++namespace prefs {
++inline constexpr char kGesturesEnabled[] = "sunshine.gestures.enabled";
++inline constexpr char kGesturesActivationDistance[] =
++    "sunshine.gestures.activation_distance";
++inline constexpr char kGesturesBackEnabled[] =
++    "sunshine.gestures.binding.back.enabled";
++inline constexpr char kGesturesForwardEnabled[] =
++    "sunshine.gestures.binding.forward.enabled";
++}  // namespace prefs
++
++// GESTURE contract section 3.2. The default is deliberately far larger than a
++// click can drift: a threshold that is too high wastes a deliberate movement,
++// while one that is too low steals a context menu, and only the second
++// silently does the wrong thing.
++inline constexpr int kDefaultActivationDistance = 200;
++inline constexpr int kMinimumActivationDistance = 20;
++inline constexpr int kMaximumActivationDistance = 600;
++
++// One axis must dominate the other by this much or the direction is
++// unresolvable. Section 3.2 states it is not tunable without amending the
++// contract, so it is a constant here and not a preference.
++inline constexpr int kDirectionRatio = 2;
++
++void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
++
++// Section 3.2: out-of-range input is clamped to the nearest bound and never
++// refused, because a setting that rejects a number is a worse experience than
++// one that quietly honours the nearest legal value.
++int ClampActivationDistance(int distance);
++
++// Recognises the one pointer pattern this wave supports and resolves it to a
++// command identifier. It observes; it never consumes, rewrites, reorders or
++// synthesises an event, and the hook it is driven from -- Browser's
++// ContentsMouseEvent -- returns void, so that property is structural rather
++// than promised.
++//
++// The decision is taken when the context menu would be shown, not when the
++// button is released, and that is the design's whole point. On Windows the
++// menu is raised on mouse up (`context_menu_on_mouse_up` defaults to
++// BUILDFLAG(IS_WIN)), so by then Chromium has already hit-tested what is under
++// the pointer and reports it in ContextMenuParams. Asking that structure is
++// how the contract's "a gesture never fires on a link, an image, a media
++// element, an editable field or a selection" is honoured *using Chromium's own
++// answer*, rather than by re-implementing a hit test in the browser process.
++class MouseGesture : public content::WebContentsUserData<MouseGesture> {
++ public:
++  // What a context menu request should do. At most one command per press, and
++  // a press that dispatched one cannot also produce a menu -- invariant 9,
++  // expressed as a single value so the two cannot disagree.
++  struct Decision {
++    bool suppress_menu = false;
++    std::string_view command;
++  };
++
++  MouseGesture(const MouseGesture&) = delete;
++  MouseGesture& operator=(const MouseGesture&) = delete;
++  ~MouseGesture() override;
++
++  void OnMouseEvent(const ui::Event& event);
++
++  // Consumes the pending recognition, whatever it was. Called once per context
++  // menu request; the state does not survive it.
++  Decision DecideContextMenu(const content::ContextMenuParams& params);
++
++ private:
++  friend WebContentsUserData;
++
++  // Section 3. `kAmbiguous` is the state that carries "travel was sufficient
++  // but no axis dominated", which owes the user neither a navigation nor a
++  // menu.
++  enum class State { kIdle, kTracking, kRecognised, kAmbiguous };
++
++  explicit MouseGesture(content::WebContents* contents);
++
++  bool GesturesEnabled() const;
++  bool BindingEnabled(std::string_view command) const;
++  int ActivationDistance() const;
++  void Track(const gfx::Point& location);
++  void Reset();
++
++  // Read once. The browser context outlives the WebContents this is attached
++  // to, and the alternative -- looking the service up per event -- would have
++  // to be done from a const method on a const WebContents&, which cannot reach
++  // a non-const GetBrowserContext().
++  const raw_ptr<PrefService> prefs_;
++
++  State state_ = State::kIdle;
++  gfx::Point origin_;
++  std::string_view command_;
++
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++};
++
++}  // namespace sunshine
++
++#endif  // CHROME_BROWSER_UI_SUNSHINE_MOUSE_GESTURE_H_

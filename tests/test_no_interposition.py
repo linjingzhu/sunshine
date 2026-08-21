@@ -171,6 +171,83 @@ class NoInterpositionTests(unittest.TestCase):
         path.write_text(json.dumps(registry, indent=2), encoding="utf-8")
         self.assertAccepted()
 
+    # --- OS-9: navigation, and the one form of it that is not a violation ----
+    #
+    # These exist because the OS-9 rule was narrowed. A security check that is
+    # loosened needs the hole it did not open to be written down as a test, or
+    # the next person has only the comment's word for it.
+
+    def test_navigating_to_a_sunshine_host_constant_is_accepted(self) -> None:
+        """The exemption. Nothing is accepted, so there is nothing to classify:
+        the value is fixed when the browser is compiled."""
+
+        self.write_patch(added=(
+            "  content::OpenURLParams params("
+            "GURL(chrome::kChromeUISunshineModulesURL), content::Referrer(),",
+            "      ui::DispositionFromEventFlags(event.flags()),"
+            " ui::PAGE_TRANSITION_AUTO_BOOKMARK, false);",
+        ))
+        self.assertAccepted()
+
+    def test_navigating_to_a_variable_is_still_rejected(self) -> None:
+        self.write_patch(added=(
+            "  content::OpenURLParams params(GURL(target), content::Referrer());",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_navigating_to_a_concatenation_is_still_rejected(self) -> None:
+        """The constant is present, but the statement builds a string from it.
+        That is exactly the shape OS-9 forbids, so the closing parenthesis has
+        to follow the constant immediately."""
+
+        self.write_patch(added=(
+            "  content::OpenURLParams params(GURL(base::StrCat("
+            "{chrome::kChromeUISunshineModulesURL, suffix})), content::Referrer());",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_a_non_sunshine_constant_is_still_rejected(self) -> None:
+        """The exemption covers Sunshine's own hosts. A Chromium page is
+        Chromium's to navigate to, through Chromium's own code."""
+
+        self.write_patch(added=(
+            "  content::OpenURLParams params(GURL(chrome::kChromeUISettingsURL),"
+            " content::Referrer());",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_a_second_unclassified_navigation_is_still_rejected(self) -> None:
+        """One exempt navigation must not vouch for another in the same file."""
+
+        self.write_patch(added=(
+            "  content::OpenURLParams first("
+            "GURL(chrome::kChromeUISunshineModulesURL), content::Referrer());",
+            "  content::OpenURLParams second(GURL(whatever), content::Referrer());",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_a_javascript_navigation_is_still_rejected(self) -> None:
+        """The exemption is a C++ shape. No JavaScript form is admitted."""
+
+        self.write_patch(added=(
+            "  location.href = chrome::kChromeUISunshineModulesURL;",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_the_shipped_button_patch_is_the_only_navigation_in_the_stack(self) -> None:
+        """The exemption has exactly one user today. If a second appears, this
+        fails and someone has to look at it rather than inherit the allowance."""
+
+        navigating = [
+            path.name
+            for path in sorted((REPOSITORY_ROOT / "downstream/patches").glob("*.patch"))
+            if any(
+                symbol in checker.added_lines(path.read_text(encoding="utf-8"))
+                for symbol in checker.NAVIGATION_SYMBOLS
+            )
+        ]
+        self.assertEqual(["0008-sunshine-module-home-button.patch"], navigating)
+
     # --- TAB_LIFECYCLE_CONTRACT 13.2: no stored lifecycle flag ---------------
 
     def test_a_stored_loading_flag_is_rejected(self) -> None:

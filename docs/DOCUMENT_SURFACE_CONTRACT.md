@@ -54,14 +54,55 @@ deferred with its subject.
 | --- | --- | --- |
 | DOC-1 | Project content renders only in the untrusted frame. No Sunshine-authored code inserts project markup into the privileged document. | O |
 | DOC-2 | The frame receives content, never capability. The shell sends documents; the frame sends back nothing that can name a resource, a path, or an operation. | B |
-| DOC-3 | A project is profile-scoped data Sunshine owns. No path outside the profile directory is read or written. | O |
+| DOC-3 | A project is profile-scoped data Sunshine owns. Sunshine reads and writes no path outside the profile directory. Handing content to a user-driven flow Chromium owns is not such a write: Sunshine supplies bytes and never learns, chooses, or retains a destination. | O |
 | DOC-4 | Pagination is presentation. The stored document is never rewritten to paginate, so what is read back is what was stored. | B |
 | DOC-5 | The frame reaches no network. A project referencing a remote resource shows it as absent rather than fetching it. | B |
 | DOC-6 | The hierarchy is data, not a filesystem. A node names a document Sunshine stores; it never names a location on disk. | O |
 | DOC-7 | Deleting a project deletes its documents. No content outlives the project that owned it. | D |
+| DOC-8 | The handoff in DOC-3 stays a handoff. Sunshine may not accept a destination path, remember one, reuse one, or write without the user asking each time. Any of those is filesystem access and belongs to SEC-8, not here. | O |
+| DOC-9 | A stored document contains only the element and attribute set in §3.1. A document outside it is refused and reported to whoever wrote it; it is never silently altered to fit. | D |
 
-DOC-1 and DOC-6 are the two that a check can decide from source today. DOC-3 is
-decidable once the storage code exists. The rest need the browser.
+DOC-1 and DOC-6 are the two that a check can decide from source today. DOC-3,
+DOC-8 and DOC-9 are decidable once the storage code enforces them. The rest
+need the browser.
+
+### Why DOC-3 draws the line where it does
+
+The first wording was "no path outside the profile directory is read or
+written", and the download control added to the reading pane broke it on a
+literal reading while leaving its purpose untouched. What DOC-3 exists to
+prevent is Sunshine holding ambient authority over the user's filesystem —
+reading a documents folder, writing where it likes, remembering somewhere it
+wrote before. A download is none of those. Sunshine hands Chromium a string and
+learns nothing: not where the file went, not whether it was kept, not enough to
+read it back. The same posture `docs/SECURITY_CENTER_CONTRACT.md` SC-9 takes —
+the surface performs no mutation of its own; the Chromium flow that owns the
+operation executes it.
+
+So the wording moved and the permission did not. `first_party/modules/sunshine-document/module.json`
+still declares `filesystem: none`, and that is not a technicality being dodged:
+the schema's other value is `user_selected`, which means the module holds a
+scoped, expiring grant to a path a user picked. This module holds no grant and
+receives no path. **Declaring authority one does not have is as much a defect as
+exercising authority one was not given**, and a manifest is read by people
+auditing what a module can do.
+
+DOC-8 exists because the distinction is easy to erode one convenience at a
+time. "Save to this folder", "remember where I saved last", "export whenever I
+save" are each a small step from a download and each one a genuine filesystem
+capability. Naming the boundary while the code is four lines long costs
+nothing; naming it after those features exist means removing them.
+
+**This reasoning is symmetric, and that matters for a question already open.**
+`docs/OPEN_DECISIONS.md` carries a P0 on how content *enters* this surface, and
+`docs/decisions/0009-document-surface-ingress-options.md` frames its Reading B
+as turning on exactly this point — whether importing from a file the user picks
+is outside SEC-8 or is the thing SEC-8 defers. If handing content out through a
+Chromium flow while retaining nothing is not filesystem access, then taking
+content in the same way — a picker the user drives, read once, no path kept — is
+not either, by the same argument and not by a separate concession. That does not
+settle the P0, which is the owner's, but it does mean the two directions cannot
+honestly be decided apart.
 
 SEC-14 already forbids `eval`, dynamic code, and remote resources in any
 Sunshine-authored web asset, and it applies to both halves of this surface. It
@@ -79,6 +120,57 @@ The reading order is the depth-first traversal of that hierarchy. That is a
 choice, not a fact: it makes the structure the table of contents rather than
 something separate to maintain, and it means a node moved in the tree moves in
 the reading order too.
+
+### 3.1 What a document may contain
+
+A document is HTML, and until now that meant *any* HTML — the contract set no
+limit and the surface stores whatever it is handed. That is a decision made by
+omission, and it is the one that gets expensive.
+
+**The accepted set.** Structure: `p`, `h1`–`h6`, `ul`, `ol`, `li`, `blockquote`,
+`pre`, `code`, `hr`, `br`, `figure`, `figcaption`, `table` and its
+`thead`/`tbody`/`tr`/`th`/`td`, `section`, `article`, `div`, `span`. Inline
+meaning: `strong`, `em`, `a`, `s`, `sub`, `sup`, `mark`, `abbr`, `time`, `q`,
+`cite`, `kbd`, `samp`, `var`. Media: `img`, `picture`, `source`, `audio`,
+`video`. Presentation the document brings with it: `style`, and `class`, `id`,
+`lang`, `dir`, `title` on any accepted element, plus `href`, `src`, `alt`,
+`srcset`, `sizes`, `width`, `height`, `colspan`, `rowspan`, `datetime`,
+`start`, `type`, `reversed`, `controls`, `poster`, `loop`, `muted`.
+
+**Everything else is not accepted**, and three exclusions are load-bearing
+rather than incidental: `script` and every `on*` handler attribute, because a
+document is data and not a program; `iframe`, `object`, `embed` and `frame`,
+because a document must not embed a browsing context inside the one that is
+already isolating it; and `form`, `input`, `button`, `select`, `textarea`,
+because a control that looks like Sunshine's own is exactly the confusion the
+shell/frame split exists to prevent.
+
+**The frame's isolation is not what this is for.** DOC-1, DOC-5 and the frame's
+CSP already make an arbitrary document safe to render — a script parsed there
+does not run and a remote reference does not load, whether or not this section
+exists. This is about a different failure.
+
+**What it is for.** The editor today is an HTML source box. If a rich-text
+editor ever replaces it — and the owner has asked what that would cost — every
+stored document has to round-trip through that editor's own document model,
+and whatever the model cannot express is dropped or rewritten on the way back
+out. Constraining the accepted set now means the round trip is lossless later.
+Not constraining it means the choice arrives as a question about documents the
+owner has already written: normalise them and lose something, or keep two
+editing paths forever.
+
+The set above is chosen to be what a block-based editor can represent. It is
+deliberately generous about `style` and `class`, because a document owning its
+own presentation is the point of §1 — the pane *is* the document — and an
+editor that discards styling is a different product from one that preserves it.
+
+**Not enforced yet.** No guard reads this, and the storage layer accepts
+anything. Enforcement belongs in the data layer, where a rejected document can
+be reported to the person who wrote it rather than silently altered; the shape
+of that reporting is a UX question this contract does not answer. Recording the
+set before enforcing it is the cheap half, and it is the half that expires: the
+longer the surface accepts everything, the more documents exist that a later
+rule would have to break.
 
 ## 4. Where content comes from — **undecided, and it decides the shape**
 

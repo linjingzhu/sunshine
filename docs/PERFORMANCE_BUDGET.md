@@ -361,6 +361,62 @@ The cheap form of this budget is a source-level assertion that no Sunshine-owned
 repeating timer or idle task exists. It is stricter than a CPU measurement, it
 does not need a baseline, and it can be written before a native build exists.
 
+#### PB-5a — The one thing that may animate, and why it is not an exception
+
+**Amended by the owner** to permit an animated New Tab background. The
+amendment is written as a boundary rather than a carve-out, because a budget
+that gains its first "except" stops being a budget.
+
+**What PB-5 is actually about is work that continues when nobody is looking.**
+Every prohibition above shares that shape: a timer fires in a background tab, a
+poll runs in a minimised window, a prewarm loads a panel no one opened, an idle
+callback runs precisely because the user has stopped. None of them can be seen
+at the moment they cost something, which is why their existence rather than
+their size is the regression — nobody is present to judge the size.
+
+An animation of a surface the user is looking at is not that. It costs while it
+is watched, it stops when it is not, and it is absent unless someone asked for
+it. Those three properties are the boundary, and all three are required
+together:
+
+| | Required of any Sunshine-permitted animation |
+| --- | --- |
+| **1. Visible-only** | It runs only while its surface is the visible tab in a non-occluded window. Hidden, occluded, background-tab and minimised states run nothing. |
+| **2. Opt-in** | It does not exist unless the user supplied the asset. A build with none configured has PB-5's original idle cost, unchanged and still zero. |
+| **3. Self-contained** | The animation is carried by the asset. Sunshine owns no timer, no frame callback, and no repeating task driving it. |
+
+**Only the New Tab background qualifies today**, and only through the user's own
+image. No other surface gains an animation by this amendment, and one that
+wanted it would need its own row here rather than an appeal to this one.
+
+**Video is excluded, by the owner's decision.** Not on cost grounds — a short
+clip decoded on the GPU is affordable — but because the format buys nothing the
+image formats do not, and it drags in a decode pipeline, an audio track that
+must be proven silent, and a codec-licensing question that
+`docs/decisions/0004-media-codecs.md` deliberately scoped to page content. An
+animated image needs none of that.
+
+**What stays forbidden, and is not weakened.** Property 3 is the load-bearing
+one. `scripts/verify_no_interposition.py` continues to reject
+`animation-iteration-count: infinite` in Sunshine-authored CSS, and that
+prohibition is *not* relaxed here: a CSS animation Sunshine writes is Sunshine
+deciding to animate forever, which is a repeating task it owns. An image that
+loops is the user's asset animating itself, and Sunshine's own source contains
+no repetition at all. The guard is unchanged because the permitted feature does
+not need the forbidden spelling — **if an implementation ever finds that it
+does, that is evidence it has left this boundary, not a reason to widen the
+guard.**
+
+| | |
+|---|---|
+| Measured | PB-5's idle fixture, twice: once with no background asset configured, once with an animated one, in each case with the New Tab hidden behind another tab |
+| Baseline | The no-asset run must equal PB-5's original zero. The hidden-tab run with an asset configured must equal the no-asset run |
+| Regression | An animated asset that costs anything while its surface is not visible, or any Sunshine-owned timer or frame callback found driving it |
+
+Both are pass/fail invariants of the kind §7 describes, not statistical deltas:
+neither needs B1, and the second is decidable the first time anyone opens a
+second tab.
+
 ### PB-6 — Sunshine WebUI surfaces
 
 A Sunshine-contributed panel or WebUI surface has its own render cost once it
@@ -409,7 +465,9 @@ Two classes of gate, and they behave differently:
 
 - **Pass/fail invariants** — PB-1's D1 mount counter at zero, PB-2a's
   visible-tab count, PB-2b's unfocused-pane rate, PB-3's zero writes and zero
-  moves, PB-4's file-read and scaling rules, PB-5's absence of a repeating task.
+  moves, PB-4's file-read and scaling rules, PB-5's absence of a repeating task,
+  PB-5a's two runs — no-asset idle equal to zero, and hidden-tab idle equal to
+  the no-asset run.
   These need no baseline, fail CI outright, and are implementable as browser
   tests as soon as the code exists. They are the majority of this document on
   purpose.

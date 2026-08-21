@@ -13,15 +13,18 @@ registry entry is created, changed, or proposed by this document. No product
 decision is made here; every place a command's shape depends on an open P0 is
 cited and left open.
 
-**On the seam itself.** `downstream/patches/series` holds five patches today —
+**On the seam itself.** `downstream/patches/series` holds twenty-one patches today —
 `0001-sunshine-branding`, `0002-sunshine-new-tab`,
 `0003-sunshine-no-missing-api-key-warning`, `0004-sunshine-webui-seam`,
-`0005-sunshine-security-webui`. The seam described in
-`docs/decisions/0007-module-contribution-seam.md` is now the fourth of those,
-and the security surface it was designed for has been renumbered behind it —
+`0005-sunshine-security-webui`, `0006-sunshine-document-webui`,
+`0007-sunshine-modules-webui`, `0008-sunshine-module-home-button`,
+`0009-sunshine-windows-install-identity`, `0010-sunshine-product-strings`,
+`0011-sunshine-module-shell`, `0012-sunshine-module-mount`, `0013-sunshine-module-shell-entry`, `0014-sunshine-module-registration-entry`, `0015-sunshine-shell-frame-policy`, `0016-sunshine-module-storage-port`, `0017-sunshine-mouse-gestures`, `0018-sunshine-account-surface`, `0019-sunshine-account-client-argument`, `0020-sunshine-newtab-background-format`, `0021-sunshine-newtab-background-source`. The seam
+described in `docs/decisions/0007-module-contribution-seam.md` is now the
+fourth of those, and the two surfaces built on it have been added behind it —
 which is the seam doing exactly what the ADR said it would: a surface patch
 that once edited seven upstream files now appends to a registry the seam
-created.
+created, and the second such patch edits no upstream file at all.
 
 What the seam has *not* had is a compile. Everything below is sequencing
 against a mechanism verified in source and against the pinned revision, not
@@ -180,10 +183,18 @@ contracted in `docs/SECURITY_CENTER_CONTRACT.md`) and
 reached by direct navigation to their host, the same way `chrome://settings`
 is; neither has, or per its contract needs, a command-palette entry the way
 `browser.print` does. Confirming this was not a guess: `first_party/registry.json`
-lists two modules (`sunshine.new_tab`, `sunshine.workspace`) and neither is
-`sunshine.security` or `sunshine.document` — the security surface that
-already compiled has no module manifest entry at all yet, a gap distinct from
-and prior to the command-registry question.
+lists five modules (`sunshine.document`, `sunshine.modules`,
+`sunshine.new_tab`, `sunshine.security`, `sunshine.workspace`), none of which
+declares a command entrypoint.
+
+`sunshine.security` was absent when this was written, and this document said so
+— "the security surface that already compiled has no module manifest entry at
+all yet, a gap distinct from and prior to the command-registry question." That
+gap closed when `chrome://sunshine-modules` was built: a page whose whole job is
+to list what this browser contains cannot omit a surface the browser ships, so
+`sunshine.security` and `sunshine.modules` were both given manifests. The
+conclusion below is unchanged — five surface modules with no command
+entrypoints is still not a queue of commands waiting on the seam.
 
 The practical consequence: **the seam does not have twenty-some
 WebUI-surface-shaped commands waiting to be unblocked by it.** It has exactly

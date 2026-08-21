@@ -21,7 +21,7 @@ font from the network has handed its privilege to whoever controls that host,
 and to anyone who can intercept the connection. Sunshine's surfaces ship with
 the browser and have no reason to fetch anything.
 
-Enforces: SEC-14, SECA-9.
+Enforces: SEC-14, SECA-9, WA-1, WA-2.
 """
 
 from __future__ import annotations
@@ -96,8 +96,156 @@ def patch_web_assets(path: Path, label: str) -> list[tuple[str, str]]:
     return [(f"{label} -> {name}", "\n".join(lines)) for name, lines in collected.items()]
 
 
+# A backtick inside an HTML comment.
+#
+# Chromium preprocesses a Lit template's `.html` into a TypeScript file whose
+# whole body is one template literal. Inside it a backtick **ends the string**,
+# so a backtick written as punctuation is a syntax error hundreds of lines away
+# from anything that looks wrong. Build #38 died exactly there: an HTML comment
+# quoted an attribute name in backticks and `tsc` reported `TS1005` in a
+# generated file no one had written.
+#
+# **Scoped to comments, and that scope was learned the hard way.** The first
+# version refused a backtick on any added line, which is broader than the
+# defect and forbids the thing Lit is built on -- `${cond ? html`...` : ''}` is
+# how a template renders nothing, upstream's own app.html is full of it, and
+# the rule blocked a correct patch that stopped creating a frame it did not
+# need. Template syntax lives outside comments; prose lives inside them. Only
+# prose can be punctuation by mistake.
+COMMENT_OPEN = "<!--"
+COMMENT_CLOSE = "-->"
+
+
+def check_no_backtick_in_html(root: Path, failures: list[str]) -> None:
+    """WA-1: no line the stack adds puts a backtick inside an HTML comment."""
+
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        target: str | None = None
+        in_comment = False
+        for number, line in enumerate(
+            patch.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            header = PATCH_FILE.match(line)
+            if header:
+                target = header.group(1)
+                in_comment = False
+                continue
+            if not target or not target.endswith(".html"):
+                continue
+            if not line.startswith("+") or line.startswith("+++ "):
+                continue
+            body = line[1:]
+            # Walk the line so a backtick before `<!--` on the same line is not
+            # blamed on a comment that starts after it.
+            index = 0
+            while index < len(body):
+                if not in_comment and body.startswith(COMMENT_OPEN, index):
+                    in_comment = True
+                    index += len(COMMENT_OPEN)
+                    continue
+                if in_comment and body.startswith(COMMENT_CLOSE, index):
+                    in_comment = False
+                    index += len(COMMENT_CLOSE)
+                    continue
+                if in_comment and body[index] == "`":
+                    failures.append(
+                        f"{patch.name}:{number}: puts a backtick in an HTML "
+                        f"comment in {target}; that file becomes a TypeScript "
+                        "template literal, where a backtick ends the string "
+                        "(WA-1)"
+                    )
+                    break
+                index += 1
+
+
+# A Lit binding the stack adds to an HTML template, and the reactive property
+# declaration it requires in the sibling TypeScript.
+#
+# Chromium's `lit-reactive-properties` rule holds that every property a
+# template reads is declared in `static get properties()`, and its companion
+# `lit-property-accessor` then requires the `accessor` keyword on the field.
+# Omit the declaration and both fire at once -- which is one omission seen from
+# two sides, and is how build #38 failed its second time.
+#
+# Only bindings the stack *adds* are checked, against declarations the stack
+# *adds*. Upstream's own bindings are already declared upstream, and a rule
+# that demanded the stack re-declare them would fail on every patch that
+# touches a template.
+# Every `${...}` the stack adds, and every property read inside it.
+#
+# The first version required `}` immediately after the identifier, which meant
+# it saw `${this.x}` and nothing else -- not `${!this.x}`, the form this
+# repository's own patch uses for `?hidden`, so the guard covered one of the
+# two bindings it was written for and would have let build #38's failure
+# recur. Read the expression, then the properties inside it.
+#
+# `this.name(` is a method call, not a reactive property, and Lit's rule is
+# about properties -- so an identifier followed by `(` is skipped. For
+# `this.a.b` the property is `a`; the first segment is what must be declared.
+LIT_EXPRESSION = re.compile(r"\$\{(.*?)\}", re.S)
+# The `\b` after the capture is load-bearing. Without it the greedy character
+# class backtracks: on `this.computeSunshineSrc_()` it gives up the trailing
+# `_`, the lookahead then inspects that `_` instead of the `(`, and a method
+# call reads as a property. A word boundary forbids the truncation.
+LIT_PROPERTY = re.compile(r"\bthis\.([A-Za-z_][A-Za-z0-9_]*)\b\s*(?!\()")
+
+# A properties-block entry, tolerant of the spacing people actually write and
+# blind to comments. `foo: {type: String}` and `foo: { type: Number }` are the
+# same declaration; `// TODO add foo: {type: X}` is not one at all.
+def declares(name: str, declarations: str) -> bool:
+    stripped = re.sub(r"//[^\n]*|/\*.*?\*/", "", declarations, flags=re.S)
+    return re.search(rf"\b{re.escape(name)}\s*:\s*\{{\s*type\s*:", stripped) is not None
+
+
+def check_lit_bindings_are_declared(root: Path, failures: list[str]) -> None:
+    """WA-2: a binding the stack adds has a reactive declaration it adds."""
+
+    added: dict[str, list[str]] = {}
+    # Lines the patch removes or leaves alone. A property bound there already
+    # existed before the stack touched the file, so its declaration is
+    # upstream's and is not in any patch. Without this, moving an existing
+    # binding -- which patch 0002 does, carrying `logoEnabled_` from
+    # `<ntp-logo>` to the Sunshine wordmark -- reads as introducing a property
+    # with no declaration, and the guard fails on correct work.
+    existing: dict[str, list[str]] = {}
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        target: str | None = None
+        for line in patch.read_text(encoding="utf-8").splitlines():
+            header = PATCH_FILE.match(line)
+            if header:
+                target = header.group(1)
+                continue
+            if not target:
+                continue
+            if line.startswith("+") and not line.startswith("+++ "):
+                added.setdefault(target, []).append(line[1:])
+            elif line.startswith("-") and not line.startswith("--- "):
+                existing.setdefault(target, []).append(line[1:])
+            elif line.startswith(" "):
+                existing.setdefault(target, []).append(line[1:])
+
+    for path, lines in added.items():
+        if not path.endswith(".html"):
+            continue
+        sibling = path[: -len(".html")] + ".ts"
+        declarations = "\n".join(added.get(sibling, []))
+        pre_existing = "\n".join(existing.get(path, []))
+        for line in lines:
+            for expression in LIT_EXPRESSION.findall(line):
+                for name in LIT_PROPERTY.findall(expression):
+                    if f"this.{name}" in pre_existing:
+                        continue
+                    if not declares(name, declarations):
+                        failures.append(
+                            f"{path}: binds {name!r}, which {sibling} does not "
+                            "declare in its properties block (WA-2)"
+                        )
+
+
 def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
+    check_no_backtick_in_html(root, failures)
+    check_lit_bindings_are_declared(root, failures)
     for label, text in web_assets(root):
         for number, line in enumerate(text.splitlines(), start=1):
             for pattern, why in DYNAMIC_CODE:
