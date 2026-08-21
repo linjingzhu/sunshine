@@ -111,6 +111,23 @@ Three file names are looked for — `newtab-background.png`,
 format, because asking for a JPEG named `.png` would be asking someone to
 write down something untrue.
 
+**A folder of frames becomes one file before it reaches the install directory,
+and never after.** `scripts/build_newtab_background.py` assembles numbered
+frames into a single self-animating asset. It is a hand-run tool for the same
+reason the background is a file rather than a feature: composing 150 frames in
+the browser would read 150 files to draw a New Tab, which `PERFORMANCE_BUDGET.md`
+PB-4 refuses in its first zero-tolerance condition, and something would then
+have to advance the frames, which is exactly what NTB-3 forbids. The tool reads
+the permitted names and `kMaxAssetBytes` out of patch 0020 rather than holding
+its own copy, so it cannot write a file the browser will not read without
+saying so.
+
+**Ping-pong is a property of the frames, not of playback.** No image format can
+reverse itself: `acTL` and `ANIM` both carry a repeat count and no direction.
+A background that plays forward and back is one whose frames run `1..N` then
+`N-1..2`, and dropping both endpoints is what keeps the turn from holding a
+still frame for two durations. `--pingpong` writes that sequence.
+
 **Serving costs two upstream files, and they are now owned.** A WebUI page
 cannot read an arbitrary disk path. Chromium's own local-background bytes
 reach the New Tab page through
