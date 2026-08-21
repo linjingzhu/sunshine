@@ -114,6 +114,29 @@ stack adds to any `.html`, which is WA-1. Broader than Lit templates on
 purpose — deciding which files are templates needs the whole file and a patch
 carries added lines, and no HTML in this stack has ever wanted a backtick.
 
+**6. eslint runs on the generated TypeScript too, with Lit-specific rules.**
+**This is the step that failed build #38's second attempt**, after the
+backtick was fixed and `tsc` passed. Two errors, on one property:
+
+```
+app.html.ts  Missing Lit reactive property declaration for 'sunshineBackgroundPath_'
+app.ts       Unnecessary 'accessor' keyword when declaring regular
+             (non Lit reactive) property 'sunshineBackgroundPath_'
+```
+
+`@webui-eslint/lit-reactive-properties` holds that every property a template
+reads is declared in `static get properties()`;
+`@webui-eslint/lit-property-accessor` then holds that `accessor` belongs only
+on a property that is. **They are one omission seen from two sides**, and
+reading them as two problems is how the fix gets guessed at rather than made.
+A property that never changes still needs the declaration, because the rule is
+about what the template reads and not about what varies.
+
+WA-2 holds it: a `${this.name}` binding the stack adds to a template must have
+a matching declaration in the added lines of the sibling `.ts`. Bindings on
+context lines are upstream's and are not checked — a rule that demanded the
+stack re-declare those would fail on every patch that touches a template.
+
 The four together took about half an hour and found four real defects across
 two build attempts. A build takes six.
 

@@ -155,6 +155,69 @@ class WebAssetSecurityTests(TreeTestCase):
 
 
 
+class LitBindingTests(TreeTestCase):
+    """Enforces: WA-2."""
+
+    def failures(self) -> list[str]:
+        found: list[str] = []
+        assets.check_lit_bindings_are_declared(self.root, found)
+        return found
+
+    def test_a_binding_without_a_declaration_is_rejected(self) -> None:
+        """Build #38's second failure.
+
+        Chromium's lit-reactive-properties rule wants every property a
+        template reads declared in the properties block, and
+        lit-property-accessor then wants the accessor keyword. Omit the
+        declaration and both fire -- one omission seen from two sides.
+        """
+
+        self.write("downstream/patches/0093-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.sunshineBackgroundPath_}\"></iframe>",
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,1 +1,2 @@",
+            "+  protected accessor sunshineBackgroundPath_: string = 'x';",
+        ]))
+        failures = self.failures()
+        self.assertTrue(failures, "the violation was accepted")
+        self.assertTrue(any("WA-2" in failure for failure in failures), failures)
+
+    def test_a_binding_with_its_declaration_is_accepted(self) -> None:
+        self.write("downstream/patches/0094-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <iframe src=\"${this.sunshineBackgroundPath_}\"></iframe>",
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,1 +1,3 @@",
+            "+      sunshineBackgroundPath_: {type: String},",
+            "+  protected accessor sunshineBackgroundPath_: string = 'x';",
+        ]))
+        self.assertEqual([], self.failures())
+
+    def test_an_upstream_binding_on_a_context_line_is_not_checked(self) -> None:
+        """Upstream declares its own properties upstream.
+
+        A rule that demanded the stack re-declare them would fail on every
+        patch that touches a template, which is every patch that touches the
+        New Tab page.
+        """
+
+        self.write("downstream/patches/0095-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,2 +1,2 @@",
+            " <div ?hidden=\"${this.logoEnabled_}\">",
+            "+  <div id=\"sunshineWordmark\">SUNSHINE</div>",
+        ]))
+        self.assertEqual([], self.failures())
+
+
 class HtmlBacktickTests(TreeTestCase):
     """Enforces: WA-1."""
 

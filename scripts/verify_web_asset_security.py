@@ -21,7 +21,7 @@ font from the network has handed its privilege to whoever controls that host,
 and to anyone who can intercept the connection. Sunshine's surfaces ship with
 the browser and have no reason to fetch anything.
 
-Enforces: SEC-14, SECA-9, WA-1.
+Enforces: SEC-14, SECA-9, WA-1, WA-2.
 """
 
 from __future__ import annotations
@@ -141,9 +141,54 @@ def check_no_backtick_in_html(root: Path, failures: list[str]) -> None:
                 )
 
 
+# A Lit binding the stack adds to an HTML template, and the reactive property
+# declaration it requires in the sibling TypeScript.
+#
+# Chromium's `lit-reactive-properties` rule holds that every property a
+# template reads is declared in `static get properties()`, and its companion
+# `lit-property-accessor` then requires the `accessor` keyword on the field.
+# Omit the declaration and both fire at once -- which is one omission seen from
+# two sides, and is how build #38 failed its second time.
+#
+# Only bindings the stack *adds* are checked, against declarations the stack
+# *adds*. Upstream's own bindings are already declared upstream, and a rule
+# that demanded the stack re-declare them would fail on every patch that
+# touches a template.
+LIT_BINDING = re.compile(r"\$\{this\.([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def check_lit_bindings_are_declared(root: Path, failures: list[str]) -> None:
+    """WA-2: a binding the stack adds has a reactive declaration it adds."""
+
+    added: dict[str, list[str]] = {}
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        target: str | None = None
+        for line in patch.read_text(encoding="utf-8").splitlines():
+            header = PATCH_FILE.match(line)
+            if header:
+                target = header.group(1)
+                continue
+            if target and line.startswith("+") and not line.startswith("+++ "):
+                added.setdefault(target, []).append(line[1:])
+
+    for path, lines in added.items():
+        if not path.endswith(".html"):
+            continue
+        sibling = path[: -len(".html")] + ".ts"
+        declarations = "\n".join(added.get(sibling, []))
+        for line in lines:
+            for name in LIT_BINDING.findall(line):
+                if f"{name}: {{type:" not in declarations:
+                    failures.append(
+                        f"{path}: binds {name!r}, which {sibling} does not "
+                        "declare in its properties block (WA-2)"
+                    )
+
+
 def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     check_no_backtick_in_html(root, failures)
+    check_lit_bindings_are_declared(root, failures)
     for label, text in web_assets(root):
         for number, line in enumerate(text.splitlines(), start=1):
             for pattern, why in DYNAMIC_CODE:
