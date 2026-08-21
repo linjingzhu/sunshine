@@ -420,6 +420,29 @@ performed, the account page has never been opened, the installer dialog has
 never been shown, and no gate in section 2 or 3 is discharged by a build
 succeeding.
 
+**Build #40 compiled the New Tab background.** Run `32445665066`, commit
+`6b86cc7`: patches 0002, 0020 and 0021 through the compiler for the first time,
+all eight job steps green. The payload is unchanged at 419.5 MB across 255
+files — which is the correct result and worth saying, because it is the
+measurement that shows the feature ships nothing by itself. **The asset is not
+in the build; it is a file the owner places afterwards.**
+
+**It took three attempts, and both failures were the same kind of thing.** #38
+died in `tsc` on a backtick inside an HTML comment: `app.html` is preprocessed
+into a TypeScript template literal, where a backtick ends the string. #39 died
+in `eslint` because a property the template binds had no declaration in
+`static get properties()`, which made `lit-reactive-properties` and
+`lit-property-accessor` fire together — one omission seen from two sides. Both
+are now checks rather than notes, WA-1 and WA-2, and both are recorded in
+`docs/WINDOWS_CHROMIUM_BUILD.md` as items 5 and 6.
+
+Neither is a defect a compiler would have caught, and that is the general
+point: **the New Tab page's source is generated before it is compiled**, so it
+is judged by two toolchains this repository had no checks for until now.
+
+**Nothing here is behaviour.** No background has been placed or displayed, and
+`docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 still holds in full.
+
 ### Evidence
 
 ```text
