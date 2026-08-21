@@ -38,10 +38,10 @@ index d9d32b0..6ad1de5 100644
    margin-bottom: var(--ntp-logo-margin-bottom, 38px);
  }
 diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/resources/new_tab_page/app.html
-index b6dab96..1ddb1bb 100644
+index b6dab96..1e8b982 100644
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -3,6 +3,19 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -3,6 +3,24 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
  #html_wrapper_imports_end -->
  <div id="content"
    ?ntp-threads-rail-open="${this.showComposebox_ && this.enableThreadsRail_}">
@@ -51,17 +51,22 @@ index b6dab96..1ddb1bb 100644
 +       does not override img-src. That is also why upstream's own custom
 +       background is an iframe, and this reuses that helper rather than
 +       inventing a second way in.
-+       `hidden` when the document is not visible: PB-5a permits this animation
-+       only while it is being looked at, and `hidden` renders no subtree, so
-+       an animated asset inside it decodes nothing. Hidden rather than removed
-+       on purpose -- removing it would re-read the file from disk on every
-+       return to the tab, and UntrustedSource does not cache. -->
++       The hidden attribute goes on whenever the document is not visible.
++       PB-5a permits this animation only while it is being looked at, and a
++       hidden subtree renders nothing, so an animated asset inside it decodes
++       nothing. Hidden rather than removed on purpose: removing it would
++       re-read the file from disk on every return to the tab, and
++       UntrustedSource does not cache.
++       No backticks anywhere in this file. It is preprocessed into a
++       TypeScript template literal, where a backtick ends the string and
++       dollar-brace starts an expression - which is why the upstream comment
++       this replaced wrote its binding as a backslash-escaped dollar. -->
 +  <ntp-iframe id="sunshineBackground" src="${this.sunshineBackgroundPath_}"
 +      ?hidden="${!this.sunshineBackgroundVisible_}"></ntp-iframe>
    ${this.lazyRender_ && this.microsoftModuleEnabled_ ? html`
      <iframe id="microsoftAuth" src="${this.microsoftAuthIframePath_}"></iframe>
    ` : ''}
-@@ -28,13 +41,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -28,13 +46,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
          </ntp-iframe>
          `
      ) : ''}

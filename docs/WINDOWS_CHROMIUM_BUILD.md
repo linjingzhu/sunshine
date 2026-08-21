@@ -97,6 +97,23 @@ The lesson is more general than the rule: **a patch stack can be correct patch
 by patch and wrong in its sum**, and every check here reads the *reconstructed*
 file for that reason.
 
+**5. A Lit template's `.html` is TypeScript, and a backtick in it is code.**
+**This is the step that failed build #38.** Chromium preprocesses such a file
+into a `.html.ts` whose entire body is one template literal, so a backtick ends
+the string and `${` starts an expression. An HTML *comment* quoting an
+attribute name in backticks produced `TS1005: ';' expected` in generated
+`app.html.ts` — a syntax error in a file no one had written, reported at a line
+that does not exist in the source anyone edited.
+
+The signal had been there and was not read: the upstream comment that patch
+replaced wrote its own binding as a backslash-escaped dollar, `\${...}`, which
+is only necessary if the file is a template literal.
+
+`scripts/verify_web_asset_security.py` now refuses a backtick on any line the
+stack adds to any `.html`, which is WA-1. Broader than Lit templates on
+purpose — deciding which files are templates needs the whole file and a patch
+carries added lines, and no HTML in this stack has ever wanted a backtick.
+
 The four together took about half an hour and found four real defects across
 two build attempts. A build takes six.
 

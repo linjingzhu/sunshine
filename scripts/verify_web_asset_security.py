@@ -21,7 +21,7 @@ font from the network has handed its privilege to whoever controls that host,
 and to anyone who can intercept the connection. Sunshine's surfaces ship with
 the browser and have no reason to fetch anything.
 
-Enforces: SEC-14, SECA-9.
+Enforces: SEC-14, SECA-9, WA-1.
 """
 
 from __future__ import annotations
@@ -96,8 +96,54 @@ def patch_web_assets(path: Path, label: str) -> list[tuple[str, str]]:
     return [(f"{label} -> {name}", "\n".join(lines)) for name, lines in collected.items()]
 
 
+# A backtick in an HTML file the stack touches.
+#
+# Chromium preprocesses a Lit template's `.html` into a TypeScript file whose
+# whole body is one template literal. Inside that literal a backtick **ends the
+# string** and `${` starts an expression, so a backtick written as punctuation
+# -- in a comment, even -- is a syntax error hundreds of lines away from
+# anything that looks wrong.
+#
+# Build #38 died exactly there: an HTML comment in
+# `chrome/browser/resources/new_tab_page/app.html` quoted an attribute name in
+# backticks and `tsc` reported `TS1005: ';' expected` in generated
+# `app.html.ts`, in a file no one had written. The upstream comment that patch
+# replaced had been signalling the rule all along -- it wrote its own binding
+# as a backslash-escaped dollar -- and the signal was not read.
+#
+# Scoped to every `.html` the stack touches rather than to Lit templates only.
+# Deciding which files are templates needs the whole file, and a patch shows
+# added lines; no HTML in this stack has ever wanted a backtick, so the broad
+# rule costs nothing and cannot be outgrown by a file someone forgets to
+# classify.
+BACKTICK_IN_HTML = "`"
+
+
+def check_no_backtick_in_html(root: Path, failures: list[str]) -> None:
+    """WA-1: no line the stack adds to an HTML file contains a backtick."""
+
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        target: str | None = None
+        for number, line in enumerate(
+            patch.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            header = PATCH_FILE.match(line)
+            if header:
+                target = header.group(1)
+                continue
+            if not target or not target.endswith(".html"):
+                continue
+            if line.startswith("+") and BACKTICK_IN_HTML in line:
+                failures.append(
+                    f"{patch.name}:{number}: adds a backtick to {target}; that "
+                    "file becomes a TypeScript template literal, where a "
+                    "backtick ends the string (WA-1)"
+                )
+
+
 def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
+    check_no_backtick_in_html(root, failures)
     for label, text in web_assets(root):
         for number, line in enumerate(text.splitlines(), start=1):
             for pattern, why in DYNAMIC_CODE:

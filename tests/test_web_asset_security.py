@@ -154,6 +154,68 @@ class WebAssetSecurityTests(TreeTestCase):
         self.assertTrue(any("innerHTML" in failure for failure in self.failures()))
 
 
+
+class HtmlBacktickTests(TreeTestCase):
+    """Enforces: WA-1."""
+
+    def _backtick_failures(self) -> list[str]:
+        found: list[str] = []
+        assets.check_no_backtick_in_html(self.root, found)
+        return found
+
+    def test_a_backtick_in_a_patched_html_file_is_rejected(self) -> None:
+        """The failure that killed build #38.
+
+        The backtick was inside an HTML comment -- punctuation quoting an
+        attribute name. Chromium preprocesses the file into a TypeScript
+        template literal, so the backtick ended the string and tsc reported a
+        syntax error in a generated file no one had written.
+        """
+
+        self.write("downstream/patches/0090-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,2 @@",
+            "+  <!-- the `hidden` attribute goes on when hidden -->",
+        ]))
+        failures = self._backtick_failures()
+        self.assertTrue(failures, "the violation was accepted")
+        self.assertTrue(any("WA-1" in failure for failure in failures), failures)
+
+    def test_a_backtick_in_a_patched_typescript_file_is_accepted(self) -> None:
+        """A `.ts` file is already TypeScript.
+
+        Its comments are comments, and backticks in them are punctuation. A
+        rule that fired here would forbid ordinary prose in the one place the
+        stack writes most of it.
+        """
+
+        self.write("downstream/patches/0091-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.ts",
+            "+++ b/chrome/browser/resources/new_tab_page/app.ts",
+            "@@ -1,1 +1,2 @@",
+            "+// `ReadInstalledBackground` returns the bytes, or empty.",
+        ]))
+        self.assertEqual([], self._backtick_failures())
+
+    def test_a_backtick_on_a_context_line_is_not_an_addition(self) -> None:
+        """Upstream's own HTML is full of Lit template syntax.
+
+        Those lines arrive as context in every patch that touches the file. A
+        rule that read them would fail on the first hunk of the New Tab page
+        and never pass again.
+        """
+
+        self.write("downstream/patches/0092-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,2 +1,2 @@",
+            " ${this.lazyRender_ ? html`",
+            "+  <div id=\"sunshineWordmark\">SUNSHINE</div>",
+        ]))
+        self.assertEqual([], self._backtick_failures())
+
+
 class RepositoryIsCleanTests(unittest.TestCase):
     def test_the_repository_passes_both_guards_today(self) -> None:
         self.assertEqual([], assets.check(REPOSITORY_ROOT))

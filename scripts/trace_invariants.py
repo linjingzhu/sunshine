@@ -105,6 +105,12 @@ FAMILIES = (
     "MA", "MAA",
     # The two capabilities ADR 0016 unblocked: host allowlist and file broker.
     "HA", "HAA", "FB", "FBA",
+    # Web assets as *build inputs* rather than as security surface: WA-n.
+    # Separate from SEC-14/SECA-9, which the same guard also enforces, because
+    # a backtick in a Lit template is not a security defect -- it is a syntax
+    # error in a generated file, and filing it under SEC would make that
+    # family mean two different things.
+    "WA",
     # The New Tab background: NTB-n, the source-decidable half of the rule.
     # Its runtime half lives in PERFORMANCE_BUDGET's PB-5a rather than gaining
     # NTB numbers of its own, because a criterion with two homes is a criterion
