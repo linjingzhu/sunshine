@@ -31,18 +31,36 @@ index 4ecd2c2..7997d1e 100644
        "//chrome/browser/ui/tabs:favicon_theming",
        "//chrome/browser/ui/tabs:impl",
 diff --git a/chrome/browser/ui/browser.cc b/chrome/browser/ui/browser.cc
-index 47c68b1..434d814 100644
+index 47c68b1..1f63f21 100644
 --- a/chrome/browser/ui/browser.cc
 +++ b/chrome/browser/ui/browser.cc
-@@ -109,6 +109,7 @@
+@@ -109,6 +109,8 @@
  #include "chrome/browser/ui/browser_ui_prefs.h"
  #include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
  #include "chrome/browser/ui/browser_window.h"
 +#include "chrome/browser/ui/sunshine/mouse_gesture.h"
++#include "chrome/browser/ui/sunshine/newtab_background.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
  #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
-@@ -1518,6 +1519,13 @@ void Browser::UpdateTargetURL(WebContents* source, const GURL& url) {
+@@ -549,6 +551,16 @@ Browser::Browser(const CreateParams& params)
+   }
+ #endif  // BUILDFLAG(IS_OZONE)
+ 
++  // Ask once per process whether a New Tab background is installed, off this
++  // thread. Here rather than in the New Tab page because a window is created
++  // before any tab in it, so the answer is normally settled before a New Tab
++  // asks -- and because the alternative, letting each New Tab find out for
++  // itself, cost three file probes per tab and broke PB-4's rule against
++  // opening a file per tab on the startup path.
++  //
++  // Idempotent: the second window and the two-hundredth do nothing.
++  sunshine::background::WarmAvailability();
++
+   if (params.window) {
+     CHECK_IS_TEST() << "Browser::CreateParams::window is a test-only param";
+   }
+@@ -1518,6 +1530,13 @@ void Browser::UpdateTargetURL(WebContents* source, const GURL& url) {
  }
  
  void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
@@ -56,7 +74,7 @@ index 47c68b1..434d814 100644
    const ui::EventType type = event.type();
    const bool exited = type == ui::EventType::kMouseExited;
    // Disregard synthesized events, and mouse enter and exit, which may occur
-@@ -1545,6 +1553,36 @@ void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
+@@ -1545,6 +1564,36 @@ void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
    }
  }
  

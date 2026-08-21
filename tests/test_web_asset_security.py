@@ -302,6 +302,26 @@ class HtmlBacktickTests(TreeTestCase):
         self.assertTrue(failures, "the violation was accepted")
         self.assertTrue(any("WA-1" in failure for failure in failures), failures)
 
+    def test_lit_conditional_rendering_is_accepted(self) -> None:
+        """The form the guard used to forbid.
+
+        `${cond ? html`...` : ''}` is how a Lit template renders nothing, and
+        upstream's own app.html is full of it. The first version of WA-1
+        refused a backtick on any added line and blocked a correct patch --
+        the one that stopped creating a background frame when no background
+        exists. Template syntax lives outside comments; prose lives inside.
+        """
+
+        self.write("downstream/patches/0093-x.patch", "\n".join([
+            "--- a/chrome/browser/resources/new_tab_page/app.html",
+            "+++ b/chrome/browser/resources/new_tab_page/app.html",
+            "@@ -1,1 +1,3 @@",
+            "+  ${this.showIt_ ? html`",
+            "+    <div>shown</div>",
+            "+  ` : ''}",
+        ]))
+        self.assertEqual([], self._backtick_failures())
+
     def test_a_backtick_in_a_patched_typescript_file_is_accepted(self) -> None:
         """A `.ts` file is already TypeScript.
 

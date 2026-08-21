@@ -17,22 +17,25 @@ index e9a4eee..3270d2d 100644
    # Passed as a define rather than read from a generated header: the value is
 diff --git a/chrome/browser/ui/sunshine/newtab_background.cc b/chrome/browser/ui/sunshine/newtab_background.cc
 new file mode 100644
-index 0000000..c242f86
+index 0000000..9c8f9f5
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.cc
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,152 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "chrome/browser/ui/sunshine/newtab_background.h"
 +
++#include <atomic>
 +#include <string>
 +
 +#include "base/containers/span.h"
 +#include "base/files/file_path.h"
 +#include "base/files/file_util.h"
++#include "base/functional/bind.h"
 +#include "base/path_service.h"
++#include "base/task/thread_pool.h"
 +
 +namespace sunshine::background {
 +
@@ -75,6 +78,19 @@ index 0000000..c242f86
 +    FILE_PATH_LITERAL("newtab-background.webp"),
 +};
 +
++// -1 not probed, 0 absent, 1 present. Written once on a pool thread and read
++// on the UI thread, so it is atomic; `relaxed` is enough because nothing else
++// is ordered against it.
++std::atomic<int> g_available{-1};
++
++void StoreAvailability(bool available) {
++  g_available.store(available ? 1 : 0, std::memory_order_relaxed);
++}
++
++bool ProbeAvailability() {
++  return !ReadInstalledBackground().empty();
++}
++
 +bool MatchesAt(base::span<const uint8_t> head,
 +               size_t offset,
 +               base::span<const uint8_t> tag) {
@@ -112,6 +128,23 @@ index 0000000..c242f86
 +  return directory;
 +}
 +
++void WarmAvailability() {
++  int expected = -1;
++  // Claim the probe exactly once. A second window opening while the first
++  // probe is in flight must not start another.
++  if (!g_available.compare_exchange_strong(expected, -2,
++                                           std::memory_order_relaxed)) {
++    return;
++  }
++  base::ThreadPool::PostTaskAndReplyWithResult(
++      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++      base::BindOnce(&ProbeAvailability), base::BindOnce(&StoreAvailability));
++}
++
++bool AvailableFromCache() {
++  return g_available.load(std::memory_order_relaxed) == 1;
++}
++
 +std::string ReadInstalledBackground() {
 +  const base::FilePath directory = InstallDirectory();
 +  if (directory.empty()) {
@@ -142,10 +175,10 @@ index 0000000..c242f86
 +}  // namespace sunshine::background
 diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
 new file mode 100644
-index 0000000..71df28b
+index 0000000..638f4c0
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.h
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,129 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -245,6 +278,32 @@ index 0000000..71df28b
 +// exactly like no asset at all, and nothing anywhere tells the owner which
 +// happened. `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 records it.
 +std::string ReadInstalledBackground();
++
++// Probe for an installed background, once per process, off the calling thread.
++//
++// Idempotent and cheap to call again: the first call posts the probe, every
++// later call returns immediately. Called when a browser window is created
++// rather than when a New Tab is, so the answer is normally settled before any
++// New Tab asks for it.
++//
++// **This is why the page is told rather than left to ask.** An earlier design
++// had the page create its background frame unconditionally and let the request
++// fail when no file existed, which cost three file probes on every New Tab --
++// `docs/PERFORMANCE_BUDGET.md` PB-4 forbids opening a file per tab on the
++// startup path, in the same existence-not-size language PB-5 uses, and the
++// feature was reasoned against PB-5 alone. One probe per process is what
++// replaced it.
++void WarmAvailability();
++
++// What the probe found, or `false` if it has not finished.
++//
++// Never blocks and never reads the disk, so it is safe on the UI thread. A New
++// Tab created in the window between the first browser window opening and the
++// probe returning is told `false` and shows no background; the next one is
++// told the truth. That race is recorded in
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 rather than hidden, and it is the
++// price of not doing file I/O on the thread that draws.
++bool AvailableFromCache();
 +
 +}  // namespace sunshine::background
 +

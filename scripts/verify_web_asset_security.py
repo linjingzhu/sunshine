@@ -96,49 +96,66 @@ def patch_web_assets(path: Path, label: str) -> list[tuple[str, str]]:
     return [(f"{label} -> {name}", "\n".join(lines)) for name, lines in collected.items()]
 
 
-# A backtick in an HTML file the stack touches.
+# A backtick inside an HTML comment.
 #
 # Chromium preprocesses a Lit template's `.html` into a TypeScript file whose
-# whole body is one template literal. Inside that literal a backtick **ends the
-# string** and `${` starts an expression, so a backtick written as punctuation
-# -- in a comment, even -- is a syntax error hundreds of lines away from
-# anything that looks wrong.
+# whole body is one template literal. Inside it a backtick **ends the string**,
+# so a backtick written as punctuation is a syntax error hundreds of lines away
+# from anything that looks wrong. Build #38 died exactly there: an HTML comment
+# quoted an attribute name in backticks and `tsc` reported `TS1005` in a
+# generated file no one had written.
 #
-# Build #38 died exactly there: an HTML comment in
-# `chrome/browser/resources/new_tab_page/app.html` quoted an attribute name in
-# backticks and `tsc` reported `TS1005: ';' expected` in generated
-# `app.html.ts`, in a file no one had written. The upstream comment that patch
-# replaced had been signalling the rule all along -- it wrote its own binding
-# as a backslash-escaped dollar -- and the signal was not read.
-#
-# Scoped to every `.html` the stack touches rather than to Lit templates only.
-# Deciding which files are templates needs the whole file, and a patch shows
-# added lines; no HTML in this stack has ever wanted a backtick, so the broad
-# rule costs nothing and cannot be outgrown by a file someone forgets to
-# classify.
-BACKTICK_IN_HTML = "`"
+# **Scoped to comments, and that scope was learned the hard way.** The first
+# version refused a backtick on any added line, which is broader than the
+# defect and forbids the thing Lit is built on -- `${cond ? html`...` : ''}` is
+# how a template renders nothing, upstream's own app.html is full of it, and
+# the rule blocked a correct patch that stopped creating a frame it did not
+# need. Template syntax lives outside comments; prose lives inside them. Only
+# prose can be punctuation by mistake.
+COMMENT_OPEN = "<!--"
+COMMENT_CLOSE = "-->"
 
 
 def check_no_backtick_in_html(root: Path, failures: list[str]) -> None:
-    """WA-1: no line the stack adds to an HTML file contains a backtick."""
+    """WA-1: no line the stack adds puts a backtick inside an HTML comment."""
 
     for patch in sorted((root / "downstream/patches").glob("*.patch")):
         target: str | None = None
+        in_comment = False
         for number, line in enumerate(
             patch.read_text(encoding="utf-8").splitlines(), start=1
         ):
             header = PATCH_FILE.match(line)
             if header:
                 target = header.group(1)
+                in_comment = False
                 continue
             if not target or not target.endswith(".html"):
                 continue
-            if line.startswith("+") and BACKTICK_IN_HTML in line:
-                failures.append(
-                    f"{patch.name}:{number}: adds a backtick to {target}; that "
-                    "file becomes a TypeScript template literal, where a "
-                    "backtick ends the string (WA-1)"
-                )
+            if not line.startswith("+") or line.startswith("+++ "):
+                continue
+            body = line[1:]
+            # Walk the line so a backtick before `<!--` on the same line is not
+            # blamed on a comment that starts after it.
+            index = 0
+            while index < len(body):
+                if not in_comment and body.startswith(COMMENT_OPEN, index):
+                    in_comment = True
+                    index += len(COMMENT_OPEN)
+                    continue
+                if in_comment and body.startswith(COMMENT_CLOSE, index):
+                    in_comment = False
+                    index += len(COMMENT_CLOSE)
+                    continue
+                if in_comment and body[index] == "`":
+                    failures.append(
+                        f"{patch.name}:{number}: puts a backtick in an HTML "
+                        f"comment in {target}; that file becomes a TypeScript "
+                        "template literal, where a backtick ends the string "
+                        "(WA-1)"
+                    )
+                    break
+                index += 1
 
 
 # A Lit binding the stack adds to an HTML template, and the reactive property

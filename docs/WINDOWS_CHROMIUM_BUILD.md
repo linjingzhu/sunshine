@@ -109,10 +109,16 @@ The signal had been there and was not read: the upstream comment that patch
 replaced wrote its own binding as a backslash-escaped dollar, `\${...}`, which
 is only necessary if the file is a template literal.
 
-`scripts/verify_web_asset_security.py` now refuses a backtick on any line the
-stack adds to any `.html`, which is WA-1. Broader than Lit templates on
-purpose — deciding which files are templates needs the whole file and a patch
-carries added lines, and no HTML in this stack has ever wanted a backtick.
+`scripts/verify_web_asset_security.py` refuses a backtick **inside an HTML
+comment** on a line the stack adds, which is WA-1.
+
+The scope was wrong first and is worth keeping as written. The original rule
+refused a backtick on *any* added `.html` line — broader than the defect — and
+it promptly blocked correct work: `${cond ? html`…`  : ''}` is how a Lit
+template renders nothing, upstream's own `app.html` is built from it, and the
+patch that stopped creating a background frame when no background exists could
+not pass. Template syntax lives outside comments and prose lives inside them,
+and only prose becomes punctuation by mistake.
 
 **6. eslint runs on the generated TypeScript too, with Lit-specific rules.**
 **This is the step that failed build #38's second attempt**, after the

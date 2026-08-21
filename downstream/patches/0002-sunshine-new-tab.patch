@@ -38,10 +38,10 @@ index d9d32b0..6ad1de5 100644
    margin-bottom: var(--ntp-logo-margin-bottom, 38px);
  }
 diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/resources/new_tab_page/app.html
-index b6dab96..1e8b982 100644
+index b6dab96..0c044f2 100644
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -3,6 +3,24 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -3,6 +3,31 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
  #html_wrapper_imports_end -->
  <div id="content"
    ?ntp-threads-rail-open="${this.showComposebox_ && this.enableThreadsRail_}">
@@ -51,6 +51,11 @@ index b6dab96..1e8b982 100644
 +       does not override img-src. That is also why upstream's own custom
 +       background is an iframe, and this reuses that helper rather than
 +       inventing a second way in.
++       Not rendered at all unless a background is installed. The browser
++       answers that from a cache it filled once per process, so a build with
++       no asset creates no frame and opens no file per tab - which is what
++       PB-4 requires and what an earlier version of this got wrong by
++       creating the frame unconditionally and letting the request fail.
 +       The hidden attribute goes on whenever the document is not visible.
 +       PB-5a permits this animation only while it is being looked at, and a
 +       hidden subtree renders nothing, so an animated asset inside it decodes
@@ -61,12 +66,14 @@ index b6dab96..1e8b982 100644
 +       TypeScript template literal, where a backtick ends the string and
 +       dollar-brace starts an expression - which is why the upstream comment
 +       this replaced wrote its binding as a backslash-escaped dollar. -->
-+  <ntp-iframe id="sunshineBackground" src="${this.sunshineBackgroundPath_}"
-+      ?hidden="${!this.sunshineBackgroundVisible_}"></ntp-iframe>
++  ${this.sunshineBackgroundAvailable_ ? html`
++    <ntp-iframe id="sunshineBackground" src="${this.sunshineBackgroundPath_}"
++        ?hidden="${!this.sunshineBackgroundVisible_}"></ntp-iframe>
++  ` : ''}
    ${this.lazyRender_ && this.microsoftModuleEnabled_ ? html`
      <iframe id="microsoftAuth" src="${this.microsoftAuthIframePath_}"></iframe>
    ` : ''}
-@@ -28,13 +46,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -28,13 +53,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
          </ntp-iframe>
          `
      ) : ''}
@@ -84,7 +91,7 @@ index b6dab96..1e8b982 100644
      <div id="scrim"
          @click="${this.onScrimClick_}"
 diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
-index 838385f..6cabfde 100644
+index 838385f..63bd02c 100644
 --- a/chrome/browser/resources/new_tab_page/app.ts
 +++ b/chrome/browser/resources/new_tab_page/app.ts
 @@ -50,7 +50,6 @@ import {CustomizeButtonsProxy} from './customize_buttons_proxy.js';
@@ -130,7 +137,7 @@ index 838385f..6cabfde 100644
      searchbox: NtpSearchboxElement,
      composebox: NtpComposeboxElement,
      undoToast: CrToastElement,
-@@ -326,6 +341,16 @@ export class AppElement extends AppElementBase {
+@@ -326,6 +341,18 @@ export class AppElement extends AppElementBase {
  
        scrolledToTop_: {type: Boolean},
  
@@ -140,6 +147,8 @@ index 838385f..6cabfde 100644
 +      // rule, lit-property-accessor, then requires the `accessor` keyword
 +      // below. Build #38's second failure was these two firing together --
 +      // they are one omission seen from both sides, not two problems.
++      sunshineBackgroundAvailable_: {type: Boolean},
++
 +      sunshineBackgroundPath_: {type: String},
 +
 +      sunshineBackgroundVisible_: {type: Boolean},
@@ -147,10 +156,17 @@ index 838385f..6cabfde 100644
        wallpaperSearchButtonAnimationEnabled_: {type: Boolean},
        wallpaperSearchButtonEnabled_: {type: Boolean},
        showWallpaperSearchButton_: {type: Boolean},
-@@ -462,6 +487,13 @@ export class AppElement extends AppElementBase {
+@@ -462,6 +489,20 @@ export class AppElement extends AppElementBase {
    protected accessor lazyRender_: boolean = false;
    protected accessor scrolledToTop_: boolean =
        document.documentElement.scrollTop <= 0;
++  // Whether a background is installed, decided by the browser and never by
++  // this page. Constant for the life of the document: the browser probes once
++  // per process, so a New Tab opened in the window between the first browser
++  // window and that probe returning is told false and shows none. The next
++  // one is told the truth.
++  protected accessor sunshineBackgroundAvailable_: boolean =
++      loadTimeData.getBoolean('sunshineBackgroundAvailable');
 +  protected accessor sunshineBackgroundPath_: string =
 +      SUNSHINE_BACKGROUND_PATH;
 +  // Starts at the document's actual state rather than at `true`: a New Tab
@@ -161,7 +177,7 @@ index 838385f..6cabfde 100644
    protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
        loadTimeData.getBoolean('wallpaperSearchButtonAnimationEnabled');
    protected accessor wallpaperSearchButtonEnabled_: boolean =
-@@ -581,8 +613,22 @@ export class AppElement extends AppElementBase {
+@@ -581,8 +622,22 @@ export class AppElement extends AppElementBase {
      ColorChangeUpdater.forDocument().start();
    }
  
@@ -184,7 +200,7 @@ index 838385f..6cabfde 100644
      realboxCanShowSecondarySideMediaQueryList.addEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -702,6 +748,8 @@ export class AppElement extends AppElementBase {
+@@ -702,6 +757,8 @@ export class AppElement extends AppElementBase {
  
    override disconnectedCallback() {
      super.disconnectedCallback();
@@ -193,7 +209,7 @@ index 838385f..6cabfde 100644
      realboxCanShowSecondarySideMediaQueryList.removeEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -1591,7 +1639,7 @@ export class AppElement extends AppElementBase {
+@@ -1591,7 +1648,7 @@ export class AppElement extends AppElementBase {
      }
      for (const target of e.composedPath()) {
        switch (target) {

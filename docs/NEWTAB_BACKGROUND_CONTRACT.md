@@ -185,12 +185,25 @@ because they already have a home.
   returns empty for a missing file, an oversized one, and one whose bytes are
   not a permitted format alike, and no surface anywhere says which happened.
   An owner whose background does not appear has nothing to read.
-- **The iframe is created even when no background is installed.** The page
-  cannot know whether a file exists without being told, and telling it would
-  mean owning `new_tab_page_ui.cc` as well. So a default build makes one
-  request and three failed file probes per New Tab. That is load cost, not
-  idle cost, so PB-5a's opt-in property still holds — but it is not nothing,
-  and it is the first thing to reconsider if New Tab load time regresses.
+- **One file probe per process remains, and it is a deviation from PB-4.**
+  The page is told whether a background exists, so a build with no asset
+  creates no frame and opens no file per tab. The browser answers from a cache
+  it fills once, warmed when the first window is created. That fixed the
+  original defect — three probes on **every** New Tab, which broke PB-4's
+  zero-tolerance condition 1 ("not once per window, not once per tab") and its
+  condition 3 ("no cost that scales with anything else"). The feature had been
+  reasoned against PB-5 alone, the budget that was being amended for it.
+
+  What remains is one file probe per browser process, and PB-4 condition 1
+  permits **no** file on the startup path but the workspace catalog. That is a
+  deviation and it is recorded here rather than legislated away: amending a
+  second budget to fit the same feature is the pattern that produced this
+  finding, and doing it again would be the wrong lesson.
+- **The first New Tab of a session may show no background.** The probe runs
+  off the UI thread, and a New Tab created before it returns is told `false`.
+  Window creation precedes tab creation so the window is normally milliseconds
+  wide, but it is a race and nothing closes it. The alternative was file I/O
+  on the thread that draws.
 - **`GetMimeType` names the path, not the bytes.** A `.png` request returns
   JPEG or WebP bytes when that is what was installed. Blink chooses its
   decoder by signature rather than by declared type — the same fact the format
