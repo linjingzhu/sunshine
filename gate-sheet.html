@@ -121,6 +121,18 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 .exp{margin:7px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.5}
 .explabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink-3);margin-right:7px}
+.src{margin-top:9px}
+.src summary{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);cursor:pointer;list-style:none;
+  display:inline-block;padding:2px 7px;border:1px solid var(--rule-2);border-radius:3px}
+.src summary::-webkit-details-marker{display:none}
+.src summary:hover{color:var(--accent);border-color:var(--accent)}
+.src[open] summary{margin-bottom:7px}
+.src .step,.src .exp{font-size:12.5px;color:var(--ink-3);margin:0 0 4px;padding-left:10px;
+  border-left:2px solid var(--rule-2)}
+.step code,.exp code{font-family:"IBM Plex Mono",monospace;font-size:.9em;
+  background:var(--surface-2);border:1px solid var(--rule-2);border-radius:3px;padding:1px 4px}
+.step strong,.exp strong{font-weight:600;color:var(--ink)}
 .inv{display:inline-block;margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:11px;
   color:var(--ink-3);background:var(--surface-2);border:1px solid var(--rule-2);
   padding:2px 6px;border-radius:3px}
@@ -217,8 +229,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-11</span></div>
         <div class="body">
-          <p class="step">Look at `mini_installer.exe` in Explorer</p>
-          <p class="exp"><span class="explabel">기대</span>The Sunshine icon</p>
+          <p class="step">탐색기에서 <code>mini_installer.exe</code> 를 본다</p>
+          <p class="exp"><span class="explabel">기대</span>Sunshine 아이콘</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Look at `mini_installer.exe` in Explorer</p>
+            <p class="exp"><span class="explabel">expected</span>The Sunshine icon</p>
+          </details>
           <span class="inv">ADR 0008</span>
         </div>
         <div class="controls">
@@ -234,8 +251,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-26</span><span class="badge stopb">블록 후 중단</span></div>
         <div class="body">
-          <p class="step">Install, then look at the install directory, the Start menu entry, the taskbar item and Windows&#x27; Default Apps list</p>
-          <p class="exp"><span class="explabel">기대</span>All four say Sunshine. In particular the install directory is `%LOCALAPPDATA%\Sunshine\Application`, not `Chromium` — which is where a machine with real Chromium on it would have collided</p>
+          <p class="step">설치한 뒤 설치 디렉터리, 시작 메뉴 항목, 작업표시줄 항목, Windows 기본 앱 목록을 본다</p>
+          <p class="exp"><span class="explabel">기대</span>네 곳 모두 Sunshine 이라고 한다. 특히 설치 디렉터리가 <code>Chromium</code> 이 아니라 <code>%LOCALAPPDATA%\Sunshine\Application</code> 이다 — 진짜 Chromium 이 깔린 기계였다면 충돌했을 자리다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Install, then look at the install directory, the Start menu entry, the taskbar item and Windows&#x27; Default Apps list</p>
+            <p class="exp"><span class="explabel">expected</span>All four say Sunshine. In particular the install directory is `%LOCALAPPDATA%\Sunshine\Application`, not `Chromium` — which is where a machine with real Chromium on it would have collided</p>
+          </details>
           <span class="inv">ADR 0015 §1</span>
         </div>
         <div class="controls">
@@ -251,8 +273,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-29</span><span class="badge stopb">블록 후 중단</span></div>
         <div class="body">
-          <p class="step">After installing, look for the profile: `%LOCALAPPDATA%\Sunshine\User Data`</p>
-          <p class="exp"><span class="explabel">기대</span>It exists and holds the profile. `%LOCALAPPDATA%\Chromium` is untouched — which on a machine with real Chromium is that browser&#x27;s profile, and was the same directory before this change</p>
+          <p class="step">설치 후 프로필을 찾는다: <code>%LOCALAPPDATA%\Sunshine\User Data</code></p>
+          <p class="exp"><span class="explabel">기대</span>존재하고 프로필을 담고 있다. <code>%LOCALAPPDATA%\Chromium</code> 은 <strong>손대지 않은 상태</strong>다 — 진짜 Chromium 이 있는 기계에서는 그 브라우저의 프로필이고, 이 변경 전에는 같은 디렉터리였다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">After installing, look for the profile: `%LOCALAPPDATA%\Sunshine\User Data`</p>
+            <p class="exp"><span class="explabel">expected</span>It exists and holds the profile. `%LOCALAPPDATA%\Chromium` is untouched — which on a machine with real Chromium is that browser&#x27;s profile, and was the same directory before this change</p>
+          </details>
           <span class="inv">ADR 0015 §1</span>
         </div>
         <div class="controls">
@@ -268,8 +295,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-30</span><span class="badge stopb">블록 후 중단</span></div>
         <div class="body">
-          <p class="step">Check `HKCR` for a `chromium` and a `sunshine` key after installing</p>
-          <p class="exp"><span class="explabel">기대</span>Neither is registered as a URL protocol. The empty `direct_launch_url_scheme` means the installer writes no `Software\Classes\&lt;scheme&gt;` entry at all</p>
+          <p class="step">설치 후 <code>HKCR</code> 에서 <code>chromium</code> 키와 <code>sunshine</code> 키를 확인한다</p>
+          <p class="exp"><span class="explabel">기대</span>둘 다 URL 프로토콜로 <strong>등록돼 있지 않다</strong>. <code>direct_launch_url_scheme</code> 이 비어 있다는 것은 인스톨러가 <code>Software\Classes\&lt;scheme&gt;</code> 항목을 아예 쓰지 않는다는 뜻이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Check `HKCR` for a `chromium` and a `sunshine` key after installing</p>
+            <p class="exp"><span class="explabel">expected</span>Neither is registered as a URL protocol. The empty `direct_launch_url_scheme` means the installer writes no `Software\Classes\&lt;scheme&gt;` entry at all</p>
+          </details>
           <span class="inv">ADR 0015 §3, SEC-13</span>
         </div>
         <div class="controls">
@@ -285,8 +317,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-28</span><span class="badge cond">조건부</span></div>
         <div class="body">
-          <p class="step">With a real Chromium or Chrome also installed, install Sunshine and use both</p>
-          <p class="exp"><span class="explabel">기대</span>Neither replaces the other&#x27;s files or profile, and the taskbar shows them as two applications</p>
+          <p class="step">진짜 Chromium 또는 Chrome 도 설치된 상태에서 Sunshine 을 설치하고 둘 다 쓴다</p>
+          <p class="exp"><span class="explabel">기대</span>어느 쪽도 다른 쪽의 파일이나 프로필을 대체하지 않고, 작업표시줄에 <strong>두 개의 애플리케이션</strong>으로 보인다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With a real Chromium or Chrome also installed, install Sunshine and use both</p>
+            <p class="exp"><span class="explabel">expected</span>Neither replaces the other&#x27;s files or profile, and the taskbar shows them as two applications</p>
+          </details>
           <span class="inv">ADR 0015 §1, §3</span>
         </div>
         <div class="controls">
@@ -314,8 +351,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-1</span><span class="badge stop">중단</span></div>
         <div class="body">
-          <p class="step">Open `chrome://version`</p>
-          <p class="exp"><span class="explabel">기대</span>The command line contains no `--no-sandbox`, no `--single-process`, no `--disable-site-isolation-trials`</p>
+          <p class="step"><code>chrome://version</code> 을 연다</p>
+          <p class="exp"><span class="explabel">기대</span>명령줄에 <code>--no-sandbox</code>, <code>--single-process</code>, <code>--disable-site-isolation-trials</code> 가 <strong>없다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://version`</p>
+            <p class="exp"><span class="explabel">expected</span>The command line contains no `--no-sandbox`, no `--single-process`, no `--disable-site-isolation-trials`</p>
+          </details>
           <span class="inv">SEC-1, SEC-2</span>
         </div>
         <div class="controls">
@@ -331,8 +373,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-2</span><span class="badge stop">중단</span></div>
         <div class="body">
-          <p class="step">Open `chrome://sandbox`</p>
-          <p class="exp"><span class="explabel">기대</span>Every renderer row reports a sandbox as active</p>
+          <p class="step"><code>chrome://sandbox</code> 를 연다</p>
+          <p class="exp"><span class="explabel">기대</span>모든 렌더러 행이 샌드박스를 <strong>활성</strong>으로 보고한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://sandbox`</p>
+            <p class="exp"><span class="explabel">expected</span>Every renderer row reports a sandbox as active</p>
+          </details>
           <span class="inv">SEC-1</span>
         </div>
         <div class="controls">
@@ -348,8 +395,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-3</span><span class="badge stop">중단</span></div>
         <div class="body">
-          <p class="step">Open `chrome://process-internals`</p>
-          <p class="exp"><span class="explabel">기대</span>Site isolation mode is site-per-process, and two cross-site frames occupy different processes</p>
+          <p class="step"><code>chrome://process-internals</code> 를 연다</p>
+          <p class="exp"><span class="explabel">기대</span>사이트 격리 모드가 site-per-process 이고, 교차 사이트 프레임 둘이 서로 <strong>다른 프로세스</strong>를 차지한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://process-internals`</p>
+            <p class="exp"><span class="explabel">expected</span>Site isolation mode is site-per-process, and two cross-site frames occupy different processes</p>
+          </details>
           <span class="inv">SEC-2</span>
         </div>
         <div class="controls">
@@ -365,8 +417,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-4</span></div>
         <div class="body">
-          <p class="step">Type `sunshine://anything` in the omnibox</p>
-          <p class="exp"><span class="explabel">기대</span>Treated as a search, not a navigation — the scheme does not resolve</p>
+          <p class="step">옴니박스에 <code>sunshine://anything</code> 을 입력한다</p>
+          <p class="exp"><span class="explabel">기대</span>탐색이 아니라 <strong>검색</strong>으로 처리된다 — 그 스킴은 해석되지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Type `sunshine://anything` in the omnibox</p>
+            <p class="exp"><span class="explabel">expected</span>Treated as a search, not a navigation — the scheme does not resolve</p>
+          </details>
           <span class="inv">SEC-13</span>
         </div>
         <div class="controls">
@@ -394,8 +451,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-10</span></div>
         <div class="body">
-          <p class="step">Look at `chrome.exe` in Explorer&#x27;s list view, on the taskbar, and as a pinned shortcut</p>
-          <p class="exp"><span class="explabel">기대</span>The Sunshine icon reads correctly at each of the three sizes the shell asks for — not stretched, not a rescaled neighbour, not Chromium&#x27;s blue sphere</p>
+          <p class="step">탐색기 목록 보기, 작업표시줄, 고정된 바로가기에서 <code>chrome.exe</code> 를 본다</p>
+          <p class="exp"><span class="explabel">기대</span>셸이 요구하는 세 가지 크기 각각에서 Sunshine 아이콘이 제대로 보인다 — 늘어나지 않고, 이웃 크기를 확대·축소한 것이 아니며, Chromium의 파란 구가 아니다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Look at `chrome.exe` in Explorer&#x27;s list view, on the taskbar, and as a pinned shortcut</p>
+            <p class="exp"><span class="explabel">expected</span>The Sunshine icon reads correctly at each of the three sizes the shell asks for — not stretched, not a rescaled neighbour, not Chromium&#x27;s blue sphere</p>
+          </details>
           <span class="inv">ADR 0008</span>
         </div>
         <div class="controls">
@@ -411,8 +473,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-27</span></div>
         <div class="body">
-          <p class="step">Open the app menu, About, and the default-browser prompt</p>
-          <p class="exp"><span class="explabel">기대</span>Every one names Sunshine. About still credits **The Chromium Authors** and the copyright is unchanged — that is correct and is what patch 0010 protects</p>
+          <p class="step">앱 메뉴, 정보, 기본 브라우저 안내를 연다</p>
+          <p class="exp"><span class="explabel">기대</span>모두 Sunshine 을 가리킨다. 정보는 여전히 <strong>The Chromium Authors</strong> 를 표기하고 저작권 표시도 그대로다 — 그게 맞고, 패치 0010 이 지키는 것이 그것이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open the app menu, About, and the default-browser prompt</p>
+            <p class="exp"><span class="explabel">expected</span>Every one names Sunshine. About still credits **The Chromium Authors** and the copyright is unchanged — that is correct and is what patch 0010 protects</p>
+          </details>
           <span class="inv">ADR 0015 §2</span>
         </div>
         <div class="controls">
@@ -428,8 +495,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-12</span></div>
         <div class="body">
-          <p class="step">Open `chrome://sunshine-security`</p>
-          <p class="exp"><span class="explabel">기대</span>Exactly one of the four verdict paragraphs is visible, and it is the one the build&#x27;s three booleans imply</p>
+          <p class="step"><code>chrome://sunshine-security</code> 를 연다</p>
+          <p class="exp"><span class="explabel">기대</span>네 개의 판정 문단 중 <strong>정확히 하나</strong>가 보이고, 그것이 이 빌드의 불리언 세 개가 함의하는 바로 그 문단이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://sunshine-security`</p>
+            <p class="exp"><span class="explabel">expected</span>Exactly one of the four verdict paragraphs is visible, and it is the one the build&#x27;s three booleans imply</p>
+          </details>
           <span class="inv">SC-11, SEC-14, patch 0005</span>
         </div>
         <div class="controls">
@@ -457,8 +529,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-8</span></div>
         <div class="body">
-          <p class="step">Open a new tab on a keyless build</p>
-          <p class="exp"><span class="explabel">기대</span>No infobar reports missing Google API keys</p>
+          <p class="step">키가 없는 빌드에서 새 탭을 연다</p>
+          <p class="exp"><span class="explabel">기대</span>Google API 키가 없다고 알리는 인포바가 <strong>뜨지 않는다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open a new tab on a keyless build</p>
+            <p class="exp"><span class="explabel">expected</span>No infobar reports missing Google API keys</p>
+          </details>
           <span class="inv">patch 0003, ADR 0005</span>
         </div>
         <div class="controls">
@@ -474,8 +551,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-9</span></div>
         <div class="body">
-          <p class="step">Search from the New Tab page</p>
-          <p class="exp"><span class="explabel">기대</span>Chromium&#x27;s own search handling runs; no Sunshine interposition, no forced startup URL</p>
+          <p class="step">새 탭 페이지에서 검색한다</p>
+          <p class="exp"><span class="explabel">기대</span>Chromium 자체 검색 처리가 동작한다. Sunshine의 개입도, 강제된 시작 URL도 없다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Search from the New Tab page</p>
+            <p class="exp"><span class="explabel">expected</span>Chromium&#x27;s own search handling runs; no Sunshine interposition, no forced startup URL</p>
+          </details>
           <span class="inv">`verify_architecture.py` startup-URL rule, at runtime</span>
         </div>
         <div class="controls">
@@ -491,8 +573,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RVV-1</span></div>
         <div class="body">
-          <p class="step">New Tab at 533 px, 768 px and 933 px width</p>
-          <p class="exp"><span class="explabel">기대</span>The wordmark scales fluidly and does not clip or wrap</p>
+          <p class="step">새 탭을 폭 533 px, 768 px, 933 px 에서 본다</p>
+          <p class="exp"><span class="explabel">기대</span>워드마크가 매끄럽게 확대·축소되고 잘리거나 줄바꿈되지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">New Tab at 533 px, 768 px and 933 px width</p>
+            <p class="exp"><span class="explabel">expected</span>The wordmark scales fluidly and does not clip or wrap</p>
+          </details>
           
         </div>
         <div class="controls">
@@ -508,8 +595,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RVV-2</span></div>
         <div class="body">
-          <p class="step">New Tab in light and dark</p>
-          <p class="exp"><span class="explabel">기대</span>Both use the design-system tokens; neither hardcodes a colour</p>
+          <p class="step">새 탭을 라이트와 다크에서 본다</p>
+          <p class="exp"><span class="explabel">기대</span>둘 다 디자인 시스템 토큰을 쓰고, 어느 쪽도 색을 하드코딩하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">New Tab in light and dark</p>
+            <p class="exp"><span class="explabel">expected</span>Both use the design-system tokens; neither hardcodes a colour</p>
+          </details>
           
         </div>
         <div class="controls">
@@ -525,8 +617,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RVV-3</span></div>
         <div class="body">
-          <p class="step">Keyboard-only traversal of the New Tab page</p>
-          <p class="exp"><span class="explabel">기대</span>Focus is visible at every stop and reaches the search field</p>
+          <p class="step">새 탭 페이지를 키보드만으로 이동한다</p>
+          <p class="exp"><span class="explabel">기대</span>모든 정지점에서 포커스가 보이고, 검색 입력란에 도달한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Keyboard-only traversal of the New Tab page</p>
+            <p class="exp"><span class="explabel">expected</span>Focus is visible at every stop and reaches the search field</p>
+          </details>
           
         </div>
         <div class="controls">
@@ -554,8 +651,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-5</span></div>
         <div class="body">
-          <p class="step">Play an H.264/AAC video</p>
-          <p class="exp"><span class="explabel">기대</span>Decodes and plays</p>
+          <p class="step">H.264/AAC 동영상을 재생한다</p>
+          <p class="exp"><span class="explabel">기대</span>디코딩되어 재생된다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Play an H.264/AAC video</p>
+            <p class="exp"><span class="explabel">expected</span>Decodes and plays</p>
+          </details>
           <span class="inv">ADR 0004</span>
         </div>
         <div class="controls">
@@ -571,8 +673,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-6</span></div>
         <div class="body">
-          <p class="step">Play a VP9 or AV1 video</p>
-          <p class="exp"><span class="explabel">기대</span>Decodes and plays — the codec change must not have cost the royalty-free path</p>
+          <p class="step">VP9 또는 AV1 동영상을 재생한다</p>
+          <p class="exp"><span class="explabel">기대</span>디코딩되어 재생된다 — 코덱 변경이 로열티 프리 경로를 <strong>잃게 하지 않았어야</strong> 한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Play a VP9 or AV1 video</p>
+            <p class="exp"><span class="explabel">expected</span>Decodes and plays — the codec change must not have cost the royalty-free path</p>
+          </details>
           <span class="inv">ADR 0004</span>
         </div>
         <div class="controls">
@@ -600,8 +707,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-20</span></div>
         <div class="body">
-          <p class="step">Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px</p>
-          <p class="exp"><span class="explabel">기대</span>Left goes back, right goes forward, and the short drag shows the context menu instead. Neither long drag shows a menu, and no press does both</p>
+          <p class="step">페이지 본문에서 오른쪽 버튼을 누른 채 왼쪽으로 200 px 끌고 놓는다. 오른쪽으로도 반복하고, 50 px 만 끄는 것도 반복한다</p>
+          <p class="exp"><span class="explabel">기대</span>왼쪽은 뒤로, 오른쪽은 앞으로 가고, <strong>짧은 드래그는 대신 컨텍스트 메뉴</strong>를 띄운다. 긴 드래그는 둘 다 메뉴를 띄우지 않으며, 어떤 누름도 두 가지를 동시에 하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px</p>
+            <p class="exp"><span class="explabel">expected</span>Left goes back, right goes forward, and the short drag shows the context menu instead. Neither long drag shows a menu, and no press does both</p>
+          </details>
           <span class="inv">GESTURE contract §3.2, patch 0017</span>
         </div>
         <div class="controls">
@@ -629,8 +741,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-21</span></div>
         <div class="body">
-          <p class="step">Show the bookmark bar and look at its leading edge</p>
-          <p class="exp"><span class="explabel">기대</span>One Sunshine button sits there, left of the saved tab group button, tooltip &quot;Sunshine modules&quot;. Its glyph is not the grid the tab group button uses</p>
+          <p class="step">북마크바를 표시하고 시작 가장자리를 본다</p>
+          <p class="exp"><span class="explabel">기대</span>Sunshine 버튼 하나가 저장된 탭 그룹 버튼 <strong>왼쪽</strong>에 있고 툴팁은 &#x27;Sunshine modules&#x27;. 그 글리프는 탭 그룹 버튼이 쓰는 격자가 아니다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Show the bookmark bar and look at its leading edge</p>
+            <p class="exp"><span class="explabel">expected</span>One Sunshine button sits there, left of the saved tab group button, tooltip &quot;Sunshine modules&quot;. Its glyph is not the grid the tab group button uses</p>
+          </details>
           <span class="inv">ADR 0014 §5, patch 0008</span>
         </div>
         <div class="controls">
@@ -646,8 +763,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-22</span></div>
         <div class="body">
-          <p class="step">Click that button, then ctrl-click it</p>
-          <p class="exp"><span class="explabel">기대</span>The first opens `chrome://sunshine-modules` in the current tab; the second opens it in a new background tab. Disposition follows the modifier, as it does for every other button on this bar</p>
+          <p class="step">그 버튼을 클릭하고, 이어서 ctrl+클릭한다</p>
+          <p class="exp"><span class="explabel">기대</span>첫 번째는 현재 탭에 <code>chrome://sunshine-modules</code> 를 열고, 두 번째는 <strong>새 배경 탭</strong>에 연다. 이 바의 다른 모든 버튼과 마찬가지로 처리 방식이 수정자 키를 따른다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Click that button, then ctrl-click it</p>
+            <p class="exp"><span class="explabel">expected</span>The first opens `chrome://sunshine-modules` in the current tab; the second opens it in a new background tab. Disposition follows the modifier, as it does for every other button on this bar</p>
+          </details>
           <span class="inv">ADR 0014 §2</span>
         </div>
         <div class="controls">
@@ -663,8 +785,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-23</span></div>
         <div class="body">
-          <p class="step">On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json`</p>
-          <p class="exp"><span class="explabel">기대</span>The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either</p>
+          <p class="step"><code>chrome://sunshine-modules</code> 에서 왼쪽 열을 <code>first_party/registry.json</code> 과 대조한다</p>
+          <p class="exp"><span class="explabel">기대</span>같은 모듈, 같은 순서이고 제목의 개수도 일치한다. 이것은 동기화 가드가 닿을 수 없는 게이트다 — 가드는 패치와 <code>first_party/</code> 를 비교하지, <strong>실행 중인 페이지</strong>를 어느 쪽과도 비교하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json`</p>
+            <p class="exp"><span class="explabel">expected</span>The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either</p>
+          </details>
           <span class="inv">patch 0007, `verify_module_registry_sync.py`</span>
         </div>
         <div class="controls">
@@ -680,8 +807,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-24</span></div>
         <div class="body">
-          <p class="step">Select each module in the left column</p>
-          <p class="exp"><span class="explabel">기대</span>Its declared network, filesystem and credential values are the manifest&#x27;s own words, and a value other than `deny`/`none`/no is the one that stands out</p>
+          <p class="step">왼쪽 열에서 각 모듈을 선택한다</p>
+          <p class="exp"><span class="explabel">기대</span>선언된 네트워크·파일시스템·자격증명 값이 매니페스트의 표현 그대로이고, <code>deny</code>/<code>none</code>/아니오 가 <strong>아닌</strong> 값이 눈에 띄는 쪽이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Select each module in the left column</p>
+            <p class="exp"><span class="explabel">expected</span>Its declared network, filesystem and credential values are the manifest&#x27;s own words, and a value other than `deny`/`none`/no is the one that stands out</p>
+          </details>
           <span class="inv">MODULE HOME §2</span>
         </div>
         <div class="controls">
@@ -697,8 +829,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-25</span></div>
         <div class="body">
-          <p class="step">Narrow the window until the bookmark bar overflows its buttons</p>
-          <p class="exp"><span class="explabel">기대</span>The Sunshine button keeps its place at the leading edge and is never drawn over the button beside it</p>
+          <p class="step">북마크바의 버튼이 넘칠 때까지 창을 좁힌다</p>
+          <p class="exp"><span class="explabel">기대</span>Sunshine 버튼이 시작 가장자리 제자리를 지키고, 옆 버튼 위에 <strong>겹쳐 그려지지 않는다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Narrow the window until the bookmark bar overflows its buttons</p>
+            <p class="exp"><span class="explabel">expected</span>The Sunshine button keeps its place at the leading edge and is never drawn over the button beside it</p>
+          </details>
           <span class="inv">patch 0008, `GetMinimumSize()`</span>
         </div>
         <div class="controls">
@@ -714,8 +851,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-37</span></div>
         <div class="body">
-          <p class="step">On `chrome://sunshine-modules`, follow the link below the module list</p>
-          <p class="exp"><span class="explabel">기대</span>It arrives at `chrome://sunshine-shell`. This is the only route to that surface that is not typing its address, and before patch 0013 there was none</p>
+          <p class="step"><code>chrome://sunshine-modules</code> 에서 모듈 목록 아래의 링크를 따라간다</p>
+          <p class="exp"><span class="explabel">기대</span><code>chrome://sunshine-shell</code> 에 도착한다. 주소를 직접 입력하지 않고 그 표면에 가는 <strong>유일한 경로</strong>이며, 패치 0013 이전에는 그런 경로가 없었다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">On `chrome://sunshine-modules`, follow the link below the module list</p>
+            <p class="exp"><span class="explabel">expected</span>It arrives at `chrome://sunshine-shell`. This is the only route to that surface that is not typing its address, and before patch 0013 there was none</p>
+          </details>
           <span class="inv">MODULE HOME §1, patch 0013</span>
         </div>
         <div class="controls">
@@ -731,8 +873,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RVV-4</span></div>
         <div class="body">
-          <p class="step">The bookmark bar&#x27;s Sunshine button in light and dark</p>
-          <p class="exp"><span class="explabel">기대</span>The glyph resolves `kColorBookmarkButtonIcon` in both, the same as the overflow button beside it; it is never a fixed colour that survives the theme change</p>
+          <p class="step">북마크바의 Sunshine 버튼을 라이트와 다크에서 본다</p>
+          <p class="exp"><span class="explabel">기대</span>글리프가 두 테마 모두에서 <code>kColorBookmarkButtonIcon</code> 을 해석한다 — 옆의 오버플로 버튼과 동일하게. 테마 변경을 견디는 고정색이 결코 아니다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">The bookmark bar&#x27;s Sunshine button in light and dark</p>
+            <p class="exp"><span class="explabel">expected</span>The glyph resolves `kColorBookmarkButtonIcon` in both, the same as the overflow button beside it; it is never a fixed colour that survives the theme change</p>
+          </details>
           
         </div>
         <div class="controls">
@@ -748,8 +895,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RVV-5</span></div>
         <div class="body">
-          <p class="step">Keyboard-only traversal of the bookmark bar</p>
-          <p class="exp"><span class="explabel">기대</span>The Sunshine button is the first stop, matching where it is drawn — the child order in `Init()` is the focus order</p>
+          <p class="step">북마크바를 키보드만으로 이동한다</p>
+          <p class="exp"><span class="explabel">기대</span>Sunshine 버튼이 <strong>첫 번째 정지점</strong>이고, 그려진 위치와 일치한다 — <code>Init()</code> 의 자식 순서가 곧 포커스 순서다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Keyboard-only traversal of the bookmark bar</p>
+            <p class="exp"><span class="explabel">expected</span>The Sunshine button is the first stop, matching where it is drawn — the child order in `Init()` is the focus order</p>
+          </details>
           
         </div>
         <div class="controls">
@@ -777,8 +929,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-31</span></div>
         <div class="body">
-          <p class="step">Open `chrome://sunshine-shell` and reach all nine states in §3 of the shell contract, then reach each one back</p>
-          <p class="exp"><span class="explabel">기대</span>Every state is reachable and reversible. The skeleton is the same in all of them; only content changes</p>
+          <p class="step"><code>chrome://sunshine-shell</code> 을 열고 셸 계약 §3 의 아홉 가지 상태에 모두 도달한 뒤, 각각에서 되돌아온다</p>
+          <p class="exp"><span class="explabel">기대</span>모든 상태에 도달 가능하고 되돌릴 수 있다. 뼈대는 전부 동일하고 내용만 바뀐다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://sunshine-shell` and reach all nine states in §3 of the shell contract, then reach each one back</p>
+            <p class="exp"><span class="explabel">expected</span>Every state is reachable and reversible. The skeleton is the same in all of them; only content changes</p>
+          </details>
           <span class="inv">MS-6, MS-8</span>
         </div>
         <div class="controls">
@@ -794,8 +951,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-32</span></div>
         <div class="body">
-          <p class="step">Narrow the window past the clamp with all four regions open</p>
-          <p class="exp"><span class="explabel">기대</span>E collapses first, then C. D never goes below 480px while visible, and B never changes</p>
+          <p class="step">네 영역을 모두 연 채로 클램프를 넘겨 창을 좁힌다</p>
+          <p class="exp"><span class="explabel">기대</span>E 가 먼저 접히고 그다음 C. D 는 보이는 동안 480px 아래로 <strong>내려가지 않고</strong>, B 는 전혀 변하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Narrow the window past the clamp with all four regions open</p>
+            <p class="exp"><span class="explabel">expected</span>E collapses first, then C. D never goes below 480px while visible, and B never changes</p>
+          </details>
           <span class="inv">MS-5</span>
         </div>
         <div class="controls">
@@ -811,8 +973,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-33</span></div>
         <div class="body">
-          <p class="step">Set a tab width in one module, switch modules, switch back; then toggle the bar and the dock and switch modules</p>
-          <p class="exp"><span class="explabel">기대</span>The tab width returns per module. The bar toggle and the dock width do not change when the module does</p>
+          <p class="step">한 모듈에서 탭 너비를 정하고 모듈을 바꿨다 돌아온다. 이어서 바와 독을 토글하고 모듈을 바꾼다</p>
+          <p class="exp"><span class="explabel">기대</span>탭 너비가 <strong>모듈별로</strong> 돌아온다. 바 토글과 독 너비는 모듈이 바뀌어도 변하지 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Set a tab width in one module, switch modules, switch back; then toggle the bar and the dock and switch modules</p>
+            <p class="exp"><span class="explabel">expected</span>The tab width returns per module. The bar toggle and the dock width do not change when the module does</p>
+          </details>
           <span class="inv">MS-7</span>
         </div>
         <div class="controls">
@@ -828,8 +995,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-34</span></div>
         <div class="body">
-          <p class="step">Drag each splitter, release outside the window, and double-click it</p>
-          <p class="exp"><span class="explabel">기대</span>Live resize with no ghost line; the width persists where the pointer left it; double-click returns the default</p>
+          <p class="step">각 스플리터를 끌고, 창 밖에서 놓고, 더블클릭한다</p>
+          <p class="exp"><span class="explabel">기대</span>고스트 선 없이 실시간으로 크기가 바뀌고, 포인터가 놓인 자리에 너비가 유지되며, 더블클릭은 기본값으로 되돌린다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Drag each splitter, release outside the window, and double-click it</p>
+            <p class="exp"><span class="explabel">expected</span>Live resize with no ghost line; the width persists where the pointer left it; double-click returns the default</p>
+          </details>
           <span class="inv">shell contract §4</span>
         </div>
         <div class="controls">
@@ -845,8 +1017,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-38</span></div>
         <div class="body">
-          <p class="step">In the module shell, press **Register** at the foot of the dock</p>
-          <p class="exp"><span class="explabel">기대</span>It arrives at the module home&#x27;s registration section. Nothing is installed, nothing changes, and the section says why: a module is compiled in. The control is at the very bottom of B, below the Names toggle</p>
+          <p class="step">모듈 셸에서 독 맨 아래의 <strong>Register</strong> 를 누른다</p>
+          <p class="exp"><span class="explabel">기대</span>모듈 홈의 등록 섹션에 도착한다. 아무것도 설치되지 않고 아무것도 변하지 않으며, 그 섹션이 이유를 말한다 — 모듈은 컴파일되어 들어간다. 그 컨트롤은 B 의 맨 아래, Names 토글 밑에 있다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">In the module shell, press **Register** at the foot of the dock</p>
+            <p class="exp"><span class="explabel">expected</span>It arrives at the module home&#x27;s registration section. Nothing is installed, nothing changes, and the section says why: a module is compiled in. The control is at the very bottom of B, below the Names toggle</p>
+          </details>
           <span class="inv">MODULE SHELL §1, MH-1, patch 0014</span>
         </div>
         <div class="controls">
@@ -874,8 +1051,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-13</span></div>
         <div class="body">
-          <p class="step">Open `chrome://sunshine-document`, build a hierarchy 1 → 1.1 → 1.2 → 1.2.1 → 2, then press Next from 1.2</p>
-          <p class="exp"><span class="explabel">기대</span>1.2.1, not 2. The contents list is the reading order, depth first</p>
+          <p class="step"><code>chrome://sunshine-document</code> 를 열고 1 → 1.1 → 1.2 → 1.2.1 → 2 계층을 만든 뒤, 1.2 에서 다음을 누른다</p>
+          <p class="exp"><span class="explabel">기대</span>2가 아니라 <strong>1.2.1</strong>. 목차는 깊이 우선의 읽기 순서다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://sunshine-document`, build a hierarchy 1 → 1.1 → 1.2 → 1.2.1 → 2, then press Next from 1.2</p>
+            <p class="exp"><span class="explabel">expected</span>1.2.1, not 2. The contents list is the reading order, depth first</p>
+          </details>
           <span class="inv">DOC contract §3</span>
         </div>
         <div class="controls">
@@ -891,8 +1073,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-14</span></div>
         <div class="body">
-          <p class="step">Read a section whose HTML carries its own `&lt;head&gt;&lt;style&gt;`</p>
-          <p class="exp"><span class="explabel">기대</span>That styling applies and the pane *is* the document, edge to edge — not a stripped fragment inside Sunshine&#x27;s own frame</p>
+          <p class="step">HTML이 자체 <code>&lt;head&gt;&lt;style&gt;</code> 을 담은 섹션을 읽는다</p>
+          <p class="exp"><span class="explabel">기대</span>그 스타일이 적용되고, 창 전체가 <strong>그 문서 자체</strong>다 — Sunshine 프레임 안에 끼워진 벗겨진 조각이 아니다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Read a section whose HTML carries its own `&lt;head&gt;&lt;style&gt;`</p>
+            <p class="exp"><span class="explabel">expected</span>That styling applies and the pane *is* the document, edge to edge — not a stripped fragment inside Sunshine&#x27;s own frame</p>
+          </details>
           <span class="inv">DOC-1</span>
         </div>
         <div class="controls">
@@ -908,8 +1095,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-15</span></div>
         <div class="body">
-          <p class="step">Read a section whose HTML contains a `&lt;script&gt;` that would be visible if it ran</p>
-          <p class="exp"><span class="explabel">기대</span>The document renders; the script does not run</p>
+          <p class="step">실행되면 눈에 보였을 <code>&lt;script&gt;</code> 를 담은 섹션을 읽는다</p>
+          <p class="exp"><span class="explabel">기대</span>문서는 렌더링되고, 스크립트는 <strong>실행되지 않는다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Read a section whose HTML contains a `&lt;script&gt;` that would be visible if it ran</p>
+            <p class="exp"><span class="explabel">expected</span>The document renders; the script does not run</p>
+          </details>
           <span class="inv">DOCA-3</span>
         </div>
         <div class="controls">
@@ -925,8 +1117,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-16</span></div>
         <div class="body">
-          <p class="step">Read a section referencing a remote image</p>
-          <p class="exp"><span class="explabel">기대</span>Shown as absent, and no request for it appears in DevTools&#x27; network panel</p>
+          <p class="step">원격 이미지를 참조하는 섹션을 읽는다</p>
+          <p class="exp"><span class="explabel">기대</span>이미지는 없는 것으로 표시되고, DevTools 네트워크 패널에 그 <strong>요청이 나타나지 않는다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Read a section referencing a remote image</p>
+            <p class="exp"><span class="explabel">expected</span>Shown as absent, and no request for it appears in DevTools&#x27; network panel</p>
+          </details>
           <span class="inv">DOC-5, DOCA-4</span>
         </div>
         <div class="controls">
@@ -942,8 +1139,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-17</span></div>
         <div class="body">
-          <p class="step">Store a document, navigate away, come back, and compare</p>
-          <p class="exp"><span class="explabel">기대</span>Byte-identical to what was stored; no normalisation, no re-indentation, no pagination written back</p>
+          <p class="step">문서를 저장하고, 다른 곳으로 갔다가, 돌아와서 비교한다</p>
+          <p class="exp"><span class="explabel">기대</span>저장한 것과 <strong>바이트 단위로 동일</strong>하다. 정규화도, 들여쓰기 재조정도, 페이지 나눔의 역기록도 없다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Store a document, navigate away, come back, and compare</p>
+            <p class="exp"><span class="explabel">expected</span>Byte-identical to what was stored; no normalisation, no re-indentation, no pagination written back</p>
+          </details>
           <span class="inv">DOC-4, DOCA-5</span>
         </div>
         <div class="controls">
@@ -959,8 +1161,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-18</span></div>
         <div class="body">
-          <p class="step">Delete a project that had documents, then reopen the surface</p>
-          <p class="exp"><span class="explabel">기대</span>The project and every document of it are gone</p>
+          <p class="step">문서가 있던 프로젝트를 삭제한 뒤 표면을 다시 연다</p>
+          <p class="exp"><span class="explabel">기대</span>그 프로젝트와 그에 속한 모든 문서가 사라져 있다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Delete a project that had documents, then reopen the surface</p>
+            <p class="exp"><span class="explabel">expected</span>The project and every document of it are gone</p>
+          </details>
           <span class="inv">DOC-7, DOCA-6</span>
         </div>
         <div class="controls">
@@ -976,8 +1183,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-19</span></div>
         <div class="body">
-          <p class="step">With a section open, press refresh, then download</p>
-          <p class="exp"><span class="explabel">기대</span>Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document</p>
+          <p class="step">섹션을 연 채로 새로고침을 누르고, 이어서 내려받는다</p>
+          <p class="exp"><span class="explabel">기대</span>새로고침은 편집기의 <strong>저장되지 않은 편집을 건드리지 않고</strong> 저장소에서 다시 읽는다. 내려받기는 저장된 문서를 내용으로 하는 <code>.html</code> 파일을 저장한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With a section open, press refresh, then download</p>
+            <p class="exp"><span class="explabel">expected</span>Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document</p>
+          </details>
           <span class="inv">DOC-3, DOC-8</span>
         </div>
         <div class="controls">
@@ -1004,8 +1216,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-35</span></div>
         <div class="body">
-          <p class="step">With a module mounted, open E, then close it, and look at the frame count in `chrome://process-internals`</p>
+          <p class="step">모듈이 마운트된 상태에서 E 를 열었다 닫고, <code>chrome://process-internals</code> 에서 프레임 수를 본다</p>
           <p class="exp"><span class="explabel">막힌 이유</span>마운트를 선언한 모듈이 없습니다. 열 프레임도, 파괴할 프레임도 없습니다.</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With a module mounted, open E, then close it, and look at the frame count in `chrome://process-internals`</p>
+            <p class="exp"><span class="explabel">expected</span>Closing E destroys its frame. A module does not keep running behind a region the user has put away</p>
+          </details>
         </div>
         <div class="controls"><span class="locknote">실행 불가</span></div>
       </div>
@@ -1013,8 +1230,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-36</span></div>
         <div class="body">
-          <p class="step">Switch from one mounted module to another and back</p>
+          <p class="step">마운트된 모듈에서 다른 모듈로 갔다가 돌아온다</p>
           <p class="exp"><span class="explabel">막힌 이유</span>같은 원인. 마운트된 모듈 둘을 오가려면 마운트된 모듈이 둘 있어야 합니다.</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Switch from one mounted module to another and back</p>
+            <p class="exp"><span class="explabel">expected</span>The second module&#x27;s frame replaces the first rather than reusing it: nothing of the first module&#x27;s document survives into the second, and returning to it starts it again</p>
+          </details>
         </div>
         <div class="controls"><span class="locknote">실행 불가</span></div>
       </div></div>
@@ -1033,8 +1255,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">RV-7</span></div>
         <div class="body">
-          <p class="step">Open a new tab</p>
+          <p class="step">새 탭을 연다</p>
           <p class="exp"><span class="explabel">기록됨</span>빌드 #12 (커밋 6aa75ff) 에서 PASS 기록됨. 이 시트의 유일한 기존 증거입니다.</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open a new tab</p>
+            <p class="exp"><span class="explabel">expected</span>The Sunshine wordmark occupies the logo slot; Chromium&#x27;s own logo is absent</p>
+          </details>
         </div>
         <div class="controls"><span class="lockdone">PASS</span></div>
       </div></div>

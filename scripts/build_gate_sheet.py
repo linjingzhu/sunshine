@@ -93,6 +93,102 @@ UNGATED = [
      "파일을 넣기 전에 새 탭을 한 번 열어보시면 대조가 됩니다 — 배경이 없을 때는 프레임 자체가 만들어지지 않습니다."),
 ]
 
+# Korean for each gate. Keyed by id so a gate added upstream without a
+# translation fails the build of this sheet rather than appearing in English.
+KOREAN = {
+# `{codes}` is filled from the gate's own English text at generation time.
+# The switch names are deliberately not written here: this file lives in
+# `scripts/`, which `verify_chromium_security_invariants.py` sweeps for exactly
+# those strings, and it is right to -- a checklist that names what it forbids
+# is indistinguishable, to a substring search, from a build that sets it.
+# Reading them from the document also means they cannot drift from it.
+"RV-1": ("`chrome://version` 을 연다",
+  "명령줄에 {codes} 가 **없다**"),
+"RV-2": ("`chrome://sandbox` 를 연다",
+  "모든 렌더러 행이 샌드박스를 **활성**으로 보고한다"),
+"RV-3": ("`chrome://process-internals` 를 연다",
+  "사이트 격리 모드가 site-per-process 이고, 교차 사이트 프레임 둘이 서로 **다른 프로세스**를 차지한다"),
+"RV-4": ("옴니박스에 `sunshine://anything` 을 입력한다",
+  "탐색이 아니라 **검색**으로 처리된다 — 그 스킴은 해석되지 않는다"),
+"RV-5": ("H.264/AAC 동영상을 재생한다", "디코딩되어 재생된다"),
+"RV-6": ("VP9 또는 AV1 동영상을 재생한다",
+  "디코딩되어 재생된다 — 코덱 변경이 로열티 프리 경로를 **잃게 하지 않았어야** 한다"),
+"RV-7": ("새 탭을 연다",
+  "로고 자리에 Sunshine 워드마크가 있고, Chromium 자체 로고는 없다"),
+"RV-8": ("키가 없는 빌드에서 새 탭을 연다",
+  "Google API 키가 없다고 알리는 인포바가 **뜨지 않는다**"),
+"RV-9": ("새 탭 페이지에서 검색한다",
+  "Chromium 자체 검색 처리가 동작한다. Sunshine의 개입도, 강제된 시작 URL도 없다"),
+"RV-10": ("탐색기 목록 보기, 작업표시줄, 고정된 바로가기에서 `chrome.exe` 를 본다",
+  "셸이 요구하는 세 가지 크기 각각에서 Sunshine 아이콘이 제대로 보인다 — 늘어나지 않고, 이웃 크기를 확대·축소한 것이 아니며, Chromium의 파란 구가 아니다"),
+"RV-11": ("탐색기에서 `mini_installer.exe` 를 본다", "Sunshine 아이콘"),
+"RV-12": ("`chrome://sunshine-security` 를 연다",
+  "네 개의 판정 문단 중 **정확히 하나**가 보이고, 그것이 이 빌드의 불리언 세 개가 함의하는 바로 그 문단이다"),
+"RV-13": ("`chrome://sunshine-document` 를 열고 1 → 1.1 → 1.2 → 1.2.1 → 2 계층을 만든 뒤, 1.2 에서 다음을 누른다",
+  "2가 아니라 **1.2.1**. 목차는 깊이 우선의 읽기 순서다"),
+"RV-14": ("HTML이 자체 `<head><style>` 을 담은 섹션을 읽는다",
+  "그 스타일이 적용되고, 창 전체가 **그 문서 자체**다 — Sunshine 프레임 안에 끼워진 벗겨진 조각이 아니다"),
+"RV-15": ("실행되면 눈에 보였을 `<script>` 를 담은 섹션을 읽는다",
+  "문서는 렌더링되고, 스크립트는 **실행되지 않는다**"),
+"RV-16": ("원격 이미지를 참조하는 섹션을 읽는다",
+  "이미지는 없는 것으로 표시되고, DevTools 네트워크 패널에 그 **요청이 나타나지 않는다**"),
+"RV-17": ("문서를 저장하고, 다른 곳으로 갔다가, 돌아와서 비교한다",
+  "저장한 것과 **바이트 단위로 동일**하다. 정규화도, 들여쓰기 재조정도, 페이지 나눔의 역기록도 없다"),
+"RV-18": ("문서가 있던 프로젝트를 삭제한 뒤 표면을 다시 연다",
+  "그 프로젝트와 그에 속한 모든 문서가 사라져 있다"),
+"RV-19": ("섹션을 연 채로 새로고침을 누르고, 이어서 내려받는다",
+  "새로고침은 편집기의 **저장되지 않은 편집을 건드리지 않고** 저장소에서 다시 읽는다. 내려받기는 저장된 문서를 내용으로 하는 `.html` 파일을 저장한다"),
+"RV-20": ("페이지 본문에서 오른쪽 버튼을 누른 채 왼쪽으로 200 px 끌고 놓는다. 오른쪽으로도 반복하고, 50 px 만 끄는 것도 반복한다",
+  "왼쪽은 뒤로, 오른쪽은 앞으로 가고, **짧은 드래그는 대신 컨텍스트 메뉴**를 띄운다. 긴 드래그는 둘 다 메뉴를 띄우지 않으며, 어떤 누름도 두 가지를 동시에 하지 않는다"),
+"RV-21": ("북마크바를 표시하고 시작 가장자리를 본다",
+  "Sunshine 버튼 하나가 저장된 탭 그룹 버튼 **왼쪽**에 있고 툴팁은 'Sunshine modules'. 그 글리프는 탭 그룹 버튼이 쓰는 격자가 아니다"),
+"RV-22": ("그 버튼을 클릭하고, 이어서 ctrl+클릭한다",
+  "첫 번째는 현재 탭에 `chrome://sunshine-modules` 를 열고, 두 번째는 **새 배경 탭**에 연다. 이 바의 다른 모든 버튼과 마찬가지로 처리 방식이 수정자 키를 따른다"),
+"RV-23": ("`chrome://sunshine-modules` 에서 왼쪽 열을 `first_party/registry.json` 과 대조한다",
+  "같은 모듈, 같은 순서이고 제목의 개수도 일치한다. 이것은 동기화 가드가 닿을 수 없는 게이트다 — 가드는 패치와 `first_party/` 를 비교하지, **실행 중인 페이지**를 어느 쪽과도 비교하지 않는다"),
+"RV-24": ("왼쪽 열에서 각 모듈을 선택한다",
+  "선언된 네트워크·파일시스템·자격증명 값이 매니페스트의 표현 그대로이고, `deny`/`none`/아니오 가 **아닌** 값이 눈에 띄는 쪽이다"),
+"RV-25": ("북마크바의 버튼이 넘칠 때까지 창을 좁힌다",
+  "Sunshine 버튼이 시작 가장자리 제자리를 지키고, 옆 버튼 위에 **겹쳐 그려지지 않는다**"),
+"RV-26": ("설치한 뒤 설치 디렉터리, 시작 메뉴 항목, 작업표시줄 항목, Windows 기본 앱 목록을 본다",
+  "네 곳 모두 Sunshine 이라고 한다. 특히 설치 디렉터리가 `Chromium` 이 아니라 `%LOCALAPPDATA%\\Sunshine\\Application` 이다 — 진짜 Chromium 이 깔린 기계였다면 충돌했을 자리다"),
+"RV-27": ("앱 메뉴, 정보, 기본 브라우저 안내를 연다",
+  "모두 Sunshine 을 가리킨다. 정보는 여전히 **The Chromium Authors** 를 표기하고 저작권 표시도 그대로다 — 그게 맞고, 패치 0010 이 지키는 것이 그것이다"),
+"RV-28": ("진짜 Chromium 또는 Chrome 도 설치된 상태에서 Sunshine 을 설치하고 둘 다 쓴다",
+  "어느 쪽도 다른 쪽의 파일이나 프로필을 대체하지 않고, 작업표시줄에 **두 개의 애플리케이션**으로 보인다"),
+"RV-29": ("설치 후 프로필을 찾는다: `%LOCALAPPDATA%\\Sunshine\\User Data`",
+  "존재하고 프로필을 담고 있다. `%LOCALAPPDATA%\\Chromium` 은 **손대지 않은 상태**다 — 진짜 Chromium 이 있는 기계에서는 그 브라우저의 프로필이고, 이 변경 전에는 같은 디렉터리였다"),
+"RV-30": ("설치 후 `HKCR` 에서 `chromium` 키와 `sunshine` 키를 확인한다",
+  "둘 다 URL 프로토콜로 **등록돼 있지 않다**. `direct_launch_url_scheme` 이 비어 있다는 것은 인스톨러가 `Software\\Classes\\<scheme>` 항목을 아예 쓰지 않는다는 뜻이다"),
+"RV-31": ("`chrome://sunshine-shell` 을 열고 셸 계약 §3 의 아홉 가지 상태에 모두 도달한 뒤, 각각에서 되돌아온다",
+  "모든 상태에 도달 가능하고 되돌릴 수 있다. 뼈대는 전부 동일하고 내용만 바뀐다"),
+"RV-32": ("네 영역을 모두 연 채로 클램프를 넘겨 창을 좁힌다",
+  "E 가 먼저 접히고 그다음 C. D 는 보이는 동안 480px 아래로 **내려가지 않고**, B 는 전혀 변하지 않는다"),
+"RV-33": ("한 모듈에서 탭 너비를 정하고 모듈을 바꿨다 돌아온다. 이어서 바와 독을 토글하고 모듈을 바꾼다",
+  "탭 너비가 **모듈별로** 돌아온다. 바 토글과 독 너비는 모듈이 바뀌어도 변하지 않는다"),
+"RV-34": ("각 스플리터를 끌고, 창 밖에서 놓고, 더블클릭한다",
+  "고스트 선 없이 실시간으로 크기가 바뀌고, 포인터가 놓인 자리에 너비가 유지되며, 더블클릭은 기본값으로 되돌린다"),
+"RV-35": ("모듈이 마운트된 상태에서 E 를 열었다 닫고, `chrome://process-internals` 에서 프레임 수를 본다",
+  "E 를 닫으면 그 프레임이 **파괴된다**. 사용자가 치워둔 영역 뒤에서 모듈이 계속 돌지 않는다"),
+"RV-36": ("마운트된 모듈에서 다른 모듈로 갔다가 돌아온다",
+  "두 번째 모듈의 프레임이 첫 번째를 **재사용하지 않고 대체한다**. 첫 모듈 문서의 어떤 것도 두 번째로 넘어가지 않으며, 돌아가면 처음부터 다시 시작한다"),
+"RV-37": ("`chrome://sunshine-modules` 에서 모듈 목록 아래의 링크를 따라간다",
+  "`chrome://sunshine-shell` 에 도착한다. 주소를 직접 입력하지 않고 그 표면에 가는 **유일한 경로**이며, 패치 0013 이전에는 그런 경로가 없었다"),
+"RV-38": ("모듈 셸에서 독 맨 아래의 **Register** 를 누른다",
+  "모듈 홈의 등록 섹션에 도착한다. 아무것도 설치되지 않고 아무것도 변하지 않으며, 그 섹션이 이유를 말한다 — 모듈은 컴파일되어 들어간다. 그 컨트롤은 B 의 맨 아래, Names 토글 밑에 있다"),
+"RVV-1": ("새 탭을 폭 533 px, 768 px, 933 px 에서 본다",
+  "워드마크가 매끄럽게 확대·축소되고 잘리거나 줄바꿈되지 않는다"),
+"RVV-2": ("새 탭을 라이트와 다크에서 본다",
+  "둘 다 디자인 시스템 토큰을 쓰고, 어느 쪽도 색을 하드코딩하지 않는다"),
+"RVV-3": ("새 탭 페이지를 키보드만으로 이동한다",
+  "모든 정지점에서 포커스가 보이고, 검색 입력란에 도달한다"),
+"RVV-4": ("북마크바의 Sunshine 버튼을 라이트와 다크에서 본다",
+  "글리프가 두 테마 모두에서 `kColorBookmarkButtonIcon` 을 해석한다 — 옆의 오버플로 버튼과 동일하게. 테마 변경을 견디는 고정색이 결코 아니다"),
+"RVV-5": ("북마크바를 키보드만으로 이동한다",
+  "Sunshine 버튼이 **첫 번째 정지점**이고, 그려진 위치와 일치한다 — `Init()` 의 자식 순서가 곧 포커스 순서다"),
+}
+
+
 GATE_ROW = re.compile(r"^\| (RV-\d+|RVV-\d+) \| (.*?) \| (.*?) \|(?: (.*?) \|)?\s*$", re.M)
 BLOCK_ROW = re.compile(
     r"^\| \*\*([A-Z]\d?) — [^|]*\*\* \| ([^|]+) \| ([^|]+) \| ([^|]+) \|\s*$", re.M)
@@ -127,15 +223,38 @@ def esc(text: str) -> str:
     return html.escape(text, quote=True)
 
 
+def markup(text: str) -> str:
+    """Escape, then let `**bold**` and `` `code` `` through.
+
+    The Korean carries emphasis where the English carried it, and a gate whose
+    load-bearing word is not marked reads as evenly weighted prose that someone
+    skims.
+    """
+
+    out = esc(text)
+    out = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out)
+    out = re.sub(r"`(.+?)`", r"<code>\1</code>", out)
+    return out
+
+
 def gate_row(gate: dict[str, str], badge: str = "") -> str:
     inv = f'<span class="inv">{esc(gate["invariant"])}</span>' if gate["invariant"] else ""
+    step_ko, expected_ko = KOREAN[gate["id"]]
+    if "{codes}" in expected_ko:
+        codes = ", ".join(f"`{token}`" for token in re.findall(r"`([^`]+)`", gate["expected"]))
+        expected_ko = expected_ko.replace("{codes}", codes)
     return f"""
       <div class="gate" data-gate="{gate['id']}">
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">{gate['id']}</span>{badge}</div>
         <div class="body">
-          <p class="step">{esc(gate['step'])}</p>
-          <p class="exp"><span class="explabel">기대</span>{esc(gate['expected'])}</p>
+          <p class="step">{markup(step_ko)}</p>
+          <p class="exp"><span class="explabel">기대</span>{markup(expected_ko)}</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">{esc(gate['step'])}</p>
+            <p class="exp"><span class="explabel">expected</span>{esc(gate['expected'])}</p>
+          </details>
           {inv}
         </div>
         <div class="controls">
@@ -155,8 +274,13 @@ def locked_row(gate: dict[str, str], label: str, why: str, kind: str, control: s
         <div class="stripe" aria-hidden="true"></div>
         <div class="gid"><span class="idtag">{gate['id']}</span></div>
         <div class="body">
-          <p class="step">{esc(gate['step'])}</p>
+          <p class="step">{markup(KOREAN[gate['id']][0])}</p>
           <p class="exp"><span class="explabel">{label}</span>{esc(why)}</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">{esc(gate['step'])}</p>
+            <p class="exp"><span class="explabel">expected</span>{esc(gate['expected'])}</p>
+          </details>
         </div>
         <div class="controls">{control}</div>
       </div>"""
@@ -166,6 +290,17 @@ def build(root: Path = ROOT) -> str:
     gate = gates(root)
     if len(gate) != 43:
         raise SystemExit(f"expected 43 gates in RUNTIME_VERIFICATION.md, parsed {len(gate)}")
+
+    # A gate added upstream without a translation must stop this script rather
+    # than appear in English among Korean rows, where a reader would take the
+    # odd one out for a formatting slip instead of a missing translation.
+    untranslated = sorted(set(gate) - set(KOREAN))
+    stale = sorted(set(KOREAN) - set(gate))
+    if untranslated or stale:
+        raise SystemExit(
+            f"KOREAN is out of step with the gate table; missing={untranslated}, "
+            f"no longer a gate={stale}"
+        )
 
     sections = []
     scheduled = set()
@@ -372,6 +507,18 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 .exp{margin:7px 0 0;font-size:13.5px;color:var(--ink-2);line-height:1.5}
 .explabel{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink-3);margin-right:7px}
+.src{margin-top:9px}
+.src summary{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);cursor:pointer;list-style:none;
+  display:inline-block;padding:2px 7px;border:1px solid var(--rule-2);border-radius:3px}
+.src summary::-webkit-details-marker{display:none}
+.src summary:hover{color:var(--accent);border-color:var(--accent)}
+.src[open] summary{margin-bottom:7px}
+.src .step,.src .exp{font-size:12.5px;color:var(--ink-3);margin:0 0 4px;padding-left:10px;
+  border-left:2px solid var(--rule-2)}
+.step code,.exp code{font-family:"IBM Plex Mono",monospace;font-size:.9em;
+  background:var(--surface-2);border:1px solid var(--rule-2);border-radius:3px;padding:1px 4px}
+.step strong,.exp strong{font-weight:600;color:var(--ink)}
 .inv{display:inline-block;margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:11px;
   color:var(--ink-3);background:var(--surface-2);border:1px solid var(--rule-2);
   padding:2px 6px;border-radius:3px}
