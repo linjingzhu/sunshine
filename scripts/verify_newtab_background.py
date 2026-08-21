@@ -72,22 +72,48 @@ REPEATING_SYMBOLS = (
 )
 
 
-def added_lines(patch_text: str) -> str:
-    kept = [
-        line[1:]
-        for line in patch_text.splitlines()
-        if line.startswith("+") and not line.startswith("+++ ")
-    ]
-    return "\n".join(kept)
+def added_lines_by_target(root: Path) -> dict[str, str]:
+    """{upstream path: the text the stack adds to it}.
 
+    Attribution by file, not by proximity in a concatenated blob. The first
+    version of this check searched a text window around each symbol and asked
+    whether the word "background" was nearby -- which is a vocabulary test
+    wearing a scope's clothes, and it fired on an unrelated timer in an
+    unrelated file because the New Tab page's own markup says "background"
+    dozens of times. A symbol either lands in this feature's files or it does
+    not; that is a fact, and this reads it.
+    """
 
-def stack_text(root: Path) -> str:
-    """Every line the patch stack adds, as one blob."""
-
-    blobs = []
+    result: dict[str, list[str]] = {}
     for patch in sorted((root / "downstream/patches").glob("*.patch")):
-        blobs.append(added_lines(patch.read_text(encoding="utf-8")))
-    return "\n".join(blobs)
+        target: str | None = None
+        for line in patch.read_text(encoding="utf-8").splitlines():
+            if line.startswith("+++ "):
+                target = line[4:].strip()
+                if target.startswith("b/"):
+                    target = target[2:]
+                continue
+            if line.startswith("--- ") or line.startswith("diff --git"):
+                continue
+            if target and line.startswith("+"):
+                result.setdefault(target, []).append(line[1:])
+    return {path: "\n".join(lines) for path, lines in result.items()}
+
+
+# What makes a file part of this feature, decided from what it says rather than
+# from a list someone has to remember to update. A file added tomorrow that
+# serves or renders the background names one of these and is in scope by that
+# fact alone.
+FEATURE_MARKERS = ("newtab_background", "sunshineBackground",
+                   "ReadInstalledBackground", "sunshine-background")
+
+
+def feature_targets(added: dict[str, str]) -> dict[str, str]:
+    return {
+        path: text
+        for path, text in added.items()
+        if any(marker in text or marker in path for marker in FEATURE_MARKERS)
+    }
 
 
 def byte_arrays(text: str) -> list[tuple[str, ...]]:
@@ -117,15 +143,16 @@ def _webp_offsets(text: str) -> set[str]:
 
 
 def check(root: Path, failures: list[str]) -> None:
-    text = stack_text(root)
+    added = added_lines_by_target(root)
 
-    if SOURCE not in text and "newtab_background" not in text:
+    source = added.get(SOURCE)
+    if source is None:
         failures.append(f"NTB-1 {SOURCE} is not in the patch stack")
         return
 
-    arrays = byte_arrays(text)
+    arrays = byte_arrays(source)
 
-    # NTB-1: both permitted signatures are declared, as bytes.
+    # NTB-1: every permitted signature is declared, as bytes.
     if PNG_SIGNATURE not in arrays:
         failures.append("NTB-1 the PNG signature is not declared as a byte array")
     if JPEG_SIGNATURE not in arrays:
@@ -139,7 +166,7 @@ def check(root: Path, failures: list[str]) -> None:
             "NTB-4 the RIFF tag is declared without the WEBP tag; RIFF alone is "
             "shared with WAV and AVI, so this accepts a renamed WAV"
         )
-    if WEBP_TAG in arrays and "8" not in _webp_offsets(text):
+    if WEBP_TAG in arrays and "8" not in _webp_offsets(source):
         failures.append(
             "NTB-4 the WEBP tag is declared but never checked at offset 8"
         )
@@ -150,31 +177,25 @@ def check(root: Path, failures: list[str]) -> None:
             if array[: len(signature)] == signature:
                 failures.append(
                     f"NTB-2 a {label} signature is declared as a byte array; "
-                    "the rule admits PNG and JPEG only"
+                    "the rule admits PNG, JPEG and WebP only"
                 )
 
     # NTB-2: the decision is not made from the file name.
-    #
-    # `.Extension()`, `MatchesExtension` and `EndsWith(..., \".png\")` are the
-    # three ways this goes wrong, and each reads as a format check while
-    # deciding nothing about the bytes.
     for symbol in (".Extension()", "MatchesExtension", "FinalExtension"):
-        if symbol in text and "newtab_background" in text:
-            window = text[max(0, text.find(symbol) - 600) : text.find(symbol) + 200]
-            if "newtab_background" in window or "DetectFormat" in window:
+        for path, text in feature_targets(added).items():
+            if symbol in text:
                 failures.append(
-                    f"NTB-2 {symbol!r} decides a background's format from its name"
+                    f"NTB-2 {path}: {symbol!r} decides a background's format "
+                    "from its name"
                 )
 
     # NTB-3: nothing Sunshine owns drives the animation.
-    for symbol in REPEATING_SYMBOLS:
-        if symbol in text and "newtab_background" in text:
-            index = text.find(symbol)
-            window = text[max(0, index - 800) : index + 300]
-            if "newtab_background" in window or "background" in window.lower()[:200]:
+    for path, text in feature_targets(added).items():
+        for symbol in REPEATING_SYMBOLS:
+            if symbol in text:
                 failures.append(
-                    f"NTB-3 {symbol!r} would make Sunshine own the animation; "
-                    "PB-5a requires the asset to carry it"
+                    f"NTB-3 {path}: {symbol!r} would make Sunshine own the "
+                    "animation; PB-5a requires the asset to carry it"
                 )
 
 

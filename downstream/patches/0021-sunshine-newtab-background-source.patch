@@ -1,0 +1,69 @@
+diff --git a/chrome/browser/ui/webui/new_tab_page/BUILD.gn b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
+index 15bf03e..73a4afa 100644
+--- a/chrome/browser/ui/webui/new_tab_page/BUILD.gn
++++ b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
+@@ -70,6 +70,7 @@ source_set("impl") {
+     ":mojo_bindings",
+     ":new_tab_page",
+     "//base",
++    "//chrome/browser/ui/sunshine",
+     "//base:i18n",
+     "//build:branding_buildflags",
+     "//chrome/app:branded_strings",
+diff --git a/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc b/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
+index ae1df07..a65b1a3 100644
+--- a/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
++++ b/chrome/browser/ui/webui/new_tab_page/untrusted_source.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/webui/new_tab_page/untrusted_source.h"
++#include "chrome/browser/ui/sunshine/newtab_background.h"
+ 
+ #include <numeric>
+ #include <optional>
+@@ -281,6 +282,26 @@ void UntrustedSource::StartDataRequest(
+         base::BindOnce(&ServeBackgroundImageData, std::move(callback)));
+     return;
+   }
++  // Sunshine's own New Tab background, from the install directory.
++  //
++  // Deliberately not routed through the profile path above. That one is the
++  // *user's* uploaded background, keyed per profile and validated against
++  // directory traversal because its name comes from a preference. This one
++  // takes no name from anywhere: `ReadInstalledBackground` looks only beside
++  // `chrome.exe`, only for names it holds itself, and returns nothing unless
++  // the file's own first bytes say it is a format
++  // `docs/NEWTAB_BACKGROUND_CONTRACT.md` permits. There is no path to
++  // traverse because there is no path from the request.
++  //
++  // Empty bytes are the normal answer: no file installed means no background,
++  // which is what makes the feature opt-in under PB-5a.
++  if (path == "sunshine-background.png") {
++    base::ThreadPool::PostTaskAndReplyWithResult(
++        FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++        base::BindOnce(&sunshine::background::ReadInstalledBackground),
++        base::BindOnce(&ServeBackgroundImageData, std::move(callback)));
++    return;
++  }
+   std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>());
+ }
+ 
+@@ -294,6 +315,17 @@ std::string UntrustedSource::GetMimeType(const GURL& url) {
+                      base::CompareCase::INSENSITIVE_ASCII)) {
+     return "image/jpg";
+   }
++  // The declared type names the path, and the bytes may be any of the three
++  // formats the contract permits -- a `.png` request can return JPEG or WebP
++  // bytes when that is what was installed. That is not a mismatch this file
++  // introduces: Blink chooses an image decoder by signature rather than by
++  // declared type, which is the same fact `sunshine::background::DetectFormat`
++  // is built on, and this page already relies on it -- a PNG uploaded as a
++  // custom background is served above as `image/jpg` and renders.
++  if (base::EndsWith(stripped_path, ".png",
++                     base::CompareCase::INSENSITIVE_ASCII)) {
++    return "image/png";
++  }
+ 
+   return "text/html";
+ }

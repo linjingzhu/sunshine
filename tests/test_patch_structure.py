@@ -7,6 +7,7 @@ it ever reaches the network-dependent gate.
 """
 
 from pathlib import Path
+import re
 import subprocess
 import unittest
 
@@ -42,7 +43,21 @@ class PatchStructureTests(unittest.TestCase):
         """Prove the check above actually fails on a corrupt patch."""
 
         source = (PATCH_DIR / "0002-sunshine-new-tab.patch").read_text(encoding="utf-8")
-        corrupt = source.replace("@@ -28,13 +28,9 @@", "@@ -28,13 +28,8 @@", 1)
+
+        # The first hunk header, whatever it happens to be, with its new-side
+        # line count reduced by one. An earlier version named a specific
+        # header and broke the moment that patch gained a hunk above it -- the
+        # test was asserting where the patch's content sat rather than that
+        # the arithmetic check works.
+        header = re.search(r"^@@ -(\d+),(\d+) \+(\d+),(\d+) @@", source, re.M)
+        self.assertIsNotNone(header, "the patch has no hunk header to corrupt")
+        assert header is not None
+        old_start, old_count, new_start, new_count = header.groups()
+        corrupt = source.replace(
+            header.group(0),
+            f"@@ -{old_start},{old_count} +{new_start},{int(new_count) - 1} @@",
+            1,
+        )
         self.assertNotEqual(source, corrupt, "hunk header to corrupt was not found")
 
         result = subprocess.run(

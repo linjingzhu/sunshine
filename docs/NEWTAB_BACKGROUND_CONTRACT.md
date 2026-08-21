@@ -5,10 +5,12 @@
 The content area's background on `chrome://new-tab-page`, for the Chromium
 revision pinned by Sunshine OS: `152.0.7977.42` (see `config/chromium.version`).
 
-**Partly implemented.** `downstream/patches/0020-sunshine-newtab-background-format.patch`
-implements §2 — what a background may be, and how that is decided — and
-`scripts/verify_newtab_background.py` holds the patch to this document. The
-serving path (§3) and the page itself (§4) are not written.
+**Implemented, and never run.** Three patches:
+`0020-sunshine-newtab-background-format.patch` decides what a background may
+be (§2) and reads it; `0021-sunshine-newtab-background-source.patch` serves it
+(§3); `0002-sunshine-new-tab.patch` shows it (§4).
+`scripts/verify_newtab_background.py` holds the patch stack to this document.
+Nothing has been built or displayed — §5 is the whole of what that means.
 
 Every decision below was made by the owner. This document records them and the
 evidence each rests on; it does not re-derive them.
@@ -93,15 +95,23 @@ Three file names are looked for — `newtab-background.png`,
 format, because asking for a JPEG named `.png` would be asking someone to
 write down something untrue.
 
-**Serving is not implemented and has a measured cost.** A WebUI page cannot
-read an arbitrary disk path. Chromium's own local-background bytes reach the
-New Tab page through `chrome/browser/ui/webui/new_tab_page/untrusted_source.cc`,
-which today serves one fixed name out of the **profile** directory and
-validates the path strictly against directory traversal. Serving from the
-install directory means owning that file: **+1 upstream file**, currently
-owned by no patch. It is the honest place for it — serving these bytes to
-this page is that file's whole job — and it is a real cost against a stack
-that owns twenty upstream files today.
+**Serving costs two upstream files, and they are now owned.** A WebUI page
+cannot read an arbitrary disk path. Chromium's own local-background bytes
+reach the New Tab page through
+`chrome/browser/ui/webui/new_tab_page/untrusted_source.cc`, which serves one
+fixed name out of the **profile** directory and validates it strictly against
+directory traversal. Patch 0021 adds one branch there for
+`sunshine-background.png`, plus the dependency edge in
+`chrome/browser/ui/webui/new_tab_page/BUILD.gn`. The stack owns twenty-two
+upstream files after this, up from twenty.
+
+**The Sunshine branch needs no traversal defence, and the reason is worth
+stating rather than assumed.** Upstream's branch validates because its path
+comes from a preference — a name that reached it from outside. Sunshine's
+takes no name from anywhere: the request path is a fixed string, and
+`ReadInstalledBackground` looks only beside `chrome.exe`, only for names it
+holds itself. There is no path to traverse because there is no path in the
+request.
 
 The rejected alternative is worth recording. Copying the asset into each
 profile at first run would need no new upstream file, and would break the
@@ -126,6 +136,20 @@ original zero-tolerance rule applies again. So this is not a style preference
 about how to write an animation — it is the condition under which the feature
 is permitted to exist.
 
+**How the page shows it, and why it is an iframe.** The New Tab page overrides
+`child-src` to admit `chrome-untrusted://new-tab-page` and does **not**
+override `img-src`, so an `<img>` or a CSS `background-image` pointing there
+would be refused by the page's own policy. That is why upstream's custom
+background is an iframe too, and patch 0002 reuses upstream's
+`custom_background_image` helper rather than inventing a second way in.
+
+The iframe carries `hidden` whenever `document.visibilityState` is not
+`visible`. A hidden subtree renders nothing, so an animated asset inside it
+decodes nothing — which is PB-5a's first property made structural rather than
+assumed. **Hidden rather than removed, deliberately**: `UntrustedSource` does
+not cache, so removing the iframe would re-read the whole file from disk on
+every return to the tab.
+
 **Visible-only and opt-in are runtime criteria** and are PB-5a's own two
 measured runs: idle with no asset configured must equal PB-5's original zero,
 and idle with an asset configured but the New Tab hidden must equal the
@@ -136,10 +160,24 @@ because they already have a home.
 ## 5. NOT VERIFIED
 
 - **Nothing has been run.** No background has been placed, served, or
-  displayed, and no APNG has been animated in a Sunshine build. §2 is a rule a
-  guard holds over source, not evidence about a browser.
-- The serving path of §3 does not exist, so the format rule currently
-  constrains code that nothing calls.
+  displayed, and no animated asset has played in a Sunshine build. The whole
+  of §2 to §4 is source a guard holds, not evidence about a browser. It has
+  not been compiled either: the last Windows build predates all three patches.
+- **A rejected file is indistinguishable from no file.** `ReadInstalledBackground`
+  returns empty for a missing file, an oversized one, and one whose bytes are
+  not a permitted format alike, and no surface anywhere says which happened.
+  An owner whose background does not appear has nothing to read.
+- **The iframe is created even when no background is installed.** The page
+  cannot know whether a file exists without being told, and telling it would
+  mean owning `new_tab_page_ui.cc` as well. So a default build makes one
+  request and three failed file probes per New Tab. That is load cost, not
+  idle cost, so PB-5a's opt-in property still holds — but it is not nothing,
+  and it is the first thing to reconsider if New Tab load time regresses.
+- **`GetMimeType` names the path, not the bytes.** A `.png` request returns
+  JPEG or WebP bytes when that is what was installed. Blink chooses its
+  decoder by signature rather than by declared type — the same fact the format
+  rule rests on, and one this page already relies on upstream — but it is an
+  assumption about Blink, not a measurement.
 - Whether Blink suspends an animated background's decoding in a hidden tab
   **to the degree PB-5a's second run requires** is an assumption about
   upstream behaviour, not a measurement. It is the likeliest place for this

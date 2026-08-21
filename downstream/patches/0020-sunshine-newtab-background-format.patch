@@ -17,17 +17,21 @@ index e9a4eee..3270d2d 100644
    # Passed as a define rather than read from a generated header: the value is
 diff --git a/chrome/browser/ui/sunshine/newtab_background.cc b/chrome/browser/ui/sunshine/newtab_background.cc
 new file mode 100644
-index 0000000..b2591df
+index 0000000..c242f86
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.cc
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,119 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "chrome/browser/ui/sunshine/newtab_background.h"
 +
++#include <string>
++
++#include "base/containers/span.h"
 +#include "base/files/file_path.h"
++#include "base/files/file_util.h"
 +#include "base/path_service.h"
 +
 +namespace sunshine::background {
@@ -108,13 +112,40 @@ index 0000000..b2591df
 +  return directory;
 +}
 +
++std::string ReadInstalledBackground() {
++  const base::FilePath directory = InstallDirectory();
++  if (directory.empty()) {
++    return std::string();
++  }
++
++  for (const base::FilePath::CharType* const name : kAssetFileNames) {
++    std::string contents;
++    // Refuses an oversized file rather than truncating one: this returns
++    // false when the file is larger than the cap, and `contents` is then a
++    // prefix of an image, which is a worse thing to serve than nothing.
++    if (!base::ReadFileToStringWithMaxSize(directory.Append(name), &contents,
++                                           kMaxAssetBytes)) {
++      continue;
++    }
++    if (contents.size() < kSignatureBytes) {
++      continue;
++    }
++    if (DetectFormat(base::as_byte_span(contents).first(kSignatureBytes)) ==
++        Format::kNone) {
++      continue;
++    }
++    return contents;
++  }
++  return std::string();
++}
++
 +}  // namespace sunshine::background
 diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
 new file mode 100644
-index 0000000..49a945a
+index 0000000..71df28b
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.h
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,103 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -124,6 +155,8 @@ index 0000000..49a945a
 +
 +#include <stddef.h>
 +#include <stdint.h>
++
++#include <string>
 +
 +#include "base/containers/span.h"
 +#include "base/files/file_path.h"
@@ -192,6 +225,26 @@ index 0000000..49a945a
 +//
 +// Empty if the path service cannot answer.
 +base::FilePath InstallDirectory();
++
++// The largest file that will be read.
++//
++// A background is decoration, and decoration that can exhaust memory is a
++// denial of service with a friendly name. The cap is generous rather than
++// tuned -- it exists so that the answer to "what if someone drops a 4 GB file
++// in the install directory" is a number rather than a shrug.
++inline constexpr size_t kMaxAssetBytes = 32u * 1024u * 1024u;
++
++// The installed background's bytes, or empty.
++//
++// Blocking: reads from disk, so it must run somewhere that may block.
++//
++// Empty covers every way there is no background to show -- no file, a file
++// too large, or a file whose first bytes are not one of the permitted
++// formats. **Those are not distinguished, and that is a real limitation
++// rather than a simplification**: an asset rejected for its format looks
++// exactly like no asset at all, and nothing anywhere tells the owner which
++// happened. `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 records it.
++std::string ReadInstalledBackground();
 +
 +}  // namespace sunshine::background
 +
