@@ -28,10 +28,54 @@ had a threshold.** That is worth stating plainly, because a row reading
 
 | Metric | Measured by | Latest |
 | --- | --- | ---: |
-| Compressed download | `scripts/build_chromium_windows.ps1`, since build #12 | **117.5 MB** (build #33, commit `ca1f5c0`) |
-| Installed app bundle | `scripts/measure_shipped_size.py`, from build #34 | **not yet measured** |
+| Compressed download | `scripts/build_chromium_windows.ps1`, since build #12 | **117.6 MB** (build #37, commit `8c5f64b`) |
+| Installed app bundle | `scripts/measure_shipped_size.py`, since build #37 | **419.5 MB** (build #37, commit `8c5f64b`) |
 | First-run profile | nothing | — |
 | Cache after use | nothing | — |
+
+### The first measurement, and it is over the threshold
+
+**419.5 MB across 255 files, against a row that says "investigate above
+250 MB".** The threshold is met by a wide margin the first time anyone looks,
+which is the outcome this section was written to make visible rather than the
+one it hoped for. It is an investigation trigger, not a broken promise — no
+release has been made and no size was ever promised — but the investigation is
+now owed and is not started.
+
+| Section of `chrome.release` | Size | Files |
+| --- | ---: | ---: |
+| GENERAL | 384.1 MB | 249 |
+| DXC | 26.0 MB | 2 |
+| GOOGLE_CHROME | 7.8 MB | 2 |
+| HIDPI | 1.2 MB | 1 |
+| SNAPSHOTBLOB | 0.4 MB | 1 |
+| FFMPEG | — | no file of this section is in the build output |
+| TOUCH | — | no file of this section is in the build output |
+
+**One file is two thirds of it.** `chrome.dll` is 283.6 MB, 67.6% of the
+payload. The next eleven together are less than half of that:
+
+| File | Size | Share |
+| --- | ---: | ---: |
+| `chrome.dll` | 283.6 MB | 67.6% |
+| `dxcompiler.dll` | 24.6 MB | 5.9% |
+| `resources.pak` | 20.7 MB | 4.9% |
+| `icudtl.dat` | 10.4 MB | 2.5% |
+| `vk_swiftshader.dll` | 5.2 MB | 1.2% |
+| `d3dcompiler_47.dll` | 4.5 MB | 1.1% |
+| `elevated_tracing_service.exe` | 4.2 MB | 1.0% |
+| `chrome.exe` | 4.1 MB | 1.0% |
+| `elevation_service.exe` | 3.6 MB | 0.9% |
+| `chrome_pwa_launcher.exe` | 3.0 MB | 0.7% |
+| `notification_helper.exe` | 2.6 MB | 0.6% |
+| `chrome_elf.dll` | 2.6 MB | 0.6% |
+
+That distribution decides where a size investigation can and cannot go. Removing
+every Sunshine-created surface, every locale, and every executable in the list
+below `chrome.exe` would not move the number meaningfully, because the browser
+*is* `chrome.dll`. Any real reduction is a build-configuration or a
+feature-removal question about that one file, and `docs/BROWSER_OR_APP_REVIEW.md`
+already recorded why the obvious removals are not free.
 
 **`chrome.exe` is not this number and never was.** The size report has recorded
 it since build #12 — 4.1 MB at build #33 — and it is a launcher stub. The

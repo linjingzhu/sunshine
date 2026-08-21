@@ -374,6 +374,52 @@ so RV-26 to RV-30, RV-31 to RV-34, RV-35 to RV-37 and RV-38 are now *runnable*
 rather than blocked. They need a person, and they are the whole of what stands
 between this stack and evidence.
 
+**Build #37 is the first compile of the gesture recogniser, the account
+surface and the installer front-end.** Run `32437521316`, commit `8c5f64b`:
+`Build Succeeded: 1708 steps` in 36m25s, and every step of the job passed.
+Patches 0017, 0018 and 0019 and the whole of `installer/` had never been through
+a compiler before this run — every claim about them was `git apply` succeeding
+and a guard reading source, which is placement and vocabulary, not a compiler.
+
+**It was an incremental build, and that belongs in the record.** The ninja
+summary reads `local:1708 remote:0 cache:0 skip:84272`: 84,272 steps were
+already up to date on a warm workspace and 1,708 ran. So 36 minutes is not
+evidence that a clean Sunshine build takes 36 minutes, and nothing here says the
+tree builds from scratch. What it does establish is that the 1,708 steps that
+*did* run — the ones this stack changed — compile and link.
+
+`verify_installed_build.py` passed every check on the artifact, including the
+four that only a real build can answer: the GN configuration carries ADR 0004's
+codec arguments, no sandbox- or isolation-disabling switch is present (SEC-1,
+SEC-2), Windows registers none of the three Sunshine schemes (SEC-13), and
+`chrome.exe` carries version `152.0.7977.42` and the Sunshine icon group at all
+four sizes ADR 0008 requires.
+
+**The installer front-end compiled and produced an artifact.**
+`sunshine_setup.cpp` built clean, and `build_installer_frontend.ps1` wrote
+`sunshine-setup.exe` at 117.8 MB with the engine's SHA-256 recorded as
+`b93caab68e5e8d88ebe0c84d027794f6bb5989efa60a22c8d52184cb8c8828bd`. That is the
+front-end carrying the engine it hashes, which is the arrangement
+`docs/INSTALLER_UI_CONTRACT.md` requires; it is **not** evidence that the
+installer's dialog appears or behaves, because nothing launched it.
+
+**The payload was measured for the first time: 419.5 MB across 255 files.**
+`measure_shipped_size.py` ran against real build output and the number is over
+`docs/SIZE_BUDGET.md`'s own 250 MB investigation threshold, with `chrome.dll`
+alone accounting for 283.6 MB of it. The breakdown is recorded in that document
+rather than duplicated here.
+
+**What it unlocks.** `mini_installer.exe` from this build is the first installer
+containing the gesture recogniser and the account surface, so **RV-20 is now
+runnable** — patch 0017 is in the binary and the gesture is dispatchable. It
+needs a person with a page that has history in both directions, and it is the
+first gate the gesture work can be judged by.
+
+**What it does not establish.** No behaviour. The gestures have never been
+performed, the account page has never been opened, the installer dialog has
+never been shown, and no gate in section 2 or 3 is discharged by a build
+succeeding.
+
 ### Evidence
 
 ```text

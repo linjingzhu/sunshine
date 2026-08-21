@@ -74,9 +74,12 @@ Stated here so they are not discovered at the end of a long evening.
 | RV-35 | **No module declares a mount.** `scripts/verify_module_mount.py` reports `0 module(s) declare a mount`, so there is no frame to open E on and none to destroy. |
 | RV-36 | The same cause. Switching between two mounted modules needs two mounted modules. |
 
-**RV-20 used to be a third.** Patch 0017 implements the gesture recogniser, so
-block E2 above is now runnable — but only from a build that contains it, which
-build #33 does not. Run it from build #34 or later, and nowhere else.
+**RV-20 used to be a third, and is now simply runnable.** Patch 0017 implements
+the gesture recogniser and **build #37 (run `32437521316`, commit `8c5f64b`)
+compiled it** — the first build that contains it. Run block E2 from that
+installer or a later one, and from nowhere else. The account surface from
+patches 0018 and 0019 is in the same binary, but it has no gate yet: the page
+only reports whether this build has an OAuth client, and this one does not.
 
 RV-35 and RV-36 are the mount lifecycle, which is the part of the shell the
 whole module seam exists for. They are blocked on there being something to
