@@ -465,6 +465,44 @@ observed   the owner ran the installer from build #12 and reports the Sunshine
            wordmark in the New Tab logo slot
 ```
 
+**Build #41 was run by the owner, and twenty-six gates passed.** Run
+`32477837656`, commit `779ef04`. Before this, one gate of forty-three had ever
+been run.
+
+```text
+PASS     RV-1, RV-2, RV-3, RV-4, RV-5, RV-6, RV-8, RV-9, RV-10, RV-11,
+         RV-12, RV-21, RV-22, RV-24, RV-25, RV-27, RV-28, RV-32, RV-33,
+         RV-34, RV-37, RV-38, RVV-1, RVV-2, RVV-3, RVV-4
+FAIL     RV-20, RV-26, RV-29, RV-31, RVV-5
+NOT RUN  RV-13, RV-14, RV-23, RV-30
+BLANK    RV-15, RV-16, RV-17, RV-18, RV-19
+```
+
+**Block B passed entire — RV-1 through RV-4.** The sandbox is active, site
+isolation is site-per-process, no isolation-disabling switch is on the command
+line, and no Sunshine scheme resolves. Those are the four gates whose failure
+ends a session, and they are the strongest result in this document: the
+security posture is what the contracts describe, observed rather than argued.
+
+**Two failures may be the sheet's fault rather than the build's.** RV-26 and
+RV-29 are about install identity, and the sheet asserted
+`%LOCALAPPDATA%\Sunshine\Application` unconditionally — but
+`installer/sunshine_setup.cpp` chooses `FOLDERID_ProgramFiles` when the user
+installs for all users, which the installer offers by design. A machine-wide
+install would fail a gate written only for the per-user case. Which happened is
+not yet known.
+
+**The five BLANK rows are a defect in the sheet, not a result.** The owner
+could not follow them. The document-surface instructions had been written from
+the contract rather than from the page — they described building a hierarchy by
+indentation, and the page builds it with an `Inside` selector — so they
+described a screen that does not exist. Rewritten from the patch.
+
+**No observations accompany any of this.** The sheet was returned as a saved
+page, and a browser does not serialise typed text, so the results survived and
+the notes did not. For the five failures that leaves the result without the
+evidence, which is why none of them is diagnosed here.
+
 That is the whole of it, and the scope is the point. Build #12 was commit
 `6aa75ff`, "Finish replacing ntp-logo" — the change that completed the wordmark
 — so RV-7 is exactly the gate it can discharge.

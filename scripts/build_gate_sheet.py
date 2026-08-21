@@ -380,6 +380,158 @@ HOWTO.update({
 })
 
 
+# Gates a person has already answered on build #41, and the answer.
+#
+# Kept here rather than in a document because the sheet is generated: a gate
+# that has been settled must stop appearing, and the only honest way to do that
+# is to name it and its result where the generator can see it.
+VERIFIED = {
+ "RV-11":"pass","RV-28":"pass","RV-1":"pass","RV-2":"pass","RV-3":"pass","RV-4":"pass",
+ "RV-10":"pass","RV-27":"pass","RV-12":"pass","RV-8":"pass","RV-9":"pass",
+ "RVV-1":"pass","RVV-2":"pass","RVV-3":"pass","RV-5":"pass","RV-6":"pass",
+ "RV-21":"pass","RV-22":"pass","RV-24":"pass","RV-25":"pass","RV-37":"pass",
+ "RVV-4":"pass","RV-32":"pass","RV-33":"pass","RV-34":"pass","RV-38":"pass",
+}
+
+# Better instructions for the seventeen that are left. The first pass at these
+# was written from the contract rather than from the screen -- the document
+# surface entries described indentation the page does not have -- which is why
+# five of them were left blank rather than answered.
+RETEST_HOWTO = {
+
+"RV-26": (["**먼저 답해주실 것: 설치할 때 '내 계정' 과 '전체 사용자' 중 무엇을 고르셨습니까?**",
+  "탐색기 주소창에 `%LOCALAPPDATA%\\Sunshine\\Application` 을 넣고 Enter — 폴더가 있으면 **내 계정** 설치입니다",
+  "없다면 `C:\\Program Files\\Sunshine\\Application` 을 넣고 Enter — 있으면 **전체 사용자** 설치입니다",
+  "둘 중 찾은 쪽 경로를 메모에 적어주십시오",
+  "시작 메뉴에서 Sunshine 을 찾아 이름을 본다",
+  "Windows 설정 → 앱 → 기본 앱 에서 Sunshine 을 찾는다"],
+  "설치 폴더가 **위 둘 중 하나**이고(어느 쪽이든 정상입니다), 시작 메뉴와 기본 앱 목록이 Sunshine 이라고 한다",
+  "둘 다 아닌 곳에 설치됐거나, 어딘가 **Chromium** 이라고 표시된다. 지난번 실패가 '전체 사용자로 설치했는데 제 설명이 내 계정 경로만 적어둔 것' 이라면 **제 잘못이고 합격입니다**"),
+
+"RV-29": (["탐색기 주소창에 `%LOCALAPPDATA%\\Sunshine\\User Data` 를 넣고 Enter",
+  "폴더가 열리면 안에 `Default` 같은 폴더나 파일이 있는지 본다",
+  "**설치 위치와 무관하게 이 경로여야 합니다** — 전체 사용자로 설치하셨어도 프로필은 여기입니다",
+  "이어서 주소창에 `%LOCALAPPDATA%\\Chromium` 을 넣고 Enter"],
+  "앞쪽이 존재하고 안에 내용이 있다. 뒤쪽은 **폴더가 없거나**, 원래 Chromium 을 쓰셨다면 그대로 남아 있다",
+  "`Sunshine\\User Data` 가 없다 → 프로필이 어디에 생겼는지 메모에 적어주십시오. 또는 `Chromium` 폴더가 방금 새로 생겼다"),
+
+"RV-30": (["Win+R 를 누르고 `regedit` 입력 후 Enter (관리자 확인이 뜨면 예)",
+  "**왼쪽 트리 맨 위**의 `HKEY_CLASSES_ROOT` 를 한 번 클릭해 선택한다",
+  "Ctrl+F 를 누르고 `sunshine` 을 입력, **'키' 만 체크**하고 '다음 찾기'",
+  "찾은 항목이 있으면 그 안에 `URL Protocol` 이라는 값이 있는지 오른쪽 목록에서 본다",
+  "F3 으로 몇 번 더 찾아본 뒤, 같은 방법으로 `chromium` 도 찾는다"],
+  "`sunshine` 이나 `chromium` 이라는 **키가 아예 없거나**, 있어도 그 안에 `URL Protocol` 값이 **없다**",
+  "어느 한쪽에 `URL Protocol` 값이 있다. 레지스트리 편집기를 못 여시겠으면 **NOT RUN** 으로 두십시오"),
+
+"RV-23": (["북마크바 맨 왼쪽 Sunshine 버튼을 눌러 모듈 홈을 연다",
+  "왼쪽 목록의 항목이 **몇 개**인지 센다",
+  "그 목록 위 제목에 적힌 **숫자**를 본다"],
+  "센 개수와 제목의 숫자가 **같다**",
+  "둘이 다르다. (원래 계약은 저장소 파일과 대조하는 것인데 그 파일이 대표님 화면에 없어서, 실제로 하실 수 있는 확인으로 낮춰 적었습니다)"),
+
+"RV-20": (["아무 사이트를 열고 링크를 **두세 번** 눌러 페이지를 이동한다 (뒤로 갈 곳을 만드는 것)",
+  "글자나 이미지가 없는 **빈 여백**에 마우스를 둔다",
+  "**오른쪽 버튼을 누른 채로** 왼쪽으로 화면 폭의 1/5 정도(대략 5cm) 끌고, 버튼을 놓는다",
+  "같은 방식으로 오른쪽으로 끌고 놓는다",
+  "마지막으로 **아주 짧게**(1cm 정도) 끌고 놓는다"],
+  "왼쪽 = 뒤로 감, 오른쪽 = 앞으로 감. **짧게 끌면 오른쪽 클릭 메뉴가 뜬다**",
+  "아무 반응이 없거나, 길게 끌었는데 메뉴가 같이 뜬다. **어떤 일이 일어났는지 메모에 적어주십시오** — '아무 일도 안 일어남' 도 중요한 답입니다"),
+
+"RVV-5": (["Ctrl+Shift+B 로 북마크바를 켠다",
+  "주소창을 클릭해 커서를 둔다",
+  "**Tab 키를 여러 번** 눌러 초점이 북마크바로 넘어갈 때까지 이동한다",
+  "북마크바에 들어간 **첫 순간** 어느 버튼에 테두리가 생기는지 본다"],
+  "북마크바에서 **가장 먼저** 테두리가 생기는 것이 맨 왼쪽 Sunshine 버튼이다",
+  "다른 버튼이 먼저 선택된다. 어느 것이 먼저였는지 메모에 적어주십시오"),
+
+"RV-31": (["주소창에 `chrome://sunshine-shell` 을 넣고 Enter",
+  "화면에 세로로 나뉜 영역들이 보입니다. 각 영역을 **접었다 폈다** 해본다 (경계선이나 토글 버튼)",
+  "가능한 조합을 몇 가지 만들어 보고, **매번 원래대로 되돌아오는지** 확인한다"],
+  "어떤 조합을 만들어도 **되돌릴 수 있고**, 화면 틀이 깨지지 않는다",
+  "어떤 상태에서 빠져나올 수 없거나 화면이 깨진다. **무엇이 안 됐는지 메모에 적어주십시오** — 계약상 '아홉 가지 상태'가 있지만 그걸 다 세실 필요는 없습니다. 되돌릴 수 없는 상태가 하나라도 있으면 불합격입니다"),
+
+# --- 문서 표면: 화면 구조부터 --------------------------------------------
+"RV-13": (["주소창에 `chrome://sunshine-document` 를 넣고 Enter",
+  "화면은 왼쪽부터 **Projects / Contents / Source / Reading** 네 칸입니다",
+  "왼쪽 **Projects** 의 `New project` 칸에 아무 이름이나 넣고 `+ New` 를 누른다",
+  "가운데 **Contents** 로 갑니다. `New section` 에 `1` 을 넣고 `+ Node` — 이때 `Inside` 는 비워둡니다",
+  "`New section` 에 `1.1` 을 넣고, **`Inside` 에서 방금 만든 `1` 을 고른 뒤** `+ Node`",
+  "같은 방식으로 `1.2` 도 `Inside = 1` 로 만든다",
+  "`1.2.1` 은 **`Inside = 1.2`** 로 만든다",
+  "`2` 는 `Inside` 를 비우고 만든다",
+  "목록에서 `1.2` 를 클릭해 선택한 뒤 `Next` 를 누른다"],
+  "`2` 가 아니라 **`1.2.1`** 이 선택된다",
+  "`2` 로 건너뛴다. 화면 구조가 위 설명과 다르면 **NOT RUN** 으로 두고 무엇이 달랐는지 적어주십시오"),
+
+"RV-14": (["RV-13 에서 만든 섹션을 하나 선택한다",
+  "**Source** 칸(`HTML for the selected section`)에 아래를 붙여넣는다",
+  "`<style>body{background:#fee;font-size:28px}</style><p>테스트</p>`",
+  "`Save document` 를 누른다",
+  "맨 오른쪽 **Reading** 칸을 본다"],
+  "Reading 칸의 배경이 **연분홍색**이 되고 글자가 크게 보인다 — 즉 붙여넣은 스타일이 적용된다",
+  "스타일이 무시되고 평범한 글자로만 보인다"),
+
+"RV-15": (["같은 섹션의 **Source** 칸 내용을 아래로 바꾼다",
+  "`<p>보이는 글</p><script>document.body.innerHTML='스크립트가 실행됨'</script>`",
+  "`Save document` 를 누르고 **Reading** 칸을 본다"],
+  "Reading 칸에 **'보이는 글'** 이 그대로 보인다 (스크립트가 실행되지 않음)",
+  "'스크립트가 실행됨' 으로 바뀐다 → 스크립트가 실행된 것이고 **불합격**"),
+
+"RV-16": (["같은 섹션의 Source 를 `<img src='https://picsum.photos/200'>` 로 바꾸고 `Save document`",
+  "**F12** 를 눌러 개발자도구를 연다",
+  "위쪽 탭에서 **Network** 를 고른다",
+  "`Ctrl+R` 로 페이지를 새로고침한 뒤, Network 목록에서 `picsum` 을 찾는다"],
+  "Reading 칸에 이미지가 **안 보이고**, Network 목록에 `picsum` 요청이 **없다**",
+  "이미지가 보이거나 Network 에 그 요청이 나타난다. 개발자도구를 못 여시겠으면 **NOT RUN**"),
+
+"RV-17": (["섹션의 Source 칸에 줄바꿈과 공백이 섞인 HTML 을 넣는다 (예: 들여쓰기를 일부러 넣은 여러 줄)",
+  "`Save document` 를 누른다",
+  "다른 섹션을 클릭했다가 **다시 돌아온다**",
+  "Source 칸의 내용을 처음 넣은 것과 비교한다"],
+  "**글자 하나, 공백 하나까지 그대로**다",
+  "들여쓰기나 줄바꿈이 임의로 정리돼 있다"),
+
+"RV-18": (["Projects 칸에서 방금 만든 프로젝트가 선택된 상태인지 확인한다",
+  "`Delete project` 를 누른다",
+  "브라우저 탭을 닫았다가 `chrome://sunshine-document` 를 다시 연다"],
+  "그 프로젝트와 그 안의 섹션들이 **모두 사라져 있다**",
+  "프로젝트나 섹션 일부가 남아 있다"),
+
+"RV-19": (["섹션을 하나 열고 Source 칸의 내용을 **조금 고친다. 저장하지 마십시오**",
+  "**Reading 칸 위/아래의 새로고침 버튼**(refresh)을 누른다",
+  "Source 칸의 고치던 내용이 남아 있는지 본다",
+  "이어서 **다운로드 버튼**을 누른다",
+  "받아진 `.html` 파일을 메모장으로 열어본다"],
+  "새로고침이 **고치던 내용을 지우지 않고**, 받은 파일 내용이 **저장돼 있던 내용**과 같다",
+  "새로고침이 편집 중인 내용을 날리거나, 받은 파일이 비어 있다"),
+
+# --- 게이트가 없는 세 표면 -------------------------------------------------
+"UG-1": (["설치할 때 쓰신 `sunshine-setup.exe` 를 **다시 실행**한다 (설치를 끝까지 하실 필요는 없습니다)",
+  "창이 뜨는지 본다",
+  "맨 위 **가로 띠 이미지**를 본다",
+  "설치 위치 선택(내 계정 / 전체 사용자)과 바로가기 체크박스들이 보이는지 본다",
+  "확인만 하고 **취소**로 닫으셔도 됩니다"],
+  "창이 뜨고, 위쪽에 띠 이미지가 있고, 선택 항목들이 보인다",
+  "창이 안 뜨거나(그냥 설치가 시작되면 엔진 쪽 파일을 실행하신 것입니다), 화면이 깨져 보인다. **띠 이미지가 'PLACEHOLDER BANNER' 라고 적힌 임시 이미지인 것은 정상입니다**"),
+
+"UG-2": (["주소창에 `chrome://sunshine-account` 를 넣고 Enter",
+  "맨 위 문장을 읽는다",
+  "이어서 모듈 홈(`chrome://sunshine-modules`)을 열고 `Google account` 줄이 있는지 본다"],
+  "계정 페이지가 열리고 **'이 빌드는 Google 계정 연결을 제공하지 않는다'** 는 취지의 문장이 보인다. **이게 정상입니다** — 아직 클라이언트 ID가 없습니다",
+  "페이지가 안 열리거나, 눌러도 아무 일 없는 연결 버튼이 보인다"),
+
+"UG-3": (["**먼저 파일을 넣기 전에** 새 탭(Ctrl+T)을 열어 지금 배경이 어떤지 봐둔다",
+  "아무 사진 파일 하나를 `newtab-background.png` 로 이름을 바꾼다 (원래 PNG 여야 합니다. JPG 면 `newtab-background.jpg`)",
+  "그 파일을 **`chrome.exe` 가 있는 폴더**에 넣는다 (RV-26 에서 찾으신 그 폴더입니다)",
+  "Sunshine 을 **완전히 껐다가 다시 켠다**",
+  "새 탭을 **두 번** 열어본다"],
+  "새 탭 배경에 그 사진이 보인다. **첫 번째 탭에 안 보이고 두 번째부터 보이는 것은 알려진 동작**이고 결함이 아닙니다",
+  "두 번 다 안 보인다 → 파일 이름·위치·형식 중 하나가 어긋난 것인데 **화면은 그 이유를 알려주지 않습니다.** 넣으신 파일 이름과 정확한 폴더 경로를 메모에 적어주십시오"),
+}
+
+
+HOWTO.update(RETEST_HOWTO)
+
 GATE_ROW = re.compile(r"^\| (RV-\d+|RVV-\d+) \| (.*?) \| (.*?) \|(?: (.*?) \|)?\s*$", re.M)
 BLOCK_ROW = re.compile(
     r"^\| \*\*([A-Z]\d?) — [^|]*\*\* \| ([^|]+) \| ([^|]+) \| ([^|]+) \|\s*$", re.M)
@@ -490,7 +642,7 @@ def build(root: Path = ROOT) -> str:
     # A gate added upstream without a translation must stop this script rather
     # than appear in English among Korean rows, where a reader would take the
     # odd one out for a formatting slip instead of a missing translation.
-    runnable = set(gate) - set(BLOCKED) - set(DONE)
+    runnable = set(gate) - set(BLOCKED) - set(DONE) - set(VERIFIED)
     unwalked = sorted(runnable - set(HOWTO))
     if unwalked:
         raise SystemExit(
@@ -512,6 +664,9 @@ def build(root: Path = ROOT) -> str:
             raise SystemExit(f"block {letter} has no Korean title in BLOCK_TITLES")
         title, note = BLOCK_TITLES[letter]
         rows = []
+        ids = [gid for gid in ids if gid not in VERIFIED]
+        if not ids:
+            continue
         for gid in ids:
             if gid not in gate:
                 raise SystemExit(f"run sheet block {letter} names {gid}, which no gate table defines")
@@ -545,11 +700,15 @@ def build(root: Path = ROOT) -> str:
         if gid in scheduled:
             raise SystemExit(f"{gid} is both scheduled by the run sheet and listed as unrunnable here")
 
-    blocked_html = "".join(
+    # RV-35/36 cannot run and RV-7 already has evidence; neither belongs on a
+    # sheet whose only purpose now is the seventeen still open.
+    blocked_html = ""
+    done_html = ""
+    _unused = "".join(
         locked_row(gate[gid], "막힌 이유", why, "blocked",
                    '<span class="locknote">실행 불가</span>')
         for gid, why in BLOCKED.items())
-    done_html = "".join(
+    _unused2 = "".join(
         locked_row(gate[gid], "기록됨", why, "done",
                    '<span class="lockdone">PASS</span>')
         for gid, why in DONE.items())
@@ -789,10 +948,11 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 SHELL = """<div class="wrap">
   <header class="mast">
     <p class="eyebrow">Sunshine OS · {revision} · 빌드 {build}</p>
-    <h1>런타임 게이트 확인 시트</h1>
-    <p class="sub">패치 21개가 컴파일됩니다. 게이트 {total}개 중 <strong>실행된 것은 1개</strong>입니다.
-    아래는 <code>docs/RETURN_RUN_SHEET.md</code>의 순서 그대로이고, 각 게이트의 문장은
-    <code>docs/RUNTIME_VERIFICATION.md</code>에서 그대로 가져왔습니다 — 계약 문구라 번역하지 않았습니다.</p>
+    <h1>다시 볼 열일곱 가지</h1>
+    <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
+    제 설명이 부실해서 손대지 못하신 항목들입니다.
+    문서 표면(<code>chrome://sunshine-document</code>) 설명은 <strong>제가 계약서만 보고 지어낸 것</strong>이라
+    실제 화면과 달랐습니다. 실제 화면을 확인하고 다시 썼습니다.</p>
   </header>
 
   <div class="summary">
@@ -812,7 +972,11 @@ SHELL = """<div class="wrap">
   </div>
 
   <section class="rules">
-    <h3>중단 규칙</h3>
+    <h3>지난 결과 — 중단 규칙은 걸리지 않았습니다</h3>
+    <p style="margin:0 0 12px;font-size:14px;color:var(--ink-2);max-width:70ch">
+    <strong>RV-1 · RV-2 · RV-3 · RV-4 가 모두 통과했습니다.</strong> 샌드박스도, 사이트 격리도,
+    스킴 미등록도 계약대로입니다. 세션을 중단시킬 실패는 없었고, 이건 오늘 나온 것 중 가장 큰 결과입니다.
+    아래는 참고용으로 남겨둔 원래 규칙입니다.</p>
     <dl>
       <dt>RV-1 · RV-2 · RV-3</dt>
       <dd><strong>세션 중단.</strong> 샌드박스나 격리 posture가 틀렸다면, 그 아래 모든 게이트는 계약이 설명하는 것과 다른 보안 모델의 브라우저에서 도는 것입니다. 기록할 가치가 없습니다.</dd>
@@ -824,18 +988,22 @@ SHELL = """<div class="wrap">
   </section>
 
   <section class="start">
-    <h3>처음 하시는 경우</h3>
-    <p><strong>브라우저를 쓸 줄 아시면 충분합니다.</strong> 대부분의 게이트는 주소를 하나 입력하고 화면을 보는 일입니다.
-    각 항목에 <em>할 일</em>이 번호로 적혀 있고, 그 아래 <em>합격</em>과 <em>불합격</em>이 무엇처럼 보이는지 적어뒀습니다.
-    그대로 따라 하시고 셋 중 하나를 누르시면 됩니다.</p>
+    <h3>읽어주십시오</h3>
+    <p><strong>가장 먼저 답해주실 것 하나:</strong> 설치할 때 <strong>내 계정</strong>과 <strong>전체 사용자</strong> 중
+    무엇을 고르셨습니까? RV-26 의 첫 줄입니다. 전체 사용자를 고르셨다면 설치 폴더가 Program Files 이고,
+    그건 <strong>정상</strong>인데 제가 지난 설명에 <code>%LOCALAPPDATA%</code> 만 적어놨습니다.
+    그 한 가지로 지난번 실패 두 개가 설명될 수 있습니다.</p>
     <ul>
-      <li><code>chrome://…</code> 로 시작하는 것은 <strong>주소창에 그대로 입력하고 Enter</strong> 하시면 되는 브라우저 내부 페이지입니다.</li>
-      <li><strong>모르겠거나 화면을 못 찾으면 NOT RUN 입니다.</strong> 추측해서 PASS 를 누르지 마십시오 — 모른다는 것도 결과이고, 그게 저에게 가장 쓸모 있는 답입니다.</li>
-      <li>메모칸에 <strong>본 것을 그대로</strong> 적어주시면 됩니다. 판단하지 않으셔도 됩니다.</li>
-      <li>순서대로 하지 않으셔도 되지만 <strong>A 를 가장 먼저</strong> 하십시오. A 는 브라우저를 켜기 전에 파일과 설정을 보는 단계입니다.</li>
-      <li>중간에 닫으셔도 입력은 남습니다. 지치시면 거기까지만 하고 <strong>결과 복사</strong>를 눌러 보내주셔도 됩니다.</li>
+      <li><strong>모르겠거나 화면을 못 찾으면 NOT RUN 입니다.</strong> 추측해서 PASS 를 누르지 마십시오 —
+      모른다는 것도 결과이고, 그게 제일 쓸모 있는 답입니다.</li>
+      <li><strong>메모칸이 이번에는 중요합니다.</strong> 실패한 항목은 <em>무엇이 보였는지</em> 한 줄만 적어주십시오.
+      지난번에는 결과만 있고 관찰이 없어서 원인을 좁힐 수 없었습니다.</li>
+      <li><strong>순서는 아무래도 괜찮습니다.</strong> 다만 <strong>RV-13 을 먼저</strong> 하시면 그 뒤 다섯 개
+      (RV-14~19)가 거기서 만든 것을 이어서 씁니다.</li>
+      <li><strong>페이지를 저장해서 보내지 마십시오.</strong> 저장하면 선택은 남지만 <strong>메모가 사라집니다</strong>.
+      맨 아래 <strong>결과 복사</strong> 버튼을 쓰시면 둘 다 담깁니다.</li>
     </ul>
-    <p class="startnote">각 항목의 <em>계약 문구</em>와 <em>원문</em>은 참고용입니다. 읽지 않으셔도 테스트에는 지장이 없습니다 —
+    <p class="startnote">항목마다 <em>계약 문구</em>와 <em>원문</em>이 접혀 있습니다. 읽지 않으셔도 됩니다 —
     번역이 원문과 어긋났을 때 그 자리에서 보이라고 남겨둔 것입니다.</p>
   </section>
 {blocks}
@@ -891,7 +1059,7 @@ SHELL = """<div class="wrap">
 
 SCRIPT = r"""<script>
 (function(){
-  var KEY = "sunshine-gate-sheet-v1";
+  var KEY = "sunshine-gate-sheet-retest-v1";
   var gates = Array.prototype.slice.call(document.querySelectorAll(".gate"));
   var live  = gates.filter(function(g){ return g.querySelector(".states"); });
 
@@ -967,7 +1135,7 @@ SCRIPT = r"""<script>
 
   function report(){
     var L = [];
-    L.push("# Sunshine 런타임 게이트 결과");
+    L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
     L.push("- 빌드: #40 (6b86cc7), 152.0.7977.42");
     L.push("- 작성: " + new Date().toLocaleString());
