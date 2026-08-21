@@ -503,6 +503,21 @@ page, and a browser does not serialise typed text, so the results survived and
 the notes did not. For the five failures that leaves the result without the
 evidence, which is why none of them is diagnosed here.
 
+**Build #42 is the merge, and it is the build the retest runs against.** Run
+`32497978899`, commit `da64842` on `stable`, all eight steps green in 42
+minutes. It carries nothing #41 did not, except the corrected gate sheet — the
+merge added no code.
+
+**Saying which build a result came from is the whole value of a result.** The
+sheet's stamp read `#41 (779ef04)` while the browser being tested would be
+#42, and a sheet that names the wrong build turns every row it collects into a
+result about an unknown binary. The stamp is now `#42 (da64842)`.
+
+**None of the five failures is fixed in #42.** RV-20, RV-31 and RVV-5 have had
+no diagnosis and therefore no change; a second failure from them is expected,
+not new information. RV-26 and RV-29 may pass, and if they do it is because the
+sheet was corrected, not because the installer was.
+
 That is the whole of it, and the scope is the point. Build #12 was commit
 `6aa75ff`, "Finish replacing ntp-logo" — the change that completed the wordmark
 — so RV-7 is exactly the gate it can discharge.
