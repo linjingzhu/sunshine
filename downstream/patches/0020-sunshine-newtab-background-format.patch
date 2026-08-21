@@ -178,7 +178,7 @@ new file mode 100644
 index 0000000..638f4c0
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.h
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,141 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -262,10 +262,22 @@ index 0000000..638f4c0
 +// The largest file that will be read.
 +//
 +// A background is decoration, and decoration that can exhaust memory is a
-+// denial of service with a friendly name. The cap is generous rather than
-+// tuned -- it exists so that the answer to "what if someone drops a 4 GB file
-+// in the install directory" is a number rather than a shrug.
-+inline constexpr size_t kMaxAssetBytes = 32u * 1024u * 1024u;
++// denial of service with a friendly name. The cap exists so that the answer
++// to "what if someone drops a 4 GB file in the install directory" is a number
++// rather than a shrug.
++//
++// **100 MB is the owner's decision, and it is not free of the thing above.**
++// `UntrustedSource::AllowCaching()` returns false at the pinned revision, so
++// `url_data_manager_backend.cc` puts `Cache-Control: no-cache` on every
++// response and attaches no validator to revalidate against. Each New Tab that
++// shows a background therefore re-enters `StartDataRequest` and reads the
++// whole file again, into the browser process, before it crosses to the
++// renderer. This is a per-New-Tab cost, not a per-process one: at this cap,
++// five New Tabs read half a gigabyte.
++//
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 carries that as a measurement to
++// take rather than a bound that has been proven survivable.
++inline constexpr size_t kMaxAssetBytes = 100u * 1024u * 1024u;
 +
 +// The installed background's bytes, or empty.
 +//

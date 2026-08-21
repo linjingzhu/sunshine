@@ -169,6 +169,22 @@ original zero-tolerance rule applies again. So this is not a style preference
 about how to write an animation — it is the condition under which the feature
 is permitted to exist.
 
+**Covering the viewport takes three declarations, and two of them are easy to
+miss.** The page asks for `size=cover`, which is what "fit the shorter side,
+keep the aspect ratio, leave no gap" means in CSS — upstream's helper template
+sets `background-size: $i18n{size}` and nothing else scales the image. But
+`cover` covers *its own box*, and the box is the iframe.
+
+`iframe.css` sizes ntp-iframe's inner frame with `height: inherit` and
+`width: inherit`. `inherit` takes the host's **computed** width and height, not
+"all of the host". A host positioned with `inset: 0` alone computes both to
+`auto`, and an iframe is a replaced element, so `auto` resolves to the
+**300×150 default**. The host filled the viewport and the frame inside it did
+not — a small rectangle in a corner with the page's own dark background around
+it, which reads as a broken image rather than a mis-sized one. `#sunshineBackground`
+states `height: 100%` and `width: 100%` for the same reason upstream's
+`#oneGoogleBar` does.
+
 **How the page shows it, and why it is an iframe.** The New Tab page overrides
 `child-src` to admit `chrome-untrusted://new-tab-page` and does **not**
 override `img-src`, so an `<img>` or a CSS `background-image` pointing there
@@ -230,8 +246,31 @@ because they already have a home.
   **to the degree PB-5a's second run requires** is an assumption about
   upstream behaviour, not a measurement. It is the likeliest place for this
   feature to fail its own budget, and it fails there quietly.
-- **A 32 MB cap is enforced, and nothing tells a reader they hit it.**
-  `kMaxAssetBytes` is `32u * 1024u * 1024u` and `ReadFileToStringWithMaxSize`
+- **The asset is read once per New Tab, not once per process, and that is
+  read rather than assumed.** `UntrustedSource::AllowCaching()` returns `false`
+  at the pinned revision, so `content/browser/webui/url_data_manager_backend.cc`
+  sets `Cache-Control: no-cache` on every response and attaches no ETag or
+  `Last-Modified` for a cache to revalidate against. Each New Tab showing a
+  background therefore re-enters `StartDataRequest` and reads the whole file
+  again into the browser process before it crosses to the renderer. At the
+  100 MB cap, five New Tabs read half a gigabyte. **What has not been measured
+  is whether Blink's in-process memory cache short-circuits some of those
+  loads** -- that needs a running browser, and the source says only what the
+  HTTP layer will do.
+- **The helper requests the asset twice per New Tab, and only one of those is
+  the background.** `background_image.html` carries `<img src="{url}" hidden>`
+  alongside the CSS `background-image`, commented upstream as existing "purely
+  to capture the load event". Whether both reach `StartDataRequest` or the
+  second is served from the renderer's in-process cache is **not verified** —
+  it needs a running browser. If both do, every figure in the bullet above
+  doubles.
+- **The cap was raised from 32 MB to 100 MB by the owner's decision, and the
+  earlier number had no measurement behind it either.** What changed is that
+  the cost per New Tab above is now known, so the number is a choice made
+  against a stated cost rather than against a shrug. It is still not a bound
+  proven survivable: no build has read a file of this size.
+- **A 100 MB cap is enforced, and nothing tells a reader they hit it.**
+  `kMaxAssetBytes` is `100u * 1024u * 1024u` and `ReadFileToStringWithMaxSize`
   refuses a larger file outright rather than truncating it. An earlier draft of
   this bullet said no limit was set or enforced, which was false and sat in the
   NOT VERIFIED list where it would be believed. Size matters more

@@ -123,7 +123,7 @@ class ReadsTheBrowsersRules(unittest.TestCase):
     """The cap and the names come from the patch, not from this tool."""
 
     def test_cap_matches_the_patch(self):
-        self.assertEqual(max_asset_bytes(), 32 * 1024 * 1024)
+        self.assertEqual(max_asset_bytes(), 100 * 1024 * 1024)
 
     def test_names_are_the_browsers_names(self):
         self.assertEqual(

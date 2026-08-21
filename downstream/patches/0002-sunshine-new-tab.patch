@@ -2,7 +2,7 @@ diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/reso
 index d9d32b0..6ad1de5 100644
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -180,6 +180,34 @@ cr-most-visited {
+@@ -180,6 +180,46 @@ cr-most-visited {
    z-index: unset;
  }
  
@@ -15,6 +15,18 @@ index d9d32b0..6ad1de5 100644
 +  pointer-events: none;
 +  position: fixed;
 +  z-index: -2;
++  /* Both dimensions are load-bearing, and `inset: 0` does not replace them.
++     `iframe.css` sizes ntp-iframe's inner frame with `height: inherit` and
++     `width: inherit`, so it takes this host's *computed* width and height
++     rather than filling it. With only `inset: 0` those compute to `auto`,
++     and an iframe is a replaced element: `auto` falls back to the 300x150
++     default. The host stretched to the viewport while the frame inside it
++     stayed a small rectangle in the corner, and the rest of the window was
++     the page's own dark background -- which reads as a broken image rather
++     than a mis-sized one. Upstream's own full-bleed ntp-iframe,
++     `#oneGoogleBar`, states both for the same reason. */
++  height: 100%;
++  width: 100%;
 +}
 +
 +#sunshineWordmark {
