@@ -17,8 +17,8 @@ evidence each rests on; it does not re-derive them.
 
 | | Decision |
 | --- | --- |
-| **Formats** | PNG, JPEG, and APNG. Nothing else. |
-| **Loop** | An APNG loops for as long as its own `acTL` chunk says, including forever. |
+| **Formats** | PNG, JPEG and WebP — including the animated forms of the first and last, APNG and animated WebP. Nothing else. |
+| **Loop** | An animated asset loops for as long as it says it does, including forever — an APNG in its `acTL` chunk, a WebP in its `ANIM` chunk. |
 | **Where it lives** | A file in the install directory. **Not embedded in the binary.** |
 | **Animation rules** | `docs/PERFORMANCE_BUDGET.md` PB-5a's three properties, all required together: visible-only, opt-in, self-contained. |
 | **Video** | Excluded. |
@@ -31,17 +31,18 @@ codec-licensing question that `docs/decisions/0004-media-codecs.md` scoped
 deliberately to page content. An animated image needs none of that and looks
 the same from two metres away.
 
-## 2. What a background may be — NTB-1, NTB-2
+## 2. What a background may be — NTB-1, NTB-2, NTB-4
 
-**PNG or JPEG, decided from the file's first bytes.**
+**PNG, JPEG or WebP, decided from the file's first bytes.**
 
-**APNG is not a third format, and saying so is the point.** An APNG *is* a
-PNG: the same eight-byte signature, the same `.png` name, and the animation
-carried in ancillary chunks (`acTL`, `fcTL`, `fdAT`) that a decoder either
-understands or skips. A build that accepts PNG accepts APNG without being told
-about it. Code that tried to detect APNG separately would be claiming to
-distinguish two things that are one thing, and `verify_newtab_background.py`
-refuses that shape rather than tolerating it.
+**Neither animated form is a separate format, and saying so is the point.** An
+APNG *is* a PNG — the same eight-byte signature, the same `.png` name, the
+animation carried in ancillary chunks (`acTL`, `fcTL`, `fdAT`) a decoder
+either understands or skips. An animated WebP *is* a WebP, its frames in the
+same RIFF container a still one uses. A build that accepts the still format
+accepts the animated one without being told about it, and code that tried to
+detect either separately would be claiming to distinguish two things that are
+one thing. `verify_newtab_background.py` refuses that shape.
 
 The graceful-degradation property falls out of the same design: an APNG's
 **first frame is a valid standalone PNG**, so any decoder that does not know
@@ -49,8 +50,18 @@ the animation chunks shows a still image rather than an error.
 
 | | |
 | --- | --- |
-| **NTB-1** | The background source declares the PNG and JPEG signatures as byte arrays, and both are present. |
+| **NTB-1** | The background source declares the PNG, JPEG and RIFF signatures as byte arrays, and all are present. |
 | **NTB-2** | No excluded format's signature is declared, and no code path decides a background's format from its file name. |
+| **NTB-4** | WebP is recognised by **both** of its tags: `RIFF` at offset 0 and `WEBP` at offset 8. Declaring the first without the second is refused, and so is declaring the second without ever reading it at offset 8. |
+
+**NTB-4 exists because WebP's identity is not a prefix.** `RIFF` is a
+container tag that WAV and AVI open with too. What says WebP is the four bytes
+at offset 8, after the container's length field. A check that accepted
+anything beginning `RIFF` would accept a renamed WAV as a New Tab background
+**while reading, in the diff, exactly like a signature check** — the same
+failure shape as deciding by extension, one layer further down. That is why
+the guard names the missing tag specifically rather than trusting that a
+constant's presence means it is used.
 
 **NTB-2's second half is the one that matters.** A file called `.png` that
 begins with `GIF89a` is a GIF, and Blink would decode it happily — Blink picks
@@ -60,10 +71,13 @@ to refuse, while *looking*, in the source, like it was enforcing something.
 The extension selects which file is **looked for**; it never decides what the
 file **is**.
 
-**Verified at the pin**, and the reason the format rule is cheap to keep:
+**Verified at the pin**, and the reason the format rule is cheap to keep.
 `PngImageDecoder` is declared as decoding "the PNG image format using
 `SkPngRustCodec`" and derives from `SkiaImageDecoderBase`, the multi-frame
-path. APNG decodes in this build without anything being added to it.
+path. `WEBPImageDecoder` declares `RepetitionCount()`, `DecodeFrameCount()`,
+`FrameDurationAtIndex()` and `InitializeNewFrame()` — the whole multi-frame
+interface. **Both animated formats decode in this build without anything
+being added to it.**
 
 ## 3. Where it lives, and how it is served — not written
 
@@ -74,10 +88,10 @@ for the owner to point at. The install root survives, which is what makes
 "replace the file" a durable instruction rather than one that works until the
 next update.
 
-Two file names are looked for, `newtab-background.png` and
-`newtab-background.jpg`, because the two permitted formats have two
-conventional extensions and asking for a JPEG named `.png` would be asking
-someone to write down something untrue.
+Three file names are looked for — `newtab-background.png`,
+`newtab-background.jpg` and `newtab-background.webp` — one per permitted
+format, because asking for a JPEG named `.png` would be asking someone to
+write down something untrue.
 
 **Serving is not implemented and has a measured cost.** A WebUI page cannot
 read an arbitrary disk path. Chromium's own local-background bytes reach the
@@ -130,7 +144,13 @@ because they already have a home.
   **to the degree PB-5a's second run requires** is an assumption about
   upstream behaviour, not a measurement. It is the likeliest place for this
   feature to fail its own budget, and it fails there quietly.
-- APNG is lossless. For photographic or gradient-heavy material the file may
-  be large, and the installed payload measured at build #37 was already
-  419.5 MB against `docs/SIZE_BUDGET.md`'s 250 MB investigation threshold.
-  No size limit is set for the asset and none is enforced.
+- **No size limit is set for the asset and none is enforced.** It matters more
+  for APNG than for the alternatives: APNG is lossless, so photographic or
+  gradient-heavy material can be very large, while an animated WebP of the
+  same material is lossy and typically far smaller. The installed payload
+  measured at build #37 was already 419.5 MB against `docs/SIZE_BUDGET.md`'s
+  250 MB investigation threshold, and whatever is placed adds to it directly.
+- Which format suits which material is a judgement no check makes. APNG keeps
+  sharp edges, text and alpha exactly; WebP is smaller for photographs and
+  gradients at the cost of being lossy. Both are permitted and the file
+  decides.

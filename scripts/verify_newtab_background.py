@@ -26,7 +26,7 @@ that allowed the feature no longer covers it -- so the repeating-task symbols
 are refused here too, in the background source specifically, rather than only
 in the general sweep `scripts/verify_no_interposition.py` runs.
 
-Enforces: NTB-1, NTB-2, NTB-3.
+Enforces: NTB-1, NTB-2, NTB-3, NTB-4.
 """
 
 from __future__ import annotations
@@ -40,9 +40,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "chrome/browser/ui/sunshine/newtab_background.cc"
 HEADER = "chrome/browser/ui/sunshine/newtab_background.h"
 
-# The two signatures, as the source must spell them.
+# The signatures, as the source must spell them.
 PNG_SIGNATURE = ("0x89", "0x50", "0x4E", "0x47", "0x0D", "0x0A", "0x1A", "0x0A")
 JPEG_SIGNATURE = ("0xFF", "0xD8", "0xFF")
+
+# WebP takes two, and needing two is the rule rather than a detail.
+#
+# `RIFF` is a container tag shared with WAV and AVI. What says WebP is the
+# `WEBP` tag at offset 8. A source that declared the first without the second
+# would accept a renamed WAV as a background while looking exactly like a
+# signature check -- so declaring `RIFF` alone is refused below, by name.
+RIFF_TAG = ("0x52", "0x49", "0x46", "0x46")
+WEBP_TAG = ("0x57", "0x45", "0x42", "0x50")
 
 # Signatures of formats the rule excludes. Present in the source as an
 # accepted constant, each is a violation; named in a comment, each is
@@ -50,7 +59,6 @@ JPEG_SIGNATURE = ("0xFF", "0xD8", "0xFF")
 # initialiser, so that is what is matched.
 EXCLUDED_SIGNATURES = {
     "GIF": ("0x47", "0x49", "0x46"),
-    "RIFF/WebP": ("0x52", "0x49", "0x46", "0x46"),
 }
 
 # A repeating task driving the animation would falsify PB-5a's third property.
@@ -93,6 +101,21 @@ def byte_arrays(text: str) -> list[tuple[str, ...]]:
     return found
 
 
+def _webp_offsets(text: str) -> set[str]:
+    """The offsets the source names for the WebP tag.
+
+    Written narrowly on purpose: the check is that *some* named offset for the
+    WebP tag exists and is 8, not that a particular spelling was used.
+    """
+
+    found = set()
+    for match in re.finditer(r"kWebpTagOffset\s*=\s*(\d+)", text):
+        found.add(match.group(1))
+    for match in re.finditer(r"MatchesAt\([^,]+,\s*(\d+)\s*,\s*kWebpTag", text):
+        found.add(match.group(1))
+    return found
+
+
 def check(root: Path, failures: list[str]) -> None:
     text = stack_text(root)
 
@@ -107,6 +130,19 @@ def check(root: Path, failures: list[str]) -> None:
         failures.append("NTB-1 the PNG signature is not declared as a byte array")
     if JPEG_SIGNATURE not in arrays:
         failures.append("NTB-1 the JPEG signature is not declared as a byte array")
+    if RIFF_TAG not in arrays:
+        failures.append("NTB-1 the RIFF tag is not declared as a byte array")
+
+    # NTB-4: WebP is two tags at two offsets, or it is not WebP.
+    if RIFF_TAG in arrays and WEBP_TAG not in arrays:
+        failures.append(
+            "NTB-4 the RIFF tag is declared without the WEBP tag; RIFF alone is "
+            "shared with WAV and AVI, so this accepts a renamed WAV"
+        )
+    if WEBP_TAG in arrays and "8" not in _webp_offsets(text):
+        failures.append(
+            "NTB-4 the WEBP tag is declared but never checked at offset 8"
+        )
 
     # NTB-2: no excluded format is declared as a signature.
     for label, signature in EXCLUDED_SIGNATURES.items():
@@ -154,8 +190,9 @@ def main() -> int:
         print("\n".join(failures), file=sys.stderr)
         return 1
     print(
-        "New Tab background check passed: PNG and JPEG by signature, "
-        "no excluded format, no Sunshine-owned animation driver."
+        "New Tab background check passed: PNG, JPEG and WebP by signature, "
+        "WebP by both of its tags, no excluded format, no Sunshine-owned "
+        "animation driver."
     )
     return 0
 

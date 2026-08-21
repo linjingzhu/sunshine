@@ -72,13 +72,37 @@ class NewTabBackgroundTests(unittest.TestCase):
         )
         self.assertRejected("GIF signature")
 
-    def test_accepting_webp_is_rejected(self) -> None:
+    def test_dropping_the_riff_tag_is_rejected(self) -> None:
+        self.edit("0x52, 0x49, 0x46, 0x46", "0x52, 0x49, 0x46, 0x47")
+        self.assertRejected("RIFF tag")
+
+    # --- NTB-4: WebP is two tags at two offsets -----------------------------
+
+    def test_the_riff_tag_without_the_webp_tag_is_rejected(self) -> None:
+        """The bug that looks like a signature check.
+
+        `RIFF` is a container tag, shared with WAV and AVI. A source that
+        checked it alone would accept a renamed WAV as a New Tab background
+        while reading, in the diff, exactly like a format check -- the same
+        failure shape as deciding by extension, one layer down.
+        """
+
         self.edit(
-            "constexpr uint8_t kJpegSignature[] = {0xFF, 0xD8, 0xFF};",
-            "constexpr uint8_t kJpegSignature[] = {0xFF, 0xD8, 0xFF};\n"
-            "+constexpr uint8_t kRiffSignature[] = {0x52, 0x49, 0x46, 0x46};",
+            "constexpr uint8_t kWebpTag[] = {0x57, 0x45, 0x42, 0x50};",
+            "constexpr uint8_t kWebpTag[] = {0x57, 0x45, 0x42, 0x51};",
         )
-        self.assertRejected("RIFF/WebP signature")
+        self.assertRejected("without the WEBP tag")
+
+    def test_never_checking_the_webp_tag_offset_is_rejected(self) -> None:
+        """Declaring the tag is not checking it.
+
+        A constant that nothing reads at offset 8 leaves the RIFF-alone bug in
+        place, with the evidence of correctness sitting beside it.
+        """
+
+        self.edit("constexpr size_t kWebpTagOffset = 8;",
+                  "constexpr size_t kWebpTagOffset = 0;")
+        self.assertRejected("never checked at offset 8")
 
     def test_deciding_the_format_from_the_name_is_rejected(self) -> None:
         """The failure that looks most like success.

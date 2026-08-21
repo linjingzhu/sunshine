@@ -17,10 +17,10 @@ index e9a4eee..3270d2d 100644
    # Passed as a define rather than read from a generated header: the value is
 diff --git a/chrome/browser/ui/sunshine/newtab_background.cc b/chrome/browser/ui/sunshine/newtab_background.cc
 new file mode 100644
-index 0000000..38794df
+index 0000000..b2591df
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.cc
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,88 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -34,13 +34,13 @@ index 0000000..38794df
 +
 +namespace {
 +
-+// The two signatures the owner's rule admits, and nothing else.
++// The signatures the owner's rule admits, and nothing else.
 +//
-+// A GIF (`GIF87a`/`GIF89a`), a WebP (`RIFF....WEBP`) and an AVIF (`....ftyp`)
-+// are absent on purpose, and each is a format Blink would decode perfectly
-+// well if it were allowed to reach the decoder. The refusal is a product rule
-+// rather than a capability limit, which is exactly why it has to be written
-+// down somewhere a reader can find it.
++// A GIF (`GIF87a`/`GIF89a`) and an AVIF (`....ftypavif`) are absent on
++// purpose, and both are formats Blink would decode perfectly well if they
++// were allowed to reach the decoder. The refusal is a product rule rather
++// than a capability limit, which is exactly why it has to be written down
++// somewhere a reader can find it.
 +constexpr uint8_t kPngSignature[] = {0x89, 0x50, 0x4E, 0x47,
 +                                     0x0D, 0x0A, 0x1A, 0x0A};
 +
@@ -49,27 +49,49 @@ index 0000000..38794df
 +// varies by encoder, so three bytes is the whole of what is common.
 +constexpr uint8_t kJpegSignature[] = {0xFF, 0xD8, 0xFF};
 +
++// **WebP's identity is not a prefix, and treating it as one is a real bug
++// rather than a sloppy one.**
++//
++// `RIFF` is a container tag, not a format: WAV and AVI open with the same
++// four bytes. What says WebP is the `WEBP` tag at offset 8, after the
++// container's 32-bit length field. A check that accepted anything beginning
++// `RIFF` would accept a renamed WAV as a New Tab background -- and would look,
++// in the source, exactly like a signature check.
++//
++// Both tags are required, at both offsets. That is what
++// `scripts/verify_newtab_background.py` holds: declaring `kRiffTag` without
++// `kWebpTag` is refused, because the first alone is the bug.
++constexpr uint8_t kRiffTag[] = {0x52, 0x49, 0x46, 0x46};   // "RIFF"
++constexpr uint8_t kWebpTag[] = {0x57, 0x45, 0x42, 0x50};   // "WEBP"
++constexpr size_t kWebpTagOffset = 8;
++
 +constexpr const base::FilePath::CharType* const kAssetFileNames[] = {
 +    FILE_PATH_LITERAL("newtab-background.png"),
 +    FILE_PATH_LITERAL("newtab-background.jpg"),
++    FILE_PATH_LITERAL("newtab-background.webp"),
 +};
 +
-+bool StartsWith(base::span<const uint8_t> head,
-+                base::span<const uint8_t> signature) {
-+  if (head.size() < signature.size()) {
++bool MatchesAt(base::span<const uint8_t> head,
++               size_t offset,
++               base::span<const uint8_t> tag) {
++  if (head.size() < offset + tag.size()) {
 +    return false;
 +  }
-+  return head.first(signature.size()) == signature;
++  return head.subspan(offset, tag.size()) == tag;
 +}
 +
 +}  // namespace
 +
 +Format DetectFormat(base::span<const uint8_t> head) {
-+  if (StartsWith(head, kPngSignature)) {
++  if (MatchesAt(head, 0, kPngSignature)) {
 +    return Format::kPng;
 +  }
-+  if (StartsWith(head, kJpegSignature)) {
++  if (MatchesAt(head, 0, kJpegSignature)) {
 +    return Format::kJpeg;
++  }
++  if (MatchesAt(head, 0, kRiffTag) &&
++      MatchesAt(head, kWebpTagOffset, kWebpTag)) {
++    return Format::kWebp;
 +  }
 +  return Format::kNone;
 +}
@@ -89,10 +111,10 @@ index 0000000..38794df
 +}  // namespace sunshine::background
 diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
 new file mode 100644
-index 0000000..ee344b4
+index 0000000..49a945a
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.h
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,81 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -110,23 +132,34 @@ index 0000000..ee344b4
 +
 +// What a New Tab background may be.
 +//
-+// PNG and JPEG, and nothing else.
++// PNG, JPEG and WebP, and nothing else.
 +//
-+// **APNG needs no entry of its own, and that is not an oversight.** An APNG
-+// *is* a PNG: the same eight-byte signature, the same `.png` name, and the
-+// animation carried in ancillary chunks that a decoder either understands or
-+// skips. A build that accepts PNG accepts APNG without being told about it,
-+// and a decoder that did not would show the first frame rather than fail --
-+// which is why the format was designed that way. Adding a `kApng` here would
-+// mean claiming to distinguish two things that are one thing.
++// **Neither animated form gets an entry of its own, and that is not an
++// oversight.** An APNG *is* a PNG -- the same eight-byte signature, the same
++// `.png` name, the animation carried in ancillary chunks a decoder either
++// understands or skips -- and an animated WebP *is* a WebP, animation living
++// in the same RIFF container as a still one. A build that accepts the still
++// format accepts the animated one without being told about it. Adding `kApng`
++// or `kAnimatedWebp` here would mean claiming to distinguish two things that
++// are one thing, and would then have to answer what to do when the claim was
++// wrong.
++//
++// The still fallback falls out of the same fact: a decoder that does not know
++// APNG shows its first frame, which is a valid standalone PNG.
 +enum class Format {
 +  kNone,
 +  kPng,
 +  kJpeg,
++  kWebp,
 +};
 +
-+// Enough bytes for the longest signature below.
-+inline constexpr size_t kSignatureBytes = 8;
++// Enough bytes to reach the furthest tag any signature below inspects.
++//
++// Twelve rather than eight because of WebP: its identity is not a prefix. See
++// the comment on `kWebpTag` in the implementation -- the four bytes that say
++// "WebP" sit at offset 8, after a length field, and a check that stopped at
++// eight bytes would be reading the container and calling it the format.
++inline constexpr size_t kSignatureBytes = 12;
 +
 +// What the file says it is, read from the file's own first bytes.
 +//
@@ -142,10 +175,10 @@ index 0000000..ee344b4
 +
 +// The names a background may have, beside `chrome.exe`.
 +//
-+// Two, because the two permitted formats have two conventional extensions and
-+// asking the owner to rename a JPEG to `.png` would be asking them to write
-+// down something untrue. The extension selects which file is *looked for*; it
-+// never decides what the file *is*, which is `DetectFormat`'s job alone.
++// One per permitted format, because asking the owner to rename a JPEG to
++// `.png` would be asking them to write down something untrue. The extension
++// selects which file is *looked for*; it never decides what the file *is*,
++// which is `DetectFormat`'s job alone.
 +base::span<const base::FilePath::CharType* const> AssetFileNames();
 +
 +// The install directory -- where `chrome.exe` is, not the versioned directory
