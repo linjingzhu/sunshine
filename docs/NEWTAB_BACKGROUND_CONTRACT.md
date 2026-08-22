@@ -23,15 +23,35 @@ evidence each rests on; it does not re-derive them.
 | **Loop** | An animated asset loops for as long as it says it does, including forever — an APNG in its `acTL` chunk, a WebP in its `ANIM` chunk. |
 | **Where it lives** | A file in the install directory. **Not embedded in the binary.** |
 | **Animation rules** | `docs/PERFORMANCE_BUDGET.md` PB-5a's three properties, all required together: visible-only, opt-in, self-contained. |
-| **Video** | Excluded. |
+| **Video** | **Permitted, by the owner's decision reversing the exclusion.** WebM only, carrying VP9 or AV1 — the codecs `docs/decisions/0004-media-codecs.md` actually ships. Muted, and looping by the element's `loop` attribute. |
 
-**Video was excluded on grounds worth keeping**, because "we did not get to it"
-is a different thing from "we decided against it". A short clip decoded on the
-GPU is affordable; what it is not is *free of everything else*. It brings a
-decode pipeline, an audio track that would have to be proven silent, and a
-codec-licensing question that `docs/decisions/0004-media-codecs.md` scoped
-deliberately to page content. An animated image needs none of that and looks
-the same from two metres away.
+**Video was excluded, and the exclusion has been voided by the owner.** The
+grounds are kept here because two of the three did not survive being re-read,
+and a record that quietly drops its own reasoning is worth less than one that
+shows where it was wrong.
+
+| Ground recorded for the exclusion | On re-reading |
+| --- | --- |
+| A codec-licensing question | **Did not survive.** ADR 0004 decided to leave proprietary codecs *off*: H.264 and AAC are absent, and VP9, AV1 and Opus are royalty-free. A WebM file the owner encodes raises no licensing question. |
+| An audio track that must be proven silent | **Did not survive.** `muted` on the element is a stronger guarantee than reading the container, and the autoplay policy requires it anyway. |
+| A decode pipeline | **Stands.** A media pipeline and a video decoder instance per New Tab, which no image needs, and which nothing has measured. |
+
+**And one thing changed on the other side of the ledger.** §5 records that the
+asset is re-read on every New Tab, because `UntrustedSource::AllowCaching()` is
+false. A video codec makes the same material about an order of magnitude
+smaller than an animated WebP does, so admitting video *reduces* the largest
+cost this feature is known to carry. That was not true when the exclusion was
+written, because that measurement did not exist yet.
+
+**What is not yet built, and what it needs.** No code serves or plays a video.
+The page cannot simply gain a `<video>` element: the New Tab page reaches its
+background through an iframe precisely because its own content policy refuses
+media loaded from `chrome-untrusted://new-tab-page`, and that applies to
+`media-src` as it does to `img-src`. So a video background is a **second helper
+document**, served from the untrusted source with a policy that admits its own
+media — not a relaxation of the New Tab page's policy. That choice is recorded
+before the code exists so that the cheaper, worse option is a visible decision
+rather than a default.
 
 ## 2. What a background may be — NTB-1, NTB-2, NTB-4
 
