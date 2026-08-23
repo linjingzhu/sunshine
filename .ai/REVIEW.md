@@ -1,8 +1,8 @@
 ---
 doc_id: ai-review
-version: 1.0.0
+version: 1.1.0
 canonical_path: .ai/REVIEW.md
-updated: 2026-08-13
+updated: 2026-08-23
 ---
 
 # Adversarial Review Policy
@@ -86,3 +86,14 @@ If the opposite family is unavailable, spawn a fresh reviewer of the same family
 - After correction, rerun the smallest evidence that proves the fix.
 
 Reviewer PASS alone never replaces compile/test/build/runtime evidence.
+
+**A finding is a hypothesis with evidence attached, not a verdict.** Reproduce
+every consequential finding against the tree before acting on it or relaying it
+— including findings that favour caution, and including your own. A CRITICAL
+has already been raised in this repository against a parser that a
+higher-precedence check rejects first; relaying it unverified would have
+escalated a non-issue to a merge blocker.
+
+**Review is the only thing that has caught an unreachable feature here.** No
+compiler, guard, test or build did. Weight adversarial review accordingly on any
+change that adds a branch to code someone else decides whether to call.
