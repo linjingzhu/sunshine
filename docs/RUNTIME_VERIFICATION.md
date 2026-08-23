@@ -518,6 +518,24 @@ no diagnosis and therefore no change; a second failure from them is expected,
 not new information. RV-26 and RV-29 may pass, and if they do it is because the
 sheet was corrected, not because the installer was.
 
+**Build #44 is the one the retest runs against, and it carries the first
+behaviour change since the sheet was written.** Run `32514342627`, commit
+`377f9c5` on `stable`, eight steps green in 35 minutes. It contains the New Tab
+background's `height`/`width` fix and the 100 MB cap; everything else is
+unchanged from #42.
+
+**So UG-3 is now a real gate rather than a known failure.** On #42 the
+background frame was the replaced element's 300x150 default in a corner of the
+window, because `iframe.css` sizes it with `width: inherit` from a host that
+computed `auto`. Whether it fills the window in #44 is the one question this
+build was made to answer, and nobody has looked yet.
+
+**The sheet sat queued for six hours and fifty-three minutes before it could be
+built at all.** The self-hosted runner was off; the job was not lost and was
+picked up unchanged when it returned. Recorded because three earlier runs in
+the same state were cancelled and re-dispatched, which discarded the wait
+without shortening it -- run #17 waited 13h34m and then succeeded.
+
 That is the whole of it, and the scope is the point. Build #12 was commit
 `6aa75ff`, "Finish replacing ntp-logo" — the change that completed the wordmark
 — so RV-7 is exactly the gate it can discharge.

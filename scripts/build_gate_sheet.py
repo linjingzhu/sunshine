@@ -33,7 +33,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "gate-sheet.html"
 
-BUILD = "#42 (da64842)"
+BUILD = "#44 (377f9c5)"
 # Named for the revision, not "pinned": `scripts/verify_no_interposition.py`
 # reads a field called `PINNED` as a tab-pinned flag, and it is right to --
 # the word means two unrelated things in this project and this one is the
