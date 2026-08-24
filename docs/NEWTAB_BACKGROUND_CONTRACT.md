@@ -269,6 +269,80 @@ hidden.
 
 **Nothing is built.**
 
+## 3b. The status row — the time, and the way in
+
+**Decided by the owner.** The bottom-right corner of the New Tab carries the
+current time, and beside it a button that opens the OS file picker to choose a
+background.
+
+| | |
+| --- | --- |
+| **NTB-9** | The clock shows minutes and wakes once per minute, aligned to the boundary, only while the surface is visible. `docs/PERFORMANCE_BUDGET.md` PB-5b is the row that permits it, and it is the only repeating task Sunshine owns. |
+| **NTB-10** | The clock survives resting; the button does not. |
+| **NTB-11** | The picker copies the chosen file **byte for byte** and validates it before it lands. A file the format rules refuse is refused with the reason shown, and nothing is written. |
+
+**NTB-10 is the one worth arguing for.** §3a hides the page's content three
+seconds after focus leaves, and the obvious rule hides everything that is not
+the background. But a clock is exactly what a person wants on a screen they are
+not typing into — it is the reason to look over at all — while a settings
+button on a resting screen is a control nobody is reaching for. So the fade
+excludes the background **and the clock**, and hides the button separately.
+
+**The button needs a browser-side write, and there is no way around it.** The
+page can open a picker with `<input type="file">` and never touch Mojo, but a
+`File` in a renderer is bytes with nowhere to go: persisting them is a browser
+process operation. What that costs is set out below, because it is the first
+time this feature takes ownership of an upstream file that is not already ours.
+
+### What upstream already does, read rather than assumed
+
+Chromium's own *Upload from device* is the same shape, and answers a question
+§3a left open:
+
+```cpp
+void CopyFileToProfilePath(const base::FilePath& from_path,
+                           const base::FilePath& profile_path) {
+  base::CopyFile(from_path, profile_path.AppendASCII(
+      chrome::kChromeUIUntrustedNewTabPageBackgroundFilename));
+}
+```
+
+**`base::CopyFile`, verbatim.** Upstream does not decode and re-emit, so its
+picker preserves an animation. §3a warned that a converting picker would
+silently turn an APNG into a photograph; upstream does not convert, and neither
+may this one. That warning stands as a rule and is no longer a suspicion about
+upstream.
+
+The dialog itself is `ChooseLocalCustomBackground()` in
+`chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome.mojom`,
+landing in `NtpCustomBackgroundService::SelectLocalBackgroundImage`. It writes
+**Chromium's** profile background, which is a different asset from Sunshine's
+and stays that way — two systems, one of which Sunshine does not own.
+
+### The ownership this takes
+
+| File | Why |
+| --- | --- |
+| `chrome/browser/ui/webui/new_tab_page/new_tab_page.mojom` | one method for the page to call |
+| `chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h` | the declaration, and a `ui::SelectFileDialog::Listener` |
+| `chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc` | open the dialog, validate the signature, copy the bytes |
+
+Three upstream files this stack does not own today. `docs/decisions/0007-module-contribution-seam.md`
+gives a WebUI surface its files for free; a Mojo method on **upstream's** WebUI
+is not that, and this is the point where the background feature stops being
+free.
+
+**Validation moves into the handler, and that is the substantive win.** §5
+records that a rejected file and a missing file are indistinguishable on
+screen. The handler holds the bytes, the rule and the person at the same
+moment, so it can say *this is a GIF* or *this is 112 MB and the limit is 100*
+— sentences nothing in this feature can produce today.
+
+**Not built.** The clock and the row exist; the button's browser half does not,
+and a button that opens nothing is worse than no button. NTB-11 is written
+ahead of the code it constrains, which is this repository's pattern and the
+reason the allowlist defect was not repeated.
+
 ## 4. The animation rules — NTB-3, and PB-5a
 
 `docs/PERFORMANCE_BUDGET.md` PB-5a permits this animation and is the reason

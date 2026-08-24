@@ -2,7 +2,7 @@ diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/reso
 index d9d32b0..6ad1de5 100644
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -180,6 +180,75 @@ cr-most-visited {
+@@ -180,6 +180,105 @@ cr-most-visited {
    z-index: unset;
  }
  
@@ -40,12 +40,41 @@ index d9d32b0..6ad1de5 100644
 +   pointer-events is the load-bearing half: content faded to nothing still
 +   answers a click, and the click that restores focus would otherwise land on
 +   an invisible searchbox. One click wakes the page and does nothing else. */
-+:host([sunshine-resting]) > *:not(#sunshineBackground) {
++:host([sunshine-resting]) > *:not(#sunshineBackground):not(#sunshineStatus) {
 +  opacity: 0;
 +  pointer-events: none;
 +}
 +
-+:host > *:not(#sunshineBackground) {
++/* NTB-10. The clock is the reason to look at a resting screen; the button is
++   a control nobody reaches for on one. So the row survives and the button
++   inside it does not. */
++:host([sunshine-resting]) #sunshineStatus > *:not(#sunshineClock) {
++  opacity: 0;
++  pointer-events: none;
++}
++
++#sunshineStatus {
++  align-items: center;
++  bottom: 16px;
++  color: var(--color-new-tab-page-primary-foreground);
++  display: flex;
++  gap: 12px;
++  inset-inline-end: 16px;
++  position: fixed;
++  text-shadow: var(--ntp-theme-text-shadow);
++  z-index: 1;
++}
++
++#sunshineClock {
++  /* The digits are tabular so the row does not shift as the minute changes. */
++  font-size: 1.25rem;
++  font-variant-numeric: tabular-nums;
++  line-height: 1;
++  user-select: none;
++}
++
++:host > *:not(#sunshineBackground),
++#sunshineStatus > * {
 +  transition: opacity 400ms ease;
 +}
 +
@@ -53,7 +82,8 @@ index d9d32b0..6ad1de5 100644
 +   asked the system for less motion still gets the background alone -- they
 +   get it at once instead of over 400ms. */
 +@media (prefers-reduced-motion: reduce) {
-+  :host > *:not(#sunshineBackground) {
++  :host > *:not(#sunshineBackground),
++  #sunshineStatus > * {
 +    transition: none;
 +  }
 +}
@@ -82,11 +112,9 @@ diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/res
 index b6dab96..0c044f2 100644
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -3,6 +3,31 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -3,6 +3,42 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
  #html_wrapper_imports_end -->
- <div id="content"
-   ?ntp-threads-rail-open="${this.showComposebox_ && this.enableThreadsRail_}">
-+  <!-- Sunshine's New Tab background.
++<!-- Sunshine's New Tab background.
 +       An iframe rather than an <img> or a CSS background, because the New Tab
 +       page overrides child-src to admit chrome-untrusted://new-tab-page and
 +       does not override img-src. That is also why upstream's own custom
@@ -106,11 +134,24 @@ index b6dab96..0c044f2 100644
 +       No backticks anywhere in this file. It is preprocessed into a
 +       TypeScript template literal, where a backtick ends the string and
 +       dollar-brace starts an expression - which is why the upstream comment
-+       this replaced wrote its binding as a backslash-escaped dollar. -->
-+  ${this.sunshineBackgroundAvailable_ ? html`
-+    <ntp-iframe id="sunshineBackground" src="${this.sunshineBackgroundPath_}"
-+        ?hidden="${!this.sunshineBackgroundVisible_}"></ntp-iframe>
-+  ` : ''}
++       this replaced wrote its binding as a backslash-escaped dollar.
++       A sibling of #content, not a child. Resting fades #content, and opacity
++       applies to the whole subtree beneath it - so a background inside it
++       would fade with the page instead of being what remains. That was a real
++       defect in the first version of resting, and this position is the fix. -->
++${this.sunshineBackgroundAvailable_ ? html`
++  <ntp-iframe id="sunshineBackground" src="${this.sunshineBackgroundPath_}"
++      ?hidden="${!this.sunshineBackgroundVisible_}"></ntp-iframe>
++` : ''}
++<!-- The status row. A sibling of #content rather than a child, for the same
++     reason as the background above: resting fades #content, and opacity
++     applies to a whole subtree. Anything that must survive resting has to be
++     outside the element that fades. NTB-10. -->
++<div id="sunshineStatus">
++  <span id="sunshineClock">${this.sunshineTime_}</span>
++</div>
+ <div id="content"
+   ?ntp-threads-rail-open="${this.showComposebox_ && this.enableThreadsRail_}">
    ${this.lazyRender_ && this.microsoftModuleEnabled_ ? html`
      <iframe id="microsoftAuth" src="${this.microsoftAuthIframePath_}"></iframe>
    ` : ''}
@@ -143,7 +184,7 @@ index 838385f..63bd02c 100644
  import {recordBoolean, recordDuration, recordEnumeration, recordLinearValue, recordLoadDuration, recordSparseValueWithPersistentHash} from './metrics_utils.js';
  import {ParentTrustedDocumentProxy} from './modules/microsoft_auth_frame_connector.js';
  import type {PageCallbackRouter, PageHandlerRemote, Theme} from './new_tab_page.mojom-webui.js';
-@@ -132,8 +131,28 @@ const OGB_IFRAME_ORIGIN = 'chrome-untrusted://new-tab-page';
+@@ -132,8 +131,45 @@ const OGB_IFRAME_ORIGIN = 'chrome-untrusted://new-tab-page';
  const MSAL_IFRAME_ORIGIN = 'chrome-untrusted://ntp-microsoft-auth';
  const VOICE_QUERY_LENGTH_LIMIT = 120;
  const VOICE_IDLE_TIMEOUT_MS = 8000;
@@ -160,6 +201,23 @@ index 838385f..63bd02c 100644
 +// how the feature is absent by default rather than switched off.
 +// NTB-7. The owner's number, and the only place it is written.
 +const SUNSHINE_REST_DELAY_MS = 3000;
++
++// NTB-9. The clock's text, in the browser's own locale and the user's own
++// 12/24-hour preference -- `undefined` asks Intl for exactly that rather than
++// hardcoding a format this page has no business choosing.
++function formatSunshineTime(): string {
++  return new Date().toLocaleTimeString(
++      undefined, {hour: 'numeric', minute: '2-digit'});
++}
++
++// Milliseconds until the next minute boundary. PB-5b's second property is one
++// wakeup per displayed change: sleeping a fixed 60000 would drift and would
++// wake at an arbitrary point inside the minute, so each wake is scheduled to
++// land just after the value actually changes.
++function untilNextSunshineMinute(): number {
++  const now = new Date();
++  return 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
++}
 +
 +const SUNSHINE_BACKGROUND_PATH =
 +    'chrome-untrusted://new-tab-page/custom_background_image?' +
@@ -181,7 +239,7 @@ index 838385f..63bd02c 100644
      searchbox: NtpSearchboxElement,
      composebox: NtpComposeboxElement,
      undoToast: CrToastElement,
-@@ -326,6 +341,18 @@ export class AppElement extends AppElementBase {
+@@ -326,6 +341,19 @@ export class AppElement extends AppElementBase {
  
        scrolledToTop_: {type: Boolean},
  
@@ -196,11 +254,12 @@ index 838385f..63bd02c 100644
 +      sunshineBackgroundPath_: {type: String},
 +
 +      sunshineBackgroundVisible_: {type: Boolean},
++      sunshineTime_: {type: String},
 +
        wallpaperSearchButtonAnimationEnabled_: {type: Boolean},
        wallpaperSearchButtonEnabled_: {type: Boolean},
        showWallpaperSearchButton_: {type: Boolean},
-@@ -462,6 +489,22 @@ export class AppElement extends AppElementBase {
+@@ -462,6 +489,24 @@ export class AppElement extends AppElementBase {
    protected accessor lazyRender_: boolean = false;
    protected accessor scrolledToTop_: boolean =
        document.documentElement.scrollTop <= 0;
@@ -220,10 +279,12 @@ index 838385f..63bd02c 100644
 +      document.visibilityState === 'visible';
 +  // Not reactive: nothing renders from it. Zero means unarmed.
 +  private sunshineRestTimer_: number = 0;
++  protected accessor sunshineTime_: string = formatSunshineTime();
++  private sunshineClockTimer_: number = 0;
    protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
        loadTimeData.getBoolean('wallpaperSearchButtonAnimationEnabled');
    protected accessor wallpaperSearchButtonEnabled_: boolean =
-@@ -581,8 +622,60 @@ export class AppElement extends AppElementBase {
+@@ -581,8 +622,83 @@ export class AppElement extends AppElementBase {
      ColorChangeUpdater.forDocument().start();
    }
  
@@ -238,12 +299,34 @@ index 838385f..63bd02c 100644
 +  private onSunshineVisibilityChanged_ = () => {
 +    this.sunshineBackgroundVisible_ = document.visibilityState === 'visible';
 +    this.updateSunshineResting_();
++    this.updateSunshineClock_();
 +  };
 +
 +  // Bound once, for the same reason as the listener above.
 +  private onSunshineFocusChanged_ = () => {
 +    this.updateSunshineResting_();
 +  };
++
++  // NTB-9, PB-5b. The only repeating task Sunshine owns, and it repeats by
++  // re-arming after each displayed change rather than by an interval -- which
++  // is what keeps it aligned to the boundary instead of drifting off it.
++  //
++  // Driven by visibility and not by focus, unlike resting: a clock that
++  // stopped when the window lost focus would stop at the moment it is most
++  // likely to be read. PB-5b's first property is about being looked at, and a
++  // visible unfocused window is.
++  private updateSunshineClock_() {
++    if (this.sunshineClockTimer_ !== 0) {
++      clearTimeout(this.sunshineClockTimer_);
++      this.sunshineClockTimer_ = 0;
++    }
++    if (document.visibilityState !== 'visible') {
++      return;
++    }
++    this.sunshineTime_ = formatSunshineTime();
++    this.sunshineClockTimer_ = setTimeout(
++        () => this.updateSunshineClock_(), untilNextSunshineMinute());
++  }
 +
 +  // The whole state, recomputed from the document on every transition rather
 +  // than accumulated across them. A machine that remembered which event came
@@ -281,10 +364,11 @@ index 838385f..63bd02c 100644
 +    window.addEventListener('blur', this.onSunshineFocusChanged_);
 +    window.addEventListener('focus', this.onSunshineFocusChanged_);
 +    this.updateSunshineResting_();
++    this.updateSunshineClock_();
      realboxCanShowSecondarySideMediaQueryList.addEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -702,6 +757,14 @@ export class AppElement extends AppElementBase {
+@@ -702,6 +757,18 @@ export class AppElement extends AppElementBase {
  
    override disconnectedCallback() {
      super.disconnectedCallback();
@@ -295,6 +379,10 @@ index 838385f..63bd02c 100644
 +    if (this.sunshineRestTimer_ !== 0) {
 +      clearTimeout(this.sunshineRestTimer_);
 +      this.sunshineRestTimer_ = 0;
++    }
++    if (this.sunshineClockTimer_ !== 0) {
++      clearTimeout(this.sunshineClockTimer_);
++      this.sunshineClockTimer_ = 0;
 +    }
      realboxCanShowSecondarySideMediaQueryList.removeEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
