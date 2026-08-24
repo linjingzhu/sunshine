@@ -23,35 +23,18 @@ evidence each rests on; it does not re-derive them.
 | **Loop** | An animated asset loops for as long as it says it does, including forever — an APNG in its `acTL` chunk, a WebP in its `ANIM` chunk. |
 | **Where it lives** | A file in the install directory. **Not embedded in the binary.** |
 | **Animation rules** | `docs/PERFORMANCE_BUDGET.md` PB-5a's three properties, all required together: visible-only, opt-in, self-contained. |
-| **Video** | **Permitted, by the owner's decision reversing the exclusion.** WebM only, carrying VP9 or AV1 — the codecs `docs/decisions/0004-media-codecs.md` actually ships. Muted, and looping by the element's `loop` attribute. |
+| **Video** | Excluded. |
 
-**Video was excluded, and the exclusion has been voided by the owner.** The
-grounds are kept here because two of the three did not survive being re-read,
-and a record that quietly drops its own reasoning is worth less than one that
-shows where it was wrong.
+**Video is excluded because it is not needed**, and "we did not get to it" is a
+different thing from "we decided against it". The animated image formats do
+what this feature is for, and a short clip looks the same from two metres away.
 
-| Ground recorded for the exclusion | On re-reading |
-| --- | --- |
-| A codec-licensing question | **Did not survive.** ADR 0004 decided to leave proprietary codecs *off*: H.264 and AAC are absent, and VP9, AV1 and Opus are royalty-free. A WebM file the owner encodes raises no licensing question. |
-| An audio track that must be proven silent | **Did not survive.** `muted` on the element is a stronger guarantee than reading the container, and the autoplay policy requires it anyway. |
-| A decode pipeline | **Stands.** A media pipeline and a video decoder instance per New Tab, which no image needs, and which nothing has measured. |
-
-**And one thing changed on the other side of the ledger.** §5 records that the
-asset is re-read on every New Tab, because `UntrustedSource::AllowCaching()` is
-false. A video codec makes the same material about an order of magnitude
-smaller than an animated WebP does, so admitting video *reduces* the largest
-cost this feature is known to carry. That was not true when the exclusion was
-written, because that measurement did not exist yet.
-
-**What is not yet built, and what it needs.** No code serves or plays a video.
-The page cannot simply gain a `<video>` element: the New Tab page reaches its
-background through an iframe precisely because its own content policy refuses
-media loaded from `chrome-untrusted://new-tab-page`, and that applies to
-`media-src` as it does to `img-src`. So a video background is a **second helper
-document**, served from the untrusted source with a policy that admits its own
-media — not a relaxation of the New Tab page's policy. That choice is recorded
-before the code exists so that the cheaper, worse option is a visible decision
-rather than a default.
+The exclusion was lifted for one day and withdrawn without any code being
+written. `docs/PERFORMANCE_BUDGET.md` PB-5a records what that round corrected:
+two of the three grounds first written here — a codec-licensing question and an
+audio track needing proof of silence — did not survive re-reading, and only the
+per-New-Tab decode pipeline stands. The cancellation does not rest on any of
+them.
 
 ## 2. What a background may be — NTB-1, NTB-2, NTB-4
 
@@ -170,6 +153,121 @@ The rejected alternative is worth recording. Copying the asset into each
 profile at first run would need no new upstream file, and would break the
 decision in §1: replacing the file in the install directory would then change
 nothing for any profile that already existed.
+
+### The browser will also register one — decided, not built
+
+**The owner's decision: a Sunshine surface, not Chromium's Customize panel.**
+The picker lives on a Sunshine settings surface, which costs zero upstream
+files by the seam in `docs/decisions/0007-module-contribution-seam.md`.
+Chromium's own Customize Chrome panel keeps working and keeps writing its own
+profile background; the two are separate features that happen to draw in the
+same place.
+
+**Two locations, in order.** The install directory alone cannot work, because
+the browser cannot write to it:
+
+| | Asset | Written by | Writable without elevation |
+| --- | --- | --- | --- |
+| 1st | `<profile>/Sunshine/newtab-background.*` | the picker | **always** |
+| 2nd | install directory, as §3 above | copying a file in | per-user only |
+
+A per-machine install puts the install directory under `%ProgramFiles%`, and a
+browser that asked for administrator rights to set a wallpaper would be
+answering a decoration request with an elevation prompt. So the picker writes
+to the profile, and the install directory keeps being what it already is: the
+default, and the way a machine-wide image is deployed.
+
+**This does not reopen the rejected alternative above.** That one copied into
+each profile *at first run*, which is why replacing the install file stopped
+reaching existing profiles. Here a profile holds an asset only when a person
+put one there deliberately, and replacing the install file still reaches every
+profile that has not.
+
+**The bytes are copied, never re-encoded.** Re-encoding would decode and
+re-emit the image, and the first frame of an APNG or an animated WebP is a
+valid still — so a converting picker silently turns an animation into a
+photograph. Copy verbatim, or the format rules in §2 are enforced on bytes the
+user never chose.
+
+**Validate before writing, and say why on refusal.** §5 records that a rejected
+file and a missing file are indistinguishable on screen. A picker is the first
+place that can be fixed: it holds the file, the rule and the person at the same
+moment. "This is a GIF" and "this is 112 MB, the limit is 100" are sentences
+nothing in this feature can say today.
+
+**The cost, named rather than absorbed.** Looking in two directories doubles
+the names probed at startup — six instead of three, still once per process.
+`docs/PERFORMANCE_BUDGET.md` PB-4's first zero-tolerance condition admits one
+file on the startup path, and this feature already carries a residue against
+it. This widens that residue. It is recorded here rather than fixed by amending
+PB-4, because amending the budget a feature violates is the pattern that
+produced this contract's worst defect.
+
+**Nothing is built.** No picker, no second lookup path, no profile asset.
+
+## 3a. Resting — the background alone, three seconds after focus leaves
+
+**Decided by the owner.** When the browser window loses focus and three seconds
+pass, the New Tab's own content fades out and the background is the only thing
+on screen. Focus returning restores it at once.
+
+| | |
+| --- | --- |
+| **NTB-6** | Resting requires an installed background. With none, nothing hides — an empty New Tab is not a feature. |
+| **NTB-7** | The delay is a **one-shot** timer, armed on the transition and cancelled on any transition out. Sunshine owns no repeating task for it. |
+| **NTB-8** | While resting, the hidden content takes no pointer events. The click that restores focus wakes the page and does nothing else. |
+
+**Focus is not visibility, and this feature is the first thing here to need the
+difference.** §4's `visibilitychange` handling stops the animation when the tab
+is hidden or the window minimised. A window that is merely *unfocused* is still
+visible, still animating, and — until now — indistinguishable to this page from
+a focused one. Resting is driven by `document.hasFocus()` and window
+`focus`/`blur`; hiding remains driven by `visibilityState`. **Two signals, two
+jobs, and they compose rather than override**: a hidden window rests nothing,
+because there is nothing to see.
+
+The state is derived rather than accumulated. On any of the three events —
+`blur`, `focus`, `visibilitychange` — the page recomputes one predicate:
+
+```text
+rest  ⇔  background available
+      ∧  document.visibilityState === 'visible'
+      ∧  !document.hasFocus()
+```
+
+and arms or cancels from that. A state machine that instead remembered which
+event happened last is the version that gets stuck resting after a tab switch,
+which is the bug this shape does not have.
+
+**Everything except the background fades, by exclusion rather than by list.**
+The rule names the background frame and hides its siblings; it does not
+enumerate `#content`, the customize buttons and the attribution link. Upstream
+adds a fixed-position element to this page from time to time, and a list would
+be correct until it did.
+
+**Cancel the pending timer when the window is hidden.** A timeout left armed
+across a minimise is work scheduled for a moment nobody is looking at, which is
+`docs/PERFORMANCE_BUDGET.md` PB-5's whole subject even when the work is one
+assignment.
+
+### What this does to PB-5a's reasoning, said rather than glossed
+
+PB-5a permits an animated background because *"it costs while it is watched, it
+stops when it is not, and it is absent unless someone asked for it."*
+
+**This feature makes the animation the only thing on screen at the moment the
+user turned away.** It satisfies property 1 exactly — the tab is visible, the
+window is not occluded, and property 1 is written about visibility rather than
+attention — and it pushes against the sentence that property was derived from.
+Recorded here because a later reader should find that the tension was noticed
+and accepted, not that it was missed.
+
+The narrow reading holds: an unfocused window on a second monitor is being
+watched, and a minimised one is not, which is the line `visibilityState` already
+draws. Nothing about resting changes what happens when the window is actually
+hidden.
+
+**Nothing is built.**
 
 ## 4. The animation rules — NTB-3, and PB-5a
 

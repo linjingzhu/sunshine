@@ -383,56 +383,32 @@ together:
 | --- | --- |
 | **1. Visible-only** | It runs only while its surface is the visible tab in a non-occluded window. Hidden, occluded, background-tab and minimised states run nothing. |
 | **2. Opt-in** | It does not exist unless the user supplied the asset. A build with none configured has PB-5's original idle cost, unchanged and still zero. |
-| **3. Self-contained** | Sunshine owns **no per-frame work**: no timer, no frame callback, no repeating task advancing it. Repetition may be *declared* once and declaratively — by the asset's own loop field, or by a media element's `loop` attribute — and from there the platform carries it. |
+| **3. Self-contained** | The animation is carried by the asset. Sunshine owns no timer, no frame callback, and no repeating task driving it. |
 
 **Only the New Tab background qualifies today**, and only through the user's own
 image. No other surface gains an animation by this amendment, and one that
 wanted it would need its own row here rather than an appeal to this one.
 
-**Video was excluded and no longer is, by the owner's decision.** Three
-grounds were recorded for the exclusion, and on being re-read for this
-amendment **two of them did not survive**:
+**Video is excluded, by the owner's decision: it is not needed.** The animated
+image formats do what this feature is for.
 
-- *"A codec-licensing question."* `docs/decisions/0004-media-codecs.md` decided
-  to **leave proprietary codecs off**: H.264 and AAC are not compiled in, and
-  VP9, AV1 and Opus — which are — are royalty-free. A WebM background the owner
-  encodes raises no licensing question at all. The original wording bundled a
-  real decision about H.264 into a claim about video as such.
-- *"An audio track that must be proven silent."* `muted` on the media element
-  is a stronger guarantee than inspecting the container, and Chromium's autoplay
-  policy requires it regardless. The proof was available all along.
+**The exclusion was briefly lifted and then withdrawn, and the reasons are
+worth keeping straight.** While the amendment was being written, two of the
+three grounds originally recorded here did not survive re-reading: the
+"codec-licensing question" was a real decision about H.264 written as a claim
+about video as such (`docs/decisions/0004-media-codecs.md` leaves proprietary
+codecs off, and VP9, AV1 and Opus, which ship, are royalty-free), and an audio
+track is proven silent by `muted`. **Only the third ground stands** — a media
+pipeline and a video decoder instance per New Tab, which no image needs and
+which nothing has measured.
 
-**The third ground was real and remains the cost:** a media pipeline and a
-video decoder instance per New Tab, which no image needs. It is not yet
-measured, and PB-5a's own two runs are what will measure it.
+Neither of those corrections is a reason to reopen this. The capability was
+cancelled because it is not needed, which is a decision that does not depend on
+what it would have cost. What the corrections prevent is this section being
+re-read later as three reasons when it only ever had one.
 
-**What the amendment buys back.** `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5
-records that the asset is re-read on every New Tab, because
-`UntrustedSource::AllowCaching()` is false. A video codec makes the same
-material roughly an order of magnitude smaller than an animated WebP, so
-permitting video *reduces* the largest measured cost this feature has.
-
-**Property 3 was rewritten to admit it, rather than stretched to cover it.**
-An APNG and an animated WebP carry their repeat count **in the file** — `acTL`,
-`ANIM` — so Sunshine's source contains no repetition whatsoever. **WebM has no
-such field.** Infinite playback exists only because Sunshine writes `loop` on
-the element, which is Sunshine deciding to repeat forever: the exact thing the
-old property 3 named as disqualifying, and the exact thing the paragraph below
-says is evidence of having left the boundary.
-
-So the boundary moved, and it moved knowingly. What it now forbids is
-**advancing frames**, not *declaring* repetition. That is weaker, and it is
-still decidable from the source: `scripts/verify_newtab_background.py` reads
-this feature's own patched files for `RepeatingTimer`, `setInterval(` and
-`requestAnimationFrame(`, and a `loop` attribute is none of them. A build that
-needed one of those to make a background play would have left this boundary
-again.
-
-**What did not move:** properties 1 and 2, and the measurement. A video that
-runs in a hidden tab fails PB-5a exactly as an image would. Video is in fact
-the easier case there — `pause()` on `visibilitychange` is a guarantee
-Sunshine's own code makes, where an image relies on an assumption about Blink
-that §5 of the background contract still records as unverified.
+**No code was written.** No format detection, no serving path, no media
+element.
 
 **What stays forbidden, and is not weakened.** Property 3 is the load-bearing
 one. `scripts/verify_no_interposition.py` continues to reject

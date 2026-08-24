@@ -16,11 +16,11 @@ the entire mechanism.**
 | | Decision |
 | --- | --- |
 | Shape | **One file.** `sunshine-setup.exe` carries the engine inside it. |
-| Path | **Per-user or per-machine, and nothing else.** Shown, never typed. |
-| Name | **Fixed at `Sunshine`.** No control changes it, not even cosmetically. |
+| Path | **Under revision.** Recorded as per-user or per-machine, shown and never typed; the owner has since decided a folder must be chosen. `docs/INSTALLER_CHOICE_PLAN.md` is what that costs. |
+| Name | **Under revision.** Recorded as fixed at `Sunshine`; the owner has since decided the executable's name must be chosen. Same plan, §4 — this is the expensive half. |
 | Image | **Built in**, from `downstream/assets/`. Nothing is read from disk at run time. |
 | Build | **Its own compiler invocation** in the workflow. Zero upstream files. |
-| Look | **Sunshine's**, by mapping the design tokens to native values. |
+| Look | **Windows' own**, by the owner's decision reversing an earlier one. Themed common controls, drawn by the platform. |
 
 **No implementation exists.** §9 says what that leaves open, and §10 says what
 is not verified.
@@ -102,15 +102,41 @@ that does not exist, which was the guard being right.
 That closes the whole class of problem §5 of the review describes: an installer
 that decodes a file it did not author, potentially while elevated.
 
-**The look is Sunshine's, by translation rather than by reference.**
-`docs/DESIGN_SYSTEM_CONTRACT.md` is written for web surfaces and its tokens are
-CSS custom properties; a Win32 dialog cannot resolve them. So the tokens are
-*mapped* — one table, in one place, from token name to native value — and the
-mapping is the thing that is reviewed when the design system changes.
+**The look is Windows' own, and the reason is trust rather than taste.**
+This is the only Sunshine surface a person meets before the browser exists, and
+it is not code-signed — `docs/OPEN_DECISIONS.md` gates signing on whether
+Sunshine is ever distributed. So the user already sees an unknown-publisher
+warning. A dialog that also does not look like Windows adds a second instance of
+the same signal at the moment trust is being decided.
+
+The earlier decision was Sunshine's own look, by mapping the design tokens to
+native values. Three things implemented it and all three are what made the
+dialog read as foreign: `SetWindowTheme(hwnd, L"", L"")` stripped the theme from
+seven checkboxes and radios, reducing them to the pre-XP square; `BS_OWNERDRAW`
+replaced the push buttons with drawn ones; and a surface brush painted the
+dialog background. The base was already native — real Win32 controls, Segoe UI
+9pt, comctl32 v6 in the manifest, PerMonitorV2 — so **going native deletes code
+rather than adding it.**
+
+**The cost is dark mode, and it is accepted.** A Win32 dialog does not follow
+the system dark setting; those three mechanisms existed to make it. Removing
+them makes this window always light. That is not a defect in an installer —
+Windows installers are light, including Chromium's own — and it is the one
+surface in the product where a fixed appearance reads as native rather than
+broken. `SetWindowTheme(hwnd, L"DarkMode_Explorer", nullptr)` is the known
+middle path and is **not** taken: it is undocumented, and nothing here has
+rendered it.
+
+**IU-16 gets stricter as a consequence, which is the substantive part.** The
+rule permits one read beyond the installed version — the system's light/dark
+preference — and records that its first draft forbade even that. Drawing no
+longer needs it. So the front-end now reads **exactly one thing** about the
+machine before the user has agreed to anything, which is a better answer to
+"can this be trusted" than any amount of styling.
 
 | | |
 | --- | --- |
-| Light and dark | Follows the system setting, and follows a change to it while the dialog is open. |
+| Light and dark | **Light always.** The platform draws the controls and Win32 dialogs do not follow the system dark setting. |
 | Scaling | Legible from 100% to 300%. Per-monitor DPI aware. |
 | Keyboard | Every control reachable and operable from the keyboard alone; a visible focus indicator at every stop. |
 | Screen readers | Every control has an accessible name. The image is decorative and is marked as such. |
@@ -162,10 +188,10 @@ person.
 | IU-10 | The engine's hash is verified against the build-time value before it is executed. | B |
 | IU-11 | A failed install leaves nothing extracted. | B |
 | IU-12 | A declined elevation prompt returns to the dialog and never installs per-user instead. | B |
-| IU-13 | The dialog resolves its colours through the token mapping, follows the system light/dark setting, and is legible from 100% to 300% scaling. | U |
+| IU-13 | The dialog draws with themed common controls and strips no control's theme. It owner-draws only the banner image. It is legible from 100% to 300% scaling. | U |
 | IU-14 | Every control is reachable and operable from the keyboard alone, with a visible focus indicator, and every control has an accessible name. | U |
 | IU-15 | Every path that reaches the engine passes through the dialog, or through an elevation the dialog started: two call sites, one window. The elevated continuation verifies that it holds an elevated token rather than believing the command line. **The boundary is stated rather than overclaimed:** a caller that is already administrator can drive the continuation, and no check inside this program prevents that — such a caller does not need this program. | O |
-| IU-16 | The only state the front-end reads about *the installation* before the user has agreed to anything is whether Sunshine is installed and at what version. Exactly one further read is permitted — the system's light/dark preference, which is needed to draw — and nothing is written. | O |
+| IU-16 | The only state the front-end reads about the machine before the user has agreed to anything is whether Sunshine is installed and at what version. **Exactly one read, and nothing is written.** The light/dark preference was the one permitted exception and is no longer read, because the platform now draws. | O |
 
 **No check claims any of these yet, because no code implements them.** IU-1 to
 IU-8 become decidable the moment the front-end is written, and the guard that

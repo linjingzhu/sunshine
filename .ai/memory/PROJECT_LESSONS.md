@@ -428,6 +428,13 @@ Recommended future behavior: when reversing or amending a recorded decision,
 re-read its stated grounds one at a time and mark which survive. Keep the table
 in the document. A record that quietly drops its own reasoning is worth less
 than one that shows where it was wrong.
+Outcome: the amendment was withdrawn the next day — the owner cancelled the
+capability as unnecessary, before any code was written. The corrections were
+kept anyway, because the section would otherwise still read as three reasons
+when it only ever had one. **A decision that does not need its cost estimate is
+not repaired by fixing the estimate**, and that is the sharper half of this
+lesson: the work of re-deriving the grounds was right, and it changed nothing
+about the answer.
 Confidence: high.
 
 ### 2026-08-22 — Cancelling a queued job discards the wait without shortening it

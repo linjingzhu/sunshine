@@ -89,6 +89,7 @@ Class **O** is decidable offline. **B** needs the built browser.
 | MH-4 | No module data reaches the page as markup. Every value is placed as text; nothing on this surface assigns markup from the registry. | O |
 | MH-5 | The list and the count agree, and both agree with the registry order. What the left column shows is the registry, in the registry's order, in full. | B |
 | MH-6 | `pending` is reported as unrun, never as passed and never as failed. A verification state the gates have not decided must not be shown as a decision. | B |
+| MH-7 | A module's description is carried in the manifest in **both** Korean and English, and the page shows one of them with a control that switches. Neither is derived from the other, and a module declaring only one is refused. | O |
 
 MH-1, MH-2 and MH-4 are decidable from the patch source. MH-3 is enforced by
 `scripts/verify_module_registry_sync.py`, which is the only one of these with a
@@ -125,6 +126,45 @@ sentence has a date on it. This is a privileged page; the registry is the one
 piece of data on it that names things a person wrote; and the cost of building
 every node with `textContent` while the data is trusted is zero, against an
 audit of every assignment if it ever stops being.
+
+### The description, in two languages — MH-7
+
+**Decided by the owner: Korean and English, switchable on the page.** Not
+derived from the browser's UI locale.
+
+That settles a question the seam would otherwise have answered badly. A page
+following the UI locale would show a Korean reader nothing when a module
+declared only English, and the failure would look like a module with no
+description rather than a locale with no translation.
+
+**The manifest gains one field, and it is an object rather than a string:**
+
+```json
+"description": {
+  "ko": "이 모듈이 무엇을 하는지, 한 문단.",
+  "en": "What this module does, in one paragraph."
+}
+```
+
+| Rule | |
+| --- | --- |
+| Both keys required | A module with one language is refused by `scripts/validate_first_party_modules.py`. Half a translation is how a switch turns into a blank. |
+| Plain text | No markup. The page writes it with `textContent`, as it does every other manifest value. |
+| Bounded | The same limit as any other display string this page draws. |
+| Not localisation infrastructure | This is data in a manifest, not a Chromium string resource. It does not enter `.grd`. |
+
+**The switch is the page's, and it is one control rather than one per module.**
+A reader picks a language, not a language per row.
+
+**Why both are required rather than one plus a fallback.** A fallback makes the
+missing translation invisible: the switch appears to work while one language
+quietly shows the other's text. Refusing at validation makes an untranslated
+module a build failure, which is the only moment anyone is in a position to
+write the missing paragraph.
+
+**Nothing is built.** The field is not in the schema, the validator does not
+know it, and the page does not draw it.
+
 
 ## 3. Acceptance criteria
 
