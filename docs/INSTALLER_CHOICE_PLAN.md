@@ -17,8 +17,8 @@ decisions recorded at its head are reversed by the request:
 | Path — **shown, never typed** | typed |
 | Name — **fixed at `Sunshine`, no control changes it** | chosen |
 
-**Nothing here is built.** §6 is what the owner still has to decide, and §7 is
-what has not been verified.
+**Nothing here is built.** §6 is the measurement, §7 records the decisions taken,
+and §9 is what has not been verified.
 
 ## 1. A correction to what was reported first
 
@@ -88,15 +88,17 @@ users, and any unprivileged account can replace the executable that every other
 account launches.** That is a privilege-escalation primitive, not an
 inconvenience.
 
-So a relaxed check needs a replacement guarantee, not a deletion:
+A relaxed check therefore needs something in place of the guarantee it removes.
+**§7 records what the owner chose: a warning rather than a refusal.** The check
+still has to exist and still has to run after elevation — a writability test
+performed before elevating tests the wrong token — but its outcome is a
+sentence, not a stop.
 
-| For | Requirement |
-| --- | --- |
-| Per-machine install | The chosen directory must be verified **not writable by unprivileged users**, at the moment of install, after elevation. A directory that fails is refused with the reason shown. |
-| Per-user install | No hook exists at all — the preference is ignored unless `system_install`. Reaching it needs a second, separate change. |
-
-The per-user case is the one a person is most likely to exercise and the one
-with the least upstream support.
+**Per-user installs are out of scope by decision 1**, which is the fortunate
+half: the upstream preference is ignored unless `system_install`, so the only
+case with no hook at all is the case not being built. What remains is one
+validation in `helper.cc`, and §6 measures that file as unchanged across two
+milestones.
 
 ## 4. The executable name — not a small patch
 
@@ -153,7 +155,88 @@ questions and phrases a request; it does not install anything"* — survives the
 folder change and does not survive the name change. Once Sunshine's own
 constants decide what the engine writes, the front-end is no longer only asking.
 
-## 6. What the owner still has to decide
+## 6. Measured: what a roll costs these files
+
+Run against the pin and two later revisions, fetching each file and **checking
+the HTTP status before comparing** — the first pass did not, saved a 404 body
+as content, and reported an entire file as changed.
+
+| File | at pin | 153.0.8000.0 | main |
+| --- | --- | --- | --- |
+| `installer/util/helper.cc` | 225 lines | **unchanged** | **unchanged** |
+| `install_static/install_util.cc` | 995 lines | **unchanged** | **unchanged** |
+| `install_static/install_modes.h` | 72 lines | **unchanged** | **unchanged** |
+| `installer/util/initial_preferences_constants.h` | 90 lines | **unchanged** | **unchanged** |
+| `installer/setup/installer_state.cc` | 193 lines | **unchanged** | **unchanged** |
+| `installer/util/util_constants.cc` | 244 lines | **deleted** | **deleted** |
+| `installer/util/util_constants.h` | — | 318 lines differ | 318 lines differ |
+
+**The two halves of this request have opposite costs, and the measurement is
+what shows it.**
+
+**The folder half is cheap.** Every file it touches — `helper.cc` above all —
+is byte-identical at the next milestone and at trunk. A patch against
+`GetInstallationDirFromPrefs` applies at the next roll without a person.
+
+**The name half is already broken at the next milestone.**
+`chrome/installer/util/util_constants.cc` — the file holding `kChromeExe`,
+`kChromeNewExe`, `kChromeOldExe` and the proxy trio, the exact file the name
+work must patch — **does not exist at 153.** The constants moved into
+`util_constants.h` and changed form:
+
+```cpp
+// 152.0.7977.42
+extern const wchar_t kChromeExe[];
+// 153.0.8000.0 and trunk
+inline constexpr wchar_t kChromeExe[] = L"chrome.exe";
+```
+
+A patch written against the pin does not fail to *merge* at the next roll. It
+fails to *apply at all*, because its target is gone — and the work is redone
+against a different file with a different shape. That is not churn; it is the
+file being restructured under the change.
+
+**This does not make the name work impossible.** It prices it: the patch is
+rewritten at the first roll, and this measurement is one milestone of evidence
+that it will be rewritten again.
+
+## 7. What the owner decided
+
+| | Question | Decision |
+| --- | --- | --- |
+| 1 | Folder choice on per-user installs? | **No.** Per-machine only — which is exactly where the upstream hook already works, so the one case with no support is the one not needed. |
+| 2 | Unsafe folder: refuse or warn? | **Warn**, and proceed. |
+| 3 | Executable name | **Build-time default, user input overrides.** `sunshine.exe` for everyone who does not type anything. |
+| 4 | Roll cost | **Measured.** §6. |
+
+**Decision 1 removes the hardest part of the folder work.** §3 named the
+per-user case as having no upstream hook at all; it is now out of scope, and
+what remains is one validation in a file that has not changed in two
+milestones.
+
+**Decision 2 is an accepted risk, and this is what it accepts.** The
+`%ProgramFiles%` restriction is what makes a per-machine install a binary
+unprivileged users cannot replace. A warning does not restore that; it moves
+the decision to a person who is, at that moment, being asked to judge Windows
+directory permissions from a dialog. If they proceed into a user-writable
+folder, **any unprivileged account on that machine can replace the executable
+every other account launches** — including accounts that never saw the warning.
+
+That is recorded here as accepted rather than argued again. Two things follow
+from accepting it, and both are cheap:
+
+- the warning must name the consequence, not the condition. "This folder can be
+  modified by other users of this computer, who could replace Sunshine" is the
+  sentence; "this location is not recommended" is not.
+- the check itself still has to exist and run **after elevation**, because a
+  writability test performed before elevating tests the wrong token.
+
+**Decision 3 is the cheaper half of what was asked for.** The default costs one
+branding change; the override costs §4 and §6. The default is also what every
+install that nobody customises will show, which is the population the clarity
+was for.
+
+## 8. What the owner still has to decide
 
 1. **Per-user installs.** The upstream hook is system-install only. Is a chosen
    folder required for per-user too, or is per-machine enough?
@@ -171,7 +254,7 @@ constants decide what the engine writes, the front-end is no longer only asking.
    against these files. It should be, before the name work starts rather than
    after.
 
-## 7. NOT VERIFIED
+## 9. NOT VERIFIED
 
 - **Nothing is built, and nothing has been compiled.** Every claim here is read
   from the pinned source.

@@ -769,6 +769,12 @@ NOT_THE_PIN: dict[str, tuple[str, ...]] = {
     # Same shape again: a record of what the next milestone costs, which a roll
     # must not rewrite.
     "docs/DOCUMENT_STORE_CONTRACT.md": ("153.0.8000.0",),
+    # What owning the installer's files would cost at the next milestone,
+    # measured before any of them is owned. The literal is load-bearing in the
+    # opposite direction from the rule: this document's finding is that
+    # `util_constants.cc` does not exist at that revision, which a roll that
+    # rewrote the number would erase.
+    "docs/INSTALLER_CHOICE_PLAN.md": ("153.0.8000.0",),
 }
 
 
