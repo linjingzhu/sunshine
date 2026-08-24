@@ -262,12 +262,12 @@ class SearchboxStateTests(unittest.TestCase):
         """
 
         self.edit(
-            "+@media (prefers-reduced-motion: reduce) {",
+            "+:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {",
             "+.searchbox-icon-button-container:hover {\n"
             "+  background-color: color-mix(in srgb, var(--color-searchbox-foreground) 12%, transparent);\n"
             "+}\n"
             "+\n"
-            "+@media (prefers-reduced-motion: reduce) {",
+            "+:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {",
         )
         self.assertEqual([], checker.validate(self.root))
 

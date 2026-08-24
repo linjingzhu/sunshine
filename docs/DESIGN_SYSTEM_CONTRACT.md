@@ -433,6 +433,26 @@ Each is a pass/fail check over Sunshine-authored CSS in the patch stack.
 | S10 | No forced-colour override | `forced-color-adjust` appears anywhere, or a `@media (forced-colors: active)` or `@media (prefers-contrast: more)` block changes a colour. |
 | S11 | Reduced-motion counterpart | An `animation` or `transition` has no neutralising declaration under `prefers-reduced-motion: reduce`. |
 | S12 | Focus not suppressed | `outline: none` or `outline: 0` without a replacement indicator in the same rule; or any `tabindex` greater than 0. |
+| S13 | No duplicate selector | A rule Sunshine adds to an upstream stylesheet repeats a selector that stylesheet already declares. Requires the pinned tree; see §10. |
+
+**S13 is the one criterion here that is not Sunshine's rule.** Every other row
+states something this project decided. S13 states something *Chromium* decided:
+its WebUI build lints Sunshine's CSS with its own stylelint config, and
+`no-duplicate-selectors` is in it.
+
+It is here because its absence cost a build. Patch `0022` added a second
+`#inputWrapper { }` to `ntp_searchbox.css` on purpose — so that no upstream line
+was edited and the hunk survived a roll — and native build #46 failed in twenty
+seconds on that rule. Everything this repository owns had passed first: S1
+through S12, the twenty-seven architecture guards, and `verify_pinned_upstream`,
+which proves the patch applies to the real pinned tree. **Each answered the
+question it was asked, and none of them was asked whether Chromium would accept
+the result.**
+
+The row is deliberately narrow. It is one stylelint rule checked against the
+pinned file, not a local stylelint run, and it claims nothing about the other
+rules in that config. Widening it means running stylelint, which needs the
+checkout — §10.
 
 ### 9.2 Group R — runtime checks, require a native build
 
@@ -479,6 +499,11 @@ Nothing in this document has been verified at runtime. Specifically:
   text defaults at the pinned revision.
 - No claim is made that patch `0002` applies to real upstream sources. That
   remains owned by the CI architecture guard.
+- **S13 covers one stylelint rule, not the config.** Chromium's
+  `stylelint.config_base.mjs` holds more rules than `no-duplicate-selectors`,
+  and the next one Sunshine breaks will be found the same way #46's was — by a
+  build. The only check that would answer the general question is running
+  stylelint itself, which needs the pinned checkout.
 
 ## 10. Values only the pinned Chromium source can supply
 
