@@ -431,6 +431,52 @@ Both are pass/fail invariants of the kind §7 describes, not statistical deltas:
 neither needs B1, and the second is decidable the first time anyone opens a
 second tab.
 
+#### PB-5b — The clock, which is the second thing that may repeat
+
+**Amended by the owner** to permit a clock on the New Tab. It gets its own row
+because PB-5a says it must: *"No other surface gains an animation by this
+amendment, and one that wanted it would need its own row here rather than an
+appeal to this one."*
+
+**PB-5a cannot cover this, and the reason is structural rather than
+procedural.** Its third property is that the asset carries the animation and
+Sunshine owns no timer. A clock has no asset. There is nothing for the
+repetition to live in except Sunshine's own code, so the property is not
+merely unmet — it is inapplicable.
+
+**There is also no spelling that avoids the timer, and that was checked before
+this row was written.** A `setTimeout` that re-arms itself is a repeating task
+wearing a permitted name; `scripts/verify_no_interposition.py` says in its own
+comment that it cannot tell the two apart, and PB-5a's closing paragraph says
+that needing the forbidden spelling is evidence of having left the boundary
+rather than a reason to widen the guard. So the honest move is a row, not a
+`setTimeout`.
+
+| | Required of the clock |
+| --- | --- |
+| **1. Visible-only** | It runs only while the New Tab is the visible tab in a non-occluded window. Hidden, occluded, background-tab and minimised states run nothing. Identical to PB-5a's first property, and for the same reason. |
+| **2. One wakeup per displayed change** | Minutes, not seconds, and aligned to the minute boundary. A clock showing minutes that wakes every second is fifty-nine wakeups spent to display nothing new. |
+| **3. Bounded and cancelled** | Exactly one timer, cancelled by every path out — hidden, and torn down. Nothing else in Sunshine may repeat by appeal to this row. |
+
+**Unlike PB-5a's first property, this one is not about focus.** The clock keeps
+running while the window is unfocused, because that is when it is most likely
+to be read: `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3a rests the page after focus
+leaves, and a clock that vanished at that moment would be a clock that hides
+whenever you glance at it. Visible and unfocused is watched; hidden is not.
+
+| | |
+|---|---|
+| Measured | PB-5's idle fixture with the New Tab visible and unfocused, and again with it hidden behind another tab |
+| Baseline | The hidden run must equal PB-5's original zero. The visible run may exceed it by one wakeup per minute and by nothing else |
+| Regression | Any wakeup while the surface is hidden; any rate above one per minute; any second repeating task added under this row |
+
+**What this costs, stated rather than absorbed.** PB-5's own words are
+"Sunshine's legitimate idle cost is zero" and "the existence of the task, not
+its size". That sentence is no longer true without qualification, and this row
+is the qualification. One wakeup per minute on one visible surface is the whole
+of it, and the third property exists so that the next feature wanting a timer
+has to come back here rather than point at this one.
+
 ### PB-6 — Sunshine WebUI surfaces
 
 A Sunshine-contributed panel or WebUI surface has its own render cost once it

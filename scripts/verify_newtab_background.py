@@ -101,6 +101,32 @@ def added_lines_by_target(root: Path) -> dict[str, str]:
     return {path: "\n".join(lines) for path, lines in result.items()}
 
 
+
+def patched_lines_by_target(root: Path) -> dict[str, str]:
+    """{upstream path: added *and* context lines, in order}.
+
+    `added_lines_by_target` drops context, which is right for every rule that
+    asks what the patch introduces. One rule asks where the patch introduces it
+    -- relative to a line the patch does not touch -- and for that the context
+    is the whole point.
+    """
+
+    result: dict[str, list[str]] = {}
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        target: str | None = None
+        for line in patch.read_text(encoding="utf-8").splitlines():
+            if line.startswith("+++ "):
+                target = line[4:].strip()
+                if target.startswith("b/"):
+                    target = target[2:]
+                continue
+            if line.startswith(("--- ", "diff --git", "@@", "index ")):
+                continue
+            if target and line[:1] in ("+", " "):
+                result.setdefault(target, []).append(line[1:])
+    return {path: "\n".join(lines) for path, lines in result.items()}
+
+
 # What makes a file part of this feature, decided from what it says rather than
 # from a list someone has to remember to update. A file added tomorrow that
 # serves or renders the background names one of these and is in scope by that
@@ -181,6 +207,7 @@ SERVED_PATH = "sunshine-background.png"
 SOURCE_FILE = "chrome/browser/ui/webui/new_tab_page/untrusted_source.cc"
 PAGE_FILE = "chrome/browser/resources/new_tab_page/app.ts"
 PAGE_STYLE = "chrome/browser/resources/new_tab_page/app.css"
+PAGE_MARKUP = "chrome/browser/resources/new_tab_page/app.html"
 SERVED_CONSTANT = "kSunshineBackgroundPath"
 
 
@@ -297,10 +324,63 @@ def check_resting_is_bounded(added: dict[str, str], failures: list[str]) -> None
         )
 
 
+def check_resting_cannot_fade_the_background(added: dict[str, str],
+                                             patched: dict[str, str],
+                                             failures: list[str]) -> None:
+    """The background must not be inside anything the resting rule fades.
+
+    This rule exists because its absence shipped a defect. Resting fades every
+    child of the host except the background, and `opacity` applies to a whole
+    subtree -- so a background nested inside `#content` faded with the page
+    instead of being what remained. The feature did the opposite of its own
+    description, and the four rules written beside it all passed: each asked
+    whether the CSS and the timer were correct, and none asked where the
+    element was.
+
+    The checkable property is position. `#sunshineBackground` must appear in
+    the markup before `<div id="content"`, which is what makes it a sibling of
+    the thing that fades rather than a descendant of it.
+    """
+
+    markup = patched.get(PAGE_MARKUP)
+    if markup is None or "sunshine-resting" not in "".join(added.values()):
+        return
+    if 'id="sunshineBackground"' not in markup:
+        return
+
+    background = markup.index('id="sunshineBackground"')
+    content = markup.find('<div id="content"')
+    if content == -1:
+        failures.append(
+            "NTB-10 the page markup no longer contains #content, so the "
+            "position of the background relative to the faded subtree cannot "
+            "be decided; this rule needs rewriting rather than removing"
+        )
+        return
+    if background > content:
+        failures.append(
+            "NTB-10 #sunshineBackground appears after <div id=\"content\">, "
+            "which makes it a descendant of the element resting fades. opacity "
+            "applies to the whole subtree, so the background would fade with "
+            "the page instead of being what remains -- the feature doing the "
+            "opposite of its description"
+        )
+
+    status = markup.find('id="sunshineStatus"')
+    if status != -1 and status > content:
+        failures.append(
+            "NTB-10 #sunshineStatus appears after <div id=\"content\">; the "
+            "clock has to survive resting, and anything inside the faded "
+            "subtree cannot"
+        )
+
+
 def check(root: Path, failures: list[str]) -> None:
     added = added_lines_by_target(root)
     check_served_path_is_reachable(added, failures)
     check_resting_is_bounded(added, failures)
+    check_resting_cannot_fade_the_background(
+        added, patched_lines_by_target(root), failures)
 
     source = added.get(SOURCE)
     if source is None:
