@@ -163,13 +163,13 @@ as content, and reported an entire file as changed.
 
 | File | at pin | 153.0.8000.0 | main |
 | --- | --- | --- | --- |
-| `installer/util/helper.cc` | 225 lines | **unchanged** | **unchanged** |
-| `install_static/install_util.cc` | 995 lines | **unchanged** | **unchanged** |
-| `install_static/install_modes.h` | 72 lines | **unchanged** | **unchanged** |
-| `installer/util/initial_preferences_constants.h` | 90 lines | **unchanged** | **unchanged** |
-| `installer/setup/installer_state.cc` | 193 lines | **unchanged** | **unchanged** |
-| `installer/util/util_constants.cc` | 244 lines | **deleted** | **deleted** |
-| `installer/util/util_constants.h` | — | 318 lines differ | 318 lines differ |
+| `chrome/installer/util/helper.cc` | 225 lines | **unchanged** | **unchanged** |
+| `chrome/install_static/install_util.cc` | 995 lines | **unchanged** | **unchanged** |
+| `chrome/install_static/install_modes.h` | 72 lines | **unchanged** | **unchanged** |
+| `chrome/installer/util/initial_preferences_constants.h` | 90 lines | **unchanged** | **unchanged** |
+| `chrome/installer/setup/installer_state.cc` | 193 lines | **unchanged** | **unchanged** |
+| `chrome/installer/util/util_constants.cc` | 244 lines | **deleted** | **deleted** |
+| `chrome/installer/util/util_constants.h` | — | 318 lines differ | 318 lines differ |
 
 **The two halves of this request have opposite costs, and the measurement is
 what shows it.**
