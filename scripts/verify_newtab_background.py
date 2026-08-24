@@ -179,6 +179,8 @@ def without_comments(text: str) -> str:
 # because none of them knew the two had to agree.
 SERVED_PATH = "sunshine-background.png"
 SOURCE_FILE = "chrome/browser/ui/webui/new_tab_page/untrusted_source.cc"
+PAGE_FILE = "chrome/browser/resources/new_tab_page/app.ts"
+PAGE_STYLE = "chrome/browser/resources/new_tab_page/app.css"
 SERVED_CONSTANT = "kSunshineBackgroundPath"
 
 
@@ -217,9 +219,88 @@ def check_served_path_is_reachable(added: dict[str, str], failures: list[str]) -
         )
 
 
+def check_resting_is_bounded(added: dict[str, str], failures: list[str]) -> None:
+    """NTB-6, NTB-7, NTB-8: the resting state cannot run away.
+
+    Three things can go wrong with "hide the page three seconds after focus
+    leaves", and each is checkable in the added lines rather than at runtime:
+
+    - it hides on a build with no background, leaving a blank page;
+    - the delay becomes a repeating task, which is the one thing PB-5a's third
+      property forbids outright;
+    - the timer is armed and never cancelled, so a page that regained focus
+      rests anyway a moment later.
+    """
+
+    page = added.get(PAGE_FILE)
+    if page is None:
+        return  # The page patch is checked elsewhere; absence is not this rule.
+    code = without_comments(page)
+    if "sunshine-resting" not in code:
+        return  # The feature is not present. Nothing to hold to its rules.
+
+    if "sunshineBackgroundAvailable_" not in code.split("shouldRest")[-1][:400] \
+            and "sunshineBackgroundAvailable_" not in code:
+        failures.append(
+            "NTB-6 the resting state does not consult "
+            "sunshineBackgroundAvailable_; hiding the page on a build with no "
+            "background leaves an empty New Tab, which is not a feature"
+        )
+
+    if "setInterval(" in code or "requestAnimationFrame(" in code:
+        failures.append(
+            "NTB-7 the page arms a repeating task; the rest delay is one-shot, "
+            "and a repeating timer is what PB-5a's third property refuses"
+        )
+
+    # Two call sites are required, and counting them against the number of
+    # `setTimeout`s does not express that: one cancel satisfies one arm while
+    # leaving the other path uncovered, which is how the first version of this
+    # rule passed a patch with the important cancel deleted.
+    #
+    #   1. the recompute -- focus returned, or the window was hidden, before
+    #      the three seconds elapsed;
+    #   2. teardown -- the element is removed while a timer is armed.
+    #
+    # Neither substitutes for the other.
+    arms = code.count("setTimeout(")
+    cancels = code.count("clearTimeout(")
+    if arms and cancels < 2:
+        failures.append(
+            f"NTB-7 setTimeout appears {arms} time(s) and clearTimeout "
+            f"{cancels}; a pending rest timer has two paths out -- the state "
+            "being recomputed and the element being torn down -- and each "
+            "needs its own cancel"
+        )
+
+    # The rule lives in the stylesheet, not in the script -- which is where
+    # the first version of this check looked, and it fired on a correct patch.
+    style = added.get(PAGE_STYLE, "")
+    resting_rule = ""
+    marker = "[sunshine-resting]"
+    if marker in style:
+        start = style.index(marker)
+        end = style.find("}", start)
+        resting_rule = style[start:end if end != -1 else len(style)]
+    if "pointer-events" not in resting_rule:
+        failures.append(
+            "NTB-8 the [sunshine-resting] rule does not set pointer-events; "
+            "content faded to nothing still answers a click, and the click "
+            "that restores focus would land on an invisible control"
+        )
+
+    if "hasFocus()" not in code:
+        failures.append(
+            "NTB-6 resting is not derived from document.hasFocus(); an "
+            "unfocused window is still visible, so visibilityState cannot "
+            "decide this on its own"
+        )
+
+
 def check(root: Path, failures: list[str]) -> None:
     added = added_lines_by_target(root)
     check_served_path_is_reachable(added, failures)
+    check_resting_is_bounded(added, failures)
 
     source = added.get(SOURCE)
     if source is None:

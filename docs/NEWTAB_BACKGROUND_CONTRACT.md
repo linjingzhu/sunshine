@@ -205,6 +205,70 @@ produced this contract's worst defect.
 
 **Nothing is built.** No picker, no second lookup path, no profile asset.
 
+## 3a. Resting — the background alone, three seconds after focus leaves
+
+**Decided by the owner.** When the browser window loses focus and three seconds
+pass, the New Tab's own content fades out and the background is the only thing
+on screen. Focus returning restores it at once.
+
+| | |
+| --- | --- |
+| **NTB-6** | Resting requires an installed background. With none, nothing hides — an empty New Tab is not a feature. |
+| **NTB-7** | The delay is a **one-shot** timer, armed on the transition and cancelled on any transition out. Sunshine owns no repeating task for it. |
+| **NTB-8** | While resting, the hidden content takes no pointer events. The click that restores focus wakes the page and does nothing else. |
+
+**Focus is not visibility, and this feature is the first thing here to need the
+difference.** §4's `visibilitychange` handling stops the animation when the tab
+is hidden or the window minimised. A window that is merely *unfocused* is still
+visible, still animating, and — until now — indistinguishable to this page from
+a focused one. Resting is driven by `document.hasFocus()` and window
+`focus`/`blur`; hiding remains driven by `visibilityState`. **Two signals, two
+jobs, and they compose rather than override**: a hidden window rests nothing,
+because there is nothing to see.
+
+The state is derived rather than accumulated. On any of the three events —
+`blur`, `focus`, `visibilitychange` — the page recomputes one predicate:
+
+```text
+rest  ⇔  background available
+      ∧  document.visibilityState === 'visible'
+      ∧  !document.hasFocus()
+```
+
+and arms or cancels from that. A state machine that instead remembered which
+event happened last is the version that gets stuck resting after a tab switch,
+which is the bug this shape does not have.
+
+**Everything except the background fades, by exclusion rather than by list.**
+The rule names the background frame and hides its siblings; it does not
+enumerate `#content`, the customize buttons and the attribution link. Upstream
+adds a fixed-position element to this page from time to time, and a list would
+be correct until it did.
+
+**Cancel the pending timer when the window is hidden.** A timeout left armed
+across a minimise is work scheduled for a moment nobody is looking at, which is
+`docs/PERFORMANCE_BUDGET.md` PB-5's whole subject even when the work is one
+assignment.
+
+### What this does to PB-5a's reasoning, said rather than glossed
+
+PB-5a permits an animated background because *"it costs while it is watched, it
+stops when it is not, and it is absent unless someone asked for it."*
+
+**This feature makes the animation the only thing on screen at the moment the
+user turned away.** It satisfies property 1 exactly — the tab is visible, the
+window is not occluded, and property 1 is written about visibility rather than
+attention — and it pushes against the sentence that property was derived from.
+Recorded here because a later reader should find that the tension was noticed
+and accepted, not that it was missed.
+
+The narrow reading holds: an unfocused window on a second monitor is being
+watched, and a minimised one is not, which is the line `visibilityState` already
+draws. Nothing about resting changes what happens when the window is actually
+hidden.
+
+**Nothing is built.**
+
 ## 4. The animation rules — NTB-3, and PB-5a
 
 `docs/PERFORMANCE_BUDGET.md` PB-5a permits this animation and is the reason

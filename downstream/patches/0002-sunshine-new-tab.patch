@@ -2,7 +2,7 @@ diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/reso
 index d9d32b0..6ad1de5 100644
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -180,6 +180,46 @@ cr-most-visited {
+@@ -180,6 +180,75 @@ cr-most-visited {
    z-index: unset;
  }
  
@@ -27,6 +27,35 @@ index d9d32b0..6ad1de5 100644
 +     `#oneGoogleBar`, states both for the same reason. */
 +  height: 100%;
 +  width: 100%;
++}
++
++/* Resting -- NTB-6, NTB-7, NTB-8. Three seconds after the window loses focus,
++   the page's own content leaves and the background is what remains.
++
++   By exclusion rather than by list. Naming #content, #customizeButtons and
++   #backgroundImageAttribution would be correct until upstream adds a fourth
++   fixed element to this page, which it does from time to time; naming the one
++   thing that must stay is correct across that.
++
++   pointer-events is the load-bearing half: content faded to nothing still
++   answers a click, and the click that restores focus would otherwise land on
++   an invisible searchbox. One click wakes the page and does nothing else. */
++:host([sunshine-resting]) > *:not(#sunshineBackground) {
++  opacity: 0;
++  pointer-events: none;
++}
++
++:host > *:not(#sunshineBackground) {
++  transition: opacity 400ms ease;
++}
++
++/* S11. The fade is decoration; the hiding is the feature. A reader who has
++   asked the system for less motion still gets the background alone -- they
++   get it at once instead of over 400ms. */
++@media (prefers-reduced-motion: reduce) {
++  :host > *:not(#sunshineBackground) {
++    transition: none;
++  }
 +}
 +
 +#sunshineWordmark {
@@ -114,7 +143,7 @@ index 838385f..63bd02c 100644
  import {recordBoolean, recordDuration, recordEnumeration, recordLinearValue, recordLoadDuration, recordSparseValueWithPersistentHash} from './metrics_utils.js';
  import {ParentTrustedDocumentProxy} from './modules/microsoft_auth_frame_connector.js';
  import type {PageCallbackRouter, PageHandlerRemote, Theme} from './new_tab_page.mojom-webui.js';
-@@ -132,8 +131,25 @@ const OGB_IFRAME_ORIGIN = 'chrome-untrusted://new-tab-page';
+@@ -132,8 +131,28 @@ const OGB_IFRAME_ORIGIN = 'chrome-untrusted://new-tab-page';
  const MSAL_IFRAME_ORIGIN = 'chrome-untrusted://ntp-microsoft-auth';
  const VOICE_QUERY_LENGTH_LIMIT = 120;
  const VOICE_IDLE_TIMEOUT_MS = 8000;
@@ -129,6 +158,9 @@ index 838385f..63bd02c 100644
 +// When no background is installed the source serves nothing, the helper's
 +// background-image fails to load, and the iframe is transparent -- which is
 +// how the feature is absent by default rather than switched off.
++// NTB-7. The owner's number, and the only place it is written.
++const SUNSHINE_REST_DELAY_MS = 3000;
++
 +const SUNSHINE_BACKGROUND_PATH =
 +    'chrome-untrusted://new-tab-page/custom_background_image?' +
 +    'url=chrome-untrusted%3A%2F%2Fnew-tab-page%2Fsunshine-background.png' +
@@ -168,7 +200,7 @@ index 838385f..63bd02c 100644
        wallpaperSearchButtonAnimationEnabled_: {type: Boolean},
        wallpaperSearchButtonEnabled_: {type: Boolean},
        showWallpaperSearchButton_: {type: Boolean},
-@@ -462,6 +489,20 @@ export class AppElement extends AppElementBase {
+@@ -462,6 +489,22 @@ export class AppElement extends AppElementBase {
    protected accessor lazyRender_: boolean = false;
    protected accessor scrolledToTop_: boolean =
        document.documentElement.scrollTop <= 0;
@@ -186,10 +218,12 @@ index 838385f..63bd02c 100644
 +  // would animate once before the first visibilitychange corrected it.
 +  protected accessor sunshineBackgroundVisible_: boolean =
 +      document.visibilityState === 'visible';
++  // Not reactive: nothing renders from it. Zero means unarmed.
++  private sunshineRestTimer_: number = 0;
    protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
        loadTimeData.getBoolean('wallpaperSearchButtonAnimationEnabled');
    protected accessor wallpaperSearchButtonEnabled_: boolean =
-@@ -581,8 +622,22 @@ export class AppElement extends AppElementBase {
+@@ -581,8 +622,60 @@ export class AppElement extends AppElementBase {
      ColorChangeUpdater.forDocument().start();
    }
  
@@ -203,21 +237,65 @@ index 838385f..63bd02c 100644
 +  // true, which is the condition the amendment permits this feature under.
 +  private onSunshineVisibilityChanged_ = () => {
 +    this.sunshineBackgroundVisible_ = document.visibilityState === 'visible';
++    this.updateSunshineResting_();
 +  };
++
++  // Bound once, for the same reason as the listener above.
++  private onSunshineFocusChanged_ = () => {
++    this.updateSunshineResting_();
++  };
++
++  // The whole state, recomputed from the document on every transition rather
++  // than accumulated across them. A machine that remembered which event came
++  // last is the one that stays resting after a tab switch.
++  //
++  // The timer is one-shot and is cancelled by every path out, including the
++  // window being hidden: a timeout left armed across a minimise is work
++  // scheduled for a moment nobody is looking at, which is what PB-5 is about
++  // even when the work is a single assignment. NTB-7.
++  private updateSunshineResting_() {
++    const shouldRest = this.sunshineBackgroundAvailable_ &&
++        document.visibilityState === 'visible' && !document.hasFocus();
++    if (!shouldRest) {
++      if (this.sunshineRestTimer_ !== 0) {
++        clearTimeout(this.sunshineRestTimer_);
++        this.sunshineRestTimer_ = 0;
++      }
++      this.toggleAttribute('sunshine-resting', false);
++      return;
++    }
++    if (this.sunshineRestTimer_ !== 0 ||
++        this.hasAttribute('sunshine-resting')) {
++      return;
++    }
++    this.sunshineRestTimer_ = setTimeout(() => {
++      this.sunshineRestTimer_ = 0;
++      this.toggleAttribute('sunshine-resting', true);
++    }, SUNSHINE_REST_DELAY_MS);
++  }
 +
    override connectedCallback() {
      super.connectedCallback();
 +    document.addEventListener(
 +        'visibilitychange', this.onSunshineVisibilityChanged_);
++    window.addEventListener('blur', this.onSunshineFocusChanged_);
++    window.addEventListener('focus', this.onSunshineFocusChanged_);
++    this.updateSunshineResting_();
      realboxCanShowSecondarySideMediaQueryList.addEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -702,6 +757,8 @@ export class AppElement extends AppElementBase {
+@@ -702,6 +757,14 @@ export class AppElement extends AppElementBase {
  
    override disconnectedCallback() {
      super.disconnectedCallback();
 +    document.removeEventListener(
 +        'visibilitychange', this.onSunshineVisibilityChanged_);
++    window.removeEventListener('blur', this.onSunshineFocusChanged_);
++    window.removeEventListener('focus', this.onSunshineFocusChanged_);
++    if (this.sunshineRestTimer_ !== 0) {
++      clearTimeout(this.sunshineRestTimer_);
++      this.sunshineRestTimer_ = 0;
++    }
      realboxCanShowSecondarySideMediaQueryList.removeEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
