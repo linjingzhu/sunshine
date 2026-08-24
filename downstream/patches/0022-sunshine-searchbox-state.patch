@@ -1,0 +1,87 @@
+diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.css b/chrome/browser/resources/new_tab_page/ntp_searchbox.css
+--- a/chrome/browser/resources/new_tab_page/ntp_searchbox.css
++++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.css
+@@ -98,6 +98,58 @@
+   display: none;
+ }
+ 
++/* Sunshine: the searchbox has two states, and the difference between them is
++   whether it is being used.
++
++   **Normal** -- unfocused and empty -- lets the New Tab background through the
++   box's own surface. **Highlight** -- focused, or holding text -- is
++   upstream's surface unchanged. Only the normal state is written here; the
++   highlight state is the absence of this rule, which is why a roll that moves
++   these lines cannot leave the box stuck translucent.
++
++   Nothing upstream wrote is edited, and where this sits was chosen for the
++   same reason. `#inputWrapper` is declared again here rather than having a
++   line added to the rule that declares it: at trunk a `border` declaration
++   moves out of that rule into an `::after`, so a hunk reaching into it -- or
++   merely sitting next to it -- conflicts. Anchored here instead, this hunk
++   applies unchanged at the pin, at 153.0.8000.0 and at trunk.
++
++   `:focus-within` rather than `:focus`, because the element that takes focus
++   is the `<input>` inside `<cr-searchbox-input>`, two shadow trees down. Focus
++   is composed, so the wrapper matches while any of them holds it.
++
++   `[has-user-input_]` is upstream's own `hasUserInput_`, reflected in
++   `ntp_searchbox.ts` for this rule. Text can outlive focus -- type, then click
++   the page -- and that is the one case focus alone gets wrong.
++
++   The dropdown is a child of this wrapper, so it would be read through this if
++   it were ever open in the normal state. It cannot be: it opens only while the
++   box has focus, which is the highlight state, and it paints its own opaque
++   `--color-searchbox-results-background` besides.
++
++   The mix is over Chromium's token rather than a colour of Sunshine's.
++   `docs/DESIGN_SYSTEM_CONTRACT.md` §2.2(3) admits composing a reference
++   through `color-mix()`, and this is that and nothing else: the box follows
++   the theme exactly as it did, at 65% of its opacity. */
++:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {
++  background-color: color-mix(in srgb, var(--color-searchbox-background) 65%, transparent);
++}
++
++/* The change between the two states is a fade rather than a snap. 150ms is
++   short enough to be over before the first keystroke lands. */
++#inputWrapper {
++  transition: background-color 150ms ease;
++}
++
++/* S11. The fade is decoration; the state distinction is the feature. A reader
++   who has asked for less motion still gets both states -- they get the change
++   at once instead of over 150ms. */
++@media (prefers-reduced-motion: reduce) {
++  #inputWrapper {
++    transition: none;
++  }
++}
++
+ :host([ntp-realbox-next-enabled]) #inputWrapper {
+   /* Elements like the IPH must overflow. */
+   overflow: visible;
+diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
+--- a/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
+@@ -199,7 +199,20 @@ export class NtpSearchboxElement extends NtpSearchboxElementBase implements
+         reflect: true,
+       },
+       energyEffectAnimationEnabled: {type: Boolean},
+-      hasUserInput_: {type: Boolean},
++      // Reflected so `ntp_searchbox.css` can see it. Sunshine's searchbox
++      // has a normal and a highlight state and this is half of the predicate
++      // that picks between them; the other half, focus, CSS can see by
++      // itself.
++      //
++      // Reflecting upstream's flag rather than keeping a second one beside it
++      // is the whole point. `hasUserInput_` is already maintained from the
++      // input event, and a copy in the New Tab app would be a second notion of
++      // "there is text in the box" that drifts from this one the first time a
++      // path updates one and not the other.
++      hasUserInput_: {
++        reflect: true,
++        type: Boolean,
++      },
+       ntpRealboxDynamicAiModeButtonEnabled_: {type: Boolean},
+       contextManagementInComposeboxEnabled: {type: Boolean},
+       keepMenuOpenOnTabSelectForRealbox: {type: Boolean},

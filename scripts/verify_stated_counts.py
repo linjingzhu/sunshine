@@ -775,6 +775,12 @@ NOT_THE_PIN: dict[str, tuple[str, ...]] = {
     # `util_constants.cc` does not exist at that revision, which a roll that
     # rewrote the number would erase.
     "docs/INSTALLER_CHOICE_PLAN.md": ("153.0.8000.0",),
+    # §3c's roll-cost table for the two searchbox files, measured before either
+    # was owned. The point of the row is that the two lines the patch anchors on
+    # are byte-identical at that milestone while the files around them move; a
+    # roll that rewrote the literal would turn a measurement into a claim about
+    # whichever revision was current when someone last ran sed.
+    "docs/NEWTAB_BACKGROUND_CONTRACT.md": ("153.0.8000.0",),
 }
 
 

@@ -494,6 +494,40 @@ enumerate the scopes with what each destroys and let the owner pick. This is the
 narrow exception to acting without asking.
 Confidence: high.
 
+### 2026-08-24 — A guard that greps a patch reads the patch's comments too
+Area: `scripts/verify_newtab_background.py`, NTB-13.
+Evidence: the check requires that `[has-user-input_]` appearing in
+`ntp_searchbox.css` be matched by `reflect: true` in `ntp_searchbox.ts`. Its
+membership test ran over the raw added lines, and the stylesheet's own comment
+explains the rule by naming `[has-user-input_]`. The test that deletes the CSS
+rule and keeps the reflection therefore passed the guard: the prose satisfied
+it. Found by writing that test, not by reading the check.
+Impact: none shipped; the check strips comments before the membership tests.
+Recommended future behavior: every text-membership guard over a patch decides
+first whether it is reading code or reading prose. This repository already had
+`without_comments()` for exactly this and it was not reached for. Note the
+second trap: `without_comments()` also strips from `//` to end of line, which
+would eat `url(//resources/...)` — a CSS guard needs the `/* */`-only form.
+Confidence: high.
+
+### 2026-08-24 — Measure `git apply` against the next revisions before the patch is written down
+Area: `downstream/patches/0022-sunshine-searchbox-state.patch`.
+Evidence: the first version added one declaration to upstream's `#inputWrapper`
+rule. Applying it needs ten lines of context; at trunk a `border` declaration
+has moved out of that rule into an `#inputWrapper::after`, and the hunk
+conflicted. Declaring the selector a second time below instead — no upstream
+line edited — and re-anchoring under the `[in-voice-search-mode]` rule made it
+apply at the pin, at 153.0.8000.0 and at trunk alike. The change cost one edit
+and was found in minutes, because the check is `git init` on three fetched
+copies of the file.
+Impact: the roll cost of this patch went from one hand resolution to zero, and
+the row is in `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3c.
+Recommended future behavior: for any new hunk into an upstream file, apply it
+against the next milestone and trunk before committing. Prefer a pure insertion
+anchored at a stable neighbour over an edit inside an upstream rule; the two are
+usually equivalent in CSS and are not equivalent at a roll.
+Confidence: high.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:

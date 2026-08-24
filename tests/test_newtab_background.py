@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 import verify_newtab_background as checker  # noqa: E402
 
 PATCH = "downstream/patches/0020-sunshine-newtab-background-format.patch"
+SEARCHBOX_PATCH = "downstream/patches/0022-sunshine-searchbox-state.patch"
 
 
 class NewTabBackgroundTests(unittest.TestCase):
@@ -170,6 +171,103 @@ class NewTabBackgroundTests(unittest.TestCase):
             "+++ b/chrome/browser/ui/sunshine/unrelated.cc\n"
             "+// base::RepeatingTimer timer_;\n",
             encoding="utf-8",
+        )
+        self.assertEqual([], checker.validate(self.root))
+
+
+class SearchboxStateTests(unittest.TestCase):
+    """NTB-12 and NTB-13: the searchbox's normal state, and its two halves.
+
+    Every mutation below leaves the patch applying cleanly and the page
+    rendering. Three of them leave a searchbox that is translucent while it is
+    being typed into -- the feature inverted -- and the fourth leaves a rule
+    that is valid CSS matching an attribute nothing ever sets. None of them is
+    visible to a compiler, to the design-system checks, or to a green build.
+    """
+
+    def setUp(self) -> None:
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.root = Path(directory) / "repo"
+        shutil.copytree(
+            REPOSITORY_ROOT,
+            self.root,
+            ignore=shutil.ignore_patterns(".git", "__pycache__", "chromium"),
+        )
+        self.patch = self.root / SEARCHBOX_PATCH
+
+    def edit(self, old: str, new: str) -> None:
+        text = self.patch.read_text(encoding="utf-8")
+        self.assertIn(old, text, f"{old!r} is not in the patch to edit")
+        self.patch.write_text(text.replace(old, new), encoding="utf-8")
+
+    def assertRejected(self, needle: str) -> None:
+        failures = checker.validate(self.root)
+        self.assertTrue(failures, "the violation was accepted")
+        self.assertTrue(any(needle in f for f in failures), f"{needle!r} not in {failures}")
+
+    def test_the_repository_passes_today(self) -> None:
+        """Enforces: NTB-12, NTB-13."""
+
+        self.assertEqual([], checker.validate(REPOSITORY_ROOT))
+
+    def test_inverting_the_state_is_rejected(self) -> None:
+        """The whole feature, written backwards, and still valid CSS."""
+
+        self.edit(
+            "+:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {",
+            "+:host([has-user-input_]) #inputWrapper:focus-within {",
+        )
+        self.assertRejected("NTB-12")
+
+    def test_dropping_the_focus_arm_is_rejected(self) -> None:
+        self.edit("#inputWrapper:not(:focus-within) {", "#inputWrapper {")
+        self.assertRejected(":not(:focus-within)")
+
+    def test_dropping_the_text_arm_is_rejected(self) -> None:
+        self.edit(
+            "+:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {",
+            "+#inputWrapper:not(:focus-within) {",
+        )
+        self.assertRejected(":not([has-user-input_])")
+
+    def test_deleting_the_reflection_is_rejected(self) -> None:
+        """The dead-arm case: the rule survives, the attribute never arrives.
+
+        This is the defect that shipped once already in this feature, in a
+        different file -- a branch that compiled and could not be reached
+        because the gate deciding whether it was reached never named it.
+        """
+
+        self.edit("+        reflect: true,\n", "")
+        self.assertRejected("NTB-13")
+
+    def test_reflecting_without_reading_is_rejected(self) -> None:
+        """The mirror image, and the one a roll is likelier to produce.
+
+        A conflict in the stylesheet is resolved by taking upstream's side; the
+        script half applies cleanly and stays. What is left is an attribute
+        Sunshine puts on an upstream element that nothing reads.
+        """
+
+        self.edit(":host(:not([has-user-input_]))", ":host(:not([sunshine-idle]))")
+        self.assertRejected("NTB-13")
+
+    def test_an_unrelated_color_mix_is_accepted(self) -> None:
+        """NTB-12 judges the searchbox surface, not every derived colour.
+
+        A rule elsewhere in the same stylesheet composing some other token
+        through `color-mix()` has nothing to do with which state is written,
+        and a check that fired on it would be a check about `color-mix()`.
+        """
+
+        self.edit(
+            "+@media (prefers-reduced-motion: reduce) {",
+            "+.searchbox-icon-button-container:hover {\n"
+            "+  background-color: color-mix(in srgb, var(--color-searchbox-foreground) 12%, transparent);\n"
+            "+}\n"
+            "+\n"
+            "+@media (prefers-reduced-motion: reduce) {",
         )
         self.assertEqual([], checker.validate(self.root))
 
