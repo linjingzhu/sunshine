@@ -41,7 +41,10 @@ PINNED = {
         "  E_CPONLY(kColorSecondaryForeground) \\\n"
         "  E_CPONLY(kColorDialogBackground) \\\n"
     ),
-    "chrome/browser/ui/color/chrome_color_id.h": "E_CPONLY(kColorNewTabPagePrimaryForeground)",
+    "chrome/browser/ui/color/chrome_color_id.h": (
+        "  E_CPONLY(kColorNewTabPagePrimaryForeground) \\\n"
+        "  E_CPONLY(kColorSearchboxBackground) \\\n"
+    ),
     "chrome/browser/resources/new_tab_page/app.css": "  --ntp-theme-text-shadow: none;",
     "chrome/browser/resources/new_tab_page/logo.css": "  --ntp-logo-margin-bottom: 18px;",
     "ui/webui/resources/cr_elements/cr_shared_vars.css": "  --cr-focus-outline-color: blue;",
@@ -223,6 +226,10 @@ class DesignTokenTests(unittest.TestCase):
                 "--color-new-tab-page-primary-foreground",
                 "--ntp-logo-margin-bottom",
                 "--ntp-theme-text-shadow",
+                # The searchbox's normal state, 0022. Read at the pin from
+                # chrome_color_id.h line 779, the same header and the same
+                # form as the wordmark's token above.
+                "--color-searchbox-background",
                 # Security Center, 0004. Every one is a role binding that
                 # docs/DESIGN_SYSTEM_CONTRACT.md section 3 left unbound, and
                 # each was resolved by reading ui/color/color_id.h at the

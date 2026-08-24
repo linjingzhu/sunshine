@@ -27,7 +27,13 @@ that allowed the feature no longer covers it -- so the repeating-task symbols
 are refused here too, in the background source specifically, rather than only
 in the general sweep `scripts/verify_no_interposition.py` runs.
 
-Enforces: NTB-1, NTB-2, NTB-3, NTB-4, NTB-5.
+Enforces: NTB-1, NTB-2, NTB-3, NTB-4, NTB-5, NTB-6, NTB-7, NTB-8, NTB-10, NTB-12, NTB-13.
+
+For NTB-6 through NTB-13 that is the source-checkable half only. Whether
+the page rests, whether the clock ticks and whether the searchbox reads as
+glass are runtime questions, and `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5
+says plainly that none of them has been looked at. A claim here is a claim
+about the patch stack.
 """
 
 from __future__ import annotations
@@ -210,6 +216,19 @@ PAGE_STYLE = "chrome/browser/resources/new_tab_page/app.css"
 PAGE_MARKUP = "chrome/browser/resources/new_tab_page/app.html"
 SERVED_CONSTANT = "kSunshineBackgroundPath"
 
+# The searchbox's two states, NTB-12 and NTB-13. The attribute is upstream's
+# own `hasUserInput_`, reflected so the stylesheet can read it, and the two
+# spellings have to be named together here because the whole failure mode is
+# that one of them exists without the other.
+SEARCHBOX_STYLE = "chrome/browser/resources/new_tab_page/ntp_searchbox.css"
+SEARCHBOX_SCRIPT = "chrome/browser/resources/new_tab_page/ntp_searchbox.ts"
+SEARCHBOX_ATTRIBUTE = "[has-user-input_]"
+SEARCHBOX_PROPERTY = "hasUserInput_"
+SEARCHBOX_FOCUS = ":focus-within"
+SEARCHBOX_SURFACE = "--color-searchbox-background"
+
+CSS_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+
 
 def check_served_path_is_reachable(added: dict[str, str], failures: list[str]) -> None:
     """NTB-5: the path the handler answers is a path the source will service.
@@ -375,12 +394,104 @@ def check_resting_cannot_fade_the_background(added: dict[str, str],
         )
 
 
+def added_css_rules(text: str) -> list[tuple[str, str]]:
+    """(selector, body) for every rule wholly inside the added lines.
+
+    Deliberately small. It reads added lines, so a rule whose opening brace is
+    upstream context is invisible to it and is not judged -- which is correct:
+    a declaration Sunshine adds to an upstream rule is judged by the
+    design-system checks, not by this one, which is about which selector
+    Sunshine chose to write its own rule under.
+    """
+
+    rules = []
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS_COMMENT.sub("", text)):
+        # Everything up to the last `;` belongs to a rule whose braces are
+        # upstream context, not to this selector. Without this the orphaned
+        # declarations Sunshine adds to upstream rules are read as part of the
+        # next selector, which makes the failure message wrong and could in
+        # principle satisfy the check with text from an unrelated line.
+        selector = match.group(1).rsplit(";", 1)[-1]
+        rules.append((" ".join(selector.split()), match.group(2)))
+    return rules
+
+
+def check_searchbox_state_is_reachable(added: dict[str, str],
+                                       failures: list[str]) -> None:
+    """NTB-12, NTB-13: the two searchbox states, and the halves that make them.
+
+    The searchbox is translucent while nothing is being asked of it and
+    upstream's own opaque surface the moment something is. Two things can go
+    wrong, and both look right in a diff.
+
+    **The translucency can be written as the wrong state.** A rule keyed on
+    `[has-user-input_]` rather than on its negation makes the box glass exactly
+    when it is holding text -- the feature doing the opposite of its
+    description, which is the shape that already shipped once here, in resting.
+    So every rule Sunshine writes for that surface must name both negations.
+
+    **The attribute can be read without ever being set.** `hasUserInput_` is
+    upstream's property and upstream does not reflect it; Sunshine's patch adds
+    `reflect: true` for this rule alone. Drop that one line -- at a roll, in a
+    conflict resolution -- and the CSS is still valid, the build is still
+    green, and the arm that keeps the box solid after focus leaves simply never
+    matches. That is the unreachable branch from `check_served_path_is_reachable`
+    wearing different clothes, so it is checked the same way: the two halves
+    must both be present, and neither is evidence of the other.
+    """
+
+    # Comments, not code -- and this one bit while the tests were being
+    # written. The stylesheet's own comment explains the rule by naming
+    # `[has-user-input_]`, so a membership test over the raw added lines was
+    # satisfied by the explanation and reported the halves as agreeing when
+    # only the prose did.
+    # `CSS_COMMENT` rather than `without_comments` for the stylesheet: the
+    # latter also strips from `//` to end of line, and `//resources/...` is how
+    # every url() in this stylesheet begins.
+    style = CSS_COMMENT.sub("", added.get(SEARCHBOX_STYLE, ""))
+    script = without_comments(added.get(SEARCHBOX_SCRIPT, ""))
+    if SEARCHBOX_ATTRIBUTE not in style and SEARCHBOX_PROPERTY not in script:
+        return  # The feature is not in the stack. Nothing to hold to its rules.
+
+    for selector, body in added_css_rules(style):
+        if SEARCHBOX_SURFACE not in body or "color-mix(" not in body:
+            continue
+        for needle in (f":not({SEARCHBOX_ATTRIBUTE})", f":not({SEARCHBOX_FOCUS})"):
+            if needle not in selector:
+                failures.append(
+                    f"NTB-12 `{selector}` makes the searchbox surface "
+                    f"translucent without `{needle}`; the normal state is the "
+                    "one written, and a rule that can match a box being "
+                    "focused or holding text is the feature inverted"
+                )
+
+    reflected = re.search(
+        SEARCHBOX_PROPERTY + r"\s*:\s*\{[^}]*reflect\s*:\s*true", script)
+    if SEARCHBOX_ATTRIBUTE in style and not reflected:
+        failures.append(
+            f"NTB-13 {SEARCHBOX_STYLE} reads `{SEARCHBOX_ATTRIBUTE}` but "
+            f"{SEARCHBOX_SCRIPT} does not reflect `{SEARCHBOX_PROPERTY}`; "
+            "upstream keeps that property unreflected, so without the patch "
+            "the attribute is never on the element and the rule that keeps a "
+            "filled box solid can never match"
+        )
+    if reflected and SEARCHBOX_ATTRIBUTE not in style:
+        failures.append(
+            f"NTB-13 {SEARCHBOX_SCRIPT} reflects `{SEARCHBOX_PROPERTY}` but "
+            f"no rule in {SEARCHBOX_STYLE} reads {SEARCHBOX_ATTRIBUTE}; the "
+            "reflection exists for that rule and nothing else, so on its own "
+            "it is an attribute Sunshine puts on an upstream element for no "
+            "reason"
+        )
+
+
 def check(root: Path, failures: list[str]) -> None:
     added = added_lines_by_target(root)
     check_served_path_is_reachable(added, failures)
     check_resting_is_bounded(added, failures)
     check_resting_cannot_fade_the_background(
         added, patched_lines_by_target(root), failures)
+    check_searchbox_state_is_reachable(added, failures)
 
     source = added.get(SOURCE)
     if source is None:

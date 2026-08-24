@@ -5,10 +5,12 @@
 The content area's background on `chrome://new-tab-page`, for the Chromium
 revision pinned by Sunshine OS: `152.0.7977.42` (see `config/chromium.version`).
 
-**Implemented, and never run.** Three patches:
+**Implemented, and never run.** Four patches:
 `0020-sunshine-newtab-background-format.patch` decides what a background may
 be (§2) and reads it; `0021-sunshine-newtab-background-source.patch` serves it
-(§3); `0002-sunshine-new-tab.patch` shows it (§4).
+(§3); `0002-sunshine-new-tab.patch` shows it (§4);
+`0022-sunshine-searchbox-state.patch` decides what the searchbox does over it
+(§3c).
 `scripts/verify_newtab_background.py` holds the patch stack to this document.
 Nothing has been built or displayed — §5 is the whole of what that means.
 
@@ -343,6 +345,118 @@ and a button that opens nothing is worse than no button. NTB-11 is written
 ahead of the code it constrains, which is this repository's pattern and the
 reason the allowlist defect was not repeated.
 
+## 3c. The searchbox — glass at rest, solid in use
+
+**Decided by the owner.** The New Tab's search field has two states. *Normal* —
+nothing is being asked of it — is translucent. *Highlight* — it is focused, or
+it is holding text — is solid.
+
+| | |
+| --- | --- |
+| **NTB-12** | **The normal state is the one written.** Highlight is upstream's surface with nothing done to it, reached by a rule failing to match rather than by a second rule. |
+| **NTB-13** | Highlight is one predicate with two halves — focus, and text — and neither is a copy of anything. Focus is read in CSS; text is upstream's own `hasUserInput_`, reflected. |
+
+**NTB-12 is the invariant, and the reason is a defect this feature already
+shipped.** §3a hid the page's content and faded the background with it, because
+the rule described what should disappear and nothing asked where the thing that
+must stay was. The same shape is available here: a rule keyed on
+`[has-user-input_]` instead of on its negation reads correctly, applies
+cleanly, and makes the box glass exactly when someone is typing into it.
+Writing only the normal state removes the possibility — if the rule is wrong,
+or a roll moves it, the failure is upstream's opaque box, which is what
+Chromium ships.
+
+**Why the searchbox at all.** The background is the point of §3, and upstream's
+searchbox sits on top of it as an opaque slab. Recessing it while it is idle is
+what makes the background a background. Nothing else on the page needed this:
+the wordmark and the clock are text with a shadow, and shortcuts are already
+translucent.
+
+### The halves, and why there are two
+
+Focus alone is nearly enough and is wrong in one case: **type a query, then
+click the page.** The text is still there, the box no longer has focus, and a
+focus-only rule turns it to glass with the user's own words behind it. So
+highlight is `focused ∨ has text`.
+
+CSS can see focus by itself. `:focus-within` on `#inputWrapper`, not `:focus` —
+the element that actually takes focus is the `<input>` inside
+`<cr-searchbox-input>`, two shadow trees down, and focus is composed.
+
+CSS cannot see text, and this is where the decision was made:
+
+| Option | Cost |
+| --- | --- |
+| Track the text in `app.ts` from the composed `searchbox-input-text-updated` event | No new upstream file, and **a second notion of "there is text in the box"** beside the one upstream already keeps |
+| Reflect upstream's `hasUserInput_` | One line in `ntp_searchbox.ts`, and one notion of the fact |
+
+**The second.** `hasUserInput_` is already maintained by the element from the
+same input event, already the flag its compose button reads, and already
+`!!value.trim()` — which is the predicate this wants. Sunshine adds
+`reflect: true` and nothing else. Two copies of a boolean that must agree is
+how the searchbox ends up solid with an empty box, and the failure would be
+invisible until someone looked.
+
+**Upstream's flag is upstream's flag, and it has a known edge.**
+`setInputText()` — the programmatic path, used by voice search and by the
+composebox — does not fire the input event, so neither `hasUserInput_` nor
+anything derived from it moves. Sunshine inherits that exactly; it does not
+inherit it *worse*. In every such flow the box is also focused, which is the
+other half of the predicate, so the visible behaviour is correct even where the
+flag is stale. Recorded because it is the kind of thing a later reader should
+find written down rather than discover.
+
+### What this costs, measured
+
+Two upstream files this stack did not own: `ntp_searchbox.css` and
+`ntp_searchbox.ts`. `docs/decisions/0007-module-contribution-seam.md` gives a
+Sunshine WebUI surface its files for free; upstream's New Tab search field is
+not that.
+
+Fetched at the pin, at the next milestone and at trunk, comparing only after
+checking the HTTP status — the first roll-cost measurement in this repository
+did not, saved a 404 body as content, and reported a whole file as changed.
+
+| | at pin | 153.0.8000.0 | main |
+| --- | --- | --- | --- |
+| `ntp_searchbox.css`, whole file | 378 lines | 12 lines differ | 42 lines differ |
+| `hasUserInput_: {type: Boolean}` | line 202 | line 202, **identical** | line 202, **identical** |
+| **`git apply` of this patch** | **applies** | **applies** | **applies** |
+
+**The last row is the measurement; the others are why it is not luck.** The
+patch was checked out against each of the three revisions and applied to all
+three — so the next roll costs nothing here, and neither does the one after it
+as far as trunk can predict.
+
+That row was red when it was first taken, and fixing it is what the placement
+note in the stylesheet records. The first version of this patch added its
+`transition` to upstream's `#inputWrapper` rule, which needs ten lines of
+context to reach; at trunk a `border` declaration has moved out of that rule
+into an `#inputWrapper::after`, and the hunk conflicted. Re-anchoring it below
+the `[in-voice-search-mode]` rule — with the rule declared a second time rather
+than edited — cost nothing and made all three green. **The measurement was
+worth taking before the patch was written down, not after the roll.**
+
+### The value, and what has not been checked
+
+The normal state is `color-mix(in srgb, var(--color-searchbox-background) 65%,
+transparent)` — Chromium's own token at 65% opacity, composed through the one
+mechanism `docs/DESIGN_SYSTEM_CONTRACT.md` §2.2(3) admits. The box follows the
+theme exactly as it did; only its opacity is Sunshine's.
+
+**65% is chosen, not derived.** No contrast measurement stands behind it, and
+one cannot easily: the composite depends on the photograph underneath, which is
+the user's. What is known is the direction of the risk — the placeholder text
+stays at full opacity while the surface behind it moves toward the image, so
+the failure mode is a washed-out placeholder over a bright picture, not
+unreadable typed text. §5 carries this as unverified, and it is the first thing
+to look at when a background is finally on screen.
+
+The change between states is a 150 ms `background-color` transition, neutralised
+under `prefers-reduced-motion: reduce` as §8.1 of the design-system contract
+requires. It is a CSS transition and Sunshine owns no task for it, so PB-5 is
+untouched.
+
 ## 4. The animation rules — NTB-3, and PB-5a
 
 `docs/PERFORMANCE_BUDGET.md` PB-5a permits this animation and is the reason
@@ -406,6 +520,16 @@ because they already have a home.
   been compiled — build #40, run `32445665066` — and compiling is not running:
   the feature was in fact **broken at that point** and the green build said
   nothing about it. See the note under NTB-5.
+- **The searchbox's 65% has never been looked at.** §3c's normal state is a
+  chosen opacity with no contrast measurement behind it, and the composite it
+  has to remain legible against is a photograph nobody has picked yet. The
+  placeholder is the exposed element — it sits at full opacity over a surface
+  that moves toward the image behind it. Two states have been proved to exist
+  in source and neither has been seen.
+- **`hasUserInput_` is stale after a programmatic `setInputText()`**, which is
+  upstream's behaviour and now Sunshine's too. §3c argues the visible result is
+  still correct because those paths also focus the box, and that argument has
+  been read out of the source rather than watched happen.
 - **A rejected file is indistinguishable from no file.** `ReadInstalledBackground`
   returns empty for a missing file, an oversized one, and one whose bytes are
   not a permitted format alike, and no surface anywhere says which happened.
