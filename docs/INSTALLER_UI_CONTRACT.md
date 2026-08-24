@@ -16,8 +16,8 @@ the entire mechanism.**
 | | Decision |
 | --- | --- |
 | Shape | **One file.** `sunshine-setup.exe` carries the engine inside it. |
-| Path | **Per-user or per-machine, and nothing else.** Shown, never typed. |
-| Name | **Fixed at `Sunshine`.** No control changes it, not even cosmetically. |
+| Path | **Under revision.** Recorded as per-user or per-machine, shown and never typed; the owner has since decided a folder must be chosen. `docs/INSTALLER_CHOICE_PLAN.md` is what that costs. |
+| Name | **Under revision.** Recorded as fixed at `Sunshine`; the owner has since decided the executable's name must be chosen. Same plan, §4 — this is the expensive half. |
 | Image | **Built in**, from `downstream/assets/`. Nothing is read from disk at run time. |
 | Build | **Its own compiler invocation** in the workflow. Zero upstream files. |
 | Look | **Windows' own**, by the owner's decision reversing an earlier one. Themed common controls, drawn by the platform. |
