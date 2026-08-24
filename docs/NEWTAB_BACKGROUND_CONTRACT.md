@@ -428,14 +428,18 @@ patch was checked out against each of the three revisions and applied to all
 three — so the next roll costs nothing here, and neither does the one after it
 as far as trunk can predict.
 
-That row was red when it was first taken, and fixing it is what the placement
-note in the stylesheet records. The first version of this patch added its
+That row was red when it was first taken. The first version added its
 `transition` to upstream's `#inputWrapper` rule, which needs ten lines of
 context to reach; at trunk a `border` declaration has moved out of that rule
-into an `#inputWrapper::after`, and the hunk conflicted. Re-anchoring it below
-the `[in-voice-search-mode]` rule — with the rule declared a second time rather
-than edited — cost nothing and made all three green. **The measurement was
-worth taking before the patch was written down, not after the roll.**
+into an `#inputWrapper::after`, and the hunk conflicted. Re-anchoring below the
+`[in-voice-search-mode]` rule fixed it — and the way it was fixed, by declaring
+`#inputWrapper` a second time, is what native build #46 then rejected.
+
+**Both measurements were right and the patch was still wrong**, because the two
+answer different questions. `git apply` answers *will this patch land*.
+Stylelint answers *will Chromium accept what it lands*. Nothing here had ever
+asked the second one. Dropping the fade satisfies both at once, which is why it
+is the fix rather than a compromise.
 
 ### The value, and what has not been checked
 
@@ -452,10 +456,33 @@ the failure mode is a washed-out placeholder over a bright picture, not
 unreadable typed text. §5 carries this as unverified, and it is the first thing
 to look at when a background is finally on screen.
 
-The change between states is a 150 ms `background-color` transition, neutralised
-under `prefers-reduced-motion: reduce` as §8.1 of the design-system contract
-requires. It is a CSS transition and Sunshine owns no task for it, so PB-5 is
-untouched.
+**The change between states is instant, and that was decided by a build.** A
+150 ms `background-color` fade was written first. It needs `transition` on
+`#inputWrapper` in both states, and the only place to put it without inventing a
+selector is upstream's own `#inputWrapper` rule — so the patch declared the
+selector a second time. Chromium's WebUI build lints this folder with its own
+stylelint config, `no-duplicate-selectors` is in it, and native build #46 failed
+in twenty seconds:
+
+```text
+gen/chrome/browser/resources/new_tab_page/preprocessed/ntp_searchbox.css
+  140:1  ✖  Unexpected duplicate selector "#inputWrapper", first used at line 84
+```
+
+The three ways out were: add the declaration to upstream's rule and take a
+conflict at trunk; write a synthetic selector such as `:host #inputWrapper` to
+slip past the linter; or drop the fade. **The fade was decoration nobody asked
+for**, and the other two both spend something real to keep it, so it is gone.
+One rule, no upstream line edited, no `@media` block, and the patch applies at
+the pin, at 153.0.8000.0 and at trunk.
+
+A focus change being instant is not obviously worse, either. Focus rings snap;
+a box that turns solid the instant it is clicked reads as responsive rather than
+abrupt. That is a claim about a screen nobody has seen — §5.
+
+`docs/DESIGN_SYSTEM_CONTRACT.md` S13 now checks the rule that caught this, so
+the next patch to duplicate an upstream selector fails in CI rather than on the
+owner's workstation ten hours into a queue.
 
 ## 4. The animation rules — NTB-3, and PB-5a
 
@@ -520,6 +547,9 @@ because they already have a home.
   been compiled — build #40, run `32445665066` — and compiling is not running:
   the feature was in fact **broken at that point** and the green build said
   nothing about it. See the note under NTB-5.
+- **That the instant state change reads as responsive rather than abrupt is a
+  guess.** It replaced a fade for a build reason, not a design one, and nobody
+  has seen either version.
 - **The searchbox's 65% has never been looked at.** §3c's normal state is a
   chosen opacity with no contrast measurement behind it, and the composite it
   has to remain legible against is a photograph nobody has picked yet. The

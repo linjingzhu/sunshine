@@ -32,7 +32,7 @@ S1 is the one check that needs the pinned Chromium sources. It lives in
 how a pinned file is read. `validate` touches no network, which is what lets the
 test suite inject violations and run offline.
 
-Enforces: design-system contract §9.1, checks S1 through S12.
+Enforces: design-system contract §9.1, checks S1 through S13.
 """
 
 from __future__ import annotations
@@ -45,6 +45,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import patch_manifest as manifest  # noqa: E402
 import verify_pinned_upstream as upstream  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,10 @@ PATCH_DIRECTORY = "downstream/patches"
 # `clamp(2rem, 6vw, 3.5rem)`, which is 16px per rem. The same constant is used
 # here so the tool and the contract agree on the arithmetic.
 ROOT_FONT_PX = 16.0
+
+# Only the `/* */` form: CSS has no `//` comment, and every url() in these
+# stylesheets begins `//resources/...`.
+CSS_COMMENTS = re.compile(r"/\*.*?\*/", re.S)
 
 # §9.1 S2 names exactly these properties. `background` and `box-shadow` are not
 # in the list; widening it is a contract amendment, not a tool decision.
@@ -966,6 +971,105 @@ def token_sources(token: str) -> tuple[tuple[str, ...], str]:
     return CR_STYLESHEETS, f"{token}:"
 
 
+def authored_selectors(root: Path = ROOT) -> dict[str, set[tuple[str, str]]]:
+    """Per stylesheet, the (selector, where) of every rule Sunshine adds whole.
+
+    A rule counts only when its opening brace was added rather than quoted as
+    context -- a declaration Sunshine adds inside an upstream rule is not a new
+    selector and cannot duplicate anything.
+    """
+
+    found: dict[str, set[tuple[str, str]]] = {}
+    for rule in read_stylesheets(root).rules:
+        if not rule.authored or not rule.complete or rule.at_rules:
+            continue
+        opened_by_sunshine = any(
+            line.origin == "added" and "{" in line.text and rule.selector.split()[0] in line.text
+            for hunk in [h for h in read_stylesheets(root).hunks if h.path == rule.path]
+            for line in hunk.lines
+        )
+        if not opened_by_sunshine:
+            continue
+        for part in rule.selector.split(","):
+            part = normalised_selector(part)
+            if part:
+                found.setdefault(rule.path, set()).add((part, rule.patch))
+    return found
+
+
+def upstream_selectors(text: str) -> set[str]:
+    """Every selector the upstream stylesheet declares, at-rule bodies included.
+
+    Deliberately textual, in the same spirit as `byte_arrays()`: the question is
+    what stylelint will see as a repeated selector, and stylelint reads text.
+    """
+
+    found = set()
+    for match in re.finditer(r"([^{}]+)\{[^{}]*\}", CSS_COMMENTS.sub("", text)):
+        prelude = match.group(1).rsplit("}", 1)[-1].rsplit(";", 1)[-1]
+        if "@" in prelude:
+            continue
+        for part in prelude.split(","):
+            part = normalised_selector(part)
+            if part:
+                found.add(part)
+    return found
+
+
+def check_no_duplicate_selectors(
+    root: Path = ROOT,
+    read: object = None,
+    source: str = "googlesource",
+) -> list[str]:
+    """S13: a rule Sunshine adds must not repeat a selector upstream declares.
+
+    **This check exists because its absence cost a build.** Patch 0022 added a
+    second `#inputWrapper { }` to `ntp_searchbox.css` -- deliberately, so that
+    no upstream line was edited and the hunk survived a roll. Every guard in
+    this repository passed. `verify_pinned_upstream` proved the patch applies to
+    the real pinned tree. S1 through S12 passed. The native build then failed in
+    twenty seconds:
+
+        Unexpected duplicate selector "#inputWrapper", first used at line 84
+        no-duplicate-selectors
+
+    Chromium lints Sunshine's CSS with its own stylelint config, and nothing
+    here had ever asked whether Chromium would accept what Sunshine wrote. Every
+    check answered the question it was asked and none of them was that one.
+
+    The scope is honest about what it covers: this is `no-duplicate-selectors`
+    against the pinned upstream file, not a local stylelint. It catches the
+    defect that happened, at the cost of one HTTP read per patched stylesheet.
+    """
+
+    if read is None:
+        version = upstream.pinned_version(root)
+
+        def read(path: str) -> str:  # noqa: A001 - the parameter is the seam
+            return upstream.fetch(source, version, path)
+
+    # Only stylesheets upstream has. A `.css` the stack creates is Sunshine's
+    # own file, has no upstream to duplicate, and asking for one returns 404 --
+    # which is how the first run of this check failed on the account surface.
+    created = manifest.created_paths(root, manifest.read_manifest(root))
+
+    failures: list[str] = []
+    for path, selectors in sorted(authored_selectors(root).items()):
+        if path in created:
+            continue
+        existing = upstream_selectors(read(path))
+        for selector, patch in sorted(selectors):
+            if selector in existing:
+                failures.append(
+                    f"S13 {patch}: adds a rule for `{selector}` to {path}, which "
+                    "the upstream stylesheet already declares. Chromium's "
+                    "stylelint config runs `no-duplicate-selectors` over this "
+                    "folder and fails the build on it -- add the declarations to "
+                    "the existing rule instead"
+                )
+    return failures
+
+
 def check_token_provenance(
     root: Path = ROOT,
     read: object = None,
@@ -1003,7 +1107,7 @@ def check_token_provenance(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Design-system source checks S1-S12.")
+    parser = argparse.ArgumentParser(description="Design-system source checks S1-S13.")
     parser.add_argument(
         "--source",
         choices=sorted(upstream.SOURCES),
@@ -1013,7 +1117,7 @@ def main() -> int:
     parser.add_argument(
         "--offline",
         action="store_true",
-        help="run S2-S12 only, skipping the pinned-source check S1",
+        help="run S2-S12 only, skipping the pinned-source checks S1 and S13",
     )
     arguments = parser.parse_args()
 
@@ -1023,7 +1127,8 @@ def main() -> int:
     if not arguments.offline:
         try:
             failures += check_token_provenance(source=arguments.source)
-            checked = "S1-S12"
+            failures += check_no_duplicate_selectors(source=arguments.source)
+            checked = "S1-S13"
         except upstream.UpstreamCheckError as error:
             # Report what the offline checks found regardless; an unreachable
             # pinned source is a reason S1 has no verdict, not a reason to

@@ -22,9 +22,11 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
+import patch_manifest as manifest  # noqa: E402
 import verify_design_tokens as checker  # noqa: E402
 
 APP_CSS = "chrome/browser/resources/new_tab_page/app.css"
+NTP_SEARCHBOX_CSS = "chrome/browser/resources/new_tab_page/ntp_searchbox.css"
 
 # What the pinned revision really contains, reduced to the needles S1 looks for.
 # Verified at 152.0.7977.42: the colour ID is in chrome_color_id.h and in no
@@ -558,6 +560,158 @@ class DesignTokenTests(unittest.TestCase):
         body = ['+  <div id="sunshineWordmark" style="color: #ff0000">SUNSHINE</div>']
         failures = checker.validate(self.write_patch(body, path=path))
         self.assertTrue(any(f.startswith("S2 ") for f in failures), failures)
+
+
+class DuplicateSelectorTests(unittest.TestCase):
+    """S13: the criterion that exists because a build found it first.
+
+    Patch 0022 added a second `#inputWrapper { }` to an upstream stylesheet so
+    that no upstream line was edited and the hunk survived a roll. Chromium's
+    stylelint config runs `no-duplicate-selectors` over that folder, and native
+    build #46 failed on it in twenty seconds -- after S1 through S12, the
+    architecture guards and `verify_pinned_upstream` had all passed.
+    """
+
+    UPSTREAM = {
+        NTP_SEARCHBOX_CSS: (
+            "#inputWrapper {\n"
+            "  background-color: var(--color-searchbox-background);\n"
+            "}\n"
+            "\n"
+            ":host([in-voice-search-mode]) #inputWrapper {\n"
+            "  display: none;\n"
+            "}\n"
+        ),
+    }
+
+    def setUp(self) -> None:
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.directory = Path(directory)
+
+    def write(self, body: list[str], path: str = NTP_SEARCHBOX_CSS) -> Path:
+        root = self.directory / "repo"
+        patches = root / "downstream/patches"
+        patches.mkdir(parents=True, exist_ok=True)
+        old = sum(1 for line in body if line[:1] in (" ", "-"))
+        new = sum(1 for line in body if line[:1] in (" ", "+"))
+        (patches / "0001-fixture.patch").write_text(
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1,{old} +1,{new} @@\n" + "\n".join(body) + "\n",
+            encoding="utf-8",
+        )
+        (patches / "series").write_text("0001-fixture.patch\n", encoding="utf-8")
+        return root
+
+    def run_check(self, root: Path) -> list[str]:
+        return checker.check_no_duplicate_selectors(
+            root, read=lambda path: self.UPSTREAM[path])
+
+    def test_repeating_an_upstream_selector_is_rejected(self) -> None:
+        """Enforces: S13. The exact shape that failed native build #46."""
+
+        root = self.write([
+            " :host([in-voice-search-mode]) #inputWrapper {",
+            "   display: none;",
+            " }",
+            " ",
+            "+#inputWrapper {",
+            "+  transition: background-color 150ms ease;",
+            "+}",
+        ])
+        failures = self.run_check(root)
+        self.assertTrue(failures, "the duplicate selector was accepted")
+        self.assertIn("#inputWrapper", failures[0])
+        self.assertIn("no-duplicate-selectors", failures[0])
+
+    def test_a_new_selector_is_accepted(self) -> None:
+        """The shipped shape: a compound nobody upstream declares."""
+
+        root = self.write([
+            " :host([in-voice-search-mode]) #inputWrapper {",
+            "   display: none;",
+            " }",
+            " ",
+            "+:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {",
+            "+  background-color: color-mix(in srgb, var(--color-searchbox-background) 65%, transparent);",
+            "+}",
+        ])
+        self.assertEqual([], self.run_check(root))
+
+    def test_adding_to_an_upstream_rule_is_accepted(self) -> None:
+        """A declaration inside upstream's own rule adds no selector.
+
+        This is the fix stylelint asks for, so a check that flagged it would
+        forbid the only remedy it offers.
+        """
+
+        root = self.write([
+            " #inputWrapper {",
+            "   background-color: var(--color-searchbox-background);",
+            "+  transition: background-color 150ms ease;",
+            " }",
+        ])
+        self.assertEqual([], self.run_check(root))
+
+    def test_a_stylesheet_the_stack_creates_is_not_read(self) -> None:
+        """Sunshine's own CSS has no upstream, and asking for one is a 404.
+
+        The first run of this check failed exactly that way, on the account
+        surface's stylesheet.
+        """
+
+        path = "chrome/browser/resources/sunshine/account/app.css"
+        root = self.directory / "repo"
+        patches = root / "downstream/patches"
+        patches.mkdir(parents=True, exist_ok=True)
+        (patches / "0001-fixture.patch").write_text(
+            f"diff --git a/{path} b/{path}\n--- /dev/null\n+++ b/{path}\n"
+            "@@ -0,0 +1,3 @@\n+#inputWrapper {\n+  display: flex;\n+}\n",
+            encoding="utf-8",
+        )
+        (patches / "series").write_text("0001-fixture.patch\n", encoding="utf-8")
+
+        def refuse(path: str) -> str:
+            raise AssertionError(f"a created stylesheet was read upstream: {path}")
+
+        self.assertEqual([], checker.check_no_duplicate_selectors(root, read=refuse))
+
+    def test_the_selectors_the_stack_adds_to_upstream_stylesheets(self) -> None:
+        """Enforces: S13.
+
+        The live form of this check reads the pinned revision and runs in CI;
+        the offline form pins *what would be read*. A patch that adds a bare
+        upstream selector -- the shape that failed build #46 -- changes this set
+        and has to be looked at, which is the point.
+        """
+
+        self.assertEqual(
+            {
+                # Patch 0002. Every one is Sunshine-namespaced except the two
+                # `:host` compounds, which upstream does not spell this way.
+                APP_CSS: {
+                    "#sunshineBackground",
+                    "#sunshineClock",
+                    "#sunshineStatus",
+                    "#sunshineStatus > *",
+                    "#sunshineWordmark",
+                    ":host > *:not(#sunshineBackground)",
+                    ":host([sunshine-resting]) #sunshineStatus > *:not(#sunshineClock)",
+                    ":host([sunshine-resting]) > *:not(#sunshineBackground):not(#sunshineStatus)",
+                },
+                # Patch 0022. One rule, and a compound upstream has no reason to
+                # write: the bare `#inputWrapper` next to it is what broke #46.
+                NTP_SEARCHBOX_CSS: {
+                    ":host(:not([has-user-input_])) #inputWrapper:not(:focus-within)",
+                },
+            },
+            {
+                path: {selector for selector, _patch in entries}
+                for path, entries in checker.authored_selectors(REPOSITORY_ROOT).items()
+                if path not in manifest.created_paths(
+                    REPOSITORY_ROOT, manifest.read_manifest(REPOSITORY_ROOT))
+            },
+        )
 
 
 if __name__ == "__main__":

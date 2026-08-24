@@ -1,7 +1,7 @@
 diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.css b/chrome/browser/resources/new_tab_page/ntp_searchbox.css
 --- a/chrome/browser/resources/new_tab_page/ntp_searchbox.css
 +++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.css
-@@ -98,6 +98,58 @@
+@@ -98,6 +98,47 @@
    display: none;
  }
  
@@ -14,12 +14,16 @@ diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.css b/chrome/br
 +   highlight state is the absence of this rule, which is why a roll that moves
 +   these lines cannot leave the box stuck translucent.
 +
-+   Nothing upstream wrote is edited, and where this sits was chosen for the
-+   same reason. `#inputWrapper` is declared again here rather than having a
-+   line added to the rule that declares it: at trunk a `border` declaration
-+   moves out of that rule into an `::after`, so a hunk reaching into it -- or
-+   merely sitting next to it -- conflicts. Anchored here instead, this hunk
-+   applies unchanged at the pin, at 153.0.8000.0 and at trunk.
++   One rule, and nothing upstream wrote is edited. Both halves of that are
++   forced rather than chosen. Chromium's own stylelint config runs
++   `no-duplicate-selectors` over this folder, so a second `#inputWrapper { }`
++   fails the build -- which is how the first version of this patch died. And a
++   declaration added to the rule that already declares `#inputWrapper` needs
++   enough context to reach it, which conflicts at trunk where a `border` moves
++   out of that rule into an `::after`. Between the two, the state change is
++   instant rather than faded: a fade would need `transition` on both states,
++   and there is no way to spell that here that satisfies the linter without
++   inventing a selector to hide behind.
 +
 +   `:focus-within` rather than `:focus`, because the element that takes focus
 +   is the `<input>` inside `<cr-searchbox-input>`, two shadow trees down. Focus
@@ -40,21 +44,6 @@ diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.css b/chrome/br
 +   the theme exactly as it did, at 65% of its opacity. */
 +:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {
 +  background-color: color-mix(in srgb, var(--color-searchbox-background) 65%, transparent);
-+}
-+
-+/* The change between the two states is a fade rather than a snap. 150ms is
-+   short enough to be over before the first keystroke lands. */
-+#inputWrapper {
-+  transition: background-color 150ms ease;
-+}
-+
-+/* S11. The fade is decoration; the state distinction is the feature. A reader
-+   who has asked for less motion still gets both states -- they get the change
-+   at once instead of over 150ms. */
-+@media (prefers-reduced-motion: reduce) {
-+  #inputWrapper {
-+    transition: none;
-+  }
 +}
 +
  :host([ntp-realbox-next-enabled]) #inputWrapper {

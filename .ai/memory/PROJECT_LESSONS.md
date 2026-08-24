@@ -510,22 +510,41 @@ second trap: `without_comments()` also strips from `//` to end of line, which
 would eat `url(//resources/...)` — a CSS guard needs the `/* */`-only form.
 Confidence: high.
 
-### 2026-08-24 — Measure `git apply` against the next revisions before the patch is written down
-Area: `downstream/patches/0022-sunshine-searchbox-state.patch`.
-Evidence: the first version added one declaration to upstream's `#inputWrapper`
-rule. Applying it needs ten lines of context; at trunk a `border` declaration
-has moved out of that rule into an `#inputWrapper::after`, and the hunk
-conflicted. Declaring the selector a second time below instead — no upstream
-line edited — and re-anchoring under the `[in-voice-search-mode]` rule made it
-apply at the pin, at 153.0.8000.0 and at trunk alike. The change cost one edit
-and was found in minutes, because the check is `git init` on three fetched
-copies of the file.
-Impact: the roll cost of this patch went from one hand resolution to zero, and
-the row is in `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3c.
-Recommended future behavior: for any new hunk into an upstream file, apply it
-against the next milestone and trunk before committing. Prefer a pure insertion
-anchored at a stable neighbour over an edit inside an upstream rule; the two are
-usually equivalent in CSS and are not equivalent at a roll.
+### 2026-08-24 — Chromium lints Sunshine's CSS, and nothing here ran that lint
+Area: `downstream/patches/0022-sunshine-searchbox-state.patch`, native build #46.
+Evidence: the patch declared `#inputWrapper` a second time in
+`ntp_searchbox.css` — deliberately, so no upstream line was edited and the hunk
+survived a roll. Twenty-seven architecture guards passed. S1 through S12 passed.
+`verify_pinned_upstream` proved the patch applies to the real pinned tree, and
+it was applied by hand at the pin, at 153.0.8000.0 and at trunk. Build #46 then
+failed in twenty seconds: `Unexpected duplicate selector "#inputWrapper", first
+used at line 84  no-duplicate-selectors`, from
+`ui/webui/resources/tools/stylelint.config_base.mjs`, which Chromium runs over
+every preprocessed WebUI stylesheet.
+Impact: one build lost, after a ten-hour queue wait on the owner's workstation —
+which is what the cost of this class of miss actually looks like here.
+Recommended future behavior: `git apply` answers *will this patch land*; it does
+not answer *will Chromium accept what it lands*. Any patch touching a WebUI
+resource folder is subject to Chromium's own lint and build actions, and those
+are a second acceptance test nothing in this repository was running. S13 in
+`docs/DESIGN_SYSTEM_CONTRACT.md` now covers `no-duplicate-selectors`; the rest
+of that config is still unchecked and will be found the same way.
+Confidence: high.
+
+### 2026-08-24 — Roll-friendliness and upstream's linter can pull opposite ways
+Area: the same patch.
+Evidence: adding a declaration to upstream's `#inputWrapper` rule needs ten
+lines of context to reach it, and at trunk a `border` declaration has moved out
+of that rule into an `::after` — so the hunk conflicts. Declaring the selector a
+second time avoids the conflict and breaks the linter. The two constraints had
+no overlap for the feature as designed.
+Impact: the 150ms fade was dropped. The state distinction the owner asked for is
+unaffected; only the decoration went.
+Recommended future behavior: when the roll-safe shape and the lint-safe shape
+disagree, check first whether the thing forcing the conflict was asked for. Here
+it was not — the fade was added unprompted — and removing it satisfied both
+constraints exactly. Reach for a synthetic selector to slip past a linter only
+after that question has been answered, and preferably not then.
 Confidence: high.
 
 ## Recording rule
