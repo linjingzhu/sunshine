@@ -1,8 +1,8 @@
 ---
 doc_id: ai-core
-version: 1.2.0
+version: 1.3.0
 canonical_path: .ai/CORE.md
-updated: 2026-08-17
+updated: 2026-08-23
 ---
 
 # Core Development Constitution
@@ -141,3 +141,12 @@ Whenever technically applicable, completion should be supported by deterministic
 - visual verification.
 
 AI agreement is not a substitute for evidence.
+
+**Each item above proves one claim, not the next one.** A compile proves the
+code is valid, not that it is reachable; a passing guard proves the rule it
+encodes, not the rule you meant; a green build proves nothing about behaviour.
+State which claim the evidence supports and leave the others in NOT VERIFIED.
+
+This is not caution for its own sake. A feature has already shipped in this
+repository that compiled, passed every guard, built green, and could not serve
+a single byte, because the dispatcher branch it added was never reachable.

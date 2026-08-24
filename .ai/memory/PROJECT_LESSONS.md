@@ -309,6 +309,184 @@ a strike-through in every document that asked. `docs/OPEN_DECISIONS.md` is the
 index that makes the second edit findable.
 Confidence: high.
 
+## Verification Lessons
+
+### 2026-08-21 — A green build proves the code compiles and nothing else
+Area: New Tab background, patches 0020-0021.
+Evidence: build #40 was green on a feature that could not serve a single byte.
+`UntrustedSource::ShouldServiceRequest` is an allowlist of exact paths; the
+handler branch had been written and the allowlist entry had not, so every
+request was refused with `ERR_INVALID_URL` before reaching it. The handler was
+unreachable code that compiled. No guard, no test and no compiler objected.
+Only an adversarial review found it.
+Impact: a wave reported a feature as delivered when it could not work at all,
+and the next step would have been the owner testing it and seeing nothing.
+Recommended future behavior: when a feature adds a *branch* to an upstream
+dispatcher, find the gate that decides whether the dispatcher is reached at all
+and check the branch is named there too. Treat "compiles" and "reachable" as
+two separate claims.
+Confidence: high.
+
+### 2026-08-21 — A feature whose failure looks like its absence hides its own defect
+Area: New Tab background.
+Evidence: the contract recorded, as a known limitation, that "a rejected file is
+indistinguishable from no file" — missing, oversized and wrong-format all
+produce the same blank screen. That same property would have hidden the
+allowlist defect above from the owner's own testing.
+Impact: a documented limitation became the thing that would have concealed a
+defect from the only person able to observe it.
+Recommended future behavior: when absence and refusal are indistinguishable at
+the surface, that is not a cosmetic gap — it is a hole in every future
+diagnosis of that feature. Either make the two distinguishable, or record
+explicitly that this feature cannot be debugged from the outside.
+Confidence: high.
+
+### 2026-08-21 — Check the budget you are not amending
+Area: `docs/PERFORMANCE_BUDGET.md`, PB-4 and PB-5a.
+Evidence: the first background design probed the filesystem three times per New
+Tab. It was reasoned carefully against PB-5a — the budget being amended for it —
+and never checked against PB-4 next door, whose first zero-tolerance condition
+reads "not once per window, not once per tab".
+Impact: a design measured against the constraint it was rewriting, and against
+nothing else.
+Recommended future behavior: amending one constraint is the moment to read its
+neighbours. The constraint being changed is the one least likely to catch the
+change.
+Confidence: high.
+
+### 2026-08-22 — Derive from the pinned source; do not assert from memory
+Area: background caching, iframe sizing.
+Evidence: two questions were settled by reading upstream rather than reasoning.
+`UntrustedSource::AllowCaching()` returns false, so the backend sets
+`Cache-Control: no-cache` with no validator and the asset is re-read on every
+New Tab. `iframe.css` sizes ntp-iframe's inner frame with `height: inherit` and
+`width: inherit`, so a host positioned with `inset: 0` alone computes `auto`,
+and an iframe being a replaced element falls back to 300x150 — which is why the
+background rendered in a corner while `cover` was correct all along.
+Impact: both were about to be answered with plausible reasoning that would have
+been wrong, and the second had already been shipped as a defect.
+Recommended future behavior: when the proxy blocks `chromium.googlesource.com`,
+`raw.githubusercontent.com/chromium/chromium/<tag>/<path>` reaches the same
+file. Read it. A derivation from source is a strong claim; a derivation from
+memory is a guess wearing its clothes.
+Confidence: high.
+
+### 2026-08-22 — In a patch stack, read every patch that touches a file
+Area: `mount_port.ts`, patches 0012 and 0016.
+Evidence: the port's message vocabulary was extracted from the patch that
+*creates* the file (0012) and reported as seven messages. Patch 0016 extends the
+same file with the document-store port, making it nine. The error reached a
+document written to be handed to another session.
+Impact: a downstream session would have been told the storage port does not
+exist.
+Recommended future behavior: `patch_manifest.py` already reports how many
+created files are "extended by a later patch". When reading a definition out of
+the stack, enumerate every patch section naming that path, not the first.
+Confidence: high.
+
+## Strategy Observations
+
+### 2026-08-21 — A value stated twice is a value that will drift
+Area: `scripts/build_gate_sheet.py`.
+Evidence: the build stamp existed in the page header and again, hardcoded,
+inside the export text the owner copies back. The second copy went two builds
+stale unnoticed, so a returned result would have named the wrong binary while
+looking like a good result.
+Impact: near-miss on the one output a verification sheet must never produce —
+a result about an unknown build.
+Recommended future behavior: single-source the value and add a check that
+refuses a second spelling. This repository already had the same lesson for
+documents ("a rule stated in two documents is a rule with no owner"); it applies
+to generated artefacts identically.
+Confidence: high.
+
+### 2026-08-21 — Instructions written from the contract describe a screen that does not exist
+Area: `gate-sheet.html`, document-surface gates RV-15..RV-19.
+Evidence: five rows came back blank. The walkthroughs had been written from
+`docs/DOCUMENT_SURFACE_CONTRACT.md` and told the owner to build a hierarchy by
+indentation; the page builds it with an `Inside` parent selector. The owner
+said plainly, twice, that they could not follow them.
+Impact: five gates unrunnable, and the cause was the instructions rather than
+the build.
+Recommended future behavior: write a runtime walkthrough from the patch that
+creates the surface, not from the contract that specifies it. The contract is
+exact for its author and opaque to whoever holds the mouse. "I do not
+understand this" is a defect report about the writing.
+Confidence: high.
+
+### 2026-08-22 — Re-reading a recorded rationale can void it
+Area: `docs/PERFORMANCE_BUDGET.md` PB-5a, video exclusion.
+Evidence: the exclusion rested on three grounds. On being re-read for an
+amendment, two did not survive: the "codec-licensing question" was a real
+decision about H.264 written as a claim about video as such (ADR 0004 leaves
+proprietary codecs off, and VP9/AV1/Opus are royalty-free), and the audio track
+"that must be proven silent" is proven silent by `muted`. Only the decode
+pipeline stood.
+Impact: a decision had been carrying two reasons that were not reasons, and
+would have kept carrying them.
+Recommended future behavior: when reversing or amending a recorded decision,
+re-read its stated grounds one at a time and mark which survive. Keep the table
+in the document. A record that quietly drops its own reasoning is worth less
+than one that shows where it was wrong.
+Confidence: high.
+
+### 2026-08-22 — Cancelling a queued job discards the wait without shortening it
+Area: self-hosted native build runner.
+Evidence: across 44 runs, four sat queued for hours because the runner was off.
+Run #17 waited 13 h 34 m, was picked up unchanged when the runner returned, and
+succeeded in 26 minutes. Runs #30, #36 and #43 were cancelled after 9 h 27 m,
+7 h 33 m and 1 h — in two cases a new run was dispatched within five seconds,
+into the same empty queue.
+Impact: three build slots produced nothing, and the reflex that produced them
+looks like action.
+Recommended future behavior: a job queued against an absent self-hosted runner
+is not stuck, it is waiting; GitHub cancels it only at 24 h. Check the run
+history before re-dispatching, and say plainly that the machine is the blocker.
+Confidence: high.
+
+### 2026-08-21 — Verify a reviewer's claim before relaying it
+Area: adversarial review of patch 0019.
+Evidence: a reviewer raised a CRITICAL — `+++ a/` in a patch header defeats
+PO-A2's parser. Checking it directly showed `verify_patch_integrity` rejects
+that header shape outright, so CI stops it before PO-A2 is reached. The severity
+was wrong.
+Impact: relaying it unchecked would have escalated a non-issue to the owner as
+a merge blocker.
+Recommended future behavior: a reviewer finding is a hypothesis with evidence
+attached, not a verdict. Reproduce the consequential ones against the tree
+before passing them on — including when they favour caution, and including your
+own earlier statements.
+Confidence: high.
+
+### 2026-08-22 — Write the test for the rule; it will find the bug you did not write it for
+Area: `scripts/build_newtab_background.py`.
+Evidence: tests were written for natural frame ordering (`frame10` after
+`frame2`). One of them — a folder holding both `1.png` and `a.png` — failed with
+`TypeError: '<' not supported between instances of 'int' and 'str'`, because the
+sort key mixed bare ints and strs. An ordinary folder would have crashed the
+tool.
+Impact: a crash found before first use, in code that had been reviewed by eye
+and looked correct.
+Recommended future behavior: this repository already records "write the
+failure-injection test before the defensive guard". The same holds for ordinary
+logic: tests written to pin an intended property routinely fail for a different
+reason, and that reason is usually the real defect.
+Confidence: high.
+
+### 2026-08-22 — Ask when the scope of an irreversible instruction is ambiguous
+Area: PB-5a amendment.
+Evidence: the owner wrote "계약파기" — two words. It could have meant voiding
+PB-5a's video exclusion, voiding PB-5a entirely, discarding the background
+contract, or ending the discussion. Three of the four would have deleted
+governing documents.
+Impact: none, because the four readings were put to the owner with their
+consequences and the narrowest was chosen.
+Recommended future behavior: brevity is not authorisation for the largest
+reading. When an instruction is short, irreversible and admits several scopes,
+enumerate the scopes with what each destroys and let the owner pick. This is the
+narrow exception to acting without asking.
+Confidence: high.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:
