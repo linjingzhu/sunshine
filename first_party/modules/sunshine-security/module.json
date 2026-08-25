@@ -10,6 +10,10 @@
     {
       "type": "chromium_webui",
       "target": "chrome://sunshine-security"
+    },
+    {
+      "type": "native_command",
+      "target": "security_center.open"
     }
   ],
   "capabilities": [

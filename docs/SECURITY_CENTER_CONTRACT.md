@@ -233,9 +233,24 @@ Of the registered commands, the Security Center would surface only
 `tab.close` to close a flagged tab, and `tab.new` to open the surface's
 starting point.
 
+**Opening the centre itself now has one: `security_center.open`**, owned by
+`sunshine.security`, which declares the matching `native_command` entrypoint.
+It is the first entry in the registry whose whole operation is to reach a
+`chrome://` page, and it exists because
+`docs/ROADMAP_NATIVE_COMMAND_EXPANSION.md` §4 item 2 named it as the smallest
+genuinely-new registry addition available. Its surface is `security_center`
+rather than `security`: the shorter name collides with the module manifest's own
+`security` block, and five existing prose mentions of manifest fields would have
+been read as references to commands that do not exist.
+
+`implementation` and `predicate` are both null, which is the same shape the four
+`workspace.*` commands carry — the registry entry is the declaration, and the
+code that performs it is a later step this contract does not authorise on its
+own.
+
 Every other action this page implies — opening Site settings for an origin,
 opening the download review surface, opening the extensions page, clearing the
-event log, re-running a provider check, and opening the centre itself —
+event log, and re-running a provider check —
 currently has no registered command. Those commands must be registered, owned,
 and given availability predicates and error results before any UI is written.
 They must not be invented in presentation code, and they must not be exercised

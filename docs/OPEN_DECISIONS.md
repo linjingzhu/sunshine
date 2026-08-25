@@ -67,7 +67,7 @@ Recorded in their owning documents; named here so they are not rediscovered.
 - Is duplicate detection wanted at all? A "no" makes handoff §7.4 entirely inherited. — `docs/ADVANCED_TABS_CONTRACT.md` Q1
 - Which platform is the performance baseline, and is a statistical budget a hard gate or an investigation threshold? — `docs/PERFORMANCE_BUDGET.md` §9
 - Korean initial-consonant search in the palette — a Korean-first product plausibly needs it and it is currently scoped out. — `docs/COMMAND_PALETTE_CONTRACT.md` §15
-- Command registry: twenty-four histogram names, or one enumeration with twenty-four buckets? — `docs/TELEMETRY_CONTRACT.md` §12
+- Command registry: twenty-five histogram names, or one enumeration with twenty-five buckets? — `docs/TELEMETRY_CONTRACT.md` §12
 - Tabs panel scope, and whether the downloads panel coexists with the native bubble or replaces it. — `docs/SIDE_PANEL_CONTRACT.md` §14
 - Should acceptance criteria that are still bare ordinals get stable prefixes, so enforcement can be counted? — `docs/ACCEPTANCE_SUITES.md` §9
 - Security Center event retention, currently proposed at 30 days. — `docs/SECURITY_CENTER_CONTRACT.md` §14

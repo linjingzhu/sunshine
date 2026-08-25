@@ -635,7 +635,7 @@ new file mode 100644
 index 0000000..9ccd297
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,311 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -830,6 +830,10 @@ index 0000000..9ccd297
 +        {
 +          "target": "chrome://sunshine-security",
 +          "type": "chromium_webui"
++        },
++        {
++          "target": "security_center.open",
++          "type": "native_command"
 +        }
 +      ],
 +      "id": "sunshine.security",

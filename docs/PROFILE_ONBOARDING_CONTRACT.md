@@ -350,7 +350,7 @@ PO-R12; a first run that asks something *once only* is not.
 **PO-R14 — the first run is never a Sunshine-authored replacement.** Sunshine
 does not add a second onboarding surface beside Chromium's, does not gate the
 first browser window behind a Sunshine screen, and registers no command for
-onboarding: the twenty-four commands in `first_party/commands.json` contain none
+onboarding: the twenty-five commands in `first_party/commands.json` contain none
 for profile creation, sign-in, or deletion, and this document adds none. If
 first-run product copy is ever required it arrives as a reviewed native WebUI
 change under ADR 0002, not as an interstitial.
