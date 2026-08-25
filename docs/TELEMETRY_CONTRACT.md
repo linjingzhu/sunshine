@@ -18,7 +18,7 @@ RUN**, runtime **NOT RUN**, measurement **NOT AVAILABLE**.
 
 ## 0. Why this document exists
 
-Twenty-four registered commands in `first_party/commands.json` each declare a
+Twenty-five registered commands in `first_party/commands.json` each declare a
 `Sunshine.Command.*` event. `docs/GESTURE_CONTRACT.md` §7 declares four more.
 `docs/DOWNLOAD_SAFETY.md` DSA-6 requires warning events.
 `docs/SIDE_PANEL_CONTRACT.md` D1 assumes a session histogram exists.
@@ -175,7 +175,7 @@ schedule; a deletion path a user can actually invoke; a published privacy
 policy; a lawful basis in every jurisdiction the browser ships to; a consent UI
 and its localisation; and a downstream patch defeating G1, G2 and G3 — including
 the one whose source comment says it exists to stop exactly this happening by
-accident. It also makes the twenty-four command names a per-install usage stream
+accident. It also makes the twenty-five command names a per-install usage stream
 leaving the machine, which is the thing `docs/SESSION_PROFILE_CONTRACT.md`'s
 secret boundary and `docs/OMNIBOX_CONTRACT.md` §9 spend their length preventing
 one field at a time.
@@ -364,7 +364,7 @@ as a user who stops using the feature.
 
 ### 5.1 The registry's privacy property, stated rather than left to chance
 
-`first_party/commands.json` gives each of the twenty-four commands a fixed
+`first_party/commands.json` gives each of the twenty-five commands a fixed
 identifier and a telemetry name derived from it — `scripts/validate_commands.py`
 computes the expected name from the identifier and rejects any drift. No command
 declares a parameter, and `docs/COMMAND_PALETTE_CONTRACT.md` invariant 3 forbids
@@ -372,7 +372,7 @@ any invocation source from supplying a payload.
 
 **T15.** That is a privacy property of the design and is now a requirement of it:
 **a Sunshine command event's name is a compile-time constant chosen from a closed
-set of twenty-four, and its payload is not derived from any runtime value the
+set of twenty-five, and its payload is not derived from any runtime value the
 user produced.** The event says a command ran. It cannot say more, because there
 is nothing in the command for it to say.
 
@@ -426,7 +426,7 @@ window. To it this contract adds:
 
 **T19. Sunshine records no user action.** `base::RecordAction` produces, per
 `tools/metrics/actions/README.md`, "only a name and a timestamp", ordered. A
-timestamped ordered stream of twenty-four command names is a reconstruction of
+timestamped ordered stream of twenty-five command names is a reconstruction of
 the session: it distinguishes reading from shopping from working, it recovers
 idle periods, and it is a behavioural trace in everything but name. The
 aggregate histogram is chosen *because* it discards the order. Sunshine adds no
@@ -443,16 +443,16 @@ that reopens this; the decision is categorical.
 pipeline that attaches an event to a page, a profile, or a stable client. New
 pipelines arrive at rolls; the default answer is no, and the roll gate asks.
 
-### 5.5 Shape: twenty-four names, or one enumeration
+### 5.5 Shape: twenty-five names, or one enumeration
 
 Upstream guidance points at an enumerated histogram for a closed set of
-outcomes, and twenty-four separate histogram names means twenty-four XML
-entries, twenty-four expiry dates and twenty-four owners for one question. One
-enumerated histogram with twenty-four buckets would give the denominator for
+outcomes, and twenty-five separate histogram names means twenty-five XML
+entries, twenty-five expiry dates and twenty-five owners for one question. One
+enumerated histogram with twenty-five buckets would give the denominator for
 free, make the "no parameters" property structural rather than conventional, and
 cost one entry.
 
-The registry has already shipped the twenty-four names, and
+The registry has already shipped the twenty-five names, and
 `scripts/validate_commands.py` enforces them. This document does not rename
 shipped content it does not own. The conflict is recorded as P1 in §12.
 

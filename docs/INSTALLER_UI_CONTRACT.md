@@ -22,8 +22,25 @@ the entire mechanism.**
 | Build | **Its own compiler invocation** in the workflow. Zero upstream files. |
 | Look | **Windows' own**, by the owner's decision reversing an earlier one. Themed common controls, drawn by the platform. |
 
-**No implementation exists.** §9 says what that leaves open, and §10 says what
-is not verified.
+**The front-end exists and is built.** `installer/sunshine_setup.cpp` is 948
+lines of Win32 with `installer/sunshine_setup.rc`, `installer/resource.h`,
+`installer/sunshine_setup.manifest` and `installer/banner.png` beside it;
+`scripts/build_installer_frontend.ps1` compiles it in its own step of the native
+workflow, `scripts/verify_installer_frontend.py` holds it to §7 on every CI run,
+and build #47 produced a 117.8 MB `sunshine-setup.exe` from it.
+
+**This line said "No implementation exists" until 2026-08-25**, which was true
+when the contract was written and stopped being true when the front-end landed.
+Nothing caught it: the guard reads the source and the invariants, and neither it
+nor any other check reads this document's account of whether that source is
+there. A contract that is wrong about its own implementation status is worse
+than one that is silent, because it is read first and believed.
+
+**What is not built is the two decisions the owner has since made** — a chosen
+install folder and a chosen executable name. `docs/INSTALLER_CHOICE_PLAN.md` is
+what those cost and is the document that tracks them; the Path and Name rows
+above point at it. §9 says what this section leaves open, and §10 says what is
+not verified.
 
 ## 1. The one structural decision
 

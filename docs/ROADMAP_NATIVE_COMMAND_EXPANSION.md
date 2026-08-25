@@ -51,10 +51,16 @@ What actually changed:
   marginal cost of a second WebUI surface from seven upstream-file edits to
   zero upstream-file edits: the security surface's own patch no longer
   touches any of the seven, only the seam's own registry files.
-- **Neither change touches the command registry.** `first_party/commands.json`
-  holds 24 commands, and reading every one of them (section 2 below) finds
-  that not one is itself a WebUI-surface-shaped command — no entry in the
-  registry navigates to a `chrome://` page. The two things the product owner
+- **Neither change touched the command registry.** Reading every entry it held
+  when this was written (section 2 below) found that not one was itself a
+  WebUI-surface-shaped command — no entry navigated to a `chrome://` page.
+
+  **That is no longer true, and this document's own §4 item 2 is why:**
+  `security_center.open` was added afterwards and is the first such entry.
+  `first_party/commands.json` now holds 25 commands. Section 3's
+  categorisation covers the original set and is left as it was — it is a
+  reading of a state, and re-numbering it would claim an analysis that was
+  never done. The two things the product owner
   is watching — the seam, and the command registry — are related (a future
   surface command would use the seam) but have not yet touched each other.
 
@@ -232,7 +238,18 @@ is not in that table at all, being contracted after the handoff was written).
    `ThreatProtectionProvider`'s *first real implementation*, which is a later,
    separable step this item does not require.
 
-2. **Give the Security Center a command-registry entry.** Once (1) lands, add
+2. **Give the Security Center a command-registry entry. — Done.**
+   `security_center.open`, owned by `sunshine.security`, which declares the
+   matching `native_command` entrypoint. The surface is `security_center`
+   rather than the `security` this item first suggested: `security` collides
+   with the module manifest's own `security` block, and the doc scanner in
+   `scripts/validate_commands.py` correctly read five existing prose mentions
+   of manifest fields — `security.network.access` and its neighbours — as
+   references to commands that do not exist. The collision was found by
+   declaring the surface and watching the guard fail, which is the cheapest
+   place to find it. Original text follows.
+
+   Once (1) lands, add
    a command (for example, an `security.open`-shaped id — naming it is a
    registry decision this document does not make) that navigates to the
    surface, following exactly the precedent

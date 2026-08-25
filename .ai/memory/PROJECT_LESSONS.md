@@ -547,6 +547,41 @@ constraints exactly. Reach for a synthetic selector to slip past a linter only
 after that question has been answered, and preferably not then.
 Confidence: high.
 
+### 2026-08-25 — Nothing checks whether a contract is right about its own implementation status
+Area: `docs/INSTALLER_UI_CONTRACT.md`.
+Evidence: its Status block said **"No implementation exists"** while
+`installer/sunshine_setup.cpp` held 948 lines, `verify_installer_frontend.py`
+read it on every CI run, and build #47 produced a 117.8 MB `sunshine-setup.exe`
+from it. Found by reading the document during a roadmap briefing, not by any
+guard. Twenty-seven guards check what the code does; none checks what a document
+claims the code *is*.
+Impact: a briefing nearly reported the installer front-end as unbuilt work.
+Recommended future behavior: when a contract's status line is load-bearing —
+"not built", "nothing exists", "decided, not built" — check it against the tree
+before repeating it, and update it in the same change that makes it false. No
+guard is proposed: the checkable form of this rule would grep prose, and
+`LESSONS_FROM_PRACTICE` 14 is about what that does to prose. The cheap defence
+is that whoever lands the implementation edits the status line, and the cheap
+detection is a periodic read.
+Confidence: high.
+
+### 2026-08-25 — A command surface name can collide with the manifest schema
+Area: `first_party/commands.json`, `scripts/validate_commands.py`.
+Evidence: declaring `security` as a command surface made the doc scanner read
+five existing prose mentions of module-manifest fields —
+`security.network.access`, `security.credentials`,
+`security.filesystem.access`, `security.ai_providers.hosts`, `security.network`
+— as references to commands that do not exist, and the guard failed. The
+manifest's own `security` block owns that namespace in prose. Renaming the
+surface to `security_center` cleared it with no change to the guard.
+Impact: none shipped; found in the first run after declaring the surface.
+Recommended future behavior: before adding a command surface, grep the docs for
+backticked tokens beginning with that word. The guard finds this for free, so
+the real lesson is to declare the surface early and let it fail rather than
+writing the whole entry first. Do not weaken the scanner to fit a name — the
+collision is real, and a reader hits it too.
+Confidence: high.
+
 ## Recording rule
 
 Add only concise, evidence-backed facts such as:

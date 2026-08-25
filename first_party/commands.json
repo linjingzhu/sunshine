@@ -3,6 +3,7 @@
   "surfaces": [
     "bookmark",
     "browser",
+    "security_center",
     "tab",
     "workspace"
   ],
@@ -201,6 +202,17 @@
       "errors": [
         "zoom_fixed_for_contents"
       ]
+    },
+    {
+      "id": "security_center.open",
+      "summary": "Open the Sunshine Security Center.",
+      "owner": "sunshine.security",
+      "availability": "A browser window is open.",
+      "implementation": null,
+      "predicate": null,
+      "unavailable_reasons": [],
+      "telemetry": "Sunshine.Command.SecurityCenterOpen",
+      "errors": []
     },
     {
       "id": "tab.close",
