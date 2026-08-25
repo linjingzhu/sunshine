@@ -697,7 +697,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <h2>아직 게이트가 없는 표면</h2>
         <p class="needs"><span class="nlabel">주의</span>계약이 정한 게이트가 아닙니다 — 자유 관찰입니다</p>
       </div>
-      <span class="bcount" data-block="UG">0/3</span>
+      <span class="bcount" data-block="UG">0/6</span>
     </header>
     <p class="blocknote">이 셋은 빌드에 들어 있지만 RV 번호가 없습니다. 여기 적어주시는 관찰이 게이트를 정의하는 입력이 됩니다 — 그래서 PASS/FAIL 대신 좋음/문제로 두었습니다.</p>
     <div class="gates">
@@ -738,10 +738,58 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="gid"><span class="idtag">UG-3</span></div>
         <div class="body">
           <p class="step">새 탭 배경</p>
-          <p class="exp"><span class="explabel">배경</span>설치 폴더의 chrome.exe 옆(버전 디렉터리 아님)에 newtab-background.png / .jpg / .webp 를 놓고 새 탭을 여십시오. PNG·JPEG·WebP만 받고, APNG와 애니메이션 WebP도 각각 png·webp로 들어갑니다. 100MB를 넘으면 거부됩니다. 안 나올 경우 이유를 알 방법이 없습니다 — 파일 없음, 크기 초과, 형식 불일치가 모두 같은 결과입니다. 그리고 브라우저를 켠 직후 첫 새 탭은 배경이 없을 수 있습니다(탐지가 프로세스당 한 번, 그리는 스레드 밖에서 돕니다). 두 번째 탭부터 정상이면 그것은 알려진 경합이지 결함이 아닙니다. 파일을 넣기 전에 새 탭을 한 번 열어보시면 대조가 됩니다 — 배경이 없을 때는 프레임 자체가 만들어지지 않습니다.</p>
+          <p class="exp"><span class="explabel">배경</span>설치 폴더의 chrome.exe 옆(버전 디렉터리 아님)에 newtab-background.png / .jpg / .webp 를 놓고 새 탭을 여십시오. PNG·JPEG·WebP만 받고, APNG와 애니메이션 WebP도 각각 png·webp로 들어갑니다. 100MB를 넘으면 거부됩니다. 안 나올 경우 이유를 알 방법이 없습니다 — 파일 없음, 크기 초과, 형식 불일치가 모두 같은 결과입니다. 그리고 브라우저를 켠 직후 첫 새 탭은 배경이 없을 수 있습니다(탐지가 프로세스당 한 번, 그리는 스레드 밖에서 돕니다). 두 번째 탭부터 정상이면 그것은 알려진 경합이지 결함이 아닙니다. 파일을 넣기 전에 새 탭을 한 번 열어보시면 대조가 됩니다 — 배경이 없을 때는 프레임 자체가 만들어지지 않습니다. UG-4·UG-5·UG-6 은 이 배경이 들어간 뒤에 보이는 것들입니다.</p>
         </div>
         <div class="controls">
           <div class="states" role="group" aria-label="UG-3 결과">
+            <button type="button" class="st st-pass" data-state="pass">좋음</button>
+            <button type="button" class="st st-fail" data-state="fail">문제</button>
+            <button type="button" class="st st-na"   data-state="na">안 봄</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="본 것을 그대로"></textarea>
+        </div>
+      </div>
+      <div class="gate is-ungated" data-gate="UG-4">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">UG-4</span></div>
+        <div class="body">
+          <p class="step">포커스 아웃 3초 뒤 — 배경만 남는가</p>
+          <p class="exp"><span class="explabel">배경</span>UG-3 으로 배경을 넣으신 뒤 새 탭을 열어두고, 다른 창을 클릭해 Sunshine 창에서 포커스를 뺍니다. 3초 뒤 새 탭의 내용(워드마크·검색창·바로가기)이 사라지고 **배경 사진만 남아야** 합니다. 다시 클릭하면 즉시 돌아옵니다. 그 클릭은 화면을 깨우기만 하고 아무것도 누르지 않습니다. **배경이 함께 사라져 화면이 통째로 비면 그것이 결함입니다** — 빌드 #44 였다면 그렇게 됐을 자리이고, 이 빌드는 그 수정을 담고 있습니다. 창을 최소화하면 아무 일도 일어나지 않는 것이 정상입니다: 안 보이는 화면은 쉬게 할 것이 없습니다. 배경을 넣지 않으셨다면 이 기능은 동작하지 않습니다.</p>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="UG-4 결과">
+            <button type="button" class="st st-pass" data-state="pass">좋음</button>
+            <button type="button" class="st st-fail" data-state="fail">문제</button>
+            <button type="button" class="st st-na"   data-state="na">안 봄</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="본 것을 그대로"></textarea>
+        </div>
+      </div>
+      <div class="gate is-ungated" data-gate="UG-5">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">UG-5</span></div>
+        <div class="body">
+          <p class="step">우하단 시계</p>
+          <p class="exp"><span class="explabel">배경</span>새 탭 오른쪽 아래에 현재 시각이 시:분으로 보여야 합니다. **분이 바뀌는 순간** 함께 바뀌는지 1분쯤 보고 계시면 확인됩니다. 초는 표시하지 않습니다. UG-4 의 휴지 상태에서도 **시계는 남아야** 합니다 — 안 보는 화면에서 시계는 볼 이유 그 자체라서 일부러 남겨둔 것입니다. 배경이 없어도 시계는 보입니다. 시각 오른쪽에 버튼이 하나 보이면 그건 아직 만들지 않은 배경 설정 버튼이고, **이 빌드에는 없는 것이 정상**입니다.</p>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="UG-5 결과">
+            <button type="button" class="st st-pass" data-state="pass">좋음</button>
+            <button type="button" class="st st-fail" data-state="fail">문제</button>
+            <button type="button" class="st st-na"   data-state="na">안 봄</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="본 것을 그대로"></textarea>
+        </div>
+      </div>
+      <div class="gate is-ungated" data-gate="UG-6">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">UG-6</span></div>
+        <div class="body">
+          <p class="step">검색창 두 상태</p>
+          <p class="exp"><span class="explabel">배경</span>새 탭 검색창이 **아무것도 안 할 때는 반투명**해서 뒤 배경이 비쳐야 하고, **클릭해서 커서가 들어가면 불투명**해져야 합니다. 전환은 즉시입니다(애니메이션 없음). 글자를 입력한 뒤 **페이지 빈 곳을 클릭해 포커스를 빼도 불투명한 채로** 있어야 합니다 — 글자가 남아 있는 동안은 사용 중으로 봅니다. 그 상태에서 글자를 다 지우면 다시 반투명해집니다. 배경이 없으면 차이가 잘 안 보일 수 있으니 UG-3 을 먼저 하십시오. **반대로 동작하면**(타이핑 중에 비쳐 보이면) 그대로 적어주십시오 — 그것이 이 기능의 유일한 실패 모양입니다.</p>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="UG-6 결과">
             <button type="button" class="st st-pass" data-state="pass">좋음</button>
             <button type="button" class="st st-fail" data-state="fail">문제</button>
             <button type="button" class="st st-na"   data-state="na">안 봄</button>
