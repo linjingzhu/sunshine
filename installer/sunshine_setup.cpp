@@ -24,6 +24,7 @@
 #include <windows.h>
 
 #include <bcrypt.h>
+#include <aclapi.h>
 #include <sddl.h>
 #include <commctrl.h>
 #include <shellapi.h>
@@ -45,6 +46,14 @@ namespace {
 
 struct Choices {
   bool system_level = false;
+  // The *root* a person chose, never the whole path. Empty means the default.
+  // `<Company>\<Product>\Application` is appended by upstream's own
+  // `GetInstallationDirFromPrefs`, from constants compiled into the binary, so
+  // the shape of an installation stays Sunshine's and only its location is the
+  // user's. Meaningful only with `system_level`: plan decision 1 keeps folder
+  // choice to per-machine installs, which is exactly where the upstream hook
+  // works.
+  std::wstring install_root;
   bool desktop_shortcut = true;
   bool taskbar_shortcut = true;
   bool quick_launch_shortcut = false;
@@ -75,6 +84,14 @@ constexpr int kExitNoWindow = 0xA4;
 constexpr int kExitCouldNotElevate = 0xA5;
 constexpr int kExitRefusedElevation = 0xA6;
 
+// The one switch that carries a value rather than a fact. It is kept out of
+// `kSwitches` on purpose: that table's whole property is that every entry is a
+// closed, valueless name, and widening it to hold a payload would end the
+// property rather than extend it. IU-8 asks that the elevated instance learn
+// its choices from arguments and never from a file; a path in an argument is
+// still an argument.
+constexpr wchar_t kInstallRootSwitch[] = L"--install-root=";
+
 constexpr Switch kSwitches[] = {
     {L"--system-level", &Choices::system_level, true},
     {L"--no-desktop-shortcut", &Choices::desktop_shortcut, false},
@@ -100,6 +117,10 @@ bool ParseCommandLine(Choices* choices, bool* elevated_continuation) {
       *elevated_continuation = true;
       continue;
     }
+    if (argument.rfind(kInstallRootSwitch, 0) == 0) {
+      choices->install_root = argument.substr(wcslen(kInstallRootSwitch));
+      continue;
+    }
     bool matched = false;
     for (const Switch& option : kSwitches) {
       if (argument == option.name) {
@@ -123,6 +144,12 @@ std::wstring BuildElevatedCommandLine(const Choices& choices) {
     if (choices.*(option.field) == option.value) {
       line.append(L" ").append(option.name);
     }
+  }
+  if (!choices.install_root.empty()) {
+    // Quoted: a folder with a space in it is the ordinary case, and
+    // CommandLineToArgvW on the other side undoes exactly this.
+    line.append(L" \"").append(kInstallRootSwitch)
+        .append(choices.install_root).append(L"\"");
   }
   return line;
 }
@@ -167,7 +194,7 @@ std::wstring InstalledVersion() {
 // Where Sunshine will land. Shown, never typed -- D2 of the review, and IU-4.
 // ---------------------------------------------------------------------------
 
-std::wstring InstallLocation(bool system_level) {
+std::wstring DefaultInstallRoot(bool system_level) {
   PWSTR folder = nullptr;
   const KNOWNFOLDERID& id =
       system_level ? FOLDERID_ProgramFiles : FOLDERID_LocalAppData;
@@ -176,7 +203,83 @@ std::wstring InstallLocation(bool system_level) {
   }
   std::wstring path(folder);
   ::CoTaskMemFree(folder);
-  return path.append(L"\\Sunshine\\Application");
+  return path;
+}
+
+// What will actually exist afterwards. The person picks a root; this is the
+// sentence that shows them what is made inside it, because the difference is
+// where every "it installed somewhere else" report comes from.
+std::wstring InstallLocation(bool system_level, const std::wstring& root) {
+  std::wstring base = root.empty() ? DefaultInstallRoot(system_level) : root;
+  if (base.empty()) {
+    return std::wstring();
+  }
+  while (!base.empty() && base.back() == L'\\') {
+    base.pop_back();
+  }
+  return base.append(L"\\Sunshine\\Application");
+}
+
+// A root this program will hand to an elevated process. Refused: anything
+// relative, and anything reaching through a parent. Neither is a folder anyone
+// picked from a browse dialog; both are how a string that was not picked
+// arrives here. Upstream's `GetInstallationDirFromPrefs` checks the same two
+// things again on its side, which is deliberate -- this one is a courtesy to
+// the person typing, that one is the boundary.
+bool RootIsWellFormed(const std::wstring& root) {
+  if (root.empty()) {
+    return true;  // the default, which is not a chosen path at all
+  }
+  if (root.size() < 3 || root[1] != L':' || root[2] != L'\\') {
+    return false;
+  }
+  return root.find(L"..") == std::wstring::npos;
+}
+
+// Whether the built-in Users group is granted write to this directory.
+//
+// **This is a narrower question than "can an unprivileged account write here",
+// and the difference is stated rather than hidden.** It reads the directory's
+// own DACL and asks about one well-known group; it does not evaluate a
+// particular user's full token, does not follow group nesting, and cannot see
+// a share-level restriction. It is the check that catches the case the owner
+// was warned about -- a folder under C:\ or a data drive, where Users holds
+// Modify by default -- and it will miss a bespoke ACL that grants write to
+// somebody else.
+//
+// Called only from the elevated continuation. A writability test performed
+// before elevating tests the wrong token, which is the whole reason it is not
+// in the dialog.
+bool UsersCanWrite(const std::wstring& directory) {
+  PSID users = nullptr;
+  SID_IDENTIFIER_AUTHORITY authority = SECURITY_NT_AUTHORITY;
+  if (!::AllocateAndInitializeSid(&authority, 2, SECURITY_BUILTIN_DOMAIN_RID,
+                                  DOMAIN_ALIAS_RID_USERS, 0, 0, 0, 0, 0, 0,
+                                  &users)) {
+    return false;
+  }
+
+  PACL dacl = nullptr;
+  PSECURITY_DESCRIPTOR descriptor = nullptr;
+  const DWORD read = ::GetNamedSecurityInfoW(
+      directory.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr,
+      nullptr, &dacl, nullptr, &descriptor);
+  bool writable = false;
+  if (read == ERROR_SUCCESS && dacl) {
+    TRUSTEE_W trustee = {};
+    ::BuildTrusteeWithSidW(&trustee, users);
+    ACCESS_MASK granted = 0;
+    if (::GetEffectiveRightsFromAclW(dacl, &trustee, &granted) ==
+        ERROR_SUCCESS) {
+      writable = (granted & (FILE_WRITE_DATA | FILE_ADD_FILE |
+                             FILE_ADD_SUBDIRECTORY | WRITE_DAC | DELETE)) != 0;
+    }
+  }
+  if (descriptor) {
+    ::LocalFree(descriptor);
+  }
+  ::FreeSid(users);
+  return writable;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +475,31 @@ bool HashMatches(const BYTE* data, DWORD size) {
 // a control doing something upstream did not agree to.
 // ---------------------------------------------------------------------------
 
+// A Windows path inside a JSON string. Backslashes double and quotes escape;
+// everything else here is a filesystem path, which cannot contain a control
+// character or a quote on Windows. Non-ASCII passes through as UTF-8 because
+// the file is written as bytes and JSON is UTF-8 by definition.
+std::string JsonString(const std::wstring& value) {
+  const int size = ::WideCharToMultiByte(CP_UTF8, 0, value.c_str(),
+                                         static_cast<int>(value.size()),
+                                         nullptr, 0, nullptr, nullptr);
+  std::string utf8(static_cast<size_t>(size), '\0');
+  if (size) {
+    ::WideCharToMultiByte(CP_UTF8, 0, value.c_str(),
+                          static_cast<int>(value.size()), utf8.data(), size,
+                          nullptr, nullptr);
+  }
+  std::string escaped;
+  escaped.reserve(utf8.size() + 8);
+  for (const char character : utf8) {
+    if (character == '\\' || character == '"') {
+      escaped.push_back('\\');
+    }
+    escaped.push_back(character);
+  }
+  return escaped;
+}
+
 std::string InitialPreferences(const Choices& choices) {
   auto flag = [](bool value) { return value ? "true" : "false"; };
   std::string json = "{\n  \"distribution\": {\n";
@@ -384,7 +512,21 @@ std::string InitialPreferences(const Choices& choices) {
   json += std::string("    \"make_chrome_default_for_user\": ") +
           flag(choices.make_default) + ",\n";
   json += std::string("    \"do_not_launch_chrome\": ") +
-          flag(!choices.launch_when_done) + "\n";
+          flag(!choices.launch_when_done);
+  // IU-3: `program_files_dir` is a key
+  // chrome/installer/util/initial_preferences_constants.h already defines, and
+  // upstream's own helper.cc already reads it. Patch 0023 relaxes what that
+  // helper accepts; nothing here invents a channel.
+  //
+  // Written only for a per-machine install, because upstream ignores it
+  // otherwise -- a key that is present and inert is worse than an absent one,
+  // since args.gn and initial_preferences are both read by people trying to
+  // find out what a build actually did.
+  if (choices.system_level && !choices.install_root.empty()) {
+    json += ",\n    \"program_files_dir\": \"" +
+            JsonString(choices.install_root) + "\"";
+  }
+  json += "\n";
   // Deliberately not `system_level`. The scope reaches setup.exe as the
   // --system-level switch, which mini_installer forwards, and one fact stated
   // in two places is one fact that can disagree with itself.
@@ -624,10 +766,69 @@ struct DialogState {
   HBITMAP banner = nullptr;
 };
 
+// Reads the root out of the edit box. Empty means "the default", which is what
+// the box shows when nobody has touched it -- so a person who never opens the
+// browse dialog produces exactly the command line they produced before this
+// feature existed.
+std::wstring RootFromDialog(HWND dialog) {
+  wchar_t buffer[MAX_PATH * 2] = {};
+  ::GetDlgItemTextW(dialog, IDC_LOCATION_EDIT, buffer,
+                    static_cast<int>(sizeof(buffer) / sizeof(buffer[0])));
+  std::wstring root(buffer);
+  while (!root.empty() && (root.back() == L' ' || root.back() == L'\\')) {
+    root.pop_back();
+  }
+  return root;
+}
+
 void RefreshLocation(HWND dialog, DialogState* state) {
   const bool machine = ::IsDlgButtonChecked(dialog, IDC_SCOPE_MACHINE) == BST_CHECKED;
   state->choices.system_level = machine;
-  ::SetDlgItemTextW(dialog, IDC_LOCATION, InstallLocation(machine).c_str());
+
+  // Plan decision 1: per-machine only. A per-user install ignores the
+  // preference entirely on upstream's side, so offering the control there
+  // would be a control that does nothing -- worse than its absence, because it
+  // looks like it worked.
+  ::EnableWindow(::GetDlgItem(dialog, IDC_LOCATION_EDIT), machine);
+  ::EnableWindow(::GetDlgItem(dialog, IDC_BROWSE), machine);
+  if (!machine) {
+    ::SetDlgItemTextW(dialog, IDC_LOCATION_EDIT, L"");
+    state->choices.install_root.clear();
+  }
+
+  const std::wstring root = machine ? RootFromDialog(dialog) : std::wstring();
+  state->choices.install_root = root;
+  ::SetDlgItemTextW(dialog, IDC_LOCATION_NOTE,
+                    InstallLocation(machine, root).c_str());
+}
+
+// The folder browser. `IFileDialog` with `FOS_PICKFOLDERS` rather than
+// SHBrowseForFolder: the modern dialog is the one Windows draws everywhere
+// else, and D6 chose Windows' own look.
+void BrowseForRoot(HWND dialog, DialogState* state) {
+  IFileDialog* picker = nullptr;
+  if (FAILED(::CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&picker)))) {
+    return;
+  }
+  DWORD options = 0;
+  if (SUCCEEDED(picker->GetOptions(&options))) {
+    picker->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM |
+                       FOS_PATHMUSTEXIST);
+  }
+  if (SUCCEEDED(picker->Show(dialog))) {
+    IShellItem* item = nullptr;
+    if (SUCCEEDED(picker->GetResult(&item)) && item) {
+      PWSTR chosen = nullptr;
+      if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &chosen)) && chosen) {
+        ::SetDlgItemTextW(dialog, IDC_LOCATION_EDIT, chosen);
+        ::CoTaskMemFree(chosen);
+        RefreshLocation(dialog, state);
+      }
+      item->Release();
+    }
+  }
+  picker->Release();
 }
 
 void ReadChoices(HWND dialog, DialogState* state) {
@@ -640,6 +841,8 @@ void ReadChoices(HWND dialog, DialogState* state) {
   state->choices.make_default = checked(IDC_MAKE_DEFAULT);
   state->choices.launch_when_done = checked(IDC_LAUNCH_WHEN_DONE);
   state->choices.system_level = checked(IDC_SCOPE_MACHINE);
+  state->choices.install_root =
+      state->choices.system_level ? RootFromDialog(dialog) : std::wstring();
 }
 
 // The banner and the buttons are owner-drawn because D6 chose Sunshine's own
@@ -810,6 +1013,18 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
         case IDC_SCOPE_MACHINE:
           RefreshLocation(dialog, state);
           return TRUE;
+        case IDC_BROWSE:
+          BrowseForRoot(dialog, state);
+          return TRUE;
+        case IDC_LOCATION_EDIT:
+          // The note under the box is the only thing that says what will
+          // actually exist. It has to follow the typing, or it is a label
+          // describing a path the person has already changed.
+          if (HIWORD(wparam) == EN_CHANGE) {
+            RefreshLocation(dialog, state);
+            return TRUE;
+          }
+          break;
         case IDOK:      // Enter, via the dialog manager's default-button path.
         case IDC_INSTALL:
           ReadChoices(dialog, state);
@@ -884,6 +1099,33 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
   if (elevated_continuation) {
     if (!RunningElevated() || !choices.system_level) {
       return kExitRefusedElevation;
+    }
+    // A root that did not come from the dialog. The dialog checks the same two
+    // things, and this checks them again because the dialog is not the
+    // boundary -- this process is.
+    if (!RootIsWellFormed(choices.install_root)) {
+      return kExitBadArguments;
+    }
+    // Plan section 7, decision 2: warn, and proceed. The %ProgramFiles%
+    // restriction upstream enforces is what makes a per-machine install a
+    // binary unprivileged users cannot replace; choosing a folder gives that
+    // up, and the person giving it up is the one who should hear about it.
+    //
+    // Here rather than in the dialog because here is the first moment the
+    // question can be asked with the right token. The sentence names the
+    // consequence rather than the condition, which the plan is explicit about:
+    // "this location is not recommended" tells nobody anything.
+    if (!choices.install_root.empty() && UsersCanWrite(choices.install_root)) {
+      const std::wstring warning =
+          L"Other users of this computer can modify\n\n    " +
+          choices.install_root +
+          L"\n\nSunshine will be installed there for everyone. Anyone with an "
+          L"ordinary account on this computer could replace the Sunshine "
+          L"program that every other account launches.\n\nInstall here anyway?";
+      if (::MessageBoxW(nullptr, warning.c_str(), L"Sunshine",
+                        MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
+        return kExitCancelled;
+      }
     }
     const Outcome outcome = RunEngine(choices, /*elevated=*/true);
     if (owns_com) {

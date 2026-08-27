@@ -128,10 +128,13 @@ def check(root: Path = ROOT) -> list[str]:
     #
     # The keys are written into a JSON literal, so in the C++ they appear with
     # their quotes escaped.
-    named = set(re.findall(r"`(do_not_[a-z_]+|make_chrome_default_for_user|system_level)`", contract))
-    written = set(
-        re.findall(r'\\"(do_not_[a-z_]+|make_chrome_default_for_user|system_level)\\"', source_code)
-    )
+    # Both sides read the same shape -- a lower_snake_case identifier -- rather
+    # than the three families this used to enumerate. A key outside that
+    # enumeration was invisible to the check instead of refused by it, which is
+    # the opposite of what IU-3 asks for, and `program_files_dir` is the key
+    # that would have walked past it.
+    named = set(re.findall(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`", contract))
+    written = set(re.findall(r'\\"([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\\"', source_code))
     if not written:
         failures.append(f"{SOURCE}: writes no preferences key, so nothing is requested")
     for key in sorted(written - named):
@@ -140,16 +143,70 @@ def check(root: Path = ROOT) -> list[str]:
             "name; IU-3"
         )
 
-    # -- IU-4 and IU-5: no text box, anywhere ---------------------------------
+    # -- IU-4 and IU-5: one text box, and it is the install root --------------
     #
-    # Checked as an absence in the dialog template rather than as a rule about
-    # two particular fields. A typed install path and a typed product name both
-    # need an edit control, and neither can appear without one.
-    if re.search(r"\bEDITTEXT\b|\bES_AUTOHSCROLL\b|\"Edit\"", resource_code):
+    # This was an absence: no EDITTEXT anywhere. That was one check standing in
+    # for two invariants -- a typed install path and a typed product name both
+    # need an edit control, so forbidding the control forbade both. The owner
+    # reversed IU-4, and the proxy stopped expressing the invariant that
+    # survived.
+    #
+    # So it is now a count and an identity. IU-5 is still the rule; what
+    # enforces it is that the only box on the dialog is the one IU-4 now
+    # permits. A second box is a refusal without needing to guess what it is
+    # for, and that is deliberate: the next field somebody adds should have to
+    # come through this check rather than past it.
+    boxes = re.findall(r"^\s*EDITTEXT\s+([A-Z0-9_]+)", resource_code, re.M)
+    other = re.findall(r'\bCONTROL\b[^\n]*"Edit"', resource_code)
+    if other:
         failures.append(
-            f"{RESOURCE}: contains a text box. The install location is shown and "
-            "never typed (IU-4) and the product name has no control at all (IU-5)"
+            f"{RESOURCE}: declares an edit control through CONTROL ... \"Edit\", "
+            "which this check cannot name; declare it as EDITTEXT (IU-5)"
         )
+    if boxes != ["IDC_LOCATION_EDIT"]:
+        failures.append(
+            f"{RESOURCE}: text boxes are {boxes or 'none'}; exactly one is "
+            "permitted and it is IDC_LOCATION_EDIT, the install root (IU-4). "
+            "The product name has no control at all (IU-5), and neither does "
+            "the executable's name until docs/INSTALLER_CHOICE_PLAN.md section "
+            "4 is paid for"
+        )
+
+    # -- The warning that replaces upstream's guarantee ------------------------
+    #
+    # `docs/INSTALLER_CHOICE_PLAN.md` section 7 decision 2 accepts a warning in
+    # place of a refusal, and section 3 is exact about the one way to get it
+    # wrong: "a writability test performed before elevating tests the wrong
+    # token". So the check is not that a warning exists -- it is that the
+    # writability test is reached only from the elevated continuation.
+    # A call site, not a mention. The first version of this counted the name and
+    # flagged the tree it was written for: the function's own definition sits
+    # above `wWinMain`, so "appears before the elevated continuation" is true of
+    # every correct arrangement. What it has to find is `UsersCanWrite(` used as
+    # a call, which the definition is not.
+    def calls(text: str) -> int:
+        return len(re.findall(r"(?<!bool )\bUsersCanWrite\(", text))
+
+    if "UsersCanWrite" not in source_code:
+        failures.append(
+            f"{SOURCE}: relaxing the install root without testing whether "
+            "unprivileged users can write it drops upstream's guarantee and "
+            "puts nothing in its place; INSTALLER_CHOICE_PLAN section 7"
+        )
+    else:
+        elevated = source_code.split("if (elevated_continuation)", 1)
+        if len(elevated) != 2 or not calls(elevated[1]):
+            failures.append(
+                f"{SOURCE}: the writability test is not reached from the "
+                "elevated continuation. Performed before elevating it tests "
+                "the wrong token and passes on exactly the folders it exists "
+                "to catch; INSTALLER_CHOICE_PLAN section 3"
+            )
+        if calls(source_code.split("if (elevated_continuation)")[0]):
+            failures.append(
+                f"{SOURCE}: the writability test is also called before the "
+                "elevated continuation, where the token is the wrong one"
+            )
 
     # -- IU-2: it installs nothing -------------------------------------------
     for symbol in INSTALLING:

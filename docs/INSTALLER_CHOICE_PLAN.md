@@ -17,8 +17,14 @@ decisions recorded at its head are reversed by the request:
 | Path — **shown, never typed** | typed |
 | Name — **fixed at `Sunshine`, no control changes it** | chosen |
 
-**Nothing here is built.** §6 is the measurement, §7 records the decisions taken,
-and §9 is what has not been verified.
+**The folder half is built. The name half is not.**
+`downstream/patches/0023-sunshine-installer-install-root.patch` relaxes
+`GetInstallationDirFromPrefs`, and the front-end carries the root through
+elevation, warns after it, and writes `program_files_dir`. §3 records what that
+took. §4 — the executable's name — is untouched and is the expensive half.
+
+§6 is the measurement, §7 records the decisions taken, and §9 is what has not
+been verified.
 
 ## 1. A correction to what was reported first
 
@@ -99,6 +105,29 @@ half: the upstream preference is ignored unless `system_install`, so the only
 case with no hook at all is the case not being built. What remains is one
 validation in `helper.cc`, and §6 measures that file as unchanged across two
 milestones.
+
+### Built, and what it actually took
+
+One hunk in `helper.cc`, and it applies at the pin, at `153.0.8000.0` **and at
+trunk** — checked by applying it to each. The two properties upstream's version
+had that are worth keeping were kept: system installs only, and the caller
+chooses the *root* while `<Company>\<Product>\Application` is still appended
+from compiled-in constants. What is refused is a relative path and one reaching
+through a parent — neither is a folder anyone picked from a browse dialog, and
+both are how a string that was not picked arrives.
+
+The front-end side was larger than the patch and none of it was surprising:
+
+| | |
+| --- | --- |
+| The root crosses elevation as `--install-root=`, quoted | A path in an argument is still an argument. IU-8 forbids the elevated instance learning its choices from a *file*, and the boolean switch table keeps its closed-set property by not being widened to hold a payload. |
+| The warning runs from the elevated continuation | The front-end relaunches *itself* elevated, so the one process with a window is also the one with the right token. That is what made §3's requirement satisfiable at all. |
+| `UsersCanWrite` asks a narrower question than its name | It reads the directory's DACL and asks whether the built-in **Users** group holds write. It does not evaluate a particular token, follow group nesting, or see a share restriction. It catches the case the owner was warned about — a folder on `C:\` or a data drive — and will miss a bespoke ACL granting write to somebody else. |
+| The guard changed shape rather than gaining a rule | `verify_installer_frontend.py` forbade *any* edit control, which was one check standing in for IU-4 and IU-5 together. IU-4 is reversed, so the proxy stopped expressing IU-5. It is now a count and an identity: exactly one box, and it is the install root. |
+
+**The dialog shows the resulting path under the box**, not just the root. The
+difference between the two is where every *it installed somewhere else* report
+comes from.
 
 ## 4. The executable name — not a small patch
 

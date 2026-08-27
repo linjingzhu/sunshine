@@ -1,0 +1,73 @@
+diff --git a/chrome/installer/util/helper.cc b/chrome/installer/util/helper.cc
+--- a/chrome/installer/util/helper.cc
++++ b/chrome/installer/util/helper.cc
+@@ -70,30 +70,51 @@ base::FilePath GetInstallationDirFromPrefs(
+     prefs.GetPath(installer::initial_preferences::kProgramFilesDir,
+                   &program_files_dir);
+   }
+   if (program_files_dir.empty())
+     return program_files_dir;
+ 
+-  base::FilePath expected_dir;
+-  bool valid_program_files_path =
+-      ((!(expected_dir =
+-              GetPathWithEnvironmentFallback(base::DIR_PROGRAM_FILES))
+-             .empty() &&
+-        base::FilePath::CompareEqualIgnoreCase(program_files_dir.value(),
+-                                               expected_dir.value())) ||
+-       (!(expected_dir =
+-              GetPathWithEnvironmentFallback(base::DIR_PROGRAM_FILESX86))
+-             .empty() &&
+-        base::FilePath::CompareEqualIgnoreCase(program_files_dir.value(),
+-                                               expected_dir.value())));
+-
+-  return valid_program_files_path
+-             ? expected_dir
+-                   .Append(install_static::GetChromeInstallSubDirectory())
+-                   .Append(installer::kInstallBinaryDir)
+-             : base::FilePath();
++  // Sunshine: any absolute directory, not only the two Program Files roots.
++  //
++  // Upstream compares the preference against DIR_PROGRAM_FILES and
++  // DIR_PROGRAM_FILESX86 and returns nothing otherwise, so the preference
++  // chooses a bitness rather than a folder. The owner decided a person must be
++  // able to choose the folder, and `docs/INSTALLER_CHOICE_PLAN.md` is what that
++  // costs. This is the whole of the change: the pipeline from a preference file
++  // to an install target already existed.
++  //
++  // **What upstream's comparison also guaranteed is gone, and that is the
++  // decision rather than an oversight.** Restricting a per-machine install to
++  // %ProgramFiles% restricts it to a directory unprivileged users cannot write.
++  // Install to a user-writable folder for all users and any unprivileged
++  // account can replace the executable every other account launches. The owner
++  // chose to warn rather than refuse (plan section 7, decision 2), and the
++  // warning lives in the front-end, which is the only part of this with a
++  // window -- and it runs there **after elevation**, because a writability test
++  // performed before elevating tests the wrong token.
++  //
++  // Two properties of upstream's version are kept deliberately:
++  //
++  //   * system installs only. The early return above already does this, and
++  //     plan section 7 decision 1 keeps it: a per-user install has no upstream
++  //     hook at all, and it is the case not being built.
++  //   * the caller chooses the *root*, never the whole path.
++  //     <Company>\<Product><suffix>\Application is appended regardless, from
++  //     constants compiled into the binary, so the shape of an installation is
++  //     still Sunshine's and only its location is the user's.
++  //
++  // What is still refused: a relative path, and one reaching through a parent.
++  // Neither is a folder anyone picked from a browse dialog; both are how a
++  // string that was not picked arrives here.
++  if (!program_files_dir.IsAbsolute() || program_files_dir.ReferencesParent()) {
++    return base::FilePath();
++  }
++
++  return program_files_dir
++      .Append(install_static::GetChromeInstallSubDirectory())
++      .Append(installer::kInstallBinaryDir);
+ }
+ 
+ // Returns the default install path given an install level.
+ base::FilePath GetDefaultChromeInstallPathChecked(bool system_install) {
+   base::FilePath install_path = GetPathWithEnvironmentFallback(
+       system_install ? base::DIR_PROGRAM_FILES : base::DIR_LOCAL_APP_DATA);

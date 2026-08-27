@@ -16,7 +16,7 @@ the entire mechanism.**
 | | Decision |
 | --- | --- |
 | Shape | **One file.** `sunshine-setup.exe` carries the engine inside it. |
-| Path | **Under revision.** Recorded as per-user or per-machine, shown and never typed; the owner has since decided a folder must be chosen. `docs/INSTALLER_CHOICE_PLAN.md` is what that costs. |
+| Path | **Chosen, per-machine only.** The root is typed or browsed to and `Sunshine\Application` is appended; per-user has no control because upstream ignores the preference there. Built: patch `0023` and §2 below. |
 | Name | **Under revision.** Recorded as fixed at `Sunshine`; the owner has since decided the executable's name must be chosen. Same plan, §4 — this is the expensive half. |
 | Image | **Built in**, from `downstream/assets/`. Nothing is read from disk at run time. |
 | Build | **Its own compiler invocation** in the workflow. Zero upstream files. |
@@ -74,10 +74,34 @@ declares. **The front-end invents no installation behaviour**, and that is
 checkable: a control whose effect is not one of those names is a control that is
 doing something upstream did not agree to.
 
-**The install location is displayed and never typed.** It is
-`%LOCALAPPDATA%\Sunshine\Application` or `%ProgramFiles%\Sunshine\Application`,
-whichever the choice above implies, and §3 of the review says why there is no
-third answer.
+**The install location is chosen, on a per-machine install.** This reverses what
+this section said — *displayed and never typed* — by the owner's decision, and
+`docs/INSTALLER_CHOICE_PLAN.md` is what that costs.
+
+What is chosen is the **root**. `Sunshine\Application` is appended by upstream's
+own `GetInstallationDirFromPrefs`, from constants compiled into the binary, so
+the shape of an installation is still Sunshine's and only its location is the
+person's. The dialog shows the resulting path under the box, because the
+difference between the two is where every *it installed somewhere else* report
+comes from.
+
+The request reaches the engine as `program_files_dir`, a key
+`chrome/installer/util/initial_preferences_constants.h` already defines and
+upstream's own `helper.cc` already reads. `downstream/patches/0023-sunshine-installer-install-root.patch`
+relaxes what that helper accepts — from two Program Files roots to any absolute
+directory — and nothing here invents a channel.
+
+**On a per-user install there is no control**, because upstream ignores the
+preference unless the install is per-machine. A control that does nothing is
+worse than its absence: it looks like it worked.
+
+**What upstream's restriction guaranteed is gone, and a warning replaces it.**
+`%ProgramFiles%` is a directory unprivileged users cannot write, which is what
+made a per-machine binary one they cannot replace. Plan §7 decision 2 accepts a
+warning rather than a refusal. The warning names the consequence — *anyone with
+an ordinary account could replace the Sunshine program every other account
+launches* — and it is shown **from the elevated continuation**, because a
+writability test performed before elevating tests the wrong token.
 
 **The product name has no control at all.** Not a text field, not a display-name
 override. `docs/decisions/0015-where-the-product-name-lives.md` is why: the name

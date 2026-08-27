@@ -18,7 +18,7 @@
 #define IDD_SETUP 200
 #define IDC_BANNER 1001
 #define IDC_HEADLINE 1002
-#define IDC_LOCATION 1003
+#define IDC_LOCATION_EDIT 1003
 #define IDC_SCOPE_USER 1004
 #define IDC_SCOPE_MACHINE 1005
 #define IDC_DESKTOP_SHORTCUT 1006
@@ -28,5 +28,11 @@
 #define IDC_LAUNCH_WHEN_DONE 1010
 #define IDC_INSTALL 1011
 #define IDC_STATUS 1012
+
+// The install root a person chooses, and what is made inside it. IU-4 as the
+// owner revised it: the location is typed, and the note under the box is the
+// only thing on screen that says what will actually exist afterwards.
+#define IDC_BROWSE 1013
+#define IDC_LOCATION_NOTE 1014
 
 #endif  // SUNSHINE_INSTALLER_RESOURCE_H_
