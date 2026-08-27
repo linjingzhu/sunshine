@@ -235,6 +235,68 @@ and the id is a name its key chose.
 mechanism rather than two; and none of it depends on the IWA feature flag or
 the enterprise policy in §1.
 
+## 3b. The investigation ADR 0006 asked for, done
+
+`docs/decisions/0006-module-execution-model.md` § *Revisiting* names one thing
+to settle before Position B is reconsidered, on the grounds that it "may make
+the question smaller":
+
+> **can a WebUI host serve bundled resources without a registered scheme?** If
+> it can, B costs an amendment to `.ai/PROJECT_CONTEXT.md` and a rescoping of
+> `verify_architecture.py`, but leaves ADR 0003 untouched.
+
+**It can, and Sunshine has already done both halves of it.** Read at
+`152.0.7977.42`, and then found again in this repository's own patch stack.
+
+### Half one — a host that is a runtime string
+
+| Read | What it establishes |
+| --- | --- |
+| `content/public/browser/webui_config.h` | `WebUIConfig(std::string_view scheme, std::string_view host)`. The host is a **constructor argument**, not a compile-time constant, and `CreateWebUIController(web_ui, url)` receives the URL. |
+| `content/public/browser/webui_config_map.h` | `AddUntrustedWebUIConfig()` is an instance method on a singleton, keyed by `url::Origin`, with a matching `RemoveConfig(url)`. Registration is one call per origin and it is reversible. |
+| `downstream/patches/0006-sunshine-document-webui.patch` | Sunshine already calls it: `map.AddUntrustedWebUIConfig(std::make_unique<SunshineDocumentContentUIConfig>())`, and the patch's own comment records that a `chrome-untrusted://` surface "costs no fifth upstream file and no second registration point". |
+
+**No scheme is registered anywhere in that.** `chrome-untrusted://` is
+Chromium's, already there, and ADR 0003's "no `sunshine://` scheme" is untouched
+— which is exactly the outcome ADR 0006 hoped for.
+
+### Half two — bytes decided at request time
+
+`WebUIDataSource` serves compiled-in grit resources, which is not what a bundle
+needs. `URLDataSource` is the other one:
+
+| Read | What it establishes |
+| --- | --- |
+| `content/public/browser/url_data_source.h` | `GetSource()` returns a runtime string; `StartDataRequest(url, …, GotDataCallback)` answers with `base::RefCountedMemory` **computed when the request arrives**; `URLDataSource::Add(browser_context, source)` attaches it per profile. |
+| `downstream/patches/0021-sunshine-newtab-background-source.patch` | Sunshine already does this too — `UntrustedSource::StartDataRequest` gains a branch that reads a file off disk, off the UI thread, and answers with its bytes. |
+
+### Half three, which was not asked about but decides whether it is usable
+
+A `chrome-untrusted://` page defaults to `frame-ancestors 'none'` and would
+refuse the shell's iframe outright. `downstream/patches/0006` already solves it:
+`source->AddFrameAncestor(GURL(chrome::kChromeUISunshineDocumentURL))`, and its
+comment records that `WebUIDataSourceImpl::AddFrameAncestor()` CHECKs the
+argument is a `chrome://` or `chrome-untrusted://` origin, "so this cannot be
+widened to a website by mistake."
+
+### What this does and does not settle
+
+**Settled:** the mechanism ADR 0006 asked about exists, needs no scheme, and is
+in use in this repository twice over. The question is smaller than it was, in
+the specific way ADR 0006 predicted.
+
+**Not settled, and this is the load-bearing gap:** every registration Sunshine
+performs today happens at startup, in `RegisterWebUIConfigs`. That
+`AddUntrustedWebUIConfig` may be called **after** startup — when a bundle is
+installed — is read off the API's shape (a singleton with `Add` and a matching
+`Remove`) and from nothing else. No caller doing it late was found, and none was
+looked for beyond the files above. **A design that installs modules at runtime
+rests entirely on that, and it is an inference.**
+
+Also unread: whether a 56-character bundle id is acceptable to Chromium as a
+host — MM-1's 63-character limit is Sunshine's own rule, not Chromium's — and
+everything in §7 remains as it was.
+
 ## 4. The remaining risks, in the order they should be resolved
 
 1. **Confirm the framing conclusion above against a running browser.** The

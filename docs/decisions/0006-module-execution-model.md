@@ -160,6 +160,21 @@ can, B costs an amendment to `.ai/PROJECT_CONTEXT.md` and a rescoping of
 `verify_architecture.py`, but leaves ADR 0003 untouched. That is a materially
 cheaper version of B than the one the brief described.
 
+**That investigation has been done, and the answer is yes.**
+`docs/MODULE_INSTALL_REVIEW.md` §3b: `WebUIConfig` takes its host as a
+constructor argument, `URLDataSource::StartDataRequest` answers with bytes
+decided when the request arrives, and this repository already uses both — the
+document surface's untrusted half and the New Tab background respectively. No
+scheme is registered and ADR 0003 is untouched, exactly as this section
+predicted.
+
+This does not reopen the decision. It removes the reason this section gave for
+not reopening it, which is a different thing, and the question of whether to
+open a second tier is now carried as a P0 in `docs/OPEN_DECISIONS.md` rather
+than as a sentence here. One inference remains load-bearing and is stated in
+§3b: that a config may be registered **after** startup was read off the API's
+shape and not from any caller that does it.
+
 ## Consequences
 
 - SEC-13 and SEC-14 are enforced regardless of which position is taken. Both are
