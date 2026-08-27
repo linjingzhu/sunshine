@@ -9,6 +9,13 @@ runtime, SDK, bundle format and lifecycle manager are not built.
 Position B is not rejected on its merits. It is deferred to a point where it can
 be judged on them — see *Revisiting* below.
 
+**Amended by `docs/decisions/0019-installed-module-tier.md` (2026-08-27).** The
+investigation *Revisiting* named was done, the answer removed the obstacle, and
+the owner opened a second tier beside this one: web modules installed from a
+signed bundle. **The decision recorded here is not reversed** — it stands for the
+compiled tier, and every guard enforcing it stays as it is until a contract
+replaces them. What changed is that it is no longer the only tier.
+
 ## Context
 
 A module architecture brief proposed redefining a Sunshine module as:
