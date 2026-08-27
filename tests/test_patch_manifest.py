@@ -52,6 +52,27 @@ KNOWN_EXTENDED_REGISTRIES = frozenset({
     # a Sunshine-created file extended by a later Sunshine patch -- and it
     # stays a Sunshine file, so no upstream ownership is claimed either time.
     "chrome/browser/ui/sunshine/BUILD.gn",
+    # Patch 0024 opens the settings surface, and six files it did not create
+    # had to move for it. Each is listed with what moved and why, because a
+    # long list is only worth having if every line is a decision:
+    #
+    # The reader gained a picker. It could measure and serve a background;
+    # patch 0024 gives it the ability to install one and to say why it refused
+    # one, which is NTB-11 and is not something a new file could add from
+    # outside.
+    "chrome/browser/ui/sunshine/newtab_background.cc",
+    "chrome/browser/ui/sunshine/newtab_background.h",
+    # The bundle got a second Mojo surface, and that made an accident visible.
+    # build_webui() copies every surface's generated bindings into one
+    # directory, and it had been the document surface's own -- which worked
+    # only while the document surface owned the only interface. It is "mojom"
+    # now, which is nobody's, so each surface names its own bindings file
+    # instead of getting them by prefix. The helper takes that name, and the
+    # document surface passes its own and re-points one import.
+    "chrome/browser/resources/sunshine/document/host.ts",
+    "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc",
+    "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc",
+    "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h",
 })
 
 

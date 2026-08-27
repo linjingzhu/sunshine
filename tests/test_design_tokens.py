@@ -692,6 +692,9 @@ class DuplicateSelectorTests(unittest.TestCase):
                 APP_CSS: {
                     "#sunshineBackground",
                     "#sunshineClock",
+                    "#sunshineSettings",
+                    "#sunshineSettings:focus-visible",
+                    "#sunshineSettings:hover",
                     "#sunshineStatus",
                     "#sunshineStatus > *",
                     "#sunshineWordmark",

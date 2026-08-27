@@ -282,6 +282,7 @@ background.
 | **NTB-9** | The clock shows minutes and wakes once per minute, aligned to the boundary, only while the surface is visible. `docs/PERFORMANCE_BUDGET.md` PB-5b is the row that permits it, and it is the only repeating task Sunshine owns. |
 | **NTB-10** | The clock survives resting; the button does not. |
 | **NTB-11** | The picker copies the chosen file **byte for byte** and validates it before it lands. A file the format rules refuse is refused with the reason shown, and nothing is written. |
+| **NTB-14** | A background's file name is decided in one place. The names the reader searches, the extensions the dialog offers, and the name the picker writes each format under are one list three times, and they agree. |
 
 **NTB-10 is the one worth arguing for.** §3a hides the page's content three
 seconds after focus leaves, and the obvious rule hides everything that is not
@@ -347,15 +348,55 @@ screen. The handler holds the bytes, the rule and the person at the same
 moment, so it can say *this is a GIF* or *this is 112 MB and the limit is 100*
 — sentences nothing in this feature can produce today.
 
-**Not built.** The clock and the row exist; the button does not, and a button
-that opens nothing is worse than no button. NTB-11 is written ahead of the code
-it constrains, which is this repository's pattern and the reason the allowlist
-defect was not repeated.
+**Built, and never run.** `0024-sunshine-settings-surface.patch` is the button,
+the surface it opens, and the picker on it. NTB-11 was written ahead of the code
+it constrains — this repository's pattern, and the reason the allowlist defect
+was not repeated — and what it constrains is a picker on a Sunshine surface
+(§3d) rather than one on this page. The invariant did not change when the place
+did: copy byte for byte, validate before it lands, say why on refusal.
 
-What NTB-11 now constrains is a picker on a Sunshine surface (§3d), not one on
-this page. The invariant is unchanged by that: copy byte for byte, validate
-before it lands, and say why on refusal. Where the sentence appears moved; that
-it must exist did not.
+The button is an `<a href="chrome://sunshine-settings/">`. **A renderer-initiated
+navigation between two WebUI hosts is upstream's own arrangement, not something
+this discovered**: `chrome/browser/resources/history/side_bar.html.ts` at the pin
+carries `href="chrome://settings/clearBrowserData"`, which is `chrome://history`
+linking to a different privileged host exactly this way. Read, not assumed —
+and still not run, because nothing in this stack has been.
+
+### One clause of NTB-11 turned out to be unbuildable as written
+
+§3b said the handler could say *this is a GIF* or *this is 112 MB and the limit
+is 100*. **The second is built. The first is not, and it cannot be** — saying
+"this is a GIF" means comparing the file's bytes against a GIF signature, and
+NTB-2 forbids this build from declaring any excluded format's signature. That
+rule is not incidental: a table of refused signatures is one edit from being a
+table of accepted ones, and the guard that refuses it is the reason a renamed
+WAV cannot become a background.
+
+So the sentence a person gets names the three formats that are allowed and says
+these bytes are none of them, and adds that the file's *name* was not what
+decided it. That is the whole of what can be said without the table the rules
+refuse, and it is enough to act on. The size refusal is unaffected and reports
+both measured numbers.
+
+**NTB-11 is now enforced rather than only stated.**
+`scripts/verify_newtab_background.py` reads the chain end to end — every
+`InstallResult` the browser can produce is translated by the handler, every
+`BackgroundOutcome` the interface declares is one the browser can send, and
+every refusal has a sentence in `app.ts`. Nothing in any compiler holds those
+three declarations together: a refusal added to the browser and not to the page
+is not a build error, it is a person who is told nothing, which is the state §5
+says this feature already produces too often. The guard also refuses a picker
+that re-encodes rather than copies, and one that decides a refusal *after*
+`base::CopyFile` rather than before.
+
+**NTB-14 exists because the picker gave the file name a second author.** Until
+now one list decided what a background could be called, and only the reader read
+it. The picker writes under a name derived from the detected format, and the
+dialog filters by extension, so the same fact is now consulted in three places
+in one file. A `Format::kWebp` that returned the `.png` entry would write a WebP
+under a name the reader then refuses for its bytes — a defect that surfaces as
+"the picker did nothing", with no error anywhere. The guard checks the three
+against each other.
 
 ## 3c. The searchbox — glass at rest, solid in use
 
@@ -548,8 +589,10 @@ What this costs instead is a settings surface that does not exist yet. That is a
 real cost and it is not hidden here — but it is one this project wants for other
 reasons before it wants a second method on upstream's New Tab handler.
 
-**The reader looks in both directories now; nothing else is built.** No
-settings surface, no picker, no way to put a file in a profile except by hand.
+**All of it is built now, and none of it has been run.** The reader looks in
+both directories, `chrome://sunshine-settings` exists with its own `mojom` and
+handler, the picker is on it, and the New Tab's status row carries the link that
+opens it. §5 is the whole of what "never run" means here.
 
 Making the reader profile-aware turned up one thing worth stating, because it
 was not in §3's table and it is not obvious from it:
@@ -641,10 +684,35 @@ because they already have a home.
   upstream's behaviour and now Sunshine's too. §3c argues the visible result is
   still correct because those paths also focus the box, and that argument has
   been read out of the source rather than watched happen.
-- **A rejected file is indistinguishable from no file.** `ReadInstalledBackground`
-  returns empty for a missing file, an oversized one, and one whose bytes are
-  not a permitted format alike, and no surface anywhere says which happened.
-  An owner whose background does not appear has nothing to read.
+- **A rejected file is indistinguishable from no file, everywhere except the
+  picker.** `ReadInstalledBackground` returns empty for a missing file, an
+  oversized one, and one whose bytes are not a permitted format alike, and
+  nothing that *serves* a background says which happened. The settings surface
+  is the one place that does: it holds the bytes, the rule and the person at the
+  same moment, so it can say *112 MB, and the limit is 100*. A file placed in a
+  directory by hand still produces silence, and always will — nobody is there to
+  be told.
+- **Nothing about the picker has been run.** No dialog has opened, no file has
+  been copied, and no refusal sentence has been read by anyone. What is known is
+  that the chain of declarations is complete, because a guard reads it end to
+  end — not that a person who picks a 4 GB video sees the sentence this contract
+  says they will.
+- **The settings surface's route from the New Tab is upstream's own shape,
+  read rather than exercised.** `chrome://history` links to
+  `chrome://settings/clearBrowserData` with a plain anchor at the pinned
+  revision, so a renderer-initiated navigation between WebUI hosts is
+  established practice. Whether *this* anchor, in the New Tab's shadow root,
+  navigates as intended has not been seen.
+- **The move of the generated Mojo bindings to a `mojom/` directory is the
+  least-tested change in patch 0024, and it touches a surface that works.**
+  `build_webui()` copies every surface's bindings into one directory by
+  basename; that directory used to be the document surface's own, which made
+  its prefix filter serve them for free. It is now nobody's, each surface names
+  its own file, and the document surface's import moved with it. This is read
+  from `ui/webui/resources/tools/build_webui.gni` — `outputs = [
+  "${preprocess_dir}/${mojo_base_path}/{{source_file_part}}" ]` — and the first
+  thing to check in build #47 is whether `chrome://sunshine-document` still
+  loads.
 - **One file probe per process remains, and it is a deviation from PB-4.**
   The page is told whether a background exists, so a build with no asset
   creates no frame and opens no file per tab. The browser answers from a cache

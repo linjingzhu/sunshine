@@ -2,7 +2,7 @@ diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/reso
 index d9d32b0..6ad1de5 100644
 --- a/chrome/browser/resources/new_tab_page/app.css
 +++ b/chrome/browser/resources/new_tab_page/app.css
-@@ -180,6 +180,105 @@ cr-most-visited {
+@@ -180,6 +180,121 @@ cr-most-visited {
    z-index: unset;
  }
  
@@ -73,6 +73,22 @@ index d9d32b0..6ad1de5 100644
 +  user-select: none;
 +}
 +
++/* The way to the settings surface. Quiet on purpose: it sits over a
++   photograph the person chose, and a control that competes with the picture
++   is a control arguing with the reason the picture is there. */
++#sunshineSettings {
++  color: inherit;
++  font-size: 0.875rem;
++  line-height: 1;
++  opacity: 0.75;
++  text-decoration: none;
++}
++
++#sunshineSettings:hover,
++#sunshineSettings:focus-visible {
++  opacity: 1;
++}
++
 +:host > *:not(#sunshineBackground),
 +#sunshineStatus > * {
 +  transition: opacity 400ms ease;
@@ -112,7 +128,7 @@ diff --git a/chrome/browser/resources/new_tab_page/app.html b/chrome/browser/res
 index b6dab96..0c044f2 100644
 --- a/chrome/browser/resources/new_tab_page/app.html
 +++ b/chrome/browser/resources/new_tab_page/app.html
-@@ -3,6 +3,42 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -3,6 +3,56 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
  #html_wrapper_imports_end -->
 +<!-- Sunshine's New Tab background.
 +       An iframe rather than an <img> or a CSS background, because the New Tab
@@ -149,13 +165,27 @@ index b6dab96..0c044f2 100644
 +     outside the element that fades. NTB-10. -->
 +<div id="sunshineStatus">
 +  <span id="sunshineClock">${this.sunshineTime_}</span>
++  <!-- An anchor, not a button, and that is the decision NTB-11 rests on.
++       docs/NEWTAB_BACKGROUND_CONTRACT.md section 3d: a Mojo method here would
++       take ownership of new_tab_page.mojom and new_tab_page_handler.h/.cc --
++       three upstream files, on the page this stack patches most heavily. A
++       navigation is not a Mojo call, so the picker lives on a Sunshine
++       surface and those three files stay unowned.
++       chrome://history's own side bar links to chrome://settings the same
++       way, so a renderer-initiated navigation between two WebUI hosts is
++       upstream's arrangement rather than something this discovers.
++       Hidden while resting by the rule above it, which was written before
++       this existed and named it: NTB-10 keeps the clock and drops the
++       button. -->
++  <a id="sunshineSettings" href="chrome://sunshine-settings/"
++      title="Sunshine settings" aria-label="Sunshine settings">Settings</a>
 +</div>
  <div id="content"
    ?ntp-threads-rail-open="${this.showComposebox_ && this.enableThreadsRail_}">
    ${this.lazyRender_ && this.microsoftModuleEnabled_ ? html`
      <iframe id="microsoftAuth" src="${this.microsoftAuthIframePath_}"></iframe>
    ` : ''}
-@@ -28,13 +64,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -28,13 +78,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
          </ntp-iframe>
          `
      ) : ''}

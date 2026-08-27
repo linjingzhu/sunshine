@@ -979,16 +979,37 @@ def authored_selectors(root: Path = ROOT) -> dict[str, set[tuple[str, str]]]:
     selector and cannot duplicate anything.
     """
 
+    sheet = read_stylesheets(root)
+
+    # The selector each added `{` opens, per stylesheet. A rule belongs to
+    # Sunshine when Sunshine wrote the line the brace is on.
+    #
+    # **Matched on the part next to the brace, not on the first word of the
+    # selector.** The first-word form had a hole big enough to drive the whole
+    # rule through: a selector list written across lines -- which is what
+    # `@stylistic/selector-list-comma-newline-after` requires of every list --
+    # puts the first part on one line and the brace on another, so the test
+    # "an added line containing both the brace and the first word" found
+    # nothing and the rule was dropped from the check entirely.
+    # `#sunshineSettings:hover, #sunshineSettings:focus-visible` was invisible
+    # to S13 for exactly that reason, and so would a duplicated upstream
+    # selector written the same way have been. The part beside the brace is on
+    # the brace's own line by construction.
+    opened: dict[str, set[str]] = {}
+    for hunk in sheet.hunks:
+        for line in hunk.lines:
+            if line.origin != "added" or "{" not in line.text:
+                continue
+            prelude = normalised_selector(line.text.split("{")[0].split(",")[-1])
+            if prelude:
+                opened.setdefault(hunk.path, set()).add(prelude)
+
     found: dict[str, set[tuple[str, str]]] = {}
-    for rule in read_stylesheets(root).rules:
+    for rule in sheet.rules:
         if not rule.authored or not rule.complete or rule.at_rules:
             continue
-        opened_by_sunshine = any(
-            line.origin == "added" and "{" in line.text and rule.selector.split()[0] in line.text
-            for hunk in [h for h in read_stylesheets(root).hunks if h.path == rule.path]
-            for line in hunk.lines
-        )
-        if not opened_by_sunshine:
+        last = normalised_selector(rule.selector.split(",")[-1])
+        if last not in opened.get(rule.path, set()):
             continue
         for part in rule.selector.split(","):
             part = normalised_selector(part)
