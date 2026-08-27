@@ -150,7 +150,7 @@ description rather than a locale with no translation.
 | --- | --- |
 | Both keys required | A module with one language is refused by `scripts/validate_first_party_modules.py`. Half a translation is how a switch turns into a blank. |
 | Plain text | No markup. The page writes it with `textContent`, as it does every other manifest value. |
-| Bounded | The same limit as any other display string this page draws. |
+| Bounded | **400 characters per language**, refused above it. This row used to say "the same limit as any other display string this page draws". There was no such limit — the page draws `display_name`, ids and manifest words with no bound on any of them — so the row pointed at nothing. The number is set in `scripts/validate_first_party_modules.py` and named here. |
 | Not localisation infrastructure | This is data in a manifest, not a Chromium string resource. It does not enter `.grd`. |
 
 **The switch is the page's, and it is one control rather than one per module.**
@@ -162,8 +162,29 @@ quietly shows the other's text. Refusing at validation makes an untranslated
 module a build failure, which is the only moment anyone is in a position to
 write the missing paragraph.
 
-**Nothing is built.** The field is not in the schema, the validator does not
-know it, and the page does not draw it.
+**Built.** The field is in all five manifests and in
+`first_party/templates/module.example.json`;
+`scripts/validate_first_party_modules.py` requires exactly the two languages,
+non-empty, under the limit and free of markup, with seven tests including the
+one-language case the rule exists for; `downstream/patches/0007-sunshine-modules-webui.patch`
+draws the paragraph and the switch.
+
+Three details of the implementation are decisions rather than mechanics:
+
+- **The switch is in the detail pane, beside the paragraph**, and is absent
+  from the overview. A control that acts on nothing visible is a control that
+  looks broken.
+- **The choice is held in memory and written nowhere.** A remembered preference
+  would be the first thing this page ever wrote, and MH-1's whole subject is
+  that it writes nothing. The cost is that the choice resets when the page
+  does, which is the right way round for a page whose job is to report.
+- **Markup is refused even though it is inert.** Every value here is placed
+  with `textContent` (MH-4), so a tag would render as text. It is refused
+  because a description carrying markup is one somebody wrote expecting it to
+  render, and this is a privileged surface.
+
+**Not seen.** No build contains it yet — #47 predates it — so the switch has
+never been clicked.
 
 
 ## 3. Acceptance criteria

@@ -24,7 +24,7 @@ new file mode 100644
 index 0000000..4c6864f
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/modules/app.css
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,266 @@
 +/* Copyright 2026 The Sunshine OS contributors
 + * Use of this source code is governed by a BSD-style license that can be
 + * found in the LICENSE file.
@@ -166,6 +166,50 @@ index 0000000..4c6864f
 +  max-width: 44rem;
 +}
 +
++/* MH-7. The paragraph and the one control that switches it, side by side --
++ * the control is next to the text it acts on rather than in a toolbar, which
++ * is the only place it means anything. It wraps below on a narrow pane
++ * because the paragraph is the content and the switch is not. */
++#descriptionRow {
++  align-items: start;
++  display: flex;
++  flex-wrap: wrap;
++  gap: 1rem;
++  justify-content: space-between;
++  margin-bottom: 1.5rem;
++  max-width: 44rem;
++}
++
++#descriptionRow .lede {
++  flex: 1 1 22rem;
++  margin-bottom: 0;
++}
++
++#languageSwitch {
++  display: flex;
++  flex: 0 0 auto;
++  gap: 0.25rem;
++}
++
++.lang {
++  background: none;
++  border: 1px solid var(--color-midground);
++  border-radius: 0.25rem;
++  color: var(--color-secondary-foreground);
++  cursor: pointer;
++  font: inherit;
++  font-size: 0.75rem;
++  padding: 0.25rem 0.625rem;
++}
++
++/* aria-pressed is the state and the highlight at once, as aria-current is in
++ * the nav. Two ways to say the same thing is two ways to disagree. */
++.lang[aria-pressed='true'] {
++  background-color: var(--color-midground);
++  color: var(--color-primary-foreground);
++  font-weight: 500;
++}
++
 +table {
 +  border-collapse: collapse;
 +  font-size: 0.875rem;
@@ -252,7 +296,7 @@ new file mode 100644
 index 0000000..dce4a99
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/modules/app.html
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,94 @@
 +<!doctype html>
 +<html dir="$i18n{textdirection}" lang="$i18n{language}">
 +<head>
@@ -305,6 +349,21 @@ index 0000000..dce4a99
 +      </section>
 +
 +      <section id="detail" hidden>
++        <!-- MH-7. One control for the page, not one per module: a reader
++             picks a language, not a language per row. It lives beside the
++             text it switches and is absent from the overview, where there is
++             nothing to switch. The choice is held in memory only -- this page
++             writes nothing, anywhere, and a remembered preference would be
++             the first thing it wrote. -->
++        <div id="descriptionRow">
++          <p id="description" class="lede"></p>
++          <div id="languageSwitch" role="group"
++              aria-label="Description language">
++            <button type="button" class="lang" data-lang="ko">한국어</button>
++            <button type="button" class="lang" data-lang="en">English</button>
++          </div>
++        </div>
++
 +        <dl id="detailFacts" class="facts"></dl>
 +
 +        <h2>Entry points</h2>
@@ -337,7 +396,7 @@ new file mode 100644
 index 0000000..9ec65b8
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/modules/app.ts
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,326 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -389,10 +448,22 @@ index 0000000..9ec65b8
 +  visual: string;
 +}
 +
++// MH-7. Both languages are required by
++// `scripts/validate_first_party_modules.py`, so neither is optional here and
++// there is no fallback to write. A `string|undefined` would be a fallback
++// waiting to be added.
++interface Description {
++  ko: string;
++  en: string;
++}
++
++type Language = keyof Description;
++
 +interface Module {
 +  schema_version: number;
 +  id: string;
 +  display_name: string;
++  description: Description;
 +  owner: string;
 +  kind: string;
 +  lifecycle: string;
@@ -464,12 +535,45 @@ index 0000000..9ec65b8
 +  private readonly crumb = element('crumb');
 +  private readonly title = element('title');
 +  private readonly lede = element('lede');
++  private readonly description = element('description');
++  // The module whose detail is on screen, or null on the overview. The
++  // language switch needs it to redraw one paragraph without rebuilding the
++  // pane around it.
++  private shown: Module|null = null;
++  private language: Language = 'ko';
 +
 +  constructor(registry: Registry) {
 +    this.modules = registry.modules;
 +    element('moduleCount').textContent = String(this.modules.length);
 +    this.buildNav();
++    this.buildLanguageSwitch();
 +    this.showOverview();
++  }
++
++  private buildLanguageSwitch(): void {
++    for (const button of element('languageSwitch')
++             .querySelectorAll<HTMLButtonElement>('button.lang')) {
++      // dataset rather than the label: the label is the language's own name
++      // and belongs to the reader, the key belongs to the manifest, and
++      // deriving one from the other would tie them together for no reason.
++      const language = button.dataset['lang'] as Language;
++      button.addEventListener('click', () => {
++        this.language = language;
++        this.drawDescription();
++      });
++    }
++    this.drawDescription();
++  }
++
++  private drawDescription(): void {
++    for (const button of element('languageSwitch')
++             .querySelectorAll<HTMLButtonElement>('button.lang')) {
++      button.setAttribute(
++          'aria-pressed', String(button.dataset['lang'] === this.language));
++    }
++    // textContent, like every other manifest value on this page. MH-4.
++    this.description.textContent =
++        this.shown ? this.shown.description[this.language] : '';
 +  }
 +
 +  private buildNav(): void {
@@ -517,6 +621,7 @@ index 0000000..9ec65b8
 +  }
 +
 +  private showOverview(): void {
++    this.shown = null;
 +    this.markCurrent('overview');
 +    this.crumb.textContent = 'Sunshine';
 +    this.title.textContent = 'All modules';
@@ -548,6 +653,7 @@ index 0000000..9ec65b8
 +  }
 +
 +  private showModule(module: Module): void {
++    this.shown = module;
 +    this.markCurrent(module.id);
 +    this.crumb.textContent = `Sunshine / ${module.id}`;
 +    this.title.textContent = module.display_name;
@@ -556,6 +662,7 @@ index 0000000..9ec65b8
 +        `lifetime of a ${module.lifecycle}.`;
 +    this.overview.hidden = true;
 +    this.detail.hidden = false;
++    this.drawDescription();
 +
 +    const facts = element('detailFacts');
 +    facts.replaceChildren();
@@ -635,7 +742,7 @@ new file mode 100644
 index 0000000..9ccd297
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,331 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -677,6 +784,10 @@ index 0000000..9ccd297
 +          "scope": "profile"
 +        }
 +      ],
++      "description": {
++        "en": "Creates projects and the sections inside them, and reads each section's HTML document. Documents render in a separate unprivileged frame where scripts do not run and no remote request leaves. Stored bytes come back unchanged: no normalisation, no re-indentation.",
++        "ko": "\ud504\ub85c\uc81d\ud2b8\uc640 \uadf8 \uc548\uc758 \uc808(\u7bc0)\uc744 \ub9cc\ub4e4\uace0, \uac01 \uc808\uc758 HTML \ubb38\uc11c\ub97c \uc77d\uc2b5\ub2c8\ub2e4. \ubb38\uc11c\ub294 \uad8c\ud55c \uc5c6\ub294 \ubcc4\ub3c4 \ud504\ub808\uc784\uc5d0\uc11c \uadf8\ub824\uc9c0\uba70 \uc2a4\ud06c\ub9bd\ud2b8\ub294 \uc2e4\ud589\ub418\uc9c0 \uc54a\uace0 \uc6d0\uaca9 \uc694\uccad\ub3c4 \ub098\uac00\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \uc800\uc7a5\ud55c \ubc14\uc774\ud2b8\ub294 \uadf8\ub300\ub85c \ub3cc\uc544\uc635\ub2c8\ub2e4 \u2014 \uc815\uaddc\ud654\ub3c4 \ub4e4\uc5ec\uc4f0\uae30 \uc7ac\uc870\uc815\ub3c4 \ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
++      },
 +      "display_name": "Sunshine Documents",
 +      "entrypoints": [
 +        {
@@ -723,6 +834,10 @@ index 0000000..9ccd297
 +          "scope": "profile"
 +        }
 +      ],
++      "description": {
++        "en": "The page that says what is built into this browser. It reports each module's entry points, permissions and verification state exactly as the manifest holds them. It changes nothing: nothing here installs, removes, or alters a permission.",
++        "ko": "\uc774 \ube0c\ub77c\uc6b0\uc800\uc5d0 \ubb34\uc5c7\uc774 \ub4e4\uc5b4 \uc788\ub294\uc9c0 \ubcf4\uc5ec\uc8fc\ub294 \ud398\uc774\uc9c0\uc785\ub2c8\ub2e4. \uac01 \ubaa8\ub4c8\uc758 \uc9c4\uc785\uc810, \uad8c\ud55c, \uac80\uc99d \uc0c1\ud0dc\ub97c \ub9e4\ub2c8\ud398\uc2a4\ud2b8\uc5d0 \uc801\ud78c \uadf8\ub300\ub85c \ubcf4\uace0\ud569\ub2c8\ub2e4. \uc774 \ud398\uc774\uc9c0\ub294 \uc544\ubb34\uac83\ub3c4 \ubc14\uafb8\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4 \u2014 \uc124\uce58\ub3c4, \uc81c\uac70\ub3c4, \uad8c\ud55c \ubcc0\uacbd\ub3c4 \ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4."
++      },
 +      "display_name": "Sunshine Modules",
 +      "entrypoints": [
 +        {
@@ -774,6 +889,10 @@ index 0000000..9ccd297
 +          "scope": "profile"
 +        }
 +      ],
++      "description": {
++        "en": "The New Tab surface. Chromium's search and Most Visited stay as they are; Sunshine adds what sits around them \u2014 the wordmark, an installed background, a resting state that leaves only that background when focus goes, a clock in the corner, and a searchbox that turns solid only while it is in use.",
++        "ko": "\uc0c8 \ud0ed \ud654\uba74\uc785\ub2c8\ub2e4. \ud06c\ub85c\ubbf8\uc6c0\uc758 \uac80\uc0c9\uacfc \uc790\uc8fc \ubc29\ubb38\ud55c \uc0ac\uc774\ud2b8\ub97c \uadf8\ub300\ub85c \ub450\uace0 \uadf8 \uc704\uc5d0 Sunshine\uc758 \ud45c\uba74\uc744 \uc5b9\uc2b5\ub2c8\ub2e4 \u2014 \uc6cc\ub4dc\ub9c8\ud06c, \uc124\uce58\ub41c \ubc30\uacbd, \ud3ec\ucee4\uc2a4\uac00 \ub5a0\ub098\uba74 \ubc30\uacbd\ub9cc \ub0a8\uae30\ub294 \ud734\uc9c0 \uc0c1\ud0dc, \uc6b0\ud558\ub2e8 \uc2dc\uacc4, \uadf8\ub9ac\uace0 \uc0ac\uc6a9 \uc911\uc77c \ub54c\ub9cc \ubd88\ud22c\uba85\ud574\uc9c0\ub294 \uac80\uc0c9\ucc3d."
++      },
 +      "display_name": "Sunshine New Tab",
 +      "entrypoints": [
 +        {
@@ -825,6 +944,10 @@ index 0000000..9ccd297
 +          "scope": "profile"
 +        }
 +      ],
++      "description": {
++        "en": "Gathers the security state the browser already knows into one place. Every verdict is Chromium's and this surface only reports it: it blocks nothing of its own and calls nothing safe on its own authority.",
++        "ko": "\ube0c\ub77c\uc6b0\uc800\uac00 \uc774\ubbf8 \uc54c\uace0 \uc788\ub294 \ubcf4\uc548 \uc0c1\ud0dc\ub97c \ud55c \uacf3\uc5d0 \ubaa8\uc544 \ubcf4\uc5ec\uc90d\ub2c8\ub2e4. \ud310\uc815\uc740 \ud06c\ub85c\ubbf8\uc6c0\uc758 \uac83\uc774\uace0 \uc774 \ud654\uba74\uc740 \uadf8\uac83\uc744 \uc62e\uaca8 \uc801\uc744 \ubfd0\uc785\ub2c8\ub2e4 \u2014 \uc2a4\uc2a4\ub85c \ucc28\ub2e8\ud558\uc9c0 \uc54a\uace0, \uc2a4\uc2a4\ub85c \uc548\uc804\ud558\ub2e4\uace0 \ub9d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
++      },
 +      "display_name": "Sunshine Security Center",
 +      "entrypoints": [
 +        {
@@ -890,6 +1013,10 @@ index 0000000..9ccd297
 +          "scope": "tab"
 +        }
 +      ],
++      "description": {
++        "en": "Groups tabs into workspaces and moves between them. It does not replace Chromium's tab model \u2014 it records membership alongside it \u2014 so session restore and tab groups keep working as they did.",
++        "ko": "\ud0ed\uc744 \uc791\uc5c5 \uacf5\uac04\uc73c\ub85c \ubb36\uace0 \uadf8 \uc0ac\uc774\ub97c \uc624\uac11\ub2c8\ub2e4. \ud06c\ub85c\ubbf8\uc6c0\uc758 \ud0ed \ubaa8\ub378\uc744 \ub300\uccb4\ud558\uc9c0 \uc54a\uace0 \uadf8 \uc704\uc5d0 \uc18c\uc18d \uc815\ubcf4\ub97c \uc5b9\ub294 \ubc29\uc2dd\uc774\ub77c, \uc138\uc158 \ubcf5\uc6d0\uacfc \ud0ed \uadf8\ub8f9\uc740 \uadf8\ub300\ub85c \ub3d9\uc791\ud569\ub2c8\ub2e4."
++      },
 +      "display_name": "Sunshine Workspaces",
 +      "entrypoints": [
 +        {
