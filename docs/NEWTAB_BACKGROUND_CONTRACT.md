@@ -321,18 +321,25 @@ landing in `NtpCustomBackgroundService::SelectLocalBackgroundImage`. It writes
 **Chromium's** profile background, which is a different asset from Sunshine's
 and stays that way — two systems, one of which Sunshine does not own.
 
-### The ownership this takes
+### The ownership this takes — struck, see §3d
+
+This section said the button needed three upstream files:
 
 | File | Why |
 | --- | --- |
-| `chrome/browser/ui/webui/new_tab_page/new_tab_page.mojom` | one method for the page to call |
-| `chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h` | the declaration, and a `ui::SelectFileDialog::Listener` |
-| `chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc` | open the dialog, validate the signature, copy the bytes |
+| ~~`chrome/browser/ui/webui/new_tab_page/new_tab_page.mojom`~~ | one method for the page to call |
+| ~~`chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h`~~ | the declaration, and a `ui::SelectFileDialog::Listener` |
+| ~~`chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc`~~ | open the dialog, validate the signature, copy the bytes |
 
-Three upstream files this stack does not own today. `docs/decisions/0007-module-contribution-seam.md`
-gives a WebUI surface its files for free; a Mojo method on **upstream's** WebUI
-is not that, and this is the point where the background feature stops being
-free.
+**None of them is taken.** §3d found that this contradicted §3, put the choice
+to the owner, and the answer was to keep the button here and have it *navigate*
+to a Sunshine surface. A navigation is not a Mojo call, so upstream's handler is
+untouched and the feature stops being free somewhere cheaper.
+
+The reasoning that made this section right on its own terms still holds and is
+worth keeping: `docs/decisions/0007-module-contribution-seam.md` gives a WebUI
+surface its files for free, and a Mojo method on **upstream's** WebUI is not
+that. What changed is that the method moved to a surface that is Sunshine's.
 
 **Validation moves into the handler, and that is the substantive win.** §5
 records that a rejected file and a missing file are indistinguishable on
@@ -340,10 +347,15 @@ screen. The handler holds the bytes, the rule and the person at the same
 moment, so it can say *this is a GIF* or *this is 112 MB and the limit is 100*
 — sentences nothing in this feature can produce today.
 
-**Not built.** The clock and the row exist; the button's browser half does not,
-and a button that opens nothing is worse than no button. NTB-11 is written
-ahead of the code it constrains, which is this repository's pattern and the
-reason the allowlist defect was not repeated.
+**Not built.** The clock and the row exist; the button does not, and a button
+that opens nothing is worse than no button. NTB-11 is written ahead of the code
+it constrains, which is this repository's pattern and the reason the allowlist
+defect was not repeated.
+
+What NTB-11 now constrains is a picker on a Sunshine surface (§3d), not one on
+this page. The invariant is unchanged by that: copy byte for byte, validate
+before it lands, and say why on refusal. Where the sentence appears moved; that
+it must exist did not.
 
 ## 3c. The searchbox — glass at rest, solid in use
 
@@ -483,6 +495,61 @@ abrupt. That is a claim about a screen nobody has seen — §5.
 `docs/DESIGN_SYSTEM_CONTRACT.md` S13 now checks the rule that caught this, so
 the next patch to duplicate an upstream selector fails in CI rather than on the
 owner's workstation ten hours into a queue.
+
+## 3d. Where the picker lives — this document contradicts itself
+
+**Two sections of this contract answer the same question differently, and the
+answers differ by three upstream files.** Found while starting to build it, so
+it is written down before any of it is.
+
+| Section | Says | Costs |
+| --- | --- | --- |
+| §3, *The browser will also register one* | "The picker lives on a **Sunshine settings surface**, which costs **zero upstream files** by the seam" | 0 |
+| §3b, *The ownership this takes* | the button is beside the clock **on the New Tab**, and needs `new_tab_page.mojom` plus `new_tab_page_handler.h/.cc` | **3** |
+
+Neither is wrong on its own terms. §3 was written when the picker was a
+surface; §3b was written after the owner asked for a button beside the clock,
+and it is exact about what that costs — *"a Mojo method on upstream's WebUI is
+not that, and this is the point where the background feature stops being free."*
+What nobody did was go back and reconcile them, so the document now says both.
+
+### A third shape, which neither section costed
+
+**The button is on the New Tab and opens a Sunshine surface, which holds the
+picker.** A navigation is not a Mojo call, so the New Tab page needs no method
+on upstream's handler and the three files stay unowned. The surface is free by
+ADR 0007, exactly as §3 said.
+
+| | New Tab button, Mojo picker (§3b) | New Tab button, surface picker | Surface only (§3) |
+| --- | --- | --- | --- |
+| Upstream files newly owned | **3** | **0** | **0** |
+| Clicks to a chosen file | 1 | 2 | 2, plus finding the surface |
+| Where the refusal sentence appears | in place, on the New Tab | on the surface | on the surface |
+| Survives an upstream roll | three files to re-apply | nothing to re-apply | nothing to re-apply |
+| Needs a Sunshine settings surface to exist | no | **yes** — none exists today | **yes** |
+
+**The second column is not obviously worse than the first.** It costs one extra
+click and it costs building a settings surface that does not exist — which this
+project will want for other reasons long before it wants a second Mojo method.
+What it buys is three upstream files never owned, on a page (`new_tab_page`)
+that this stack already patches heavily and re-applies at every roll.
+
+**Settled by the owner, 2026-08-27: the second column.** The button stays on the
+New Tab where §3b put it, and it navigates to a Sunshine surface that holds the
+picker. **`new_tab_page.mojom` and `new_tab_page_handler.h/.cc` are not owned**,
+and §3b's ownership table is struck.
+
+Persisting bytes is still a browser-process operation, so the picker still needs
+a Mojo method — on **Sunshine's own** handler, where ADR 0007 makes it free.
+`downstream/patches/0006-sunshine-document-webui.patch` is the worked example:
+a surface with its own `mojom` interface, its own handler, and no upstream file.
+
+What this costs instead is a settings surface that does not exist yet. That is a
+real cost and it is not hidden here — but it is one this project wants for other
+reasons before it wants a second method on upstream's New Tab handler.
+
+**Nothing is built.** The reader still looks in one directory, no settings
+surface exists, and no picker exists in any form.
 
 ## 4. The animation rules — NTB-3, and PB-5a
 
