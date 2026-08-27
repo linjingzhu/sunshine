@@ -20,21 +20,23 @@ new file mode 100644
 index 0000000..9c8f9f5
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.cc
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,209 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "chrome/browser/ui/sunshine/newtab_background.h"
 +
-+#include <atomic>
++#include <map>
 +#include <string>
 +
 +#include "base/containers/span.h"
 +#include "base/files/file_path.h"
 +#include "base/files/file_util.h"
 +#include "base/functional/bind.h"
++#include "base/no_destructor.h"
 +#include "base/path_service.h"
++#include "base/synchronization/lock.h"
 +#include "base/task/thread_pool.h"
 +
 +namespace sunshine::background {
@@ -78,17 +80,38 @@ index 0000000..9c8f9f5
 +    FILE_PATH_LITERAL("newtab-background.webp"),
 +};
 +
-+// -1 not probed, 0 absent, 1 present. Written once on a pool thread and read
-+// on the UI thread, so it is atomic; `relaxed` is enough because nothing else
-+// is ordered against it.
-+std::atomic<int> g_available{-1};
++// One answer per profile.
++//
++// This was a single `std::atomic<int>` for the process, which was right while
++// the only place a background could live was beside `chrome.exe` -- a property
++// of the machine, the same for every profile in it. The profile location made
++// it a property of a profile, and a process-wide answer would have told the
++// second profile that a background exists because the first one has one. It
++// would then create a frame for a file that is not there, which is the exact
++// shape of the defect this cache was introduced to avoid.
++//
++// A map and a lock rather than an atomic, because the key arrives at run time.
++// Read on the UI thread and written from a pool thread, and it is small: one
++// entry per profile that has opened a window, never one per tab.
++enum class Probe { kRunning, kAbsent, kPresent };
 +
-+void StoreAvailability(bool available) {
-+  g_available.store(available ? 1 : 0, std::memory_order_relaxed);
++base::Lock& CacheLock() {
++  static base::NoDestructor<base::Lock> lock;
++  return *lock;
 +}
 +
-+bool ProbeAvailability() {
-+  return !ReadInstalledBackground().empty();
++std::map<base::FilePath, Probe>& Cache() {
++  static base::NoDestructor<std::map<base::FilePath, Probe>> cache;
++  return *cache;
++}
++
++void StoreAvailability(base::FilePath profile_path, bool available) {
++  base::AutoLock hold(CacheLock());
++  Cache()[profile_path] = available ? Probe::kPresent : Probe::kAbsent;
++}
++
++bool ProbeAvailability(base::FilePath profile_path) {
++  return !ReadInstalledBackground(profile_path).empty();
 +}
 +
 +bool MatchesAt(base::span<const uint8_t> head,
@@ -128,29 +151,47 @@ index 0000000..9c8f9f5
 +  return directory;
 +}
 +
-+void WarmAvailability() {
-+  int expected = -1;
-+  // Claim the probe exactly once. A second window opening while the first
-+  // probe is in flight must not start another.
-+  if (!g_available.compare_exchange_strong(expected, -2,
-+                                           std::memory_order_relaxed)) {
-+    return;
++base::FilePath ProfileDirectory(const base::FilePath& profile_path) {
++  if (profile_path.empty()) {
++    return base::FilePath();
++  }
++  // A subdirectory rather than the profile root. The profile root is
++  // Chromium's, full of files it owns, and a Sunshine asset dropped among them
++  // is a name collision waiting for an upstream release to happen.
++  return profile_path.Append(FILE_PATH_LITERAL("Sunshine"));
++}
++
++void WarmAvailability(const base::FilePath& profile_path) {
++  {
++    base::AutoLock hold(CacheLock());
++    // Claim the probe exactly once **per profile**. A second window on the same
++    // profile does nothing; a window on a different profile probes its own.
++    if (!Cache().emplace(profile_path, Probe::kRunning).second) {
++      return;
++    }
 +  }
 +  base::ThreadPool::PostTaskAndReplyWithResult(
 +      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
-+      base::BindOnce(&ProbeAvailability), base::BindOnce(&StoreAvailability));
++      base::BindOnce(&ProbeAvailability, profile_path),
++      base::BindOnce(&StoreAvailability, profile_path));
 +}
 +
-+bool AvailableFromCache() {
-+  return g_available.load(std::memory_order_relaxed) == 1;
++bool AvailableFromCache(const base::FilePath& profile_path) {
++  base::AutoLock hold(CacheLock());
++  const auto found = Cache().find(profile_path);
++  // Absent or still running are both `false`, which is the same answer the
++  // single-atomic version gave and the same race §5 already records: a New Tab
++  // created before the probe returns shows no background, and the next one
++  // shows the truth.
++  return found != Cache().end() && found->second == Probe::kPresent;
 +}
 +
-+std::string ReadInstalledBackground() {
-+  const base::FilePath directory = InstallDirectory();
++// One directory's worth of the search. Split out because the search now runs
++// over two of them and a loop inside a loop reads worse than a named step.
++std::string ReadFromDirectory(const base::FilePath& directory) {
 +  if (directory.empty()) {
 +    return std::string();
 +  }
-+
 +  for (const base::FilePath::CharType* const name : kAssetFileNames) {
 +    std::string contents;
 +    // Refuses an oversized file rather than truncating one: this returns
@@ -172,13 +213,29 @@ index 0000000..9c8f9f5
 +  return std::string();
 +}
 +
++std::string ReadInstalledBackground(const base::FilePath& profile_path) {
++  // Profile first. §3's table is the order, and the reason is that the picker
++  // can only write the profile: a per-machine install puts the install
++  // directory under %ProgramFiles%, and asking for administrator rights to set
++  // a wallpaper is answering a decoration request with an elevation prompt.
++  //
++  // A profile that has never chosen one falls through to the install
++  // directory, so replacing the file there still reaches it -- which is the
++  // property §3 rejected the copy-at-first-run design to keep.
++  std::string chosen = ReadFromDirectory(ProfileDirectory(profile_path));
++  if (!chosen.empty()) {
++    return chosen;
++  }
++  return ReadFromDirectory(InstallDirectory());
++}
++
 +}  // namespace sunshine::background
 diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
 new file mode 100644
 index 0000000..638f4c0
 --- /dev/null
 +++ b/chrome/browser/ui/sunshine/newtab_background.h
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,170 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -247,6 +304,23 @@ index 0000000..638f4c0
 +// which is `DetectFormat`'s job alone.
 +base::span<const base::FilePath::CharType* const> AssetFileNames();
 +
++// Where a profile keeps a background a person chose, searched **before** the
++// install directory.
++//
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3's table is the decision: the picker
++// writes here because a per-machine install puts the install directory under
++// %ProgramFiles%, and a browser that asked for administrator rights to set a
++// wallpaper would be answering a decoration request with an elevation prompt.
++//
++// The install directory keeps being what it already is -- the default, and the
++// way a machine-wide image is deployed. A profile holds an asset only when
++// somebody put one there deliberately, so replacing the install file still
++// reaches every profile that has not.
++//
++// Empty for an empty profile path, which is how a caller with no profile says
++// so rather than getting a path relative to the working directory.
++base::FilePath ProfileDirectory(const base::FilePath& profile_path);
++
 +// The install directory -- where `chrome.exe` is, not the versioned directory
 +// beside it.
 +//
@@ -289,7 +363,13 @@ index 0000000..638f4c0
 +// rather than a simplification**: an asset rejected for its format looks
 +// exactly like no asset at all, and nothing anywhere tells the owner which
 +// happened. `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 records it.
-+std::string ReadInstalledBackground();
++//
++// Two directories are searched, profile first. **That doubles the names probed
++// -- six rather than three** -- and the contract's §3 names the cost rather
++// than absorbing it: PB-4's first zero-tolerance condition admits one file on
++// the startup path, this feature already carries a residue against it, and this
++// widens the residue. Still once per process per profile, never once per tab.
++std::string ReadInstalledBackground(const base::FilePath& profile_path);
 +
 +// Probe for an installed background, once per process, off the calling thread.
 +//
@@ -298,6 +378,12 @@ index 0000000..638f4c0
 +// rather than when a New Tab is, so the answer is normally settled before any
 +// New Tab asks for it.
 +//
++// **Keyed by profile, and that is forced rather than chosen.** Before the
++// profile location existed the answer was a property of the machine, so one
++// `bool` for the process was right. It is now a property of a profile: a
++// process-wide answer would tell profile B that a background exists because
++// profile A has one, and B would create a frame for a file that is not there.
++//
 +// **This is why the page is told rather than left to ask.** An earlier design
 +// had the page create its background frame unconditionally and let the request
 +// fail when no file existed, which cost three file probes on every New Tab --
@@ -305,7 +391,7 @@ index 0000000..638f4c0
 +// startup path, in the same existence-not-size language PB-5 uses, and the
 +// feature was reasoned against PB-5 alone. One probe per process is what
 +// replaced it.
-+void WarmAvailability();
++void WarmAvailability(const base::FilePath& profile_path);
 +
 +// What the probe found, or `false` if it has not finished.
 +//
@@ -315,7 +401,7 @@ index 0000000..638f4c0
 +// told the truth. That race is recorded in
 +// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 rather than hidden, and it is the
 +// price of not doing file I/O on the thread that draws.
-+bool AvailableFromCache();
++bool AvailableFromCache(const base::FilePath& profile_path);
 +
 +}  // namespace sunshine::background
 +

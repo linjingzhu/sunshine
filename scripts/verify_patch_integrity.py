@@ -182,6 +182,9 @@ def check_patch(text: str, label: str, failures: list[str]) -> tuple[int, int]:
     hunks = 0
     current: str | None = None
     previous: Hunk | None = None
+    # Net lines the hunks so far have added to the current file. Reset with
+    # `previous`, because both are facts about one file section.
+    offset = 0
     index = 0
 
     while index < len(lines):
@@ -193,6 +196,7 @@ def check_patch(text: str, label: str, failures: list[str]) -> tuple[int, int]:
             # what names the file, and an `index` line may sit between them.
             current = None
             previous = None
+            offset = 0
             index += 1
             continue
 
@@ -215,6 +219,7 @@ def check_patch(text: str, label: str, failures: list[str]) -> tuple[int, int]:
                 )
             current = after if after is not None else before
             previous = None
+            offset = 0
             sections += 1
             index += 2
             continue
@@ -273,6 +278,34 @@ def check_patch(text: str, label: str, failures: list[str]) -> tuple[int, int]:
                             f"(' ', '+', '-' or '{NO_NEWLINE}'), and {hunk.header} "
                             f"at line {number} is still incomplete"
                         )
+            # -- the new-file offset, which nothing checked -----------------
+            #
+            # `new_start` is where the hunk lands in the *post-image*, so within
+            # one file section it is `old_start` plus the net lines every
+            # earlier hunk added. Nothing verified that, and it drifts silently
+            # the moment a patch is edited by hand: a hunk grows, and every
+            # later `+start` in the same file is left describing the file as it
+            # was. Patch 0002 carried stale offsets for a whole session that way.
+            #
+            # It never broke a build, and that is the reason it survived rather
+            # than a reason to leave it: `git apply` locates a hunk by
+            # `old_start` and its context and does not read `new_start` at all.
+            # So this is a number that is wrong, in a file whose whole purpose
+            # is to be read by people, and it is free to keep right.
+            #
+            # Whole-file additions are exempt: `@@ -0,0 +1,N @@` has no
+            # predecessor to accumulate from.
+            if hunk.old_start != 0:
+                expected_new_start = hunk.old_start + offset
+                if hunk.new_start != expected_new_start:
+                    failures.append(
+                        f"{label}:{number}: {hunk.header} says the hunk lands at "
+                        f"new line {hunk.new_start}; the hunks before it in "
+                        f"{current} add {offset} line(s) net, which puts it at "
+                        f"{expected_new_start}"
+                    )
+                offset += hunk.new_count - hunk.old_count
+
             previous = hunk
             continue
 

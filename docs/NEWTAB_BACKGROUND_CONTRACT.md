@@ -548,8 +548,22 @@ What this costs instead is a settings surface that does not exist yet. That is a
 real cost and it is not hidden here — but it is one this project wants for other
 reasons before it wants a second method on upstream's New Tab handler.
 
-**Nothing is built.** The reader still looks in one directory, no settings
-surface exists, and no picker exists in any form.
+**The reader looks in both directories now; nothing else is built.** No
+settings surface, no picker, no way to put a file in a profile except by hand.
+
+Making the reader profile-aware turned up one thing worth stating, because it
+was not in §3's table and it is not obvious from it:
+
+**The availability cache had to be keyed by profile, and that was forced.**
+`WarmAvailability`/`AvailableFromCache` were one `std::atomic<int>` for the
+process, which was right while the only place a background could live was
+beside `chrome.exe` — a property of the machine, the same for every profile in
+it. The profile location makes it a property of a *profile*. A process-wide
+answer would tell the second profile that a background exists because the first
+one has one, and it would then create a frame for a file that is not there —
+the exact defect the cache was introduced to avoid, arriving from the other
+direction. It is a small map under a lock now, one entry per profile that has
+opened a window.
 
 ## 4. The animation rules — NTB-3, and PB-5a
 

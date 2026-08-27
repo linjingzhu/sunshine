@@ -155,7 +155,7 @@ index b6dab96..0c044f2 100644
    ${this.lazyRender_ && this.microsoftModuleEnabled_ ? html`
      <iframe id="microsoftAuth" src="${this.microsoftAuthIframePath_}"></iframe>
    ` : ''}
-@@ -28,13 +53,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
+@@ -28,13 +64,9 @@ import {SubmitButtonIconType} from '//resources/cr_components/composebox/compose
          </ntp-iframe>
          `
      ) : ''}
@@ -231,7 +231,7 @@ index 838385f..63bd02c 100644
    '#searchboxContainer',
  ];
  
-@@ -178,7 +194,6 @@ export interface AppElement {
+@@ -178,7 +214,6 @@ export interface AppElement {
    $: {
      customizeButtons: CustomizeButtonsElement,
      oneGoogleBarClipPath: HTMLElement,
@@ -239,7 +239,7 @@ index 838385f..63bd02c 100644
      searchbox: NtpSearchboxElement,
      composebox: NtpComposeboxElement,
      undoToast: CrToastElement,
-@@ -326,6 +341,19 @@ export class AppElement extends AppElementBase {
+@@ -326,6 +361,19 @@ export class AppElement extends AppElementBase {
  
        scrolledToTop_: {type: Boolean},
  
@@ -259,7 +259,7 @@ index 838385f..63bd02c 100644
        wallpaperSearchButtonAnimationEnabled_: {type: Boolean},
        wallpaperSearchButtonEnabled_: {type: Boolean},
        showWallpaperSearchButton_: {type: Boolean},
-@@ -462,6 +489,24 @@ export class AppElement extends AppElementBase {
+@@ -462,6 +510,24 @@ export class AppElement extends AppElementBase {
    protected accessor lazyRender_: boolean = false;
    protected accessor scrolledToTop_: boolean =
        document.documentElement.scrollTop <= 0;
@@ -284,7 +284,7 @@ index 838385f..63bd02c 100644
    protected accessor wallpaperSearchButtonAnimationEnabled_: boolean =
        loadTimeData.getBoolean('wallpaperSearchButtonAnimationEnabled');
    protected accessor wallpaperSearchButtonEnabled_: boolean =
-@@ -581,8 +622,83 @@ export class AppElement extends AppElementBase {
+@@ -581,8 +647,83 @@ export class AppElement extends AppElementBase {
      ColorChangeUpdater.forDocument().start();
    }
  
@@ -368,7 +368,7 @@ index 838385f..63bd02c 100644
      realboxCanShowSecondarySideMediaQueryList.addEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -702,6 +757,18 @@ export class AppElement extends AppElementBase {
+@@ -702,6 +843,18 @@ export class AppElement extends AppElementBase {
  
    override disconnectedCallback() {
      super.disconnectedCallback();
@@ -387,7 +387,7 @@ index 838385f..63bd02c 100644
      realboxCanShowSecondarySideMediaQueryList.removeEventListener(
          'change', this.onRealboxCanShowSecondarySideChanged_);
  
-@@ -1591,7 +1648,7 @@ export class AppElement extends AppElementBase {
+@@ -1591,7 +1744,7 @@ export class AppElement extends AppElementBase {
      }
      for (const target of e.composedPath()) {
        switch (target) {
