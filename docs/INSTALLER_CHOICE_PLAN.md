@@ -198,7 +198,21 @@ as content, and reported an entire file as changed.
 | `chrome/installer/util/initial_preferences_constants.h` | 90 lines | **unchanged** | **unchanged** |
 | `chrome/installer/setup/installer_state.cc` | 193 lines | **unchanged** | **unchanged** |
 | `chrome/installer/util/util_constants.cc` | 244 lines | **deleted** | **deleted** |
-| `chrome/installer/util/util_constants.h` | — | 318 lines differ | 318 lines differ |
+| `chrome/installer/util/util_constants.h` | 277 lines | 320 lines differ | 320 lines differ |
+
+**The last row said "—" at the pin until 2026-08-30**, which read as a file that
+did not exist there. It does: 277 lines, declaring `extern const wchar_t
+kChromeExe[]` while the `.cc` beside it defines the value. What happens at 153
+is not a new file appearing; it is the definition moving *into* the header:
+
+```cpp
+// 152.0.7977.42 -- util_constants.h declares, util_constants.cc defines
+extern const wchar_t kChromeExe[];
+// 153.0.8000.0 and trunk -- the .cc is gone and the header does both
+inline constexpr wchar_t kChromeExe[] = L"chrome.exe";
+```
+
+**That direction matters more than the churn does**, and §6a is why.
 
 **The two halves of this request have opposite costs, and the measurement is
 what shows it.**
@@ -228,6 +242,73 @@ file being restructured under the change.
 **This does not make the name work impossible.** It prices it: the patch is
 rewritten at the first roll, and this measurement is one milestone of evidence
 that it will be rewritten again.
+
+## 6a. Measured: the whole blast radius, not the part that was to hand
+
+§8.4 asked for `scripts/measure_rebase_cost.py` to be run against these files
+before the name work starts. **That was the wrong tool and the ask was still
+right.** The rebase-cost script applies the patch series; a file no patch names
+is invisible to it, and the name change would own files no patch has ever
+named. `scripts/measure_file_churn.py` is what the question needed, and it is a
+script rather than another hand-made table because the row corrected above was
+wrong precisely for being a thing someone did once.
+
+All twenty-two files §4 enumerates, at the pin, at the next milestone and at
+trunk:
+
+| File | at 152.0.7977.42 | 153.0.8000.0 | main |
+| --- | --- | --- | --- |
+| `chrome/installer/util/util_constants.cc` | 244 lines | **deleted** | **deleted** |
+| `chrome/installer/util/util_constants.h` | 277 lines | 320 lines differ | 320 lines differ |
+| `chrome/installer/setup/setup_main.cc` | 1786 lines | **unchanged** | **unchanged** |
+| `chrome/installer/setup/install.cc` | 608 lines | **unchanged** | **unchanged** |
+| `chrome/installer/setup/install_worker.cc` | 1331 lines | 10 lines differ | 17 lines differ |
+| `chrome/installer/setup/setup_util.cc` | 685 lines | **unchanged** | 5 lines differ |
+| `chrome/installer/setup/installer_state.cc` | 193 lines | **unchanged** | **unchanged** |
+| `chrome/installer/setup/setup_constants.cc` | 55 lines | **unchanged** | **unchanged** |
+| `chrome/installer/setup/setup_install_details.cc` | 108 lines | **unchanged** | **unchanged** |
+| `chrome/installer/setup/uninstall.cc` | 1243 lines | **unchanged** | 10 lines differ |
+| `chrome/installer/setup/setup_singleton.cc` | 130 lines | **unchanged** | 2 lines differ |
+| `chrome/installer/setup/brand_behaviors.h` | 43 lines | **unchanged** | **unchanged** |
+| `chrome/installer/util/delete_old_versions.cc` | 252 lines | **unchanged** | **unchanged** |
+| `chrome/installer/util/shell_util.cc` | 2547 lines | **unchanged** | **unchanged** |
+| `chrome/installer/util/install_util.cc` | 620 lines | **unchanged** | **unchanged** |
+| `chrome/installer/util/helper.cc` | 225 lines | **unchanged** | **unchanged** |
+| `chrome/browser/shell_integration_win.cc` | 959 lines | **unchanged** | 112 lines differ |
+| `chrome/install_static/install_util.cc` | 995 lines | **unchanged** | **unchanged** |
+| `chrome/install_static/install_util.h` | 338 lines | **unchanged** | **unchanged** |
+| `chrome/install_static/install_modes.h` | 72 lines | **unchanged** | **unchanged** |
+| `chrome/install_static/install_modes.cc` | 59 lines | **unchanged** | **unchanged** |
+| `chrome/install_static/product_install_details.cc` | 166 lines | **unchanged** | **unchanged** |
+
+### What this changes about §4, and what it does not
+
+**Two files of twenty-two move at the next milestone.** `util_constants.cc`
+disappears, `util_constants.h` absorbs it, and `install_worker.cc` differs by
+ten lines. Everything else — including `shell_util.cc` at 2,547 lines, which
+carries ProgID and default-browser registration, and the whole of
+`install_static` — is **byte-identical at 153**.
+
+So §4's sentence *"each upstream roll re-applies these edits against code that
+assumes the constants it was written with"* is not what one milestone shows. The
+edits away from the constants would re-apply untouched. **The cost is not spread
+across the radius; it is concentrated in the one file the change cannot
+avoid**, and that file is the one under active restructuring.
+
+**The direction of the restructuring is the finding worth the owner's
+attention.** At the pin, `kChromeExe` is an `extern` declaration whose value
+lives in a `.cc` — a definition in one translation unit, which is the easiest
+possible thing to make a runtime value. At 153 it is `inline constexpr` in a
+header, consumed at compile time by everything that includes it, including
+`install_static`, whose design premise §4 already names: brand identity is a
+compile-time constant. **Upstream moved further in the direction that makes a
+user-typed name harder**, in one milestone, without anyone asking it to.
+
+That is evidence about a trend from a single step, which is the weakest kind of
+evidence about a trend. It is recorded as one measurement, and
+`scripts/measure_file_churn.py executable-name` re-runs it at the next roll.
+
+**No decision is made here.** §8.3 is the owner's and this only prices it.
 
 ## 7. What the owner decided
 
@@ -279,9 +360,14 @@ was for.
    clarity only to the person who typed it, and only until the first update.
    **This is the one place where what was asked for and what was wanted may come
    apart**, and it is the owner's to settle.
-4. **Roll cost.** `scripts/measure_rebase_cost.py` exists and has never been run
-   against these files. It should be, before the name work starts rather than
-   after.
+4. ~~**Roll cost.** `scripts/measure_rebase_cost.py` exists and has never been
+   run against these files. It should be, before the name work starts rather
+   than after.~~ **Measured — §6a.** The tool named here was the wrong one and
+   the ask was right; `scripts/measure_file_churn.py` answers it. Two of
+   twenty-two files move at the next milestone, the cost is concentrated in
+   `util_constants.*` rather than spread, and upstream has moved the constant
+   *further* toward compile time in the one milestone measured. The question
+   left for the owner is 3, not this.
 
 ## 9. NOT VERIFIED
 
