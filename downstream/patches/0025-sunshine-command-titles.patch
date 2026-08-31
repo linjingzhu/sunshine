@@ -1,0 +1,271 @@
+diff --git a/chrome/app/sunshine/BUILD.gn b/chrome/app/sunshine/BUILD.gn
+new file mode 100644
+index 0000000..86648e3
+--- /dev/null
++++ b/chrome/app/sunshine/BUILD.gn
+@@ -0,0 +1,25 @@
++# Copyright 2026 The Sunshine OS contributors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++# The command titles, as a strings grd of Sunshine's own.
++#
++# **This target is here rather than in `chrome/app/BUILD.gn`, and that is the
++# whole reason this directory exists.** `grit_strings` is a public template in
++# `//tools/grit/grit_rule.gni`, so a strings target may be declared from any
++# BUILD.gn; declaring it beside Chromium's own would have made
++# `chrome/app/BUILD.gn` the twenty-eighth upstream file this stack owns, for a
++# target that has nothing to do with anything else in it.
++#
++# `output_dir` is Chromium's own gen directory rather than this one, because
++# `chrome/chrome_repack_locales.gni` names sources by path and every string set
++# it packs is under `$root_gen_dir/chrome`. Putting the output somewhere tidier
++# would mean the repack naming a second directory.
++
++import("//tools/grit/grit_rule.gni")
++
++grit_strings("sunshine_command_strings") {
++  source = "sunshine_command_strings.grd"
++  output_dir = "$root_gen_dir/chrome"
++  outputs = [ "grit/sunshine_command_strings.h" ]
++}
+diff --git a/chrome/app/sunshine/sunshine_command_strings.grd b/chrome/app/sunshine/sunshine_command_strings.grd
+new file mode 100644
+index 0000000..26d9860
+--- /dev/null
++++ b/chrome/app/sunshine/sunshine_command_strings.grd
+@@ -0,0 +1,201 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- One short imperative label per registered command.
++
++`docs/COMMAND_PALETTE_CONTRACT.md` section 5(1): every command in
++`first_party/commands.json` needs a localised user-facing title, and it belongs
++in Chromium's localisation system rather than in a WebUI bundle, because the
++toolbar, the menus and the gestures invoke commands too and none of them can
++read a bundle. `summary` in the registry is a developer-facing sentence ending
++in a period; this is the row a person reads.
++
++The message name is derived from the command identifier the same way the
++telemetry name is -- `browser.zoom.in` becomes IDS_SUNSHINE_COMMAND_BROWSER_ZOOM_IN
++-- so the two cannot drift apart by being typed separately.
++`scripts/validate_commands.py` fails when a registered command has no message
++here, and when a message here names no registered command.
++
++The outputs below mirror `chrome/app/chromium_strings.grd`, one locale at a
++time, because that file is one this build already produces and copying a
++working list is the only way to be right about it without a compiler. A guard
++holds the two in step, so a Chromium roll that adds a locale fails a check
++rather than a six-hour build.
++
++There is no <translations> block. No .xtb exists for any of these strings and
++this project has no translation pipeline, so every locale carries the source
++text. That is what Chromium does for any new string until translation lands,
++and it is stated here rather than left to be discovered. -->
++
++<grit base_dir="." latest_public_release="0" current_release="1"
++      source_lang_id="en" enc_check="möl">
++  <outputs>
++    <output filename="grit/sunshine_command_strings.h" type="rc_header">
++      <emit emit_type='prepend'></emit>
++    </output>
++    <output filename="sunshine_command_strings_af.pak" type="data_package" lang="af" />
++    <output filename="sunshine_command_strings_am.pak" type="data_package" lang="am" />
++    <output filename="sunshine_command_strings_ar.pak" type="data_package" lang="ar" />
++    <output filename="sunshine_command_strings_as.pak" type="data_package" lang="as" />
++    <output filename="sunshine_command_strings_az.pak" type="data_package" lang="az" />
++    <output filename="sunshine_command_strings_be.pak" type="data_package" lang="be" />
++    <output filename="sunshine_command_strings_bg.pak" type="data_package" lang="bg" />
++    <output filename="sunshine_command_strings_bn.pak" type="data_package" lang="bn" />
++    <output filename="sunshine_command_strings_bs.pak" type="data_package" lang="bs" />
++    <output filename="sunshine_command_strings_ca.pak" type="data_package" lang="ca" />
++    <output filename="sunshine_command_strings_cs.pak" type="data_package" lang="cs" />
++    <output filename="sunshine_command_strings_cy.pak" type="data_package" lang="cy" />
++    <output filename="sunshine_command_strings_da.pak" type="data_package" lang="da" />
++    <output filename="sunshine_command_strings_de.pak" type="data_package" lang="de" />
++    <output filename="sunshine_command_strings_el.pak" type="data_package" lang="el" />
++    <output filename="sunshine_command_strings_en-GB.pak" type="data_package" lang="en-GB" />
++    <output filename="sunshine_command_strings_en-US.pak" type="data_package" lang="en" />
++    <output filename="sunshine_command_strings_es.pak" type="data_package" lang="es" />
++    <output filename="sunshine_command_strings_es-419.pak" type="data_package" lang="es-419" />
++    <output filename="sunshine_command_strings_et.pak" type="data_package" lang="et" />
++    <output filename="sunshine_command_strings_eu.pak" type="data_package" lang="eu" />
++    <output filename="sunshine_command_strings_fa.pak" type="data_package" lang="fa" />
++    <output filename="sunshine_command_strings_fi.pak" type="data_package" lang="fi" />
++    <output filename="sunshine_command_strings_fil.pak" type="data_package" lang="fil" />
++    <output filename="sunshine_command_strings_fr-CA.pak" type="data_package" lang="fr-CA" />
++    <output filename="sunshine_command_strings_fr.pak" type="data_package" lang="fr" />
++    <output filename="sunshine_command_strings_gl.pak" type="data_package" lang="gl" />
++    <output filename="sunshine_command_strings_gu.pak" type="data_package" lang="gu" />
++    <output filename="sunshine_command_strings_he.pak" type="data_package" lang="he" />
++    <output filename="sunshine_command_strings_hi.pak" type="data_package" lang="hi" />
++    <output filename="sunshine_command_strings_hr.pak" type="data_package" lang="hr" />
++    <output filename="sunshine_command_strings_hu.pak" type="data_package" lang="hu" />
++    <output filename="sunshine_command_strings_hy.pak" type="data_package" lang="hy" />
++    <output filename="sunshine_command_strings_id.pak" type="data_package" lang="id" />
++    <output filename="sunshine_command_strings_is.pak" type="data_package" lang="is" />
++    <output filename="sunshine_command_strings_it.pak" type="data_package" lang="it" />
++    <output filename="sunshine_command_strings_ja.pak" type="data_package" lang="ja" />
++    <output filename="sunshine_command_strings_ka.pak" type="data_package" lang="ka" />
++    <output filename="sunshine_command_strings_kk.pak" type="data_package" lang="kk" />
++    <output filename="sunshine_command_strings_km.pak" type="data_package" lang="km" />
++    <output filename="sunshine_command_strings_kn.pak" type="data_package" lang="kn" />
++    <output filename="sunshine_command_strings_ko.pak" type="data_package" lang="ko" />
++    <output filename="sunshine_command_strings_ky.pak" type="data_package" lang="ky" />
++    <output filename="sunshine_command_strings_lo.pak" type="data_package" lang="lo" />
++    <output filename="sunshine_command_strings_lt.pak" type="data_package" lang="lt" />
++    <output filename="sunshine_command_strings_lv.pak" type="data_package" lang="lv" />
++    <output filename="sunshine_command_strings_mk.pak" type="data_package" lang="mk" />
++    <output filename="sunshine_command_strings_ml.pak" type="data_package" lang="ml" />
++    <output filename="sunshine_command_strings_mn.pak" type="data_package" lang="mn" />
++    <output filename="sunshine_command_strings_mr.pak" type="data_package" lang="mr" />
++    <output filename="sunshine_command_strings_ms.pak" type="data_package" lang="ms" />
++    <output filename="sunshine_command_strings_my.pak" type="data_package" lang="my" />
++    <output filename="sunshine_command_strings_ne.pak" type="data_package" lang="ne" />
++    <output filename="sunshine_command_strings_nl.pak" type="data_package" lang="nl" />
++    <output filename="sunshine_command_strings_nb.pak" type="data_package" lang="no" />
++    <output filename="sunshine_command_strings_pa.pak" type="data_package" lang="pa" />
++    <output filename="sunshine_command_strings_pl.pak" type="data_package" lang="pl" />
++    <output filename="sunshine_command_strings_pt-BR.pak" type="data_package" lang="pt-BR" />
++    <output filename="sunshine_command_strings_pt-PT.pak" type="data_package" lang="pt-PT" />
++    <output filename="sunshine_command_strings_or.pak" type="data_package" lang="or" />
++    <output filename="sunshine_command_strings_ro.pak" type="data_package" lang="ro" />
++    <output filename="sunshine_command_strings_ru.pak" type="data_package" lang="ru" />
++    <output filename="sunshine_command_strings_si.pak" type="data_package" lang="si" />
++    <output filename="sunshine_command_strings_sk.pak" type="data_package" lang="sk" />
++    <output filename="sunshine_command_strings_sl.pak" type="data_package" lang="sl" />
++    <output filename="sunshine_command_strings_sq.pak" type="data_package" lang="sq" />
++    <output filename="sunshine_command_strings_sr-Latn.pak" type="data_package" lang="sr-Latn" />
++    <output filename="sunshine_command_strings_sr.pak" type="data_package" lang="sr" />
++    <output filename="sunshine_command_strings_sv.pak" type="data_package" lang="sv" />
++    <output filename="sunshine_command_strings_sw.pak" type="data_package" lang="sw" />
++    <output filename="sunshine_command_strings_ta.pak" type="data_package" lang="ta" />
++    <output filename="sunshine_command_strings_te.pak" type="data_package" lang="te" />
++    <output filename="sunshine_command_strings_th.pak" type="data_package" lang="th" />
++    <output filename="sunshine_command_strings_tr.pak" type="data_package" lang="tr" />
++    <output filename="sunshine_command_strings_uk.pak" type="data_package" lang="uk" />
++    <output filename="sunshine_command_strings_ur.pak" type="data_package" lang="ur" />
++    <output filename="sunshine_command_strings_uz.pak" type="data_package" lang="uz" />
++    <output filename="sunshine_command_strings_vi.pak" type="data_package" lang="vi" />
++    <output filename="sunshine_command_strings_zh-CN.pak" type="data_package" lang="zh-CN" />
++    <output filename="sunshine_command_strings_zh-HK.pak" type="data_package" lang="zh-HK" />
++    <output filename="sunshine_command_strings_zh-TW.pak" type="data_package" lang="zh-TW" />
++    <output filename="sunshine_command_strings_zu.pak" type="data_package" lang="zu" />
++    <output filename="sunshine_command_strings_ar-XB.pak" type="data_package" lang="ar-XB" />
++    <output filename="sunshine_command_strings_en-XA.pak" type="data_package" lang="en-XA" />
++  </outputs>
++  <release seq="1" allow_pseudo="false">
++    <messages fallback_to_english="true">
++      <message name="IDS_SUNSHINE_COMMAND_BOOKMARK_TOGGLE" desc="Palette row label for the bookmark.toggle command.">
++        Bookmark this tab
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_BACK" desc="Palette row label for the browser.back command.">
++        Back
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_DEVTOOLS_OPEN" desc="Palette row label for the browser.devtools.open command.">
++        Open developer tools
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_FIND_CLOSE" desc="Palette row label for the browser.find.close command.">
++        Close the find bar
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_FIND_NEXT" desc="Palette row label for the browser.find.next command.">
++        Find next
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_FIND_OPEN" desc="Palette row label for the browser.find.open command.">
++        Find in page
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_FIND_PREVIOUS" desc="Palette row label for the browser.find.previous command.">
++        Find previous
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_FORWARD" desc="Palette row label for the browser.forward command.">
++        Forward
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_PAGE_SAVE" desc="Palette row label for the browser.page.save command.">
++        Save page
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_PRINT" desc="Palette row label for the browser.print command.">
++        Print
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_RELOAD" desc="Palette row label for the browser.reload command.">
++        Reload
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_STOP" desc="Palette row label for the browser.stop command.">
++        Stop loading
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_VIEW_SOURCE" desc="Palette row label for the browser.view_source command.">
++        View page source
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_ZOOM_IN" desc="Palette row label for the browser.zoom.in command.">
++        Zoom in
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_ZOOM_OUT" desc="Palette row label for the browser.zoom.out command.">
++        Zoom out
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_BROWSER_ZOOM_RESET" desc="Palette row label for the browser.zoom.reset command.">
++        Reset zoom
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_SECURITY_CENTER_OPEN" desc="Palette row label for the security_center.open command.">
++        Open Security Center
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_TAB_CLOSE" desc="Palette row label for the tab.close command.">
++        Close tab
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_TAB_DUPLICATE" desc="Palette row label for the tab.duplicate command.">
++        Duplicate tab
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_TAB_GROUP_CREATE" desc="Palette row label for the tab.group.create command.">
++        Group the selected tabs
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_TAB_GROUP_UNGROUP" desc="Palette row label for the tab.group.ungroup command.">
++        Ungroup the selected tabs
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_TAB_NEW" desc="Palette row label for the tab.new command.">
++        New tab
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_WORKSPACE_CLOSE" desc="Palette row label for the workspace.close command.">
++        Close workspace
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_WORKSPACE_CREATE" desc="Palette row label for the workspace.create command.">
++        New workspace
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_WORKSPACE_SWITCH" desc="Palette row label for the workspace.switch command.">
++        Switch workspace
++      </message>
++      <message name="IDS_SUNSHINE_COMMAND_WORKSPACE_TAB_MOVE" desc="Palette row label for the workspace.tab.move command.">
++        Move tabs to another workspace
++      </message>
++    </messages>
++  </release>
++</grit>
+diff --git a/chrome/chrome_repack_locales.gni b/chrome/chrome_repack_locales.gni
+index 19be586..27a7554 100644
+--- a/chrome/chrome_repack_locales.gni
++++ b/chrome/chrome_repack_locales.gni
+@@ -24,6 +24,20 @@ template("chrome_repack_locales") {
+     source_patterns = [
+       "${root_gen_dir}/chrome/branded_strings_",
+       "${root_gen_dir}/chrome/generated_resources_",
++
++    # Sunshine's command titles. docs/COMMAND_PALETTE_CONTRACT.md section 5(1)
++    # requires every registered command to carry a localised title, and a title
++    # has to reach the toolbar and the menus as well as the palette -- so it is
++    # a strings grd packed per locale, not an entry in the WebUI bundle.
++    #
++    # **This is the twenty-seventh upstream file the patch stack owns, and it
++    # was chosen over the alternative by measurement rather than by reflex.**
++    # The zero-file route was to put the titles in chromium_strings.grd, which
++    # patch 0010 already owns; that file is the branded product-name file, it is
++    # the wrong home, and it moves by 64 lines at the next milestone and 250 at
++    # trunk where this one moves by two at both.
++    # `scripts/measure_file_churn.py command-titles` re-runs the comparison.
++    "${root_gen_dir}/chrome/sunshine_command_strings_",
+       "${root_gen_dir}/chrome/locale_settings_",
+       "${root_gen_dir}/chrome/platform_locale_settings_",
+       "${root_gen_dir}/components/omnibox/resources/omnibox_pedal_synonyms_",
+@@ -50,6 +64,7 @@ template("chrome_repack_locales") {
+     deps += [
+       "//chrome/app:branded_strings",
+       "//chrome/app:generated_resources",
++    "//chrome/app/sunshine:sunshine_command_strings",
+       "//chrome/app/resources:locale_settings",
+       "//chrome/app/resources:platform_locale_settings",
+       "//components/omnibox/resources:omnibox_pedal_synonyms",

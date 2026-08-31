@@ -892,6 +892,24 @@ resolves.
 
 ## 15. Not verified
 
+**Nothing about the command titles has been built.** The grd's `<outputs>`
+block mirrors `chrome/app/chromium_strings.grd`'s, one locale at a time, which
+is the closest thing to a proof available without a compiler — that file is an
+input this build already consumes. What has not been checked is whether grit
+accepts a strings grd with **no `<translations>` block**: no `.xtb` exists for
+any of these strings and this project has no translation pipeline, so every
+locale carries the source text. That is what Chromium does for a new string
+until translation lands, and it is stated rather than left to be found.
+
+**The fake start id `2180` was not validated by grit.** It is intermediate
+between its neighbours as `tools/gritsettings/README.md` requires, and it is
+placed outside the `join: 5` group so that the join's semantics cannot matter —
+but `python3 ../grit/grit.py update_resource_ids -i resource_ids.spec --fake`
+is the tool that would confirm it, and this environment has no checkout to run
+it in. It is the first thing to run on the build machine if build #48 fails in
+grit.
+
+
 Nothing in this document has been executed. Specifically:
 
 - No Chromium checkout, configuration, compilation, or link of the pinned
@@ -938,6 +956,10 @@ Section 7.8 is complete when, in order:
    least one unavailable reason. See *What this took* below.
 2. ~~reload and stop are separate registered commands;~~ **Done, 2026-08-31** —
    `browser.stop`, per §3.
+3. ~~every registered command has a localised title, enforced by a build
+   check;~~ **Done, 2026-08-31** — `0025-sunshine-command-titles.patch`, and
+   `scripts/validate_commands.py` holds the two lists to each other in both
+   directions. See *Item 3* above for what it cost and what it did not verify.
 3. every registered command has a localised title, enforced by a build check;
 4. a first-party module owns the palette surface and its opening command;
 5. the palette dispatches through the single command service; and
@@ -947,7 +969,7 @@ Section 7.8 is complete when, in order:
 Items 1 and 2 are blocking dependencies on the command registry, not palette
 work. A palette built before them can be demonstrated and cannot be shipped.
 
-### Item 3 is costed and not started, and the measurement inverts the reflex
+### Item 3: the measurement inverted the reflex, and the build found three more things
 
 Titles are localised strings, and §5(1) puts them in Chromium's localisation
 system rather than in a WebUI bundle — correctly, because the toolbar, the menus
@@ -983,10 +1005,45 @@ abuse instead moves thirty times as much and is the wrong home besides.
 declining it is a measurement rather than a feeling: 20,169 lines, 350 differing
 at the next milestone.
 
-**Not started.** Taking a twenty-seventh upstream file is the owner's to say,
-and every comparable step in this repository — ADR 0019, §3d's picker
-placement, `docs/INSTALLER_CHOICE_PLAN.md` §8.3 — went to them with the costs
-rather than being taken quietly.
+**Route A, taken on the owner's word, 2026-08-31.**
+`0025-sunshine-command-titles.patch` creates
+`chrome/app/sunshine/sunshine_command_strings.grd` and its `BUILD.gn`, and
+`chrome/chrome_repack_locales.gni` becomes the twenty-seventh upstream file the
+stack owns. `scripts/validate_commands.py` fails when a registered command has
+no title message and when a message names no registered command — both
+directions, because a message for a retired command is a string translators are
+paid to translate for nothing.
+
+Three things the costing missed, found while building it and worth the next
+reader's attention:
+
+1. **The `grit_strings` target could not go where Chromium's own do.** It is
+   declared in `chrome/app/BUILD.gn`, which the stack does not own, and putting
+   it there would have made a twenty-eighth file. `grit_strings` is a public
+   template in `//tools/grit/grit_rule.gni`, so the target lives in a BUILD.gn
+   Sunshine creates instead. Checked before building rather than assumed.
+2. **`tools/gritsettings/resource_ids.spec` is an upstream file patch 0004
+   already owns**, so the id entry had to go in *that* patch. An upstream file
+   has exactly one owner; `scripts/patch_manifest.py` refused the second claim,
+   which is the guard doing its job.
+3. **The entry is out of alphabetical order on purpose.**
+   `chrome/app/theme/chrome_unscaled_resources.grd` carries
+   `META: {"join": 5}`, and `chrome/app/sunshine/` sorts directly before it, so
+   the alphabetical position is inside whatever that join counts.
+   `tools/gritsettings/README.md`'s simple case explicitly does not apply next
+   to a join, and grit's implementation of it was not read. Placing the entry
+   *after* the join group means the word's meaning does not matter: an
+   insertion outside a group cannot change what the group joins under any
+   reading. That is a deliberate trade of tidiness for a property that holds
+   without a compiler.
+
+**The locale list is the part that could still fail a build**, and it is the
+reason the grd's `<outputs>` block was copied from
+`chrome/app/chromium_strings.grd` one line at a time rather than derived from
+`build/config/locales.gni`. That file is a working input to this build; the GN
+list is computed with platform conditionals this repository cannot evaluate.
+Copying the working list is the only way to be right about it without a
+compiler, and §15 carries what remains unverified.
 
 ### What items 1 and 2 took, and the rule that had to be reversed
 

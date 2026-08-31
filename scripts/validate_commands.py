@@ -45,6 +45,13 @@ REQUIRED_KEYS = {
 SELECTION_KINDS = frozenset({"workspace", "tab", "pane"})
 NO_SELECTION = "none"
 SEGMENT = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+
+# Where the palette row's label lives. `docs/COMMAND_PALETTE_CONTRACT.md` §5(1):
+# a title is a localised string in Chromium's own system, not a field in this
+# registry, because the toolbar and the menus invoke commands too and cannot
+# read a WebUI bundle. What is checkable here is that the two lists agree.
+TITLES_PATCH = "downstream/patches/0025-sunshine-command-titles.patch"
+TITLE_MESSAGE = re.compile(r'<message name="(IDS_SUNSHINE_COMMAND_[A-Z0-9_]+)"')
 TELEMETRY = re.compile(r"^Sunshine\.Command\.[A-Za-z0-9]+$")
 CALLABLE_REF = re.compile(r"^scripts\.[a-z_]+:[a-z_]+$")
 # Tokens in documentation that look like a command: backticked, dotted, and
@@ -56,6 +63,31 @@ CHROMIUM_OWNER = "chromium"
 
 class CommandRegistryError(ValueError):
     pass
+
+
+def expected_title(command_id: str) -> str:
+    """Derive the message name so it cannot drift from the identifier.
+
+    The same trick `expected_telemetry` uses, for the same reason: two names
+    typed separately are two names that will eventually disagree, and a title
+    that disagrees is a palette row that renders its own resource id.
+    """
+
+    return "IDS_SUNSHINE_COMMAND_" + command_id.replace(".", "_").upper()
+
+
+def declared_titles(root: Path = ROOT) -> set[str] | None:
+    """Every title message the patch stack adds, or None if the patch is absent.
+
+    None rather than an empty set, because "the titles have not been built yet"
+    and "the titles were built and are empty" are different states and only the
+    second is a failure. §5(1) is a requirement on a palette that exists.
+    """
+
+    patch = root / TITLES_PATCH
+    if not patch.is_file():
+        return None
+    return set(TITLE_MESSAGE.findall(patch.read_text(encoding="utf-8")))
 
 
 def expected_telemetry(command_id: str) -> str:
@@ -298,6 +330,25 @@ def validate(root: Path = ROOT) -> int:
     unknown_in_docs = sorted(documented_commands(surfaces, root / "docs") - registered)
     if unknown_in_docs:
         raise CommandRegistryError(f"docs reference unregistered commands: {unknown_in_docs}")
+
+    # §5(1): "A build check must fail when a registered command has no title
+    # string, so the string table cannot drift from the registry the way a
+    # hidden set would." Both directions, because a message for a command that
+    # no longer exists is a row nothing can render and a string translators are
+    # paid to translate for nothing.
+    titles = declared_titles(root)
+    if titles is not None:
+        expected = {expected_title(command_id) for command_id in ids}
+        missing = sorted(expected - titles)
+        if missing:
+            raise CommandRegistryError(
+                f"registered commands with no title message: {missing}"
+            )
+        extra = sorted(titles - expected)
+        if extra:
+            raise CommandRegistryError(
+                f"title messages for unregistered commands: {extra}"
+            )
 
     return len(ids)
 

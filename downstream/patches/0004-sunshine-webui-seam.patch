@@ -344,7 +344,33 @@ diff --git a/tools/gritsettings/resource_ids.spec b/tools/gritsettings/resource_
 index 24ed276..73e27c5 100644
 --- a/tools/gritsettings/resource_ids.spec
 +++ b/tools/gritsettings/resource_ids.spec
-@@ -868,6 +868,19 @@
+@@ -88,6 +88,25 @@
+   "chrome/app/theme/theme_resources.grd": {
+     "structures": [2160],
+   },
++
++  # Sunshine's command titles: one short label per entry in
++  # first_party/commands.json. docs/COMMAND_PALETTE_CONTRACT.md section 5(1).
++  #
++  # **Out of alphabetical order on purpose, and the reason is the entry above
++  # the theme block.** `chrome/app/theme/chrome_unscaled_resources.grd` carries
++  # `META: {"join": 5}`, and `chrome/app/sunshine/` sorts directly before it --
++  # so the alphabetical position is inside whatever that join counts.
++  # tools/gritsettings/README.md's simple case explicitly does not apply next to
++  # a join, and grit's own implementation of it was not read. Placing the entry
++  # after the join group instead means its meaning does not matter: an insertion
++  # outside a group cannot change what the group joins, under any reading of the
++  # word. The section still has forty fake ids of room here.
++  #
++  # No `META: sizes` because this grd is a file in the tree rather than a
++  # generated one, so grit counts its messages itself.
++  "chrome/app/sunshine/sunshine_command_strings.grd": {
++    "messages": [2180],
++  },
+   # END chrome/app section.
+ 
+   # START chrome/browser section.
+@@ -868,6 +887,19 @@
     "META": {"sizes": {"includes": [10],}},
     "includes": [5160],
    },
