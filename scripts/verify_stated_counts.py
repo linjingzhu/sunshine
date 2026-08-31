@@ -781,6 +781,12 @@ NOT_THE_PIN: dict[str, tuple[str, ...]] = {
     # roll that rewrote the literal would turn a measurement into a claim about
     # whichever revision was current when someone last ran sed.
     "docs/NEWTAB_BACKGROUND_CONTRACT.md": ("153.0.8000.0",),
+    # §16's two routes to a localised command title, measured before either is
+    # taken. The finding is a comparison -- `chrome_repack_locales.gni` moves by
+    # two lines where `chromium_strings.grd` moves by sixty-four -- and a roll
+    # that rewrote the literal would leave the two numbers describing different
+    # revisions and the comparison meaning nothing.
+    "docs/COMMAND_PALETTE_CONTRACT.md": ("153.0.8000.0",),
 }
 
 

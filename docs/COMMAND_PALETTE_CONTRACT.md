@@ -947,6 +947,47 @@ Section 7.8 is complete when, in order:
 Items 1 and 2 are blocking dependencies on the command registry, not palette
 work. A palette built before them can be demonstrated and cannot be shipped.
 
+### Item 3 is costed and not started, and the measurement inverts the reflex
+
+Titles are localised strings, and §5(1) puts them in Chromium's localisation
+system rather than in a WebUI bundle — correctly, because the toolbar, the menus
+and the gestures invoke commands too and none of them can read a bundle. That
+makes item 3 a question about which `.grd`, and the Sunshine bundle is not a
+candidate: it is an `includes` grd packed through `chrome/chrome_paks.gni`,
+while a strings grd is packed per locale through
+`chrome/chrome_repack_locales.gni` — **a file the stack does not own.**
+
+Two routes, measured with `scripts/measure_file_churn.py command-titles`:
+
+| File | at 152.0.7977.42 | 153.0.8000.0 | main |
+| --- | --- | --- | --- |
+| `chrome/chrome_repack_locales.gni` | 133 lines | 2 lines differ | 2 lines differ |
+| `chrome/app/chromium_strings.grd` | 3406 lines | 64 lines differ | 250 lines differ |
+| `chrome/chrome_paks.gni` | 753 lines | 19 lines differ | 44 lines differ |
+| `tools/gritsettings/resource_ids.spec` | 1811 lines | 31 lines differ | 69 lines differ |
+| `chrome/app/generated_resources.grd` | 20169 lines | 350 lines differ | 1418 lines differ |
+
+| | Route A — a Sunshine strings grd | Route B — `chromium_strings.grd` |
+| --- | --- | --- |
+| New upstream files owned | **1**, the twenty-seventh | **0** |
+| What the edit is | one `source_pattern`, one `dep` | twenty-six `<message>` entries |
+| Churn of the file at issue | **2 lines**, at 153 *and* at trunk | 64 at 153, 250 at trunk |
+| Semantics | a Sunshine strings file holds Sunshine strings | command titles in the *branded product name* file |
+
+**The reflex is route B — take no new upstream file — and the numbers say the
+opposite.** `chrome_repack_locales.gni` is 133 lines and moves by two, twice; it
+is the calmest file measured anywhere in this repository. The file route B would
+abuse instead moves thirty times as much and is the wrong home besides.
+
+`chrome/app/generated_resources.grd` is priced in the same table so that
+declining it is a measurement rather than a feeling: 20,169 lines, 350 differing
+at the next milestone.
+
+**Not started.** Taking a twenty-seventh upstream file is the owner's to say,
+and every comparable step in this repository — ADR 0019, §3d's picker
+placement, `docs/INSTALLER_CHOICE_PLAN.md` §8.3 — went to them with the costs
+rather than being taken quietly.
+
 ### What items 1 and 2 took, and the rule that had to be reversed
 
 **§4.2 was unsatisfiable for twenty-one of the twenty-six commands, and two

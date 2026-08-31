@@ -75,6 +75,30 @@ SETS = {
         "chrome/install_static/install_modes.cc",
         "chrome/install_static/product_install_details.cc",
     ),
+    # `docs/COMMAND_PALETTE_CONTRACT.md` §5(1): every registered command needs a
+    # localised title, and titles belong in Chromium's localisation system
+    # rather than in a WebUI bundle, because the toolbar, the menus and the
+    # gestures invoke commands too and none of them can read a bundle.
+    #
+    # The two routes and what each costs are measured here rather than argued.
+    # The Sunshine WebUI bundle is an `includes` grd wired through
+    # `chrome_paks.gni`; a *strings* grd is a different flow, packed per locale
+    # through `chrome_repack_locales.gni`, which the stack does not own.
+    "command-titles": (
+        # Route A -- a Sunshine strings grd. This is the file that would become
+        # the stack's twenty-seventh owned upstream file: two lines, one
+        # source_pattern and one dep.
+        "chrome/chrome_repack_locales.gni",
+        # Route B -- the branded-strings file patch 0010 already owns, used for
+        # something it was not meant for.
+        "chrome/app/chromium_strings.grd",
+        # Owned already, and needed either way for reference.
+        "chrome/chrome_paks.gni",
+        "tools/gritsettings/resource_ids.spec",
+        # The file neither route takes, priced so that "not this one" is a
+        # measurement rather than a feeling.
+        "chrome/app/generated_resources.grd",
+    ),
 }
 
 
