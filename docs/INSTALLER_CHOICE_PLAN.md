@@ -285,10 +285,33 @@ was for.
 
 ## 9. NOT VERIFIED
 
-- **Nothing is built, and nothing has been compiled.** Every claim here is read
-  from the pinned source.
-- **The relaxed-validation patch has not been written or applied**, so "one
-  function" is a reading of `helper.cc`, not a measured diff.
+- **Nothing here has been run.** The folder half is built and compiles in CI as
+  part of the stack, but no installer produced from it has been executed and no
+  person has typed a path into the box.
+
+  **This bullet said "Nothing is built, and nothing has been compiled" until
+  2026-08-30**, and the bullet under it said the relaxed-validation patch had
+  not been written. `downstream/patches/0023-sunshine-installer-install-root.patch`
+  had existed for three days by then, applies at the pin, at `153.0.8000.0` and
+  at trunk, and §3's *Built, and what it actually took* describes it in detail
+  — in this same document. **A NOT VERIFIED section that disclaims work the
+  document elsewhere reports as done is worse than one that is silent**, because
+  it is the section a careful reader trusts most.
+
+  This is the second time in this document set. `docs/INSTALLER_UI_CONTRACT.md`
+  said "No implementation exists" while `installer/sunshine_setup.cpp` held 948
+  lines. Nothing caught either: no guard reads a document's account of its own
+  status, and the obvious rule — refuse a sentence that says a named patch is
+  unwritten — would have caught neither, because neither sentence named one.
+  What is enforced instead is the form that makes such a sentence checkable at
+  all: `scripts/verify_stated_counts.py` now refuses a sentence saying a patch
+  in `downstream/patches/series` does not exist, and refuses "nothing is built"
+  in a document that elsewhere heads a section *Built* — which is this one. It
+  catches two of the four; `docs/INSTALLER_UI_CONTRACT.md` §10 says which two
+  it does not and why widening it would be worse.
+- **The name half of §4 is unwritten and unmeasured.** Nothing in the tree
+  implements a chosen executable name, and the blast radius below is a reading
+  rather than a diff.
 - **The blast radius in §4 is enumerated from constant declarations and their
   documented roles, not from call-site analysis.** The true set of places that
   assume `chrome.exe` is a literal is at least the list given and may be larger.

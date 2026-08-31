@@ -224,7 +224,11 @@ already proved second; the handoff's own wave priorities third
 Center at wave 7 and command palette/workspaces at wave 9 — document surface
 is not in that table at all, being contracted after the handoff was written).
 
-1. **Register `chrome://sunshine-security` as a first-party module.**
+1. **Register `chrome://sunshine-security` as a first-party module. — Done.**
+   `first_party/modules/sunshine-security/module.json` declares `sunshine.security`
+   with a `native_command` entrypoint, and `first_party/registry.json` carries
+   it. Original text follows.
+
    Smallest possible increment: the WebUI itself is already patched (`0005`);
    what is missing is a `module.json` for it and an entry in
    `first_party/registry.json`, in the same shape as the existing
@@ -286,6 +290,30 @@ work is Document Surface Reading B (blocked on the not-yet-designed
 file-broker contract ADR 0009 describes) or a surface this repository has not
 yet named anywhere — and inventing one here would be exactly the "large
 module expansion" speculation this re-assessment exists to hold to evidence.
+
+### All three are done, and a fourth surface arrived from outside this sequence
+
+**Item 3 was the one this document called formally blocked**, on the P0 asking
+how content reaches the document surface. The owner answered Reading A on
+2026-08-27 and `0006-sunshine-document-webui` is in the stack. Items 1 and 2
+are done as marked above.
+
+Two surfaces have since landed that this sequence did not predict:
+`chrome://sunshine-account` (`0018`) and `chrome://sunshine-settings` (`0024`).
+**Neither invalidates the paragraph above** — it declined to *invent* a fourth
+surface, and both of these were named by a contract before they were built,
+which is the distinction it was drawing. What it does mean is that the sentence
+"no fourth item is offered" describes the moment this section was written and
+no longer describes the repository.
+
+**What the sequence never covered is the part that is now the largest unblocked
+piece of work**: the twenty commands in §3.1 are registered and unreachable.
+There is no dispatch from a command identifier to a Chromium entry point and no
+surface that lists one. `docs/COMMAND_PALETTE_CONTRACT.md` is documentation-only
+and adds no patch, and it calls itself the executable test of §3.2's
+command-first rule — a rule nothing has yet tested, because nothing invokes a
+command by identifier except the two gestures bound in
+`docs/GESTURE_CONTRACT.md` §4.
 
 ## 5. What is missing, precisely, for the categories this document does not solve
 

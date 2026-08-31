@@ -36,11 +36,21 @@ nor any other check reads this document's account of whether that source is
 there. A contract that is wrong about its own implementation status is worse
 than one that is silent, because it is read first and believed.
 
-**What is not built is the two decisions the owner has since made** — a chosen
-install folder and a chosen executable name. `docs/INSTALLER_CHOICE_PLAN.md` is
-what those cost and is the document that tracks them; the Path and Name rows
-above point at it. §9 says what this section leaves open, and §10 says what is
-not verified.
+**Of the two decisions the owner has since made, the folder is built and the
+name is not.** `downstream/patches/0023-sunshine-installer-install-root.patch`
+relaxes upstream's install-root validation, and the front-end carries a chosen
+root through elevation, warns about a user-writable one after it, and writes
+`program_files_dir`. The executable's name is untouched;
+`docs/INSTALLER_CHOICE_PLAN.md` §4 is what it costs and §8.3 is the decision it
+waits on. The Path and Name rows above point at that document.
+
+**This sentence said "What is not built is the two decisions" until
+2026-08-30**, three days after the folder half landed. That is the same failure
+as the corrected line above it, in the same paragraph, caught the same way —
+by a person reading it rather than by anything that runs. §10 records what is
+now enforced about the shape of such a claim and what still is not.
+
+§9 says what this section leaves open, and §10 says what is not verified.
 
 ## 1. The one structural decision
 
@@ -297,6 +307,34 @@ it found, and if the read fails the dialog says Install and proceeds, because a
 missing fact is not a reason to block an installation.
 
 ## 10. NOT VERIFIED
+
+### What now catches a contract that is wrong about itself, and what does not
+
+Twice this document has been wrong about whether its own subject exists, and
+`docs/INSTALLER_CHOICE_PLAN.md` and `docs/NEWTAB_BACKGROUND_CONTRACT.md` have
+been wrong the same way twice more. Nothing ran that could tell.
+
+`scripts/verify_stated_counts.py` now holds three rules about what a document
+claims exists, and it is worth being exact about their reach, because a rule
+believed to cover more than it does is the thing this section exists to prevent:
+
+| Shape | Caught |
+| --- | --- |
+| "`0023-…patch` has not been written", where that patch is in `series` | **Yes** |
+| "Nothing is built", in a document that elsewhere heads a section *Built* | **Yes** |
+| "What is not built is the two decisions", where one of the two is | **No** |
+| "Nothing is built", in a document with no such heading | **No** |
+| A surface spelled `sunshine://<host>` when the tree registers `chrome://sunshine-<host>` | **Yes** |
+
+**The two uncaught rows are the two this document produced**, and that is not an
+accident of effort. Both are scoped English claims whose truth depends on which
+of several things the sentence means, and a guard that adjudicated that would be
+guessing. The obvious wider rule — refuse any sentence saying a named patch is
+unwritten — would have caught **none** of the four, because not one of them
+named a patch. What the rules do is make the next such sentence decidable if it
+is written in a form that can be decided, and leave a person reading the
+document as the only thing that catches the rest.
+
 
 - **The banner is a placeholder and is meant to look like one.**
   `installer/banner.png` is a generated 1360×224 image carrying a diagonal

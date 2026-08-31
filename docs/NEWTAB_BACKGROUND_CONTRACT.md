@@ -5,14 +5,20 @@
 The content area's background on `chrome://new-tab-page`, for the Chromium
 revision pinned by Sunshine OS: `152.0.7977.42` (see `config/chromium.version`).
 
-**Implemented, and never run.** Four patches:
+**Implemented, and never seen.** Five patches:
 `0020-sunshine-newtab-background-format.patch` decides what a background may
 be (§2) and reads it; `0021-sunshine-newtab-background-source.patch` serves it
-(§3); `0002-sunshine-new-tab.patch` shows it (§4);
-`0022-sunshine-searchbox-state.patch` decides what the searchbox does over it
-(§3c).
+(§3); `0002-sunshine-new-tab.patch` shows it, rests it and carries the way in
+(§3a, §3b, §4); `0022-sunshine-searchbox-state.patch` decides what the
+searchbox does over it (§3c); `0024-sunshine-settings-surface.patch` is the
+picker and the surface it lives on (§3b, §3d).
 `scripts/verify_newtab_background.py` holds the patch stack to this document.
-Nothing has been built or displayed — §5 is the whole of what that means.
+
+**Compiled, and never displayed.** This line said "Nothing has been built or
+displayed" until 2026-08-30, while §5 recorded three native builds containing
+these patches — #40, #44 and #47. The distinction the head needs is not
+built/unbuilt but compiled/seen: a compiler has accepted all of this and
+nobody has looked at any of it. §5 is the whole of what that means.
 
 Every decision below was made by the owner. This document records them and the
 evidence each rests on; it does not re-derive them.
@@ -205,7 +211,14 @@ it. This widens that residue. It is recorded here rather than fixed by amending
 PB-4, because amending the budget a feature violates is the pattern that
 produced this contract's worst defect.
 
-**Nothing is built.** No picker, no second lookup path, no profile asset.
+**All three are built now.** `0024-sunshine-settings-surface.patch` is the
+picker, `0020` searches the profile directory before the install directory, and
+a profile asset is whatever the picker copied there. What is not built is a way
+to put a file in a profile without the picker; by hand still means by hand.
+
+This paragraph said "Nothing is built. No picker, no second lookup path, no
+profile asset" until 2026-08-30, three days after the first of the three
+landed.
 
 ## 3a. Resting — the background alone, three seconds after focus leaves
 
@@ -269,7 +282,11 @@ watched, and a minimised one is not, which is the line `visibilityState` already
 draws. Nothing about resting changes what happens when the window is actually
 hidden.
 
-**Nothing is built.**
+**Resting is built**, in `0002-sunshine-new-tab.patch`: the attribute, the
+three-second timer, the exclusion rules and the reduced-motion neutraliser. It
+has never been watched happen — §5. This paragraph said "Nothing is built"
+from the day the code landed, which is the longest any of this document's
+status lines was wrong.
 
 ## 3b. The status row — the time, and the way in
 

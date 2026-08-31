@@ -784,6 +784,223 @@ NOT_THE_PIN: dict[str, tuple[str, ...]] = {
 }
 
 
+# --- Status claims ------------------------------------------------------------
+#
+# A third failure with the same cause as the two above: a repository fact
+# restated in prose and then left behind. This one is about existence rather
+# than quantity, and it has now happened four times in two documents.
+#
+#   * `docs/INSTALLER_UI_CONTRACT.md` said "No implementation exists" while
+#     `installer/sunshine_setup.cpp` held 948 lines;
+#   * the same document then said neither of the owner's two decisions was
+#     built, three days after the folder half landed as patch `0023`;
+#   * `docs/INSTALLER_CHOICE_PLAN.md` §9 said "Nothing is built, and nothing
+#     has been compiled" and that the relaxed-validation patch "has not been
+#     written or applied" -- in a document whose §3 is headed *Built, and what
+#     it actually took*;
+#   * `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3a said "Nothing is built" from the
+#     day resting landed in patch `0002`.
+#
+# **Two rules, and both are about form rather than meaning**, because meaning is
+# what made the obvious rule useless: the natural check -- refuse a sentence
+# saying a named patch is unwritten -- would have caught **none** of the four,
+# since not one of them named a patch. What it does is make the next such
+# sentence checkable, by refusing the one shape that can be decided.
+#
+# Neither rule catches a scoped claim like "neither of the two is built". That
+# is stated here rather than papered over: the coverage is the shape that can be
+# decided offline, and a person reading the document is still the only thing
+# that catches the rest.
+
+# Only these. Each is an assertion that a thing does not exist, in the present
+# perfect or present tense; none of them is a statement about running, seeing,
+# measuring or compiling, which are the honest contents of a NOT VERIFIED
+# section and must keep passing.
+ABSENCE = re.compile(
+    r"\b(?:ha(?:s|ve) not been (?:written|applied|created)"
+    r"|(?:is|are) not written"
+    r"|do(?:es)? not exist"
+    r"|no such patch)\b",
+    re.IGNORECASE,
+)
+
+# "Nothing is built" in a document that elsewhere heads a section *Built*.
+NOTHING_BUILT = re.compile(
+    r"\bnothing (?:is|has been) built\b|\bnothing has been compiled\b", re.I)
+BUILT_HEADING = re.compile(r"^#{2,5} .*\bBuilt\b.*$", re.M)
+
+# A patch this repository either has or has not. Restricted to patches on
+# purpose: a `docs/…` path can exist as a file while the thing it names does
+# not exist as a decision, and that ambiguity is exactly what a guard must not
+# adjudicate. A patch has no such reading.
+PATCH_REFERENCE = re.compile(r"(?:downstream/patches/)?(\d{4}-[a-z0-9][a-z0-9-]*\.patch)")
+
+# Straight and curly double quotes only. Backticks are deliberately left alone:
+# the patch reference this rule needs to see is inside them.
+_SPEECH = (re.compile(r'"[^"\n]*"'), re.compile(r"\u201c[^\u201d\n]*\u201d"))
+
+
+def mask_speech(text: str) -> str:
+    """Blank the inside of every double-quoted span, keeping offsets.
+
+    This repository corrects a document by quoting the sentence that was wrong
+    and leaving it visible. Every correction therefore contains the very words
+    these rules refuse, and a rule that could not tell a quotation from a claim
+    would make the honest fix impossible.
+    """
+
+    masked = text
+    for pattern in _SPEECH:
+        masked = pattern.sub(
+            lambda m: m.group(0)[0] + "#" * (len(m.group(0)) - 2) + m.group(0)[-1],
+            masked,
+        )
+    return masked
+
+
+# A sentence ends at `.`, `!` or `?` followed by space. Deliberately naive: the
+# alternative is a sentence tokeniser, and every case this rule judges is one
+# clause long.
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def _sentences(text: str) -> list[tuple[int, str]]:
+    """(offset, sentence) for each sentence in `text`."""
+
+    spans, cursor = [], 0
+    for match in _SENTENCE_END.finditer(text):
+        spans.append((cursor, text[cursor:match.start()]))
+        cursor = match.end()
+    spans.append((cursor, text[cursor:]))
+    return [(start, body) for start, body in spans if body.strip()]
+
+
+# A Sunshine surface spelled as a scheme this build does not register.
+#
+# ADR 0003 decided there is no `sunshine://` scheme: every surface is
+# `chrome://sunshine-<host>`, and SEC-13 refuses the alternative. RV-4 is the
+# runtime gate for what happens when a person types one anyway -- it searches.
+#
+# So a document that spells a surface `sunshine://account` is not using an old
+# name; it is telling a reader to type something that will search the web for
+# the page they are standing next to. Both places this fired had been written
+# *after* ADR 0003, describing a page patch 0018 had already registered at the
+# other address.
+#
+# The hosts come from the patch stack rather than from a list here, so a surface
+# added tomorrow is covered the day it is registered.
+SCHEME_SPELLING = re.compile(r"\bsunshine://([a-z][a-z0-9-]*)")
+
+# The one document that may carry the spelling, because retiring it is what the
+# document is about. ADR 0003 also names five documents whose legacy spellings
+# it left to later waves; every one of those has since been corrected, so they
+# are not exempt and must not become so again.
+SCHEME_EXEMPT = frozenset({"docs/decisions/0003-internal-scheme.md"})
+
+
+def registered_hosts(root: Path) -> set[str]:
+    """The `sunshine-<name>` hosts the patch stack registers, as `<name>`."""
+
+    directory = root / "downstream/patches"
+    if not directory.is_dir():
+        return set()
+    pattern = re.compile(r'kChromeUISunshine[A-Za-z]+Host\[\] = "sunshine-([a-z-]+)"')
+    found: set[str] = set()
+    for patch in sorted(directory.glob("*.patch")):
+        found.update(pattern.findall(patch.read_text(encoding="utf-8")))
+    return found
+
+
+@dataclass(frozen=True)
+class StatusClaim:
+    document: str
+    line: int
+    rule: str
+    detail: str
+    sentence: str
+
+    def failure(self) -> str:
+        return (
+            f"{self.document}:{self.line}: {self.detail} -- {self.rule} "
+            f"({self.sentence!r})"
+        )
+
+
+def status_claims(root: Path) -> list[StatusClaim]:
+    """Every existence claim a document makes that the repository disagrees with."""
+
+    series = root / "downstream/patches/series"
+    if not series.is_file():
+        return []
+    applied = {
+        line.strip()
+        for line in series.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+    hosts = registered_hosts(root)
+
+    claims: list[StatusClaim] = []
+    for path in _documents(root):
+        label = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        has_built_heading = BUILT_HEADING.search(text) is not None
+        spoken = mask_speech(text)
+
+        if label not in SCHEME_EXEMPT:
+            for number, line in enumerate(text.splitlines(), start=1):
+                for match in SCHEME_SPELLING.finditer(line):
+                    name = match.group(1)
+                    if name not in hosts:
+                        continue
+                    claims.append(
+                        StatusClaim(
+                            document=label,
+                            line=number,
+                            rule="ADR 0003 registers no scheme; the surface is "
+                                 f"chrome://sunshine-{name}",
+                            detail=f"spells a registered surface sunshine://{name}",
+                            sentence=line.strip()[:160],
+                        )
+                    )
+
+        for block in blocks(spoken):
+            # Sentence scope, not paragraph scope, and a false positive on the
+            # first run is why. `docs/ACCOUNT_LINK_PLAN.md` §0 names patch 0018
+            # in one sentence and lists what does not exist -- consent, tokens,
+            # unlinking -- in the next. Both are true, both are in one
+            # paragraph, and a paragraph-wide rule read them as one claim. A
+            # guard that fires on a correct document is deleted by the first
+            # person it blocks.
+            for start, sentence in _sentences(block.text):
+                if not ABSENCE.search(sentence):
+                    continue
+                for match in PATCH_REFERENCE.finditer(sentence):
+                    name = match.group(1)
+                    if name in applied:
+                        claims.append(
+                            StatusClaim(
+                                document=label,
+                                line=block.line_of(start + match.start()),
+                                rule="the patch is in downstream/patches/series",
+                                detail=f"says {name} does not exist",
+                                sentence=sentence.strip()[:160],
+                            )
+                        )
+            if has_built_heading:
+                for match in NOTHING_BUILT.finditer(block.text):
+                    claims.append(
+                        StatusClaim(
+                            document=label,
+                            line=block.line_of(match.start()),
+                            rule="this document also heads a section 'Built'",
+                            detail=f"says {match.group(0)!r}",
+                            sentence=block.text.strip()[:160],
+                        )
+                    )
+    return claims
+
+
 @dataclass(frozen=True)
 class Citation:
     document: str
@@ -843,12 +1060,16 @@ def check(root: Path = ROOT) -> tuple[str, list[str]]:
 
     claims = stated_counts(root)
     citations = revision_citations(root)
+    statuses = status_claims(root)
     failures = [claim.failure() for claim in claims if not claim.agrees]
     failures += [citation.failure() for citation in citations if not citation.agrees]
+    failures += [status.failure() for status in statuses]
     documents = {claim.document for claim in claims} | {c.document for c in citations}
+    documents |= {status.document for status in statuses}
     summary = (
-        f"{len(claims)} stated count(s) and {len(citations)} pinned-revision "
-        f"citation(s) checked across {len(documents)} document(s)"
+        f"{len(claims)} stated count(s), {len(citations)} pinned-revision "
+        f"citation(s) and every document's existence claims checked across "
+        f"{len(documents)} document(s)"
     )
     return summary, failures
 

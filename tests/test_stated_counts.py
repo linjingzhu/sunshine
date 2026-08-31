@@ -744,5 +744,110 @@ class RealRepositoryTests(unittest.TestCase):
         self.assertEqual([], unexpected)
 
 
+
+class StatusClaimTests(TreeTestCase):
+    """Existence claims a document makes about the repository.
+
+    The same failure as a stale count, about whether a thing is there rather
+    than how many. It has happened four times in two documents and nothing ever
+    caught it; two of the four shapes are decidable offline and are enforced
+    here, and the other two are named in the guard's own comment rather than
+    pretended away.
+    """
+
+    def test_the_repository_passes_today(self) -> None:
+        """Enforces: the three status rules, against the real corpus."""
+
+        self.assertEqual([], counts.check(REPOSITORY_ROOT)[1])
+
+    # --- a named patch said not to exist ------------------------------------
+
+    def test_a_patch_in_the_series_said_to_be_unwritten_is_rejected(self) -> None:
+        self.doc("- `0002-x.patch` has not been written, so this is a reading.")
+        self.assertTrue(
+            any("0002-x.patch" in f for f in self.failures()), self.failures())
+
+    def test_a_patch_not_in_the_series_may_be_called_unwritten(self) -> None:
+        """The honest case, and the one the rule must never block."""
+
+        self.assertUnmatched("- `0099-later.patch` has not been written.")
+
+    def test_the_claim_and_the_patch_must_be_one_sentence(self) -> None:
+        """The false positive this rule fired on its first run.
+
+        `docs/ACCOUNT_LINK_PLAN.md` names a landed patch in one sentence and
+        lists what does not exist in the next. Both true, one paragraph.
+        """
+
+        self.assertUnmatched(
+            "`0002-x.patch` implements steps 0 and 1 and stops there. "
+            "What does not exist: consent, tokens, unlinking."
+        )
+
+    def test_a_quoted_correction_is_not_a_claim(self) -> None:
+        """This repository corrects a document by quoting what was wrong.
+
+        A rule that could not tell a quotation from an assertion would make the
+        honest fix impossible, and every correction in the tree would fail CI.
+        """
+
+        self.assertUnmatched(
+            'This bullet said "`0002-x.patch` has not been written" until today.'
+        )
+
+    # --- nothing is built, in a document that heads a section Built ----------
+
+    def test_nothing_is_built_beside_a_built_heading_is_rejected(self) -> None:
+        self.doc(
+            "# Plan\n\n### Built, and what it took\n\nOne hunk.\n\n"
+            "## NOT VERIFIED\n\n- **Nothing is built.** Read from source.\n"
+        )
+        self.assertTrue(
+            any("Nothing is built" in f for f in self.failures()), self.failures())
+
+    def test_nothing_is_built_without_such_a_heading_is_not_judged(self) -> None:
+        """Honest coverage, stated rather than implied.
+
+        A document with no `Built` heading may say nothing is built and be
+        wrong, and this rule will not know. That is two of the four historical
+        defects uncaught, and widening it means guessing at meaning.
+        """
+
+        self.assertUnmatched("## NOT VERIFIED\n\n- **Nothing is built.**\n")
+
+    # --- a surface spelled as a scheme this build does not register ----------
+
+    def test_a_registered_surface_spelled_as_a_scheme_is_rejected(self) -> None:
+        self.write(
+            "downstream/patches/0001-x.patch",
+            'kChromeUISunshineAccountHost[] = "sunshine-account"\n',
+        )
+        self.doc("There is a `sunshine://account` page reachable from the home.")
+        self.assertTrue(
+            any("sunshine://account" in f for f in self.failures()), self.failures())
+
+    def test_an_unregistered_name_is_not_a_surface(self) -> None:
+        """RV-4's gate types `sunshine://anything` on purpose."""
+
+        self.write(
+            "downstream/patches/0001-x.patch",
+            'kChromeUISunshineAccountHost[] = "sunshine-account"\n',
+        )
+        self.assertUnmatched("Type `sunshine://anything` in the omnibox.")
+
+    def test_the_deciding_adr_may_carry_the_spelling(self) -> None:
+        """Retiring the spelling is what that document is about."""
+
+        self.write(
+            "downstream/patches/0001-x.patch",
+            'kChromeUISunshineSecurityHost[] = "sunshine-security"\n',
+        )
+        self.doc(
+            "`sunshine://security` is not implementable as written.",
+            name="docs/decisions/0003-internal-scheme.md",
+        )
+        self.assertEqual([], self.failures())
+
+
 if __name__ == "__main__":
     unittest.main()
