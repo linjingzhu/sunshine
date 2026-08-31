@@ -31,10 +31,19 @@ REQUIRED_KEYS = {
     "availability",
     "implementation",
     "predicate",
+    "selection",
     "unavailable_reasons",
     "telemetry",
     "errors",
 }
+
+# `docs/COMMAND_PALETTE_CONTRACT.md` §2.1: the closed set of things a command
+# may be dispatched *against* that focus does not already determine. Each is an
+# object the browser process owns. A kind whose values come from a renderer or
+# from typed text is a payload, and §2.2 prohibits payloads outright -- so
+# widening this set is a security decision, not a schema convenience.
+SELECTION_KINDS = frozenset({"workspace", "tab", "pane"})
+NO_SELECTION = "none"
 SEGMENT = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 TELEMETRY = re.compile(r"^Sunshine\.Command\.[A-Za-z0-9]+$")
 CALLABLE_REF = re.compile(r"^scripts\.[a-z_]+:[a-z_]+$")
@@ -147,6 +156,35 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
                 f"{command_id}: a Chromium-owned command cannot carry a Sunshine {role}"
             )
 
+    # §2.4: a command declares what kind of object it is dispatched against, and
+    # which module enumerates the candidates. `enumerated_by` is required to
+    # equal `owner` -- §2.4(2), one owner enumerates and one owner executes, so
+    # the two cannot disagree about what exists -- and is stated anyway, because
+    # a reader asking "who do I ask for the list?" should find the answer in the
+    # entry rather than have to know the ownership rule.
+    selection = command["selection"]
+    if selection != NO_SELECTION:
+        if not isinstance(selection, dict) or selection.keys() != {"kind", "enumerated_by"}:
+            raise CommandRegistryError(
+                f"{command_id}: selection must be \"none\" or "
+                "{kind, enumerated_by}"
+            )
+        if selection["kind"] not in SELECTION_KINDS:
+            raise CommandRegistryError(
+                f"{command_id}: selection kind must be one of "
+                + ", ".join(sorted(SELECTION_KINDS))
+            )
+        if owner == CHROMIUM_OWNER:
+            raise CommandRegistryError(
+                f"{command_id}: a Chromium-owned command cannot declare a "
+                "selection; nothing on the Sunshine side enumerates for it"
+            )
+        if selection["enumerated_by"] != owner:
+            raise CommandRegistryError(
+                f"{command_id}: selection must be enumerated by its owner, "
+                f"{owner}"
+            )
+
     reasons = command["unavailable_reasons"]
     if not isinstance(reasons, list) or any(
         not isinstance(r, str) or not SEGMENT.fullmatch(r) for r in reasons
@@ -155,13 +193,29 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
     if reasons != sorted(set(reasons)):
         raise CommandRegistryError(f"{command_id}: unavailable_reasons must be unique and sorted")
 
-    # The two halves of the availability contract must arrive together. A
-    # predicate with no declared reasons cannot explain a disabled command --
-    # which is the whole point -- and declared reasons with no predicate are a
-    # promise nothing can keep.
-    if bool(command["predicate"]) != bool(reasons):
+    # §4.2(6): "A command may not have an unavailable state with no token."
+    # Every availability sentence in this registry states a condition that can be
+    # false, so an empty list means the tokens were not written rather than that
+    # the command is unconditional. A command that genuinely never becomes
+    # unavailable would be the reviewed change that relaxes this.
+    if not reasons:
         raise CommandRegistryError(
-            f"{command_id}: predicate and unavailable_reasons must both be present or both absent"
+            f"{command_id}: unavailable_reasons must declare at least one token; "
+            "a disabled row with no reason is a build failure, not a runtime string"
+        )
+
+    # **The coupling runs one way only, and it used to run both.** It required a
+    # predicate wherever reasons were declared, which made §4.2's requirement
+    # unsatisfiable for the twenty Chromium-owned commands: their evaluation
+    # lives on the Chromium side of the command layer -- the same section says
+    # so -- and the rule above already refuses a Sunshine callable on them. So
+    # the registry could not declare the tokens those commands must draw their
+    # verdicts from. A predicate still requires reasons, because a predicate
+    # that can return a token nobody declared is the drift this field exists to
+    # prevent.
+    if command["predicate"] and not reasons:
+        raise CommandRegistryError(
+            f"{command_id}: a predicate must declare the reasons it can return"
         )
 
     telemetry = command["telemetry"]

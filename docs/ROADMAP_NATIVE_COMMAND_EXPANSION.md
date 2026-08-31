@@ -58,7 +58,7 @@ What actually changed:
 
   **That is no longer true, and this document's own §4 item 2 is why:**
   `security_center.open` was added afterwards and is the first such entry.
-  `first_party/commands.json` now holds 25 commands. Section 3's
+  `first_party/commands.json` now holds 26 commands. Section 3's
   categorisation covers the original set and is left as it was — it is a
   reading of a state, and re-numbering it would claim an analysis that was
   never done. The two things the product owner

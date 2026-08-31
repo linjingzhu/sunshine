@@ -228,6 +228,14 @@ is proposed in this wave's report and must be registered by a separate reviewed
 change; this document names none, for the reason
 `docs/BROWSER_UTILITIES_CONTRACT.md` names none.
 
+**Registered on 2026-08-31 as `browser.stop`.** `browser.reload` now reads
+"Reload the active tab, restarting a load already in progress." and its only
+unavailable reason is `no_active_tab`; `browser.stop` is available when the
+active tab has a load in progress and declares `no_load_in_progress` beside it.
+Their error sets are disjoint from their reasons, as §4.2(5) requires them to
+be spelled — `browser.stop` fails with `load_already_settled`, which is the
+race §4.4 leaves open and not the pre-check.
+
 The general rule this instance is a case of:
 
 > A **control** may choose between two commands when it displays, at the moment
@@ -921,10 +929,15 @@ This contract is complete when reviewed.
 
 Section 7.8 is complete when, in order:
 
-1. The registry and `scripts/validate_commands.py` carry declared selection and
+1. ~~The registry and `scripts/validate_commands.py` carry declared selection and
    declared unavailability reasons, changed atomically together with
-   `tests/test_command_registry.py`;
-2. reload and stop are separate registered commands;
+   `tests/test_command_registry.py`;~~ **Done, 2026-08-31.** Every command
+   declares `selection` — `"none"`, or a kind and the module that enumerates
+   candidates, which §2.1's table makes exactly `workspace.switch`,
+   `workspace.close` and `workspace.tab.move` — and every command declares at
+   least one unavailable reason. See *What this took* below.
+2. ~~reload and stop are separate registered commands;~~ **Done, 2026-08-31** —
+   `browser.stop`, per §3.
 3. every registered command has a localised title, enforced by a build check;
 4. a first-party module owns the palette surface and its opening command;
 5. the palette dispatches through the single command service; and
@@ -933,3 +946,38 @@ Section 7.8 is complete when, in order:
 
 Items 1 and 2 are blocking dependencies on the command registry, not palette
 work. A palette built before them can be demonstrated and cannot be shipped.
+
+### What items 1 and 2 took, and the rule that had to be reversed
+
+**§4.2 was unsatisfiable for twenty-one of the twenty-six commands, and two
+guards were the reason.** Both `scripts/validate_commands.py` and
+`scripts/verify_first_party_surfaces.py` required a `predicate` wherever
+`unavailable_reasons` were declared. A Chromium-owned command may not carry a
+Sunshine predicate — the same validator refuses one, correctly — so it could not
+declare the tokens §4.2's last paragraph says its verdicts *must* be drawn from.
+The rule was written to keep two halves of one contract together and it kept one
+half out.
+
+The coupling now runs one way: a predicate must declare what it can return;
+reasons stand without one, because the evaluation lives where this repository
+has no Python to point at. `tests/test_command_registry.py` carried the reversed
+assertion too — it asserted an empty reason list for every Chromium-owned
+command — and it now asserts a non-empty one.
+
+**Reason tokens do not reuse a command's error tokens**, and the pattern was
+already in the tree rather than invented here: `workspace.close` declares the
+reason `workspace_not_found` beside the error `workspace_missing`. §4.4 is why
+they must differ — the dispatcher re-evaluates availability immediately before
+executing, so a condition availability covers cannot also be an error, and one
+token meaning both would leave one of them unreachable.
+
+**One thing this did not settle.** `tests/test_command_registry.py` checks that
+an error is not excluded by its own availability, for `tab.group.create`, where
+it was found. Read across the registry, several other commands declare an error
+whose condition their availability sentence already excludes —
+`unbookmarkable_scheme` under "The active tab has a bookmarkable URL", and the
+find, print, save and zoom entries similarly. Under §4.4 each is reachable only
+in the window between the dispatch check and execution. Whether that window is
+real for each of them is a question about Chromium's own code and is not
+answerable from the registry, so nothing here changed them and no guard was
+widened to guess.
