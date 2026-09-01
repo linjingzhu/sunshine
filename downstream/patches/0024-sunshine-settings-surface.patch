@@ -1,0 +1,1445 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index e13700a..b332d42 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -56,6 +56,8 @@ build_webui("build") {
+     "modules/app.html",
+     "security/app.css",
+     "security/app.html",
++    "settings/app.css",
++    "settings/app.html",
+     "shell/app.css",
+     "shell/app.html",
+   ]
+@@ -66,6 +68,7 @@ build_webui("build") {
+     "document_content/app.ts",
+     "modules/app.ts",
+     "security/app.ts",
++    "settings/app.ts",
+     "shell/app.ts",
+     "shell/geometry.ts",
+     "shell/mount.ts",
+@@ -75,20 +78,32 @@ build_webui("build") {
+   # Generated Mojo bindings, extended by each surface patch that has an
+   # interface. build_webui() copies each named file to
+   # "<mojo_base_path>/<filename>" inside the bundle and hands the copies to the
+-  # TypeScript compiler, so mojo_base_path is the one place in the bundle where
+-  # bindings land -- there is a single value for the whole bundle, not one per
+-  # surface. It is the document surface's directory because that surface owns
+-  # the only interface so far, and because it has to be *some* surface's
+-  # directory: chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h hands
+-  # each surface only the bundle entries under its own directory, so bindings
+-  # left at the bundle root would be served to no page at all. A second surface
+-  # with an interface is the moment to give that helper a second prefix; until
+-  # then, a shared "mojom/" directory would be a directory every surface could
+-  # serve, which is the arrangement that helper exists to prevent.
+-  mojo_base_path = "document"
+-  mojo_files = [ "$root_gen_dir/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom-webui.ts" ]
++  # TypeScript compiler -- `outputs = [ "$preprocess_dir/$mojo_base_path/
++  # {{source_file_part}}" ]` -- so there is one such directory for the whole
++  # bundle, not one per surface, and every surface's bindings land in it flat
++  # by basename.
++  #
++  # **This used to be "document", and that was an accident that worked.** The
++  # document surface owned the only interface, so its bindings landing in its
++  # own directory made SurfaceResources("document")'s prefix filter serve them
++  # for free. The settings surface is the second interface, and it made the
++  # accident visible: its bindings would have landed in a directory belonging
++  # to a different page, served to that page and not to this one.
++  #
++  # "mojom" is nobody's surface, which is the point. No prefix filter matches
++  # it, so no page serves a binding by accident; each surface names its own
++  # file, and only its own, through SurfaceResources()' second argument. The
++  # note that used to be here worried that a shared directory would be one
++  # every surface could serve -- it is the opposite, because nothing reaches it
++  # by prefix at all.
++  mojo_base_path = "mojom"
++  mojo_files = [
++    "$root_gen_dir/chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom-webui.ts",
++    "$root_gen_dir/chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom-webui.ts",
++  ]
+   mojo_files_deps = [
+     "//chrome/browser/ui/webui/sunshine:document_mojo_bindings_ts__generator",
++    "//chrome/browser/ui/webui/sunshine:settings_mojo_bindings_ts__generator",
+   ]
+ 
+   ts_deps = [
+diff --git a/chrome/browser/resources/sunshine/document/host.ts b/chrome/browser/resources/sunshine/document/host.ts
+index a9cc900..e79f063 100644
+--- a/chrome/browser/resources/sunshine/document/host.ts
++++ b/chrome/browser/resources/sunshine/document/host.ts
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-import {DocumentHost as DocumentHostMojo} from './sunshine_document.mojom-webui.js';
+-import type {DocumentHostRemote, DocumentStructure} from './sunshine_document.mojom-webui.js';
++import {DocumentHost as DocumentHostMojo} from '../mojom/sunshine_document.mojom-webui.js';
++import type {DocumentHostRemote, DocumentStructure} from '../mojom/sunshine_document.mojom-webui.js';
+ 
+ /**
+  * The document surface's one interface to whatever hosts it.
+@@ -71,7 +71,7 @@ export type {
+   DocumentNode,
+   DocumentProject,
+   DocumentStructure,
+-} from './sunshine_document.mojom-webui.js';
++} from '../mojom/sunshine_document.mojom-webui.js';
+ 
+ /**
+  * What the surface may ask of its host. Structure-returning requests answer
+diff --git a/chrome/browser/resources/sunshine/modules/app.html b/chrome/browser/resources/sunshine/modules/app.html
+index 7e273df..bf74e16 100644
+--- a/chrome/browser/resources/sunshine/modules/app.html
++++ b/chrome/browser/resources/sunshine/modules/app.html
+@@ -46,6 +46,16 @@
+       <a id="accountLink" class="navlink" href="chrome://sunshine-account/">
+         Google account
+       </a>
++
++      <!-- Sunshine's own settings. The New Tab's background button is the
++           route a person actually takes (docs/NEWTAB_BACKGROUND_CONTRACT.md
++           section 3d); this is here because a settings page reachable only
++           from one button on one page is a settings page nobody finds twice.
++           Written out for the same reason the two links above are: nothing
++           about it comes from the registry. -->
++      <a id="settingsLink" class="navlink" href="chrome://sunshine-settings/">
++        Settings
++      </a>
+     </nav>
+ 
+     <main id="main">
+diff --git a/chrome/browser/resources/sunshine/settings/app.css b/chrome/browser/resources/sunshine/settings/app.css
+new file mode 100644
+index 0000000..c08e28b
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/settings/app.css
+@@ -0,0 +1,83 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file. */
++
++body {
++  background: var(--color-dialog-background);
++  color: var(--color-primary-foreground);
++  margin: 0;
++}
++
++#page {
++  margin: 0 auto;
++  max-width: 720px;
++  padding: 32px 24px 48px;
++}
++
++h1 {
++  font-size: 1.5rem;
++  font-weight: 500;
++  margin: 0 0 16px;
++}
++
++h2 {
++  font-size: 0.875rem;
++  font-weight: 500;
++  letter-spacing: 0.04em;
++  margin: 0 0 8px;
++  text-transform: uppercase;
++}
++
++.panel {
++  border-top: 1px solid var(--color-midground);
++  margin: 0;
++  padding: 24px 0 0;
++}
++
++p {
++  margin: 0 0 8px;
++}
++
++.state {
++  border-inline-start: 3px solid var(--color-secondary-foreground);
++  margin: 16px 0;
++  padding-inline-start: 12px;
++}
++
++.actions {
++  display: flex;
++  gap: 8px;
++  margin: 16px 0 0;
++}
++
++button {
++  background: var(--color-midground);
++  border: 0;
++  border-radius: 4px;
++  color: var(--color-primary-foreground);
++  cursor: pointer;
++  font: inherit;
++  padding: 8px 16px;
++}
++
++button:disabled {
++  cursor: default;
++  opacity: 0.5;
++}
++
++.outcome {
++  margin: 16px 0 0;
++}
++
++/* A refusal is a fact about a file, not an alarm. It is marked so that it can
++   be found and so that a reader can tell it apart from the state line above,
++   and it is not coloured red: nothing went wrong with the browser. */
++.outcome[data-refused] {
++  border-inline-start: 3px solid var(--color-secondary-foreground);
++  padding-inline-start: 12px;
++}
++
++.note {
++  color: var(--color-secondary-foreground);
++  margin: 24px 0 0;
++}
+diff --git a/chrome/browser/resources/sunshine/settings/app.html b/chrome/browser/resources/sunshine/settings/app.html
+new file mode 100644
+index 0000000..3193f70
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/settings/app.html
+@@ -0,0 +1,47 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>Sunshine Settings</title>
++  <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
++  <link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- Written out rather than built by app.ts, for the same reason the account
++       surface's is: everything on this page except the two lines that describe
++       the current state is the product of a decision and is identical in every
++       build. A page assembled at run time is a page whose text a reviewer has
++       to reconstruct. -->
++  <main id="page">
++    <h1>Sunshine settings</h1>
++
++    <section class="panel">
++      <h2>New tab background</h2>
++
++      <p>A PNG, JPEG or WebP shown behind the new tab page. Animated PNG and
++         animated WebP play; nothing else is accepted.</p>
++
++      <!-- The one sentence that changes, and the one that reports a refusal.
++           Both are filled by app.ts with textContent and never with markup:
++           #outcome carries numbers that came from the browser, and this is a
++           privileged page. -->
++      <p id="state" class="state"></p>
++
++      <div class="actions">
++        <button id="choose" type="button">Choose a file&hellip;</button>
++        <button id="remove" type="button" hidden>Remove</button>
++      </div>
++
++      <p id="outcome" class="outcome" role="status" hidden></p>
++
++      <p class="note">The file is copied into this profile, exactly as it is.
++         It is not re-encoded, so an animation stays an animation. Removing it
++         brings back whatever image is installed alongside Sunshine itself, if
++         there is one.</p>
++    </section>
++  </main>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/settings/app.ts b/chrome/browser/resources/sunshine/settings/app.ts
+new file mode 100644
+index 0000000..95c5efc
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/settings/app.ts
+@@ -0,0 +1,155 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import {BackgroundOutcome, SettingsHost} from '../mojom/sunshine_settings.mojom-webui.js';
++import type {BackgroundChoice, SettingsHostRemote} from '../mojom/sunshine_settings.mojom-webui.js';
++
++/**
++ * Sunshine settings.
++ *
++ * The page holds no state of its own beyond what it has just been told. Every
++ * question it can ask is answered by the browser, which is the only party that
++ * has read anything from disk -- so after any action that could have changed
++ * the answer it asks again rather than predicting.
++ *
++ * **The bindings are imported directly rather than through a host.ts.** The
++ * document surface has one because ADR 0013 section 2.5 requires a *module's*
++ * assets to be portable to a second container. This is browser chrome: it will
++ * never run anywhere but this browser, and an indirection whose only purpose
++ * is portability that cannot happen would be a file to keep in agreement for
++ * nothing.
++ *
++ * **`textContent`, never markup.** The sentences below carry numbers that
++ * arrived from the browser over Mojo, and this page runs at a privilege no
++ * website has.
++ */
++
++// Bound on first use rather than at import time.
++let remote: SettingsHostRemote|null = null;
++
++function host(): SettingsHostRemote {
++  if (remote === null) {
++    remote = SettingsHost.getRemote();
++  }
++  return remote;
++}
++
++function required(id: string): HTMLElement {
++  const found = document.querySelector<HTMLElement>(`#${id}`);
++  if (!found) {
++    throw new Error(`missing element: ${id}`);
++  }
++  return found;
++}
++
++/**
++ * A byte count as a person would say it.
++ *
++ * Whole megabytes, because the two numbers this ever formats are a file the
++ * person chose and a cap set to a round 100 MB, and "112 MB" answers the
++ * question that "117,440,512 bytes" does not. Rounded up, so a file over the
++ * limit never reads as being exactly at it.
++ *
++ * `Number` rather than BigInt arithmetic: mojom's int64 arrives as a bigint,
++ * and every value this formats is bounded by that cap, which a double holds
++ * exactly many times over.
++ */
++function megabytes(bytes: bigint): string {
++  return `${Math.ceil(Number(bytes) / (1024 * 1024))} MB`;
++}
++
++function refusal(choice: BackgroundChoice): string {
++  switch (choice.outcome) {
++    case BackgroundOutcome.kTooLarge:
++      // Both numbers were measured by the browser. NTB-11 asks for the reason,
++      // and for this refusal the reason is arithmetic.
++      return `That file is ${megabytes(choice.size)} and the limit is ` +
++          `${megabytes(choice.limit)}. Nothing was changed.`;
++    case BackgroundOutcome.kUnsupportedFormat:
++      // Deliberately does not name what the file turned out to be. Saying
++      // "that is a GIF" would mean this build declaring a GIF signature, and
++      // NTB-2 forbids declaring any excluded format's signature -- a table of
++      // refused formats is one edit away from being a table of accepted ones.
++      // So the sentence says what is allowed and that this is not it.
++      return 'A background has to be a PNG, JPEG or WebP, and the contents ' +
++          'of that file are none of those. Its name was not what decided ' +
++          'that. Nothing was changed.';
++    case BackgroundOutcome.kUnreadable:
++      return 'That file could not be read. Nothing was changed.';
++    case BackgroundOutcome.kWriteFailed:
++      return 'The file was fine, but it could not be copied into this ' +
++          'profile. Nothing was changed.';
++    case BackgroundOutcome.kPickerBusy:
++      return 'A file dialog is already open.';
++    default:
++      return '';
++  }
++}
++
++function showOutcome(text: string, refused: boolean): void {
++  const outcome = required('outcome');
++  outcome.textContent = text;
++  outcome.hidden = text === '';
++  if (refused) {
++    outcome.dataset['refused'] = '';
++  } else {
++    delete outcome.dataset['refused'];
++  }
++}
++
++function showState(profileBackground: boolean): void {
++  required('state').textContent = profileBackground ?
++      'This profile has its own background.' :
++      'This profile has no background of its own. It shows whichever image ' +
++          'is installed alongside Sunshine, if there is one.';
++  required('remove').hidden = !profileBackground;
++}
++
++function refresh(): void {
++  void host().getBackgroundState().then(
++      (response) => showState(response.profileBackground));
++}
++
++function onChoice(choice: BackgroundChoice): void {
++  if (choice.outcome === BackgroundOutcome.kInstalled) {
++    showOutcome('Done. New tabs will show it.', false);
++  } else if (choice.outcome !== BackgroundOutcome.kCancelled) {
++    // Cancelling is not a failure and says nothing. Closing a file dialog
++    // without choosing is the most ordinary thing a person does with one.
++    showOutcome(refusal(choice), true);
++  }
++  refresh();
++}
++
++function attach(): void {
++  const choose = required('choose') as HTMLButtonElement;
++  const remove = required('remove') as HTMLButtonElement;
++
++  choose.addEventListener('click', () => {
++    // Disabled for the whole round trip, which includes the time a person
++    // spends in the file dialog. The browser refuses a second dialog anyway
++    // and says so; this is so that the ordinary case never has to produce that
++    // sentence.
++    choose.disabled = true;
++    showOutcome('', false);
++    void host().chooseBackground().then((response) => {
++      choose.disabled = false;
++      onChoice(response.choice);
++    });
++  });
++
++  remove.addEventListener('click', () => {
++    remove.disabled = true;
++    showOutcome('', false);
++    void host().removeBackground().then(() => {
++      remove.disabled = false;
++      refresh();
++    });
++  });
++}
++
++document.addEventListener('DOMContentLoaded', () => {
++  attach();
++  refresh();
++});
+diff --git a/chrome/browser/ui/sunshine/newtab_background.cc b/chrome/browser/ui/sunshine/newtab_background.cc
+index 6d48a1a..5aee2a8 100644
+--- a/chrome/browser/ui/sunshine/newtab_background.cc
++++ b/chrome/browser/ui/sunshine/newtab_background.cc
+@@ -4,7 +4,9 @@
+ 
+ #include "chrome/browser/ui/sunshine/newtab_background.h"
+ 
++#include <array>
+ #include <map>
++#include <optional>
+ #include <string>
+ 
+ #include "base/containers/span.h"
+@@ -57,6 +59,49 @@ constexpr const base::FilePath::CharType* const kAssetFileNames[] = {
+     FILE_PATH_LITERAL("newtab-background.webp"),
+ };
+ 
++// The extension of each name above, in the same order.
++//
++// Written out rather than taken off the names, and that is NTB-2 rather than
++// laziness: `.Extension()` is refused anywhere in this feature, because the
++// one thing it is ever wanted for -- deciding what a file is -- must come from
++// the bytes. A dialog filter is a different job and it is not worth
++// reintroducing the symbol the rule refuses in order to do it.
++//
++// NTB-14 checks that each name here is the extension of the name above it, so
++// the two lists cannot drift apart in silence.
++constexpr const base::FilePath::CharType* const kAssetExtensions[] = {
++    FILE_PATH_LITERAL("png"),
++    FILE_PATH_LITERAL("jpg"),
++    FILE_PATH_LITERAL("webp"),
++};
++
++// The one name a background of `format` may have, or nullptr for `kNone`.
++//
++// **Indices into the array above, not a second list of literals.** A switch
++// that spelled the three names again would be a copy that can disagree with
++// the copy the reader searches, and the disagreement would be invisible: a
++// picker that wrote `newtab-background.png` for a WebP would produce a file
++// the reader then refuses, so the whole feature would fail as "the picker did
++// nothing".
++//
++// The order of `kAssetFileNames` is therefore load-bearing twice over -- it is
++// the search order, and it is this mapping -- and
++// `scripts/verify_newtab_background.py` NTB-14 holds the two in agreement by
++// checking that the name at each index carries the extension its format
++// implies.
++const base::FilePath::CharType* AssetNameFor(Format format) {
++  switch (format) {
++    case Format::kPng:
++      return kAssetFileNames[0];
++    case Format::kJpeg:
++      return kAssetFileNames[1];
++    case Format::kWebp:
++      return kAssetFileNames[2];
++    case Format::kNone:
++      return nullptr;
++  }
++}
++
+ // One answer per profile.
+ //
+ // This was a single `std::atomic<int>` for the process, which was right while
+@@ -120,6 +165,10 @@ base::span<const base::FilePath::CharType* const> AssetFileNames() {
+   return kAssetFileNames;
+ }
+ 
++base::span<const base::FilePath::CharType* const> AssetExtensions() {
++  return kAssetExtensions;
++}
++
+ base::FilePath InstallDirectory() {
+   base::FilePath directory;
+   if (!base::PathService::Get(base::DIR_EXE, &directory)) {
+@@ -190,6 +239,109 @@ std::string ReadFromDirectory(const base::FilePath& directory) {
+   return std::string();
+ }
+ 
++InstallOutcome InstallBackground(const base::FilePath& source,
++                                 const base::FilePath& profile_path) {
++  InstallOutcome outcome;
++
++  const base::FilePath directory = ProfileDirectory(profile_path);
++  if (directory.empty()) {
++    // No profile means nowhere this picker is allowed to write. The install
++    // directory is deliberately not a fallback: §3's whole reason for putting
++    // the picker's output in the profile is that a per-machine install puts
++    // the install directory under %ProgramFiles%.
++    return outcome;
++  }
++
++  const std::optional<int64_t> size = base::GetFileSize(source);
++  if (!size.has_value()) {
++    return outcome;
++  }
++  outcome.size = *size;
++
++  if (static_cast<uint64_t>(*size) > kMaxAssetBytes) {
++    // Refused on the measurement alone, before a single byte is read. A file
++    // larger than the cap is exactly the file this must not pull into memory
++    // to form an opinion about.
++    outcome.result = InstallResult::kTooLarge;
++    return outcome;
++  }
++
++  std::array<char, kSignatureBytes> head = {};
++  const std::optional<uint64_t> read = base::ReadFile(source, head);
++  if (!read.has_value() || *read < kSignatureBytes) {
++    // Shorter than a signature is not a format this admits. It reports as
++    // unsupported rather than unreadable because the file was read: there is
++    // nothing wrong with the disk, there is something wrong with the file.
++    outcome.result = InstallResult::kUnsupportedFormat;
++    return outcome;
++  }
++
++  const Format format = DetectFormat(base::as_byte_span(head));
++  if (format == Format::kNone) {
++    outcome.result = InstallResult::kUnsupportedFormat;
++    return outcome;
++  }
++
++  if (!base::CreateDirectory(directory)) {
++    outcome.result = InstallResult::kWriteFailed;
++    return outcome;
++  }
++
++  const base::FilePath destination = directory.Append(AssetNameFor(format));
++  // `base::CopyFile`, and deliberately nothing else. NTB-11: byte for byte,
++  // never decoded and re-emitted, because re-encoding an APNG produces a
++  // photograph and tells nobody.
++  if (!base::CopyFile(source, destination)) {
++    outcome.result = InstallResult::kWriteFailed;
++    return outcome;
++  }
++
++  // Only now, and only the others. A profile holds at most one background, and
++  // `ReadFromDirectory` searches the names in order -- so a `.png` left behind
++  // would keep winning over a newly chosen `.webp` and the picker would look
++  // like it had done nothing at all.
++  for (const base::FilePath::CharType* const name : kAssetFileNames) {
++    const base::FilePath other = directory.Append(name);
++    if (other != destination) {
++      base::DeleteFile(other);
++    }
++  }
++
++  // The page is told from the cache, once per profile per process, so an
++  // install that did not update it would not appear until the next restart.
++  // `true` rather than a re-probe: the bytes were just measured, read and
++  // copied under the same rules the reader applies.
++  StoreAvailability(profile_path, true);
++
++  outcome.result = InstallResult::kInstalled;
++  return outcome;
++}
++
++bool RemoveBackground(const base::FilePath& profile_path) {
++  const base::FilePath directory = ProfileDirectory(profile_path);
++  if (directory.empty()) {
++    return false;
++  }
++
++  bool removed = false;
++  for (const base::FilePath::CharType* const name : kAssetFileNames) {
++    const base::FilePath path = directory.Append(name);
++    if (base::PathExists(path) && base::DeleteFile(path)) {
++      removed = true;
++    }
++  }
++
++  // Re-probed rather than set to `false`, because the install directory may
++  // still hold one -- giving up a profile's own background means falling back
++  // to the machine's, not to nothing.
++  StoreAvailability(profile_path, ProbeAvailability(profile_path));
++  return removed;
++}
++
++bool HasProfileBackground(const base::FilePath& profile_path) {
++  return !ReadFromDirectory(ProfileDirectory(profile_path)).empty();
++}
++
+ std::string ReadInstalledBackground(const base::FilePath& profile_path) {
+   // Profile first. §3's table is the order, and the reason is that the picker
+   // can only write the profile: a per-machine install puts the install
+diff --git a/chrome/browser/ui/sunshine/newtab_background.h b/chrome/browser/ui/sunshine/newtab_background.h
+index df40f46..3ac9bc0 100644
+--- a/chrome/browser/ui/sunshine/newtab_background.h
++++ b/chrome/browser/ui/sunshine/newtab_background.h
+@@ -66,6 +66,22 @@ Format DetectFormat(base::span<const uint8_t> head);
+ // which is `DetectFormat`'s job alone.
+ base::span<const base::FilePath::CharType* const> AssetFileNames();
+ 
++// The extensions a file dialog may offer, in the same order as
++// `AssetFileNames()`.
++//
++// **A filter, never a decision.** What a file *is* comes from its first bytes
++// and from nothing else -- NTB-2 -- so this list only decides which files a
++// dialog puts in front of a person by default. A person who reaches past it
++// still gets their file examined, and still gets told what it turned out to
++// be.
++//
++// It exists so that no caller has to take an extension off a name. NTB-2
++// refuses `.Extension()` anywhere in this feature, because the one job that
++// symbol is ever wanted for is the job the rule forbids, and a file dialog is
++// not worth reintroducing it. `scripts/verify_newtab_background.py` NTB-14
++// holds this list and the names in agreement.
++base::span<const base::FilePath::CharType* const> AssetExtensions();
++
+ // Where a profile keeps a background a person chose, searched **before** the
+ // install directory.
+ //
+@@ -165,6 +181,104 @@ void WarmAvailability(const base::FilePath& profile_path);
+ // price of not doing file I/O on the thread that draws.
+ bool AvailableFromCache(const base::FilePath& profile_path);
+ 
++// What happened to a file a person chose in the picker.
++//
++// One value per outcome a person can be told apart. NTB-11 requires the
++// refusal to say why, and a single `bool` cannot: "nothing happened" is the
++// answer this feature already gives too often -- §5 of
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` records that a rejected asset and an
++// absent one look identical on screen -- and the picker is the one place in
++// the feature that holds the bytes, the rule and the person at the same
++// moment.
++enum class InstallResult {
++  kInstalled,
++  // The file could not be measured or read at all. A file deleted between the
++  // dialog closing and this running lands here, which is the honest answer.
++  kUnreadable,
++  kTooLarge,
++  // The first bytes are not PNG, JPEG or WebP.
++  //
++  // **The refusal cannot name what the file actually is, and that is a rule
++  // rather than an omission.** Saying "this is a GIF" would mean declaring a
++  // GIF signature, and NTB-2 forbids this build from declaring any excluded
++  // format's signature -- the guard exists because a table of refused
++  // signatures is one edit away from being a table of accepted ones. So the
++  // sentence a person gets names the three formats that are allowed and the
++  // fact that these bytes are none of them.
++  kUnsupportedFormat,
++  // Validated, and then the copy failed. Nothing was removed.
++  kWriteFailed,
++};
++
++// The outcome, and the measurements behind it.
++//
++// `size` is the size of the file the person chose, in bytes, or -1 when it
++// could not be measured. It is carried even on success because the caller
++// composing the sentence should not have to measure the file a second time to
++// say "112 MB, and the limit is 100 MB" -- both numbers come from the browser,
++// which is the only party that has read either.
++struct InstallOutcome {
++  InstallResult result = InstallResult::kUnreadable;
++  int64_t size = -1;
++};
++
++// Copy `source` into this profile's background directory, if the rules admit
++// it.
++//
++// Blocking: measures, reads and copies, so it must run somewhere that may
++// block.
++//
++// **Byte for byte, never decoded and re-emitted -- NTB-11.** `base::CopyFile`
++// and nothing else. A picker that decoded an image and wrote it back out would
++// silently turn an APNG into a photograph, which is the whole animated half of
++// this feature disappearing without anyone being told. Upstream's own
++// *Upload from device* does the same thing for the same reason
++// (`CopyFileToProfilePath` in
++// `chrome/browser/ui/webui/side_panel/customize_chrome/`), so this is not a
++// simplification of what a real picker does.
++//
++// **Validated before it lands, and nothing is written on refusal.** The size
++// and the first bytes are read from `source`; a refusal returns before
++// anything is created, removed or overwritten.
++//
++// **The validation here is for the sentence, not for safety, and knowing which
++// matters.** `ReadInstalledBackground` validates every file it serves, every
++// time it serves it, so a file that changed on disk after this returned would
++// still never be served -- it would simply go back to looking like no
++// background at all. What this pass buys is the ability to say *why* at the
++// moment a person can still do something about it.
++//
++// **The destination name comes from the bytes, not from the source's
++// name.** A file picked as `holiday.jpeg` is written as `newtab-background.jpg`
++// because `DetectFormat` said JPEG. §3's rule -- one name per permitted format
++// -- exists so that no file in this feature is named something untrue, and
++// taking the extension from the source would break it on the first file whose
++// name disagreed with its contents.
++//
++// **The other names are removed after the copy succeeds.** A profile holds at
++// most one background: `AssetFileNames()` is searched in order, so a leftover
++// `.png` would keep winning over a newly chosen `.webp` and the picker would
++// appear to do nothing. Removal happens after rather than before, so a failed
++// copy leaves the profile exactly as it was.
++InstallOutcome InstallBackground(const base::FilePath& source,
++                                 const base::FilePath& profile_path);
++
++// Remove this profile's background, whatever its format. Blocking.
++//
++// Returns whether anything was removed. Afterwards the profile falls through
++// to the install directory again, which is the behaviour §3 kept deliberately:
++// a machine-wide image is what a profile sees until it chooses its own, and
++// again once it gives that up.
++bool RemoveBackground(const base::FilePath& profile_path);
++
++// Whether this profile has a background of its own, as opposed to seeing the
++// install directory's. Blocking.
++//
++// Distinct from `AvailableFromCache`, which answers whether *a* background will
++// be shown from either directory. The settings surface needs the narrower
++// question, because "Remove" can only act on the profile's own.
++bool HasProfileBackground(const base::FilePath& profile_path);
++
+ }  // namespace sunshine::background
+ 
+ #endif  // CHROME_BROWSER_UI_SUNSHINE_NEWTAB_BACKGROUND_H_
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index 6751b18..3c7d5b1 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -36,6 +36,15 @@ mojom("document_mojo_bindings") {
+   webui_module_path = "/"
+ }
+ 
++# The settings surface's one host interface --
++# docs/NEWTAB_BACKGROUND_CONTRACT.md section 3d. A second mojom() target rather
++# than a second source in the one above, so that the resources BUILD.gn can
++# name one generator without pulling in the other.
++mojom("settings_mojo_bindings") {
++  sources = [ "settings/sunshine_settings.mojom" ]
++  webui_module_path = "/"
++}
++
+ source_set("sunshine") {
+   sources = [
+     "sunshine_webui_registry.h",
+@@ -56,6 +65,10 @@ source_set("sunshine") {
+     "modules/sunshine_modules_ui.h",
+     "security/sunshine_security_ui.cc",
+     "security/sunshine_security_ui.h",
++    "settings/sunshine_settings_handler.cc",
++    "settings/sunshine_settings_handler.h",
++    "settings/sunshine_settings_ui.cc",
++    "settings/sunshine_settings_ui.h",
+     "shell/sunshine_shell_ui.cc",
+     "shell/sunshine_shell_ui.h",
+   ]
+@@ -67,6 +80,10 @@ source_set("sunshine") {
+     # itself, or chrome/browser/ui/webui/chrome_web_ui_configs.cc compiles
+     # against a generated header nothing promised it would exist yet.
+     ":document_mojo_bindings",
++
++    # Public for the same reason: sunshine_webui_registry.h names the settings
++    # surface's interface too.
++    ":settings_mojo_bindings",
+     "//content/public/browser",
+     "//mojo/public/cpp/bindings",
+     "//ui/base",
+@@ -82,6 +99,14 @@ source_set("sunshine") {
+     # for the same reason that one does: a target that cannot see Browser
+     # cannot navigate one.
+     "//chrome/browser/ui/sunshine",
++
++    # The file dialog, and the policy that can refuse to show one. The settings
++    # surface opens the picker from the browser rather than from an
++    # <input type="file"> in the page, and the reason is not convenience: a
++    # File in a renderer is bytes with nowhere to go, so persisting one means
++    # sending up to the whole cap through a Mojo pipe. base::CopyFile from a
++    # path only the browser ever sees is both cheaper and narrower.
++    "//chrome/browser/ui/select_file_policy",
+     "//chrome/common",
+     "//components/prefs",
+     "//components/safe_browsing:buildflags",
+@@ -96,6 +121,7 @@ source_set("sunshine") {
+     "//content/public/common",
+     "//google_apis",
+     "//services/network/public/mojom",
++    "//ui/shell_dialogs",
+ 
+     # //ui/webui was already here for webui::SetupWebUIDataSource(). It is also
+     # what provides ui::MojoWebUIController, which is how the document surface
+diff --git a/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
+index 29ca52d..76ad10e 100644
+--- a/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
++++ b/chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.cc
+@@ -36,12 +36,15 @@ SunshineDocumentUI::SunshineDocumentUI(content::WebUI* web_ui)
+   // page cannot serve them and the two halves stay two halves.
+   // chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h.
+   //
+-  // The generated Mojo bindings are part of that "document/" set:
+-  // chrome/browser/resources/sunshine/BUILD.gn copies them into the bundle
+-  // under the surface's own directory, so they are served from this page and
+-  // from no other.
+-  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("document"),
+-                              IDR_SUNSHINE_DOCUMENT_APP_HTML);
++  // The generated Mojo bindings are not part of that set and cannot be: the
++  // bundle copies every surface's bindings into one "mojom/" directory, which
++  // no surface's prefix matches. This page names its own file, which is served
++  // to it and to no other page.
++  webui::SetupWebUIDataSource(
++      source,
++      sunshine::SurfaceResources("document",
++                                 "mojom/sunshine_document.mojom-webui.js"),
++      IDR_SUNSHINE_DOCUMENT_APP_HTML);
+ 
+   // A WebUI data source forbids every frame by default -- URLDataSource's own
+   // GetContentSecurityPolicy() returns "child-src 'none';" -- so the one origin
+diff --git a/chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom
+new file mode 100644
+index 0000000..5f7678b
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom
+@@ -0,0 +1,79 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The Sunshine settings surface's one interface to the browser.
++//
++// **Why this surface exists at all, and why the New Tab does not own it.**
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3d put a choice to the owner: the New
++// Tab's background button could call a Mojo method on upstream's own New Tab
++// handler, which would take ownership of `new_tab_page.mojom` and
++// `new_tab_page_handler.h/.cc` -- three upstream files, on the page this stack
++// already patches most heavily and re-applies at every roll -- or it could
++// navigate to a Sunshine surface that owns the method instead. The owner chose
++// the second on 2026-08-27. This file is where that method landed, and the
++// three upstream files stay unowned.
++//
++// **Nothing here names a location.** No method takes or returns a path, a file
++// name, or a directory. The page asks for a picker to be opened; the browser
++// opens it, and the browser alone ever sees what was chosen. That is not
++// politeness -- a privileged page that could hand the browser a path would be
++// a privileged page that could ask it to copy anything on the disk into the
++// profile, and the file dialog is precisely the thing that makes the choice a
++// person's rather than the page's.
++
++module sunshine.settings.mojom;
++
++// What happened to the file a person chose.
++//
++// `kCancelled` is not a failure and must not be reported as one: closing a
++// file dialog without choosing is the most ordinary thing a person does with
++// it.
++enum BackgroundOutcome {
++  kInstalled,
++  kCancelled,
++  // A dialog is already open. Upstream's own picker answers the same way
++  // rather than opening a second one.
++  kPickerBusy,
++  kUnreadable,
++  kTooLarge,
++  kUnsupportedFormat,
++  kWriteFailed,
++};
++
++// The outcome, with the two numbers a refusal needs to be specific.
++//
++// **Both are measured by the browser, and neither is composed into a
++// sentence here.** The browser is the only party that read the file, so it is
++// the only one that can say how large it was; the page is what a person reads,
++// so it is where the wording lives. Sending a finished sentence would put
++// product copy in a Mojo response, and sending only an enum would leave the
++// page inventing a number it never measured.
++struct BackgroundChoice {
++  BackgroundOutcome outcome;
++  // The chosen file's size in bytes, or -1 when it could not be measured.
++  int64 size;
++  // The largest file this build will accept, in bytes. Constant for the life
++  // of the process; carried here so that the refusal and the limit it cites
++  // come from the same place at the same moment.
++  int64 limit;
++};
++
++// What the settings surface may ask of the browser, and the whole of it.
++interface SettingsHost {
++  // Whether this profile has a background of its own, as opposed to seeing
++  // the one in the install directory. This is the narrower question, and it is
++  // the one the surface needs: "Remove" can only act on the profile's own.
++  GetBackgroundState() => (bool profile_background);
++
++  // Open the OS file picker and, if the chosen file passes, install it.
++  //
++  // The whole operation is one request. An interface that opened the dialog
++  // and reported the choice separately would let the page decide what to do
++  // with the answer, and the answer is a path.
++  ChooseBackground() => (BackgroundChoice choice);
++
++  // Give up this profile's own background. The install directory's, if there
++  // is one, becomes visible again.
++  RemoveBackground() => (bool removed);
++};
+diff --git a/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.cc b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.cc
+new file mode 100644
+index 0000000..a0ae491
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.cc
+@@ -0,0 +1,158 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.h"
++
++#include <memory>
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "base/task/thread_pool.h"
++#include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/shell_dialogs/selected_file_info.h"
++
++namespace {
++
++using sunshine::settings::mojom::BackgroundChoice;
++using sunshine::settings::mojom::BackgroundOutcome;
++
++// One outcome per refusal the browser can distinguish, and no collapsing.
++//
++// The temptation is to map everything that is not `kInstalled` to one "that
++// did not work" and let the page say so once. NTB-11 is the reason not to:
++// the sentence a person needs is *why*, and the browser is the only party
++// that knows.
++BackgroundOutcome Translate(sunshine::background::InstallResult result) {
++  switch (result) {
++    case sunshine::background::InstallResult::kInstalled:
++      return BackgroundOutcome::kInstalled;
++    case sunshine::background::InstallResult::kUnreadable:
++      return BackgroundOutcome::kUnreadable;
++    case sunshine::background::InstallResult::kTooLarge:
++      return BackgroundOutcome::kTooLarge;
++    case sunshine::background::InstallResult::kUnsupportedFormat:
++      return BackgroundOutcome::kUnsupportedFormat;
++    case sunshine::background::InstallResult::kWriteFailed:
++      return BackgroundOutcome::kWriteFailed;
++  }
++}
++
++}  // namespace
++
++SunshineSettingsHandler::SunshineSettingsHandler(
++    content::WebContents* web_contents,
++    const base::FilePath& profile_path)
++    : web_contents_(web_contents), profile_path_(profile_path) {}
++
++SunshineSettingsHandler::~SunshineSettingsHandler() {
++  // The dialog holds a raw pointer to this object and may still call back.
++  if (select_file_dialog_) {
++    select_file_dialog_->ListenerDestroyed();
++  }
++}
++
++void SunshineSettingsHandler::Bind(
++    mojo::PendingReceiver<sunshine::settings::mojom::SettingsHost> receiver) {
++  receiver_.reset();
++  receiver_.Bind(std::move(receiver));
++}
++
++void SunshineSettingsHandler::GetBackgroundState(
++    GetBackgroundStateCallback callback) {
++  // Off the UI thread: this reads the profile's directory, and the thread that
++  // draws does not open files. PB-4.
++  base::ThreadPool::PostTaskAndReplyWithResult(
++      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++      base::BindOnce(&sunshine::background::HasProfileBackground,
++                     profile_path_),
++      std::move(callback));
++}
++
++void SunshineSettingsHandler::ChooseBackground(
++    ChooseBackgroundCallback callback) {
++  if (select_file_dialog_ || !choose_callback_.is_null()) {
++    // A dialog is already up. Answering rather than opening a second one is
++    // what upstream's own picker does, and the page needs the answer: a
++    // request that never resolved would leave its button disabled forever.
++    std::move(callback).Run(BackgroundChoice::New(
++        BackgroundOutcome::kPickerBusy, -1,
++        static_cast<int64_t>(sunshine::background::kMaxAssetBytes)));
++    return;
++  }
++
++  choose_callback_ = std::move(callback);
++
++  select_file_dialog_ = ui::SelectFileDialog::Create(
++      this, std::make_unique<ChromeSelectFilePolicy>(web_contents_));
++
++  // The extensions the dialog offers, which are a convenience and never the
++  // decision. NTB-2: what a file *is* comes from its first bytes, checked
++  // after the dialog closes and before anything is written. A person who types
++  // a name the filter does not list still gets their file examined; they just
++  // get told what it turned out to be.
++  ui::SelectFileDialog::FileTypeInfo file_types;
++  file_types.allowed_paths = ui::SelectFileDialog::FileTypeInfo::NATIVE_PATH;
++  file_types.extensions.resize(1);
++  for (const base::FilePath::CharType* const extension :
++       sunshine::background::AssetExtensions()) {
++    file_types.extensions[0].push_back(extension);
++  }
++  // **All files, as well.** The filter is a convenience and the extension is
++  // never the decision -- a JPEG named `.jpeg`, or named nothing at all, is
++  // still a JPEG, and a filter that hid it would be the extension deciding
++  // what a file is by deciding whether it can be chosen. NTB-2 in the one
++  // place it could still have got in.
++  file_types.include_all_files = true;
++
++  select_file_dialog_->SelectFile(
++      ui::SelectFileDialog::SELECT_OPEN_FILE, std::u16string(),
++      base::FilePath(), &file_types, 0, base::FilePath::StringType(),
++      web_contents_->GetTopLevelNativeWindow(), nullptr);
++}
++
++void SunshineSettingsHandler::RemoveBackground(
++    RemoveBackgroundCallback callback) {
++  base::ThreadPool::PostTaskAndReplyWithResult(
++      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++      base::BindOnce(&sunshine::background::RemoveBackground, profile_path_),
++      std::move(callback));
++}
++
++void SunshineSettingsHandler::FileSelected(const ui::SelectedFileInfo& file,
++                                           int index) {
++  select_file_dialog_ = nullptr;
++  if (choose_callback_.is_null()) {
++    return;
++  }
++  base::ThreadPool::PostTaskAndReplyWithResult(
++      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
++      base::BindOnce(&sunshine::background::InstallBackground, file.path(),
++                     profile_path_),
++      base::BindOnce(&SunshineSettingsHandler::OnInstalled,
++                     weak_factory_.GetWeakPtr()));
++}
++
++void SunshineSettingsHandler::FileSelectionCanceled() {
++  select_file_dialog_ = nullptr;
++  // Not a failure. Closing a file dialog without choosing is the most ordinary
++  // thing a person does with one, and the page says nothing about it.
++  FinishChoice(BackgroundOutcome::kCancelled, -1);
++}
++
++void SunshineSettingsHandler::OnInstalled(
++    sunshine::background::InstallOutcome outcome) {
++  FinishChoice(Translate(outcome.result), outcome.size);
++}
++
++void SunshineSettingsHandler::FinishChoice(BackgroundOutcome outcome,
++                                           int64_t size) {
++  if (choose_callback_.is_null()) {
++    return;
++  }
++  std::move(choose_callback_)
++      .Run(BackgroundChoice::New(
++          outcome, size,
++          static_cast<int64_t>(sunshine::background::kMaxAssetBytes)));
++}
+diff --git a/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.h b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.h
+new file mode 100644
+index 0000000..150507d
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.h
+@@ -0,0 +1,99 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_SETTINGS_SUNSHINE_SETTINGS_HANDLER_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_SETTINGS_SUNSHINE_SETTINGS_HANDLER_H_
++
++#include "base/files/file_path.h"
++#include "base/memory/raw_ptr.h"
++#include "base/memory/weak_ptr.h"
++#include "chrome/browser/ui/sunshine/newtab_background.h"
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom.h"
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "mojo/public/cpp/bindings/receiver.h"
++#include "ui/shell_dialogs/select_file_dialog.h"
++
++namespace content {
++class WebContents;
++}
++
++// The browser half of the settings surface's one host interface.
++//
++// **This class is where the New Tab background stops being read-only.** Until
++// it existed, the only way to put a background in front of a person was to
++// place a file beside `chrome.exe` by hand, and the only thing the browser
++// could say about a file it refused was nothing at all --
++// `docs/NEWTAB_BACKGROUND_CONTRACT.md` §5 records that a rejected asset and an
++// absent one are indistinguishable on screen. This handler holds the bytes,
++// the rule and the person at the same moment, which is the whole reason NTB-11
++// asks for a reason to be shown.
++//
++// **The page never sees a path and never sends one.** `ChooseBackground()`
++// takes no argument: the dialog is opened here, the chosen file is measured,
++// read and copied here, and what crosses back is an outcome and two byte
++// counts. A privileged page that could name a file would be a page that could
++// ask the browser to copy anything on the disk into the profile.
++//
++// **`ui::SelectFileDialog::Listener` lifetime.** The dialog holds a raw
++// pointer to its listener and may call back after `SelectFile()` returns, so
++// the destructor tells any live dialog that its listener is gone. Upstream's
++// `CustomizeChromePageHandler` does exactly this, and the comment on
++// `ui::SelectFileDialog::Create()` is explicit that the listener must outlive
++// the dialog.
++class SunshineSettingsHandler
++    : public sunshine::settings::mojom::SettingsHost,
++      public ui::SelectFileDialog::Listener {
++ public:
++  SunshineSettingsHandler(content::WebContents* web_contents,
++                          const base::FilePath& profile_path);
++
++  SunshineSettingsHandler(const SunshineSettingsHandler&) = delete;
++  SunshineSettingsHandler& operator=(const SunshineSettingsHandler&) = delete;
++
++  ~SunshineSettingsHandler() override;
++
++  // Binds the page's end of the interface. The receiver is reset first, for
++  // the same reason the document surface's is: content/browser/webui/
++  // web_ui_impl.h says SetUpMojoInterfaceBroker() "may be called multiple
++  // times if the WebUI is reused", and a second bind of a live receiver
++  // CHECK-fails.
++  void Bind(
++      mojo::PendingReceiver<sunshine::settings::mojom::SettingsHost> receiver);
++
++  // sunshine::settings::mojom::SettingsHost:
++  void GetBackgroundState(GetBackgroundStateCallback callback) override;
++  void ChooseBackground(ChooseBackgroundCallback callback) override;
++  void RemoveBackground(RemoveBackgroundCallback callback) override;
++
++  // ui::SelectFileDialog::Listener:
++  void FileSelected(const ui::SelectedFileInfo& file, int index) override;
++  void FileSelectionCanceled() override;
++
++ private:
++  // Called on the UI thread with the result of the blocking install.
++  void OnInstalled(sunshine::background::InstallOutcome outcome);
++
++  // Answers the pending ChooseBackground() request, if there is one, and
++  // forgets the dialog. Every path out of a pick goes through here so that a
++  // caller can never be left waiting on a promise nothing will resolve.
++  void FinishChoice(sunshine::settings::mojom::BackgroundOutcome outcome,
++                    int64_t size);
++
++  // The window the dialog is modal to, and the policy that can refuse to show
++  // one at all. Owned by the WebUI, which outlives this handler.
++  raw_ptr<content::WebContents> web_contents_;
++
++  // Composed once, here, from the profile's own directory. No method of the
++  // page's interface can carry one.
++  const base::FilePath profile_path_;
++
++  scoped_refptr<ui::SelectFileDialog> select_file_dialog_;
++  ChooseBackgroundCallback choose_callback_;
++
++  mojo::Receiver<sunshine::settings::mojom::SettingsHost> receiver_{this};
++
++  base::WeakPtrFactory<SunshineSettingsHandler> weak_factory_{this};
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SETTINGS_SUNSHINE_SETTINGS_HANDLER_H_
+diff --git a/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.cc b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.cc
+new file mode 100644
+index 0000000..e3c5cf3
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.cc
+@@ -0,0 +1,53 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.h"
++
++#include <memory>
++#include <utility>
++
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings_handler.h"
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "ui/webui/webui_util.h"
++
++SunshineSettingsUI::SunshineSettingsUI(content::WebUI* web_ui)
++    : ui::MojoWebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++
++  // The profile path is composed once, here. Nothing the page can send carries
++  // a location, so this is the only way the handler learns where it may write.
++  handler_ = std::make_unique<SunshineSettingsHandler>(web_ui->GetWebContents(),
++                                                       profile->GetPath());
++
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, chrome::kChromeUISunshineSettingsHost);
++
++  // The "settings/" part of Sunshine's one resource bundle, plus this
++  // surface's own generated Mojo bindings by name.
++  //
++  // The second argument is why it is by name. Bindings do not land in the
++  // surface directory that owns them: build_webui() copies every mojo file
++  // into one `mojo_base_path` directory by basename, so a prefix filter alone
++  // would either serve a page nothing or serve every page every surface's
++  // bindings. Naming one file serves exactly the interface this page is also
++  // granted in sunshine_webui_registry.h, and no other.
++  webui::SetupWebUIDataSource(
++      source,
++      sunshine::SurfaceResources("settings",
++                                 "mojom/sunshine_settings.mojom-webui.js"),
++      IDR_SUNSHINE_SETTINGS_APP_HTML);
++}
++
++SunshineSettingsUI::~SunshineSettingsUI() = default;
++
++WEB_UI_CONTROLLER_TYPE_IMPL(SunshineSettingsUI)
++
++void SunshineSettingsUI::BindInterface(
++    mojo::PendingReceiver<sunshine::settings::mojom::SettingsHost> receiver) {
++  handler_->Bind(std::move(receiver));
++}
+diff --git a/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.h b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.h
+new file mode 100644
+index 0000000..c5b7f82
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.h
+@@ -0,0 +1,78 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_SETTINGS_SUNSHINE_SETTINGS_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_SETTINGS_SUNSHINE_SETTINGS_UI_H_
++
++#include <memory>
++
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom.h"
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "ui/webui/mojo_web_ui_controller.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineSettingsHandler;
++class SunshineSettingsUI;
++
++// Sunshine's own settings, at chrome://sunshine-settings.
++//
++// Registered through content's WebUI config map like every Sunshine surface;
++// docs/decisions/0003-internal-scheme.md records why Sunshine registers no
++// scheme of its own.
++class SunshineSettingsUIConfig
++    : public content::DefaultWebUIConfig<SunshineSettingsUI> {
++ public:
++  SunshineSettingsUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           chrome::kChromeUISunshineSettingsHost) {}
++};
++
++// The settings a person can change about Sunshine itself, which today is one:
++// the New Tab background.
++//
++// **This surface is the answer to a question about ownership, not about
++// design.** `docs/NEWTAB_BACKGROUND_CONTRACT.md` §3d: the New Tab's background
++// button either calls a method on upstream's New Tab handler -- taking
++// ownership of `new_tab_page.mojom` and `new_tab_page_handler.h/.cc`, three
++// upstream files on the page this stack patches most heavily -- or it
++// navigates somewhere Sunshine already owns. The owner chose the navigation.
++// So the button is still on the New Tab, and this is what it opens.
++//
++// It is deliberately not a settings *system*. There is no schema, no registry
++// of preferences and no framework for a second page; when a second setting
++// arrives it will be a second section in `app.html`, and the moment that stops
++// scaling is the moment to design one rather than now.
++//
++// **ui::MojoWebUIController, and what it withholds.** The base class puts
++// kMojoWebUi into this page's BindingsPolicySet and adds kWebUi only when
++// `enable_chrome_send` is passed. It is not passed here, so the page has Mojo
++// and does not have chrome.send at all.
++class SunshineSettingsUI : public ui::MojoWebUIController {
++ public:
++  explicit SunshineSettingsUI(content::WebUI* web_ui);
++
++  SunshineSettingsUI(const SunshineSettingsUI&) = delete;
++  SunshineSettingsUI& operator=(const SunshineSettingsUI&) = delete;
++
++  ~SunshineSettingsUI() override;
++
++  // The one interface this page is offered.
++  void BindInterface(
++      mojo::PendingReceiver<sunshine::settings::mojom::SettingsHost> receiver);
++
++ private:
++  std::unique_ptr<SunshineSettingsHandler> handler_;
++
++  // Gives this controller the identity the interface broker registry registers
++  // a binder against, and that WebUIController::GetAs() downcasts by.
++  WEB_UI_CONTROLLER_TYPE_DECL();
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_SETTINGS_SUNSHINE_SETTINGS_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index 72cd746..3755aca 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -19,6 +19,8 @@
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/security/sunshine_security_ui.h"
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings.mojom.h"
++#include "chrome/browser/ui/webui/sunshine/settings/sunshine_settings_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.h"
+ #include "content/public/browser/web_ui_browser_interface_broker_registry.h"
+ #include "content/public/browser/webui_config_map.h"
+@@ -86,6 +88,13 @@ inline void RegisterWebUIInterfaceBrokers() {
+   content::WebUIBrowserInterfaceBrokerRegistry::GetTrustedRegistry()
+       .ForWebUI<SunshineDocumentUI>()
+       .Add<::sunshine::document::mojom::DocumentHost>();
++
++  // The settings surface's one interface. Registered against this controller
++  // type and no other, which is what makes the surface's generated bindings
++  // useless to any page that is not this one.
++  content::WebUIBrowserInterfaceBrokerRegistry::GetTrustedRegistry()
++      .ForWebUI<SunshineSettingsUI>()
++      .Add<::sunshine::settings::mojom::SettingsHost>();
+ }
+ 
+ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
+@@ -93,6 +102,7 @@ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
+   map.AddWebUIConfig(std::make_unique<SunshineDocumentUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineModulesUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineSecurityUIConfig>());
++  map.AddWebUIConfig(std::make_unique<SunshineSettingsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SunshineShellUIConfig>());
+ 
+   // The document surface's unprivileged half. It is the same singleton and the
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc
+index 32a8db3..a84b3cb 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.cc
+@@ -10,12 +10,22 @@
+ 
+ namespace sunshine {
+ 
+-std::vector<webui::ResourcePath> SurfaceResources(std::string_view surface) {
++std::vector<webui::ResourcePath> SurfaceResources(std::string_view surface,
++                                                  std::string_view bindings) {
+   const std::string prefix = std::string(surface) + "/";
+   std::vector<webui::ResourcePath> resources;
+   for (const webui::ResourcePath& resource : kSunshineResources) {
+     const std::string_view path(resource.path);
+     if (!path.starts_with(prefix)) {
++      // The one entry a surface may serve from outside its own directory: its
++      // generated Mojo bindings, which build_webui() puts in a directory
++      // shared by the whole bundle. Served at its bundle path rather than at
++      // its basename, because the page's import has to typecheck against the
++      // same layout at build time -- `../mojom/<name>.mojom-webui.js` from the
++      // surface's own directory, which resolves to exactly this path.
++      if (!bindings.empty() && path == bindings) {
++        resources.push_back({resource.path, resource.id, resource.filepath});
++      }
+       continue;
+     }
+     // substr(), not `resource.path + prefix.size()`. Chromium builds this
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h
+index 6d8a30d..edb89d9 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h
+@@ -28,7 +28,30 @@ namespace sunshine {
+ // (ui/base/webui/resource_path.h), so the shortened path is a pointer into the
+ // same string literal the generated map already holds: nothing is copied, and
+ // the returned entries stay valid for the life of the process.
+-std::vector<webui::ResourcePath> SurfaceResources(std::string_view surface);
++// `bindings`, when given, is one further bundle entry the surface may serve,
++// named by its full path in the bundle and served at that same path.
++//
++// **Generated Mojo bindings do not live in the surface directory that owns
++// them, and cannot be made to.** `build_webui()` copies every file in
++// `mojo_files` into a single `mojo_base_path` directory by basename --
++// `outputs = [ "${preprocess_dir}/${mojo_base_path}/{{source_file_part}}" ]`
++// -- so there is one such directory for the whole bundle, not one per surface.
++// The prefix filter above therefore cannot reach them.
++//
++// The two ways out were a shared directory every surface serves, or one file
++// each surface names. This is the second. A surface names its own bindings and
++// no other's, which keeps this helper doing what it was written to do: a
++// privileged page serves the files that page owns.
++//
++// **This is defence in depth and not the boundary itself.** Being able to load
++// another surface's bindings would still not let a page use them: the binder
++// registry in sunshine_webui_registry.h grants an interface to one controller
++// type, so `getRemote()` from the wrong page produces a pipe nothing binds.
++// The boundary is that registration; this keeps the two from having to be read
++// together to know what a page can reach.
++std::vector<webui::ResourcePath> SurfaceResources(
++    std::string_view surface,
++    std::string_view bindings = std::string_view());
+ 
+ }  // namespace sunshine
+ 
+diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
+index 4b7c904..0a62934 100644
+--- a/chrome/common/sunshine/sunshine_webui_hosts.h
++++ b/chrome/common/sunshine/sunshine_webui_hosts.h
+@@ -20,6 +20,14 @@
+ 
+ namespace chrome {
+ 
++// Sunshine's own settings. docs/NEWTAB_BACKGROUND_CONTRACT.md section 3d: the
++// New Tab's background button navigates here rather than calling a method on
++// upstream's New Tab handler, which is what keeps new_tab_page.mojom and
++// new_tab_page_handler.h/.cc out of this stack's ownership.
++inline constexpr char kChromeUISunshineSettingsHost[] = "sunshine-settings";
++inline constexpr char kChromeUISunshineSettingsURL[] =
++    "chrome://sunshine-settings/";
++
+ // The Google account link. docs/ACCOUNT_LINK_PLAN.md section 11: the consent
+ // screen has to be a page, so the page exists whatever else is decided, and
+ // the linked state belongs on it. Reached from a row on the module home.
+@@ -73,6 +81,7 @@ inline constexpr auto kSunshineWebUIHosts = std::to_array<base::cstring_view>({
+       kChromeUISunshineDocumentHost,
+       kChromeUISunshineModulesHost,
+       kChromeUISunshineSecurityHost,
++      kChromeUISunshineSettingsHost,
+       kChromeUISunshineShellHost,
+ });
+ 

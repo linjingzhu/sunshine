@@ -138,7 +138,18 @@ def patched_lines_by_target(root: Path) -> dict[str, str]:
 # serves or renders the background names one of these and is in scope by that
 # fact alone.
 FEATURE_MARKERS = ("newtab_background", "sunshineBackground",
-                   "ReadInstalledBackground", "sunshine-background")
+                   "ReadInstalledBackground", "sunshine-background",
+                   # The namespace, and it is here because the list without it
+                   # had a hole. `sunshine_settings_handler.cc` opens the
+                   # picker, measures the chosen file and copies it -- it is
+                   # this feature as much as anything above -- and it named
+                   # none of the four: its include is of its own header, and it
+                   # reaches the feature through `sunshine::background::`
+                   # alone. It used `.Extension()` for a dialog filter and this
+                   # rule did not see it. C++ that touches the feature has to
+                   # name the namespace, so this is the marker that cannot be
+                   # avoided by a file that is genuinely in scope.
+                   "sunshine::background")
 
 
 def feature_targets(added: dict[str, str]) -> dict[str, str]:
@@ -485,6 +496,210 @@ def check_searchbox_state_is_reachable(added: dict[str, str],
         )
 
 
+# NTB-14. The three lists that have to agree about what a background is called.
+#
+# `kAssetFileNames` is the search order and it is what the reader probes.
+# `kAssetExtensions` is what the file dialog offers. `AssetNameFor` is how the
+# picker turns detected bytes into the one name they may be written under.
+# Nothing in the compiler holds these together: a `Format::kWebp` that returned
+# `kAssetFileNames[0]` would write a WebP as `newtab-background.png`, the reader
+# would then refuse it for its bytes, and the whole feature would fail as
+# "the picker did nothing".
+ASSET_TABLE = re.compile(
+    r"kAssetFileNames\[\]\s*=\s*\{(?P<body>.*?)\}", re.S)
+EXTENSION_TABLE = re.compile(
+    r"kAssetExtensions\[\]\s*=\s*\{(?P<body>.*?)\}", re.S)
+PATH_LITERAL = re.compile(r'FILE_PATH_LITERAL\("([^"]*)"\)')
+NAME_FOR_CASE = re.compile(
+    r"case\s+Format::k(?P<format>[A-Za-z0-9]+):\s*"
+    r"return\s+kAssetFileNames\[(?P<index>\d+)\];")
+
+
+def check_asset_names_agree(added: dict[str, str], failures: list[str]) -> None:
+    code = without_comments(added.get(SOURCE, ""))
+
+    names_match = ASSET_TABLE.search(code)
+    extensions_match = EXTENSION_TABLE.search(code)
+    if names_match is None or extensions_match is None:
+        failures.append(
+            f"NTB-14 {SOURCE} does not declare both kAssetFileNames and "
+            "kAssetExtensions; the dialog's filter and the reader's search "
+            "have to come from one place"
+        )
+        return
+
+    names = PATH_LITERAL.findall(names_match.group("body"))
+    extensions = PATH_LITERAL.findall(extensions_match.group("body"))
+    if len(names) != len(extensions):
+        failures.append(
+            f"NTB-14 {SOURCE} declares {len(names)} asset name(s) and "
+            f"{len(extensions)} extension(s); they are one list twice and "
+            "have to be the same length"
+        )
+        return
+
+    for name, extension in zip(names, extensions):
+        if not name.endswith("." + extension):
+            failures.append(
+                f"NTB-14 {SOURCE}: the dialog offers {extension!r} where the "
+                f"reader looks for {name!r}; a filter that does not match the "
+                "name is a filter that hides the file it is meant to show"
+            )
+
+    # `Format` -> the one name that format may be written under.
+    expected = {"Png": "png", "Jpeg": "jpg", "Webp": "webp"}
+    seen: set[str] = set()
+    for case in NAME_FOR_CASE.finditer(code):
+        fmt = case.group("format")
+        index = int(case.group("index"))
+        seen.add(fmt)
+        if index >= len(names):
+            failures.append(
+                f"NTB-14 {SOURCE}: Format::k{fmt} maps to kAssetFileNames"
+                f"[{index}], which is past the end of a {len(names)}-entry list"
+            )
+            continue
+        suffix = expected.get(fmt)
+        if suffix is None:
+            failures.append(
+                f"NTB-14 {SOURCE}: Format::k{fmt} has a file name; the rule "
+                "admits PNG, JPEG and WebP only"
+            )
+        elif not names[index].endswith("." + suffix):
+            failures.append(
+                f"NTB-14 {SOURCE}: Format::k{fmt} maps to {names[index]!r}, "
+                f"which is not a {suffix} name; the picker would write bytes "
+                "under a name the reader then refuses"
+            )
+
+    missing = set(expected) - seen
+    if missing:
+        failures.append(
+            "NTB-14 no file name is mapped for "
+            + ", ".join("Format::k" + name for name in sorted(missing))
+            + f" in {SOURCE}; every permitted format has exactly one name"
+        )
+
+
+# NTB-11. The picker: byte for byte, validated before it lands, and a reason
+# shown for every refusal.
+#
+# The third clause is the one a source check can hold, and it is the one most
+# easily lost. A refusal travels through three declarations in three languages
+# -- `InstallResult` in C++, `BackgroundOutcome` in the .mojom, and a `case` in
+# the page's TypeScript -- and nothing in any compiler notices when the chain
+# stops one short. A new refusal added to the browser and not to the page is
+# not a build error; it is a person who is told nothing, which is the exact
+# state §5 says this feature already puts them in too often.
+HANDLER = ("chrome/browser/ui/webui/sunshine/settings/"
+           "sunshine_settings_handler.cc")
+MOJOM = ("chrome/browser/ui/webui/sunshine/settings/"
+         "sunshine_settings.mojom")
+PAGE = "chrome/browser/resources/sunshine/settings/app.ts"
+
+# What a converting picker would look like in the diff. NTB-11 requires the
+# bytes to arrive unchanged, because re-encoding an APNG produces a still
+# photograph and tells nobody it did.
+REENCODING_SYMBOLS = (
+    "JPEGCodec", "PNGCodec", "WebpEncode", "EncodeBGRA", "ImageEncoder",
+    "SkPngEncoder", "SkJpegEncoder", "SkWebpEncoder", "gfx::PNGCodec",
+)
+
+# The two outcomes the page says nothing about, and why each is silent.
+# `kInstalled` gets its own sentence rather than a refusal's; `kCancelled` is
+# not a failure -- closing a file dialog without choosing is the most ordinary
+# thing a person does with one.
+SILENT_OUTCOMES = frozenset({"kInstalled", "kCancelled"})
+
+
+def check_refusals_reach_the_page(added: dict[str, str],
+                                  failures: list[str]) -> None:
+    source = without_comments(added.get(SOURCE, ""))
+    header = without_comments(added.get(HEADER, ""))
+    handler = without_comments(added.get(HANDLER, ""))
+    mojom = without_comments(added.get(MOJOM, ""))
+    page = without_comments(added.get(PAGE, ""))
+
+    if not (header and handler and mojom and page):
+        # No picker in the stack. NTB-11 constrains one that exists; a feature
+        # that has not grown one yet is not in violation of it.
+        return
+
+    # Byte for byte.
+    if "base::CopyFile(" not in source:
+        failures.append(
+            f"NTB-11 {SOURCE} installs a background without base::CopyFile; "
+            "the bytes have to arrive unchanged, and anything that decodes and "
+            "re-emits them turns an APNG into a photograph"
+        )
+    for symbol in REENCODING_SYMBOLS:
+        for path, text in feature_targets(added).items():
+            if symbol in without_comments(text):
+                failures.append(
+                    f"NTB-11 {path}: {symbol!r} re-encodes the chosen file; "
+                    "NTB-11 requires it copied byte for byte"
+                )
+
+    # Validated before it lands: every refusal returns above the copy.
+    copy_at = source.find("base::CopyFile(")
+    if copy_at != -1:
+        for refusal_name in ("kTooLarge", "kUnsupportedFormat"):
+            # `rfind`, not `find`, and a defect injection is why. A refusal
+            # can be decided in more than one place -- a file shorter than a
+            # signature and a file whose signature is wrong are both
+            # `kUnsupportedFormat` -- so the first mention proves nothing about
+            # the last. Moving the *second* decision below the copy left the
+            # first one above it, and a check that read the first said the
+            # patch was fine. Every decision has to precede the copy, so the
+            # last one is the one to ask about.
+            at = source.rfind(f"InstallResult::{refusal_name}")
+            if at == -1:
+                failures.append(
+                    f"NTB-11 {SOURCE} never returns InstallResult::"
+                    f"{refusal_name}; a rule with no refusal is not a rule"
+                )
+            elif at > copy_at:
+                failures.append(
+                    f"NTB-11 {SOURCE} decides InstallResult::{refusal_name} "
+                    "after base::CopyFile; NTB-11 requires the file validated "
+                    "before it lands, and nothing written when it is refused"
+                )
+
+    # And a reason shown: the chain of three declarations, end to end.
+    results = re.search(r"enum class InstallResult\s*\{([^}]*)\}", header)
+    outcomes = re.search(r"enum BackgroundOutcome\s*\{([^}]*)\}", mojom)
+    if results is None or outcomes is None:
+        failures.append(
+            "NTB-11 the picker's outcomes are not declared in both "
+            f"{HEADER} and {MOJOM}; the page cannot say why about an outcome "
+            "that has no name"
+        )
+        return
+
+    for name in re.findall(r"\bk[A-Za-z0-9]+", results.group(1)):
+        if f"InstallResult::{name}" not in handler:
+            failures.append(
+                f"NTB-11 {HANDLER} does not translate InstallResult::{name}; "
+                "an outcome the browser can produce and the handler cannot "
+                "name is an outcome nobody is told about"
+            )
+
+    for name in re.findall(r"\bk[A-Za-z0-9]+", outcomes.group(1)):
+        if f"BackgroundOutcome::{name}" not in handler:
+            failures.append(
+                f"NTB-11 {HANDLER} never produces BackgroundOutcome::{name}; "
+                "the interface declares an outcome the browser cannot send"
+            )
+        if name in SILENT_OUTCOMES:
+            continue
+        if f"BackgroundOutcome.{name}" not in page:
+            failures.append(
+                f"NTB-11 {PAGE} has no sentence for BackgroundOutcome.{name}; "
+                "NTB-11 is that a refusal says why, and a refusal the page "
+                "cannot describe is the silence the rule exists to end"
+            )
+
+
 def check(root: Path, failures: list[str]) -> None:
     added = added_lines_by_target(root)
     check_served_path_is_reachable(added, failures)
@@ -492,6 +707,8 @@ def check(root: Path, failures: list[str]) -> None:
     check_resting_cannot_fade_the_background(
         added, patched_lines_by_target(root), failures)
     check_searchbox_state_is_reachable(added, failures)
+    check_asset_names_agree(added, failures)
+    check_refusals_reach_the_page(added, failures)
 
     source = added.get(SOURCE)
     if source is None:

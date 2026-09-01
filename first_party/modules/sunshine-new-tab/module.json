@@ -2,6 +2,10 @@
   "schema_version": 2,
   "id": "sunshine.new_tab",
   "display_name": "Sunshine New Tab",
+  "description": {
+    "ko": "새 탭 화면입니다. 크로미움의 검색과 자주 방문한 사이트를 그대로 두고 그 위에 Sunshine의 표면을 얹습니다 — 워드마크, 설치된 배경, 포커스가 떠나면 배경만 남기는 휴지 상태, 우하단 시계, 그리고 사용 중일 때만 불투명해지는 검색창.",
+    "en": "The New Tab surface. Chromium's search and Most Visited stay as they are; Sunshine adds what sits around them — the wordmark, an installed background, a resting state that leaves only that background when focus goes, a clock in the corner, and a searchbox that turns solid only while it is in use."
+  },
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",

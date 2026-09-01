@@ -42,6 +42,88 @@ class FirstPartyModuleTests(unittest.TestCase):
         with self.assertRaisesRegex(self.validator.ModuleValidationError, "native build"):
             self.validator.validate_manifest(manifest, "fixture")
 
+    # --- MH-7: both languages, or neither ---------------------------------
+
+    def template(self) -> dict:
+        return json.loads(
+            (ROOT / "first_party/templates/module.example.json").read_text(encoding="utf-8")
+        )
+
+    def test_one_language_is_refused(self) -> None:
+        """Enforces: MH-7.
+
+        The defect this rule exists for. A fallback would make this manifest
+        load, the switch would appear to work, and the missing paragraph would
+        show the other language's text with nothing anywhere saying so.
+        """
+
+        for missing in ("ko", "en"):
+            with self.subTest(missing=missing):
+                manifest = self.template()
+                del manifest["description"][missing]
+                with self.assertRaisesRegex(
+                        self.validator.ModuleValidationError, "exactly"):
+                    self.validator.validate_manifest(manifest, "fixture")
+
+    def test_a_third_language_is_refused(self) -> None:
+        """Enforces: MH-7. Two languages is the rule, not a minimum."""
+
+        manifest = self.template()
+        manifest["description"]["ja"] = "説明"
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "exactly"):
+            self.validator.validate_manifest(manifest, "fixture")
+
+    def test_a_description_that_is_a_bare_string_is_refused(self) -> None:
+        """Enforces: MH-7. The pre-MH-7 shape must not pass silently."""
+
+        manifest = self.template()
+        manifest["description"] = "What this module does."
+        with self.assertRaisesRegex(
+                self.validator.ModuleValidationError, "object of languages"):
+            self.validator.validate_manifest(manifest, "fixture")
+
+    def test_an_empty_description_is_refused(self) -> None:
+        """Enforces: MH-7. A present-but-blank key is a missing translation."""
+
+        manifest = self.template()
+        manifest["description"]["ko"] = "   "
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "non-empty"):
+            self.validator.validate_manifest(manifest, "fixture")
+
+    def test_a_description_over_the_limit_is_refused(self) -> None:
+        """Enforces: MH-7."""
+
+        manifest = self.template()
+        manifest["description"]["en"] = "a" * (self.validator.DESCRIPTION_LIMIT + 1)
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "characters"):
+            self.validator.validate_manifest(manifest, "fixture")
+
+    def test_markup_in_a_description_is_refused(self) -> None:
+        """Enforces: MH-7.
+
+        The page places it with textContent, so a tag here is inert rather than
+        dangerous. It is still refused: a description carrying markup is one
+        somebody wrote expecting it to render, on a privileged surface.
+        """
+
+        manifest = self.template()
+        manifest["description"]["en"] = "What this <b>module</b> does."
+        with self.assertRaisesRegex(self.validator.ModuleValidationError, "markup"):
+            self.validator.validate_manifest(manifest, "fixture")
+
+    def test_every_shipped_module_carries_both(self) -> None:
+        """Enforces: MH-7. The rule, against the modules that exist."""
+
+        registry = json.loads(
+            (ROOT / "first_party/registry.json").read_text(encoding="utf-8"))
+        for relative in registry["modules"]:
+            manifest = json.loads((ROOT / relative).read_text(encoding="utf-8"))
+            with self.subTest(module=manifest["id"]):
+                self.assertEqual({"en", "ko"}, set(manifest["description"]))
+                self.assertNotEqual(
+                    manifest["description"]["ko"], manifest["description"]["en"],
+                    "neither language may be derived from the other")
+
     def test_remote_content_is_rejected(self) -> None:
         manifest = json.loads(
             (ROOT / "first_party/templates/module.example.json").read_text(encoding="utf-8")

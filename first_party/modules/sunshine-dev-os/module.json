@@ -2,6 +2,10 @@
   "schema_version": 2,
   "id": "sunshine.dev-os",
   "display_name": "DevOS",
+  "description": {
+    "ko": "여러 저장소의 개발 상태를 한 화면으로 모읍니다 — 열린 PR과 병합 충돌, CI, 마일스톤, 사람을 기다리는 결정, 그리고 저장소가 올라가 있는 Projects 보드. 읽지 못한 것은 0으로 그리지 않고 읽지 못했다고 말합니다.",
+    "en": "Brings several repositories' development state onto one surface: open pull requests and merge conflicts, CI, milestones, the decisions waiting on a person, and the Projects boards a repository sits on. What it could not read is reported as unread rather than drawn as zero."
+  },
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",

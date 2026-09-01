@@ -2,6 +2,10 @@
   "schema_version": 2,
   "id": "sunshine.modules",
   "display_name": "Sunshine Modules",
+  "description": {
+    "ko": "이 브라우저에 무엇이 들어 있는지 보여주는 페이지입니다. 각 모듈의 진입점, 권한, 검증 상태를 매니페스트에 적힌 그대로 보고합니다. 이 페이지는 아무것도 바꾸지 않습니다 — 설치도, 제거도, 권한 변경도 할 수 없습니다.",
+    "en": "The page that says what is built into this browser. It reports each module's entry points, permissions and verification state exactly as the manifest holds them. It changes nothing: nothing here installs, removes, or alters a permission."
+  },
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",

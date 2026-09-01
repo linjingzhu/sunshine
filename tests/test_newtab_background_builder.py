@@ -144,6 +144,27 @@ class ReadsTheBrowsersRules(unittest.TestCase):
         with self.assertRaises(SystemExit):
             asset_names("nothing here names a file")
 
+    def test_a_path_literal_outside_the_array_is_not_a_name(self):
+        """The patch has other path literals, and none of them is a background.
+
+        This is the defect that reached the test suite: the profile-first
+        reader appends a `Sunshine` directory, and a sweep for every
+        `FILE_PATH_LITERAL` in the patch reported that directory as a fourth
+        file the browser reads.
+        """
+        text = (
+            'constexpr const base::FilePath::CharType* const '
+            'kAssetFileNames[] = {\n'
+            '    FILE_PATH_LITERAL("newtab-background.png"),\n'
+            '};\n'
+            'return profile_path.Append(FILE_PATH_LITERAL("Sunshine"));\n'
+        )
+        self.assertEqual(asset_names(text), ["newtab-background.png"])
+
+    def test_an_empty_array_stops_the_tool(self):
+        with self.assertRaises(SystemExit):
+            asset_names("kAssetFileNames[] = {\n};\n")
+
 
 if __name__ == "__main__":
     unittest.main()

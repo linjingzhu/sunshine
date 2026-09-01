@@ -9,6 +9,13 @@ runtime, SDK, bundle format and lifecycle manager are not built.
 Position B is not rejected on its merits. It is deferred to a point where it can
 be judged on them — see *Revisiting* below.
 
+**Amended by `docs/decisions/0019-installed-module-tier.md` (2026-08-27).** The
+investigation *Revisiting* named was done, the answer removed the obstacle, and
+the owner opened a second tier beside this one: web modules installed from a
+signed bundle. **The decision recorded here is not reversed** — it stands for the
+compiled tier, and every guard enforcing it stays as it is until a contract
+replaces them. What changed is that it is no longer the only tier.
+
 ## Context
 
 A module architecture brief proposed redefining a Sunshine module as:
@@ -159,6 +166,21 @@ One investigation should happen first, and it may make the question smaller:
 can, B costs an amendment to `.ai/PROJECT_CONTEXT.md` and a rescoping of
 `verify_architecture.py`, but leaves ADR 0003 untouched. That is a materially
 cheaper version of B than the one the brief described.
+
+**That investigation has been done, and the answer is yes.**
+`docs/MODULE_INSTALL_REVIEW.md` §3b: `WebUIConfig` takes its host as a
+constructor argument, `URLDataSource::StartDataRequest` answers with bytes
+decided when the request arrives, and this repository already uses both — the
+document surface's untrusted half and the New Tab background respectively. No
+scheme is registered and ADR 0003 is untouched, exactly as this section
+predicted.
+
+This does not reopen the decision. It removes the reason this section gave for
+not reopening it, which is a different thing, and the question of whether to
+open a second tier is now carried as a P0 in `docs/OPEN_DECISIONS.md` rather
+than as a sentence here. One inference remains load-bearing and is stated in
+§3b: that a config may be registered **after** startup was read off the API's
+shape and not from any caller that does it.
 
 ## Consequences
 

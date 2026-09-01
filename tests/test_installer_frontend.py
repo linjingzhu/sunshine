@@ -193,17 +193,88 @@ class InstallingTests(GuardTestCase):
 
 
 class InputTests(GuardTestCase):
-    def test_a_text_box_in_the_dialog_is_rejected(self) -> None:
-        """One check for two invariants: a typed install path and a typed
-        product name each need an edit control, and neither can appear without
-        one."""
+    """IU-4 was reversed by the owner; IU-5 was not.
+
+    This used to be one check for two invariants -- no edit control anywhere,
+    because a typed install path and a typed product name each need one. The
+    install path is now typed, so the blanket rule stopped expressing the
+    invariant that survived. What replaces it is a count and an identity, and
+    these are the cases that matter.
+    """
+
+    def test_a_second_text_box_is_rejected(self) -> None:
+        """Enforces: IU-5.
+
+        The next field somebody adds has to come through this check rather than
+        past it -- an executable-name box above all, which
+        `docs/INSTALLER_CHOICE_PLAN.md` section 4 prices and nobody has paid
+        for.
+        """
 
         self.rewrite(
             "installer/sunshine_setup.rc",
-            'LTEXT           "", IDC_LOCATION, 28, 118, 296, 10',
-            'EDITTEXT        IDC_LOCATION, 28, 118, 296, 12, ES_AUTOHSCROLL',
+            'LTEXT           "", IDC_LOCATION_NOTE, 28, 136, 296, 10',
+            'EDITTEXT        IDC_EXE_NAME, 28, 136, 296, 13, ES_AUTOHSCROLL',
         )
-        self.assertFailsWith("text box")
+        self.assertFailsWith("exactly one is")
+
+    def test_the_one_box_must_be_the_install_root(self) -> None:
+        """Enforces: IU-4, IU-5. One box is permitted; not any one box."""
+
+        self.rewrite(
+            "installer/sunshine_setup.rc", "EDITTEXT        IDC_LOCATION_EDIT",
+            "EDITTEXT        IDC_PRODUCT_NAME")
+        self.assertFailsWith("IDC_LOCATION_EDIT")
+
+    def test_an_edit_control_declared_the_other_way_is_rejected(self) -> None:
+        """Enforces: IU-5.
+
+        `CONTROL ... "Edit"` is the same control by another spelling, and a
+        check that only reads EDITTEXT would not see it.
+        """
+
+        self.rewrite(
+            "installer/sunshine_setup.rc",
+            'LTEXT           "", IDC_LOCATION_NOTE, 28, 136, 296, 10',
+            'CONTROL         "", IDC_EXE_NAME, "Edit", ES_AUTOHSCROLL, 28, 136, 296, 13')
+        self.assertFailsWith("Edit")
+
+
+class InstallRootTests(GuardTestCase):
+    """The warning that replaces upstream's %ProgramFiles% guarantee.
+
+    `docs/INSTALLER_CHOICE_PLAN.md` section 3 is exact about the one way to get
+    this wrong -- "a writability test performed before elevating tests the
+    wrong token" -- so what is checked is where the test is reached from, not
+    that a warning exists somewhere.
+    """
+
+    def test_removing_the_writability_test_is_rejected(self) -> None:
+        """Enforces: IU-4."""
+
+        path = self.root / "installer/sunshine_setup.cpp"
+        text = path.read_text(encoding="utf-8")
+        call = text.index("if (!choices.install_root.empty() && UsersCanWrite(")
+        end = text.index("\n    }\n", call) + len("\n    }\n")
+        text = text[:call] + text[end:]
+        start = text.index("bool UsersCanWrite(")
+        text = text[:start] + text[text.index("\n}\n", start) + 3:]
+        path.write_text(text, encoding="utf-8")
+        self.assertFailsWith("puts nothing in its place")
+
+    def test_warning_before_elevation_is_rejected(self) -> None:
+        """Enforces: IU-4.
+
+        The defect the rule exists for: the check moved into the dialog, where
+        it runs unelevated and passes on exactly the folders it is there to
+        catch.
+        """
+
+        self.rewrite(
+            "installer/sunshine_setup.cpp",
+            "if (!choices.install_root.empty() && UsersCanWrite(choices.install_root)) {",
+            "if (false) {")
+        self.assertFailsWith("wrong token")
 
 
 class RegistryReadTests(GuardTestCase):

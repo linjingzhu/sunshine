@@ -16,7 +16,7 @@ the entire mechanism.**
 | | Decision |
 | --- | --- |
 | Shape | **One file.** `sunshine-setup.exe` carries the engine inside it. |
-| Path | **Under revision.** Recorded as per-user or per-machine, shown and never typed; the owner has since decided a folder must be chosen. `docs/INSTALLER_CHOICE_PLAN.md` is what that costs. |
+| Path | **Chosen, per-machine only.** The root is typed or browsed to and `Sunshine\Application` is appended; per-user has no control because upstream ignores the preference there. Built: patch `0023` and §2 below. |
 | Name | **Under revision.** Recorded as fixed at `Sunshine`; the owner has since decided the executable's name must be chosen. Same plan, §4 — this is the expensive half. |
 | Image | **Built in**, from `downstream/assets/`. Nothing is read from disk at run time. |
 | Build | **Its own compiler invocation** in the workflow. Zero upstream files. |
@@ -36,11 +36,21 @@ nor any other check reads this document's account of whether that source is
 there. A contract that is wrong about its own implementation status is worse
 than one that is silent, because it is read first and believed.
 
-**What is not built is the two decisions the owner has since made** — a chosen
-install folder and a chosen executable name. `docs/INSTALLER_CHOICE_PLAN.md` is
-what those cost and is the document that tracks them; the Path and Name rows
-above point at it. §9 says what this section leaves open, and §10 says what is
-not verified.
+**Of the two decisions the owner has since made, the folder is built and the
+name is not.** `downstream/patches/0023-sunshine-installer-install-root.patch`
+relaxes upstream's install-root validation, and the front-end carries a chosen
+root through elevation, warns about a user-writable one after it, and writes
+`program_files_dir`. The executable's name is untouched;
+`docs/INSTALLER_CHOICE_PLAN.md` §4 is what it costs and §8.3 is the decision it
+waits on. The Path and Name rows above point at that document.
+
+**This sentence said "What is not built is the two decisions" until
+2026-08-30**, three days after the folder half landed. That is the same failure
+as the corrected line above it, in the same paragraph, caught the same way —
+by a person reading it rather than by anything that runs. §10 records what is
+now enforced about the shape of such a claim and what still is not.
+
+§9 says what this section leaves open, and §10 says what is not verified.
 
 ## 1. The one structural decision
 
@@ -74,10 +84,34 @@ declares. **The front-end invents no installation behaviour**, and that is
 checkable: a control whose effect is not one of those names is a control that is
 doing something upstream did not agree to.
 
-**The install location is displayed and never typed.** It is
-`%LOCALAPPDATA%\Sunshine\Application` or `%ProgramFiles%\Sunshine\Application`,
-whichever the choice above implies, and §3 of the review says why there is no
-third answer.
+**The install location is chosen, on a per-machine install.** This reverses what
+this section said — *displayed and never typed* — by the owner's decision, and
+`docs/INSTALLER_CHOICE_PLAN.md` is what that costs.
+
+What is chosen is the **root**. `Sunshine\Application` is appended by upstream's
+own `GetInstallationDirFromPrefs`, from constants compiled into the binary, so
+the shape of an installation is still Sunshine's and only its location is the
+person's. The dialog shows the resulting path under the box, because the
+difference between the two is where every *it installed somewhere else* report
+comes from.
+
+The request reaches the engine as `program_files_dir`, a key
+`chrome/installer/util/initial_preferences_constants.h` already defines and
+upstream's own `helper.cc` already reads. `downstream/patches/0023-sunshine-installer-install-root.patch`
+relaxes what that helper accepts — from two Program Files roots to any absolute
+directory — and nothing here invents a channel.
+
+**On a per-user install there is no control**, because upstream ignores the
+preference unless the install is per-machine. A control that does nothing is
+worse than its absence: it looks like it worked.
+
+**What upstream's restriction guaranteed is gone, and a warning replaces it.**
+`%ProgramFiles%` is a directory unprivileged users cannot write, which is what
+made a per-machine binary one they cannot replace. Plan §7 decision 2 accepts a
+warning rather than a refusal. The warning names the consequence — *anyone with
+an ordinary account could replace the Sunshine program every other account
+launches* — and it is shown **from the elevated continuation**, because a
+writability test performed before elevating tests the wrong token.
 
 **The product name has no control at all.** Not a text field, not a display-name
 override. `docs/decisions/0015-where-the-product-name-lives.md` is why: the name
@@ -273,6 +307,34 @@ it found, and if the read fails the dialog says Install and proceeds, because a
 missing fact is not a reason to block an installation.
 
 ## 10. NOT VERIFIED
+
+### What now catches a contract that is wrong about itself, and what does not
+
+Twice this document has been wrong about whether its own subject exists, and
+`docs/INSTALLER_CHOICE_PLAN.md` and `docs/NEWTAB_BACKGROUND_CONTRACT.md` have
+been wrong the same way twice more. Nothing ran that could tell.
+
+`scripts/verify_stated_counts.py` now holds three rules about what a document
+claims exists, and it is worth being exact about their reach, because a rule
+believed to cover more than it does is the thing this section exists to prevent:
+
+| Shape | Caught |
+| --- | --- |
+| "`0023-…patch` has not been written", where that patch is in `series` | **Yes** |
+| "Nothing is built", in a document that elsewhere heads a section *Built* | **Yes** |
+| "What is not built is the two decisions", where one of the two is | **No** |
+| "Nothing is built", in a document with no such heading | **No** |
+| A surface spelled `sunshine://<host>` when the tree registers `chrome://sunshine-<host>` | **Yes** |
+
+**The two uncaught rows are the two this document produced**, and that is not an
+accident of effort. Both are scoped English claims whose truth depends on which
+of several things the sentence means, and a guard that adjudicated that would be
+guessing. The obvious wider rule — refuse any sentence saying a named patch is
+unwritten — would have caught **none** of the four, because not one of them
+named a patch. What the rules do is make the next such sentence decidable if it
+is written in a form that can be decided, and leave a person reading the
+document as the only thing that catches the rest.
+
 
 - **The banner is a placeholder and is meant to look like one.**
   `installer/banner.png` is a generated 1360×224 image carrying a diagonal

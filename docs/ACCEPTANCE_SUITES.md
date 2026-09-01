@@ -353,7 +353,7 @@ recents value find "no timestamp, count, selection handle, or query text", and
 CPA-22 requires the list to be emptied by any history clear. Frequency-of-use
 data therefore cannot come from the recents store — deliberately, and correctly.
 It must come from the `Sunshine.Command.*` telemetry events declared for all
-twenty-five registered commands in `first_party/commands.json`. No telemetry
+twenty-six registered commands in `first_party/commands.json`. No telemetry
 sink exists. See finding U4.
 
 ### 5.1 What would count as dogfooding evidence
@@ -395,7 +395,7 @@ Chromium owns splits at the pinned revision. Falsifier: no difference between
 the two rates, or splits opened and dissolved within a threshold duration.
 
 **A3.4 — palette speed.** Needs two things nothing currently supplies: a fixed
-set of frequent operations named in advance from the twenty-five registered
+set of frequent operations named in advance from the twenty-six registered
 commands, and a timed comparison — time from intent to completed execution, via
 the palette and via the equivalent menu path, at least twenty trials each by the
 same operator on the same build. Plus, from telemetry over the window, the share
@@ -462,7 +462,7 @@ with no owning document.
 **U3 — file upload has no contract.** Section 3.1, A1.3.
 
 **U4 — answered by `docs/TELEMETRY_CONTRACT.md`: Sunshine records, and does not
-report.** The events are specified — `Sunshine.Command.*` on all twenty-five
+report.** The events are specified — `Sunshine.Command.*` on all twenty-six
 registered commands and the `GESTURE_CONTRACT` §7 set. (This finding originally
 counted the `DOWNLOAD_SAFETY` warning events too; those are Chromium's
 `DownloadItemWarningData` events on Chromium's own pipeline, and that contract
@@ -548,7 +548,7 @@ step needs restating in terms of it.
 
 **C5 — `docs/COMMAND_PALETTE_CONTRACT.md` §15 misstates the registry.** It
 refers to "the 27 registered commands" and to "the 21 Chromium-owned commands".
-`first_party/commands.json` holds twenty-five commands: twenty owned by
+`first_party/commands.json` holds twenty-six commands: twenty-one owned by
 `chromium`, four by `sunshine.workspace` and one by `sunshine.security`. Checkable offline in seconds, and
 load-bearing, because §15 uses the count to state how many commands lack the
 reason-token sets §4 requires.

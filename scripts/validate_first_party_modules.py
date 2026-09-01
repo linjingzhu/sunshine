@@ -182,9 +182,56 @@ def validate_mount(mount: object, kind: str, source: str) -> None:
         raise ModuleValidationError(f"{source}: only a surface module may declare a mount")
 
 
+# MH-7. Both languages, always, and neither derived from the other.
+#
+# A fallback was the obvious design and it is the wrong one: with one, the
+# switch appears to work while a missing translation quietly shows the other
+# language's text, and nobody finds out. Refusing here makes an untranslated
+# module a build failure, which is the only moment anyone is in a position to
+# write the missing paragraph.
+DESCRIPTION_LANGUAGES = ("en", "ko")
+
+# `docs/MODULE_HOME_CONTRACT.md` said "the same limit as any other display
+# string this page draws". There was no such limit -- the page draws
+# display_name, ids and manifest words with no bound on any of them -- so the
+# contract pointed at nothing. 400 is set here and named there: about a
+# paragraph, and short enough that the detail pane does not become a document.
+DESCRIPTION_LIMIT = 400
+
+
+def validate_description(description: object, source: str) -> None:
+    """MH-7: an object of exactly two languages, both plain text, both present."""
+
+    if not isinstance(description, dict):
+        raise ModuleValidationError(f"{source}: description must be an object of languages")
+    if set(description) != set(DESCRIPTION_LANGUAGES):
+        raise ModuleValidationError(
+            f"{source}: description must declare exactly {sorted(DESCRIPTION_LANGUAGES)}, "
+            f"got {sorted(description)}"
+        )
+    for language in DESCRIPTION_LANGUAGES:
+        value = description[language]
+        if not isinstance(value, str) or not value.strip():
+            raise ModuleValidationError(f"{source}: description.{language} must be non-empty text")
+        if len(value) > DESCRIPTION_LIMIT:
+            raise ModuleValidationError(
+                f"{source}: description.{language} is {len(value)} characters, "
+                f"over the {DESCRIPTION_LIMIT} the module home draws"
+            )
+        # The page places every manifest value with textContent, so markup here
+        # is inert rather than dangerous. It is still refused: a description
+        # carrying a tag is a description someone wrote expecting it to render,
+        # and the surface it renders on is privileged.
+        if "<" in value or ">" in value:
+            raise ModuleValidationError(
+                f"{source}: description.{language} contains markup; this field is plain text"
+            )
+
+
 def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
-    required = {"schema_version", "id", "display_name", "owner", "kind", "lifecycle", "status",
-                "entrypoints", "capabilities", "data", "security", "verification"}
+    required = {"schema_version", "id", "display_name", "description", "owner", "kind",
+                "lifecycle", "status", "entrypoints", "capabilities", "data", "security",
+                "verification"}
     # Optional keys are listed rather than tolerated: an unknown key is still a
     # defect, and this is the set that stops being unknown.
     optional = {"mount"}
@@ -201,6 +248,7 @@ def validate_manifest(manifest: dict, source: str) -> tuple[str, set[str]]:
         raise ModuleValidationError(f"{source}: first-party owner must be sunshine")
     if not isinstance(manifest["display_name"], str) or not manifest["display_name"].strip():
         raise ModuleValidationError(f"{source}: display_name must be non-empty")
+    validate_description(manifest["description"], source)
     if manifest["kind"] not in KINDS or manifest["lifecycle"] not in LIFECYCLES:
         raise ModuleValidationError(f"{source}: invalid kind or lifecycle")
     if manifest["status"] not in STATUSES:

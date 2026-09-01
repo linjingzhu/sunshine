@@ -43,9 +43,19 @@ Blocks run top to bottom. Within a block the order does not matter.
 | **D — new tab** | RV-8, RV-9, RVV-1, RVV-2, RVV-3 | A window that can be resized; light and dark | 20 min |
 | **E — media** | RV-5, RV-6 | Network, and one H.264/AAC and one VP9 or AV1 source | 10 min |
 | **E2 — mouse gestures** | RV-20 | Any page with history in both directions; a link, an image and some selected text to try it on | 15 min |
-| **F — bookmark bar and module home** | RV-21, RV-22, RV-23, RV-24, RV-25, RV-37, RVV-4, RVV-5 | The bookmark bar shown; `first_party/registry.json` open beside it | 25 min |
+| **F — bookmark bar and module home** | **RV-39 first**, then RV-21, RV-22, RV-23, RV-24, RV-25, RV-37, RVV-4, RVV-5, RV-40 | A normal browser window; `first_party/registry.json` open beside it | 30 min |
 | **G — the module shell** | RV-31, RV-32, RV-33, RV-34, RV-38 | `chrome://sunshine-shell`; a window narrow enough to hit the clamp | 30 min |
 | **H — the document surface** | RV-13, RV-14, RV-15, RV-16, RV-17, RV-18, RV-19 | `chrome://sunshine-document`, DevTools open for RV-16 | 40 min |
+
+**Why RV-39 comes first inside F.** Every other gate in this section was
+written against "the bookmark bar shown", and that was the section's stated
+precondition rather than one of its gates — so nothing checked it. On
+2026-08-31 the owner reported that `Ctrl+Shift+B` does nothing in a normal
+window on build #47, which if true makes the precondition unobtainable and
+turns eight gates into NOT RUNs that read as a scheduling problem rather than
+as a finding. RV-39 asks the question by both routes, and which of the two
+fails says where the fault is: a greyed-out menu item means the command is
+disabled, and a working menu item with a dead key means the key never arrived.
 
 **Why A comes before B.** Every gate in A is about files and registry keys that
 launching cannot change, and three of them (RV-26, RV-29, RV-30) are the ones a

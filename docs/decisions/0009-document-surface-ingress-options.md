@@ -2,13 +2,23 @@
 
 ## Status
 
-**Proposal — awaiting product owner decision.** This document lays out the two
+**Decided: Reading A, by the owner on 2026-08-27.** Content is authored or
+pasted in the privileged shell. The P0 this document was written to inform is
+settled and has moved to the *Settled* table in `docs/OPEN_DECISIONS.md`.
+
+**Reading B is not closed by this.** §5 below establishes that A does not
+foreclose it — import becomes an additional way in rather than a replacement,
+because both readings converge on the same stored-document model. What B still
+needs is the file-broker contract that does not exist, which is tracked
+separately.
+
+Everything below is as written when this was a proposal: it lays out the two
 readings `docs/DOCUMENT_SURFACE_CONTRACT.md` §4 already named and records what
 each costs, what security surface each opens, and what each does to the
-reading-order invariant fixed in that contract's §3. It recommends one reading
-as the smaller first step. It does not decide, and its own Status line is not
-"Accepted" — the P0 in `docs/OPEN_DECISIONS.md` stays open until the product
-owner reads this and says which.
+reading-order invariant fixed in that contract's §3. **It is left in that form
+on purpose.** The case for B is the part a later reader needs when B is
+reconsidered, and rewriting it into a justification of the choice made would
+destroy exactly that.
 
 ## Context
 

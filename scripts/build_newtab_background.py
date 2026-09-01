@@ -114,13 +114,30 @@ def _read_patch_text() -> str:
 
 
 def asset_names(patch_text: str | None = None) -> list[str]:
-    """The file names the browser looks for, from the patch that names them."""
+    """The file names the browser looks for, from the patch that names them.
+
+    Read out of `kAssetFileNames[]` and nowhere else. This used to sweep every
+    `FILE_PATH_LITERAL` in the patch, which was the same answer only for as
+    long as the array was the patch's only path literal. The profile-first
+    reader added a second one -- the `Sunshine` directory under the profile --
+    and the sweep returned it as a fourth background name. Scoping to the
+    array is not a narrower proxy for the old rule; it is the rule the tool
+    actually meant.
+    """
     text = _read_patch_text() if patch_text is None else patch_text
-    names = re.findall(r'FILE_PATH_LITERAL\("([^"]+)"\)', text)
+    block = re.search(
+        r"kAssetFileNames\[\]\s*=\s*\{(.*?)\}", text, re.DOTALL
+    )
+    names = (
+        re.findall(r'FILE_PATH_LITERAL\("([^"]+)"\)', block.group(1))
+        if block
+        else []
+    )
     if not names:
         raise SystemExit(
-            "no asset names found in the format patch; the browser's list has "
-            "moved and this tool would write a file it will not read"
+            "no asset names found in kAssetFileNames in the format patch; the "
+            "browser's list has moved and this tool would write a file it "
+            "will not read"
         )
     return names
 

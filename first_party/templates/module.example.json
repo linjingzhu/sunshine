@@ -2,6 +2,10 @@
   "schema_version": 2,
   "id": "sunshine.example",
   "display_name": "Example Module",
+  "description": {
+    "ko": "이 모듈이 무엇을 하는지 한 문단으로 적으십시오. 두 언어 모두 필요하며, 하나만 적으면 빌드가 거부합니다 — 반쪽짜리 번역은 언어 전환이 빈칸으로 바뀌는 경로입니다.",
+    "en": "One paragraph on what this module does. Both languages are required and a manifest carrying one is refused: half a translation is how a language switch turns into a blank."
+  },
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",

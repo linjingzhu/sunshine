@@ -148,6 +148,85 @@ class CleanStackTests(PatchTestCase):
         self.assertAccepted()
 
 
+class NewStartOffsetTests(PatchTestCase):
+    """`new_start` is where a hunk lands in the post-image.
+
+    Nothing checked it, and it drifts silently the moment a patch is edited by
+    hand: a hunk grows and every later `+start` in the same file is left
+    describing the file as it was. Patch 0002 carried stale offsets for a whole
+    session that way.
+
+    It never broke a build, which is why it survived rather than a reason to
+    leave it: `git apply` locates a hunk by `old_start` and its context and
+    never reads `new_start`. These files exist to be read by people.
+    """
+
+    def two_hunks(self, second_new_start: int) -> str:
+        return patch(
+            "--- a/x/y.cc",
+            "+++ b/x/y.cc",
+            "@@ -10,2 +10,4 @@",
+            " one",
+            "+added",
+            "+added",
+            " two",
+            f"@@ -40,2 +{second_new_start},2 @@",
+            " three",
+            " four",
+        )
+
+    def test_the_offset_the_earlier_hunk_creates_is_required(self) -> None:
+        self.stack(self.two_hunks(42))
+        self.assertAccepted()
+
+    def test_a_stale_offset_is_rejected(self) -> None:
+        """The shape a hand-edit leaves behind: the hunk grew, the later
+        offset did not follow."""
+
+        self.stack(self.two_hunks(40))
+        self.assertRejected("says the hunk lands at new line 40")
+
+    def test_the_failure_names_the_file_and_the_arithmetic(self) -> None:
+        self.stack(self.two_hunks(40))
+        found = " ".join(self.failures())
+        self.assertIn("x/y.cc", found)
+        self.assertIn("add 2 line(s) net", found)
+        self.assertIn("puts it at 42", found)
+
+    def test_the_offset_resets_at_the_next_file(self) -> None:
+        """Two sections in one patch. The second file's first hunk starts
+        where its own `old_start` says, not carrying the first file's delta."""
+
+        self.stack(patch(
+            "--- a/x/y.cc",
+            "+++ b/x/y.cc",
+            "@@ -10,2 +10,4 @@",
+            " one",
+            "+added",
+            "+added",
+            " two",
+            "diff --git a/x/z.cc b/x/z.cc",
+            "--- a/x/z.cc",
+            "+++ b/x/z.cc",
+            "@@ -10,2 +10,2 @@",
+            " three",
+            " four",
+        ))
+        self.assertAccepted()
+
+    def test_a_whole_file_addition_is_exempt(self) -> None:
+        """`@@ -0,0 +1,N @@` has no predecessor to accumulate from."""
+
+        self.stack(patch(
+            "--- /dev/null",
+            "+++ b/x/new.cc",
+            "@@ -0,0 +1,2 @@",
+            "+one",
+            "+two",
+        ))
+        self.assertAccepted()
+
+
 class HunkArithmeticTests(PatchTestCase):
     def test_an_old_count_lower_than_the_body_is_rejected(self) -> None:
         """The shape of the defect this guard was written for: a body edited,

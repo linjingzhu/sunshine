@@ -143,8 +143,13 @@ def check_reason_tokens(root: Path, failures: list[str]) -> None:
         has_reasons = bool(command["unavailable_reasons"])
         if has_predicate and not has_reasons:
             failures.append(f"{command['id']}: has a predicate but declares no unavailable reason")
-        if has_reasons and not has_predicate:
-            failures.append(f"{command['id']}: declares unavailable reasons with no predicate")
+        # The other direction was checked here too, and it was wrong for the
+        # same reason it was wrong in the registry validator: twenty of the
+        # twenty-six commands are evaluated on the Chromium side of the command
+        # layer, so there is no Sunshine callable to point at and the tokens
+        # must still be declared. `docs/COMMAND_PALETTE_CONTRACT.md` §4.2.
+        if not has_reasons:
+            failures.append(f"{command['id']}: declares no unavailable reason at all")
 
 
 def check_last_active_tab_owner(root: Path, failures: list[str]) -> None:

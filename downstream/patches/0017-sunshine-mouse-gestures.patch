@@ -43,7 +43,7 @@ index 47c68b1..1f63f21 100644
  #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
  #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
-@@ -549,6 +551,16 @@ Browser::Browser(const CreateParams& params)
+@@ -549,6 +551,20 @@ Browser::Browser(const CreateParams& params)
    }
  #endif  // BUILDFLAG(IS_OZONE)
  
@@ -54,13 +54,17 @@ index 47c68b1..1f63f21 100644
 +  // itself, cost three file probes per tab and broke PB-4's rule against
 +  // opening a file per tab on the startup path.
 +  //
-+  // Idempotent: the second window and the two-hundredth do nothing.
-+  sunshine::background::WarmAvailability();
++  // Idempotent **per profile**: the second window on this profile and the
++  // two-hundredth do nothing, and a window on a different profile probes its
++  // own. The answer stopped being a property of the machine when the profile
++  // became a place a background can live.
++  sunshine::background::WarmAvailability(
++      params.profile ? params.profile->GetPath() : base::FilePath());
 +
    if (params.window) {
      CHECK_IS_TEST() << "Browser::CreateParams::window is a test-only param";
    }
-@@ -1518,6 +1530,13 @@ void Browser::UpdateTargetURL(WebContents* source, const GURL& url) {
+@@ -1518,6 +1534,13 @@ void Browser::UpdateTargetURL(WebContents* source, const GURL& url) {
  }
  
  void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
@@ -74,7 +78,7 @@ index 47c68b1..1f63f21 100644
    const ui::EventType type = event.type();
    const bool exited = type == ui::EventType::kMouseExited;
    // Disregard synthesized events, and mouse enter and exit, which may occur
-@@ -1545,6 +1564,36 @@ void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
+@@ -1545,6 +1568,36 @@ void Browser::ContentsMouseEvent(WebContents* source, const ui::Event& event) {
    }
  }
  

@@ -137,6 +137,8 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-36 | Switch from one mounted module to another and back | The second module's frame replaces the first rather than reusing it: nothing of the first module's document survives into the second, and returning to it starts it again | MM-10 |
 | RV-37 | On `chrome://sunshine-modules`, follow the link below the module list | It arrives at `chrome://sunshine-shell`. This is the only route to that surface that is not typing its address, and before patch 0013 there was none | MODULE HOME §1, patch 0013 |
 | RV-38 | In the module shell, press **Register** at the foot of the dock | It arrives at the module home's registration section. Nothing is installed, nothing changes, and the section says why: a module is compiled in. The control is at the very bottom of B, below the Names toggle | MODULE SHELL §1, MH-1, patch 0014 |
+| RV-39 | With a normal browser window focused, press `Ctrl+Shift+B`, then press it again. Then do the same from the menu — ⋮ &rarr; Bookmarks and lists &rarr; Show bookmarks bar | The bar hides and shows, by both routes. If the menu item is greyed out the command is disabled and the accelerator is inert by construction; if the menu works and the key does not, the key is not reaching the browser | upstream `BrowserCommandController::UpdateCommandsForBookmarkBar`, and the precondition every gate below rests on |
+| RV-40 | Hide the bookmark bar while the Sunshine module-home button is on it | The button goes with the bar. There is then no bookmark-bar route to `chrome://sunshine-modules`, and ADR 0014 §5 does not say whether that is intended | patch 0008 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -218,6 +220,16 @@ set is right and reaching the shell, and it is not something section 1 can do.
 page actually resolves them, which `scripts/verify_design_tokens.py` cannot do
 from source.
 
+**RVV-5 failed on #41, #42 and #44 and has never been diagnosed.** It is the
+only recorded failure that is about the keyboard and the bookmark bar together,
+and on 2026-08-31 the owner reported that `Ctrl+Shift+B` does nothing in a
+normal window on build #47. Those may be one thing or two; nothing here can
+tell, which is the reason RV-39 exists. **Every gate in section F of
+`docs/RETURN_RUN_SHEET.md` — eight of them — is written against a bookmark bar
+that is already shown, and until RV-39 nothing verified that precondition.** A
+run sheet whose first instruction cannot be carried out reports eight NOT RUNs
+that look like a scheduling problem.
+
 ### Why the gates are prefixed
 
 They used a bare `R` series and a bare `V` series for one night.
@@ -242,7 +254,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-38, RVV-1..RVV-5
+gate       RV-1..RV-40, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
