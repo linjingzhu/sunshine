@@ -14,7 +14,7 @@ updated: 2026-08-20
 `docs/PROFILE_ONBOARDING_CONTRACT.md` §4 and §5.
 
 `0018-sunshine-account-surface.patch` landed steps 0 and 1 of the plan's §4 and
-nothing after them: there is a `sunshine://account` page, it is reachable from
+nothing after them: there is a `chrome://sunshine-account` page, it is reachable from
 the module home, and it reports whether this build has an OAuth client at all.
 It does not offer a control, because no build made from this repository has a
 client — §5 below is why, and the page says so plainly rather than showing a

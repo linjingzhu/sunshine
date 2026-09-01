@@ -2,6 +2,10 @@
   "schema_version": 2,
   "id": "sunshine.document",
   "display_name": "Sunshine Documents",
+  "description": {
+    "ko": "프로젝트와 그 안의 절(節)을 만들고, 각 절의 HTML 문서를 읽습니다. 문서는 권한 없는 별도 프레임에서 그려지며 스크립트는 실행되지 않고 원격 요청도 나가지 않습니다. 저장한 바이트는 그대로 돌아옵니다 — 정규화도 들여쓰기 재조정도 하지 않습니다.",
+    "en": "Creates projects and the sections inside them, and reads each section's HTML document. Documents render in a separate unprivileged frame where scripts do not run and no remote request leaves. Stored bytes come back unchanged: no normalisation, no re-indentation."
+  },
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",

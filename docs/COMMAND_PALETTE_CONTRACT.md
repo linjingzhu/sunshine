@@ -228,6 +228,14 @@ is proposed in this wave's report and must be registered by a separate reviewed
 change; this document names none, for the reason
 `docs/BROWSER_UTILITIES_CONTRACT.md` names none.
 
+**Registered on 2026-08-31 as `browser.stop`.** `browser.reload` now reads
+"Reload the active tab, restarting a load already in progress." and its only
+unavailable reason is `no_active_tab`; `browser.stop` is available when the
+active tab has a load in progress and declares `no_load_in_progress` beside it.
+Their error sets are disjoint from their reasons, as §4.2(5) requires them to
+be spelled — `browser.stop` fails with `load_already_settled`, which is the
+race §4.4 leaves open and not the pre-check.
+
 The general rule this instance is a case of:
 
 > A **control** may choose between two commands when it displays, at the moment
@@ -884,6 +892,24 @@ resolves.
 
 ## 15. Not verified
 
+**Nothing about the command titles has been built.** The grd's `<outputs>`
+block mirrors `chrome/app/chromium_strings.grd`'s, one locale at a time, which
+is the closest thing to a proof available without a compiler — that file is an
+input this build already consumes. What has not been checked is whether grit
+accepts a strings grd with **no `<translations>` block**: no `.xtb` exists for
+any of these strings and this project has no translation pipeline, so every
+locale carries the source text. That is what Chromium does for a new string
+until translation lands, and it is stated rather than left to be found.
+
+**The fake start id `2180` was not validated by grit.** It is intermediate
+between its neighbours as `tools/gritsettings/README.md` requires, and it is
+placed outside the `join: 5` group so that the join's semantics cannot matter —
+but `python3 ../grit/grit.py update_resource_ids -i resource_ids.spec --fake`
+is the tool that would confirm it, and this environment has no checkout to run
+it in. It is the first thing to run on the build machine if build #48 fails in
+grit.
+
+
 Nothing in this document has been executed. Specifically:
 
 - No Chromium checkout, configuration, compilation, or link of the pinned
@@ -921,10 +947,19 @@ This contract is complete when reviewed.
 
 Section 7.8 is complete when, in order:
 
-1. The registry and `scripts/validate_commands.py` carry declared selection and
+1. ~~The registry and `scripts/validate_commands.py` carry declared selection and
    declared unavailability reasons, changed atomically together with
-   `tests/test_command_registry.py`;
-2. reload and stop are separate registered commands;
+   `tests/test_command_registry.py`;~~ **Done, 2026-08-31.** Every command
+   declares `selection` — `"none"`, or a kind and the module that enumerates
+   candidates, which §2.1's table makes exactly `workspace.switch`,
+   `workspace.close` and `workspace.tab.move` — and every command declares at
+   least one unavailable reason. See *What this took* below.
+2. ~~reload and stop are separate registered commands;~~ **Done, 2026-08-31** —
+   `browser.stop`, per §3.
+3. ~~every registered command has a localised title, enforced by a build
+   check;~~ **Done, 2026-08-31** — `0025-sunshine-command-titles.patch`, and
+   `scripts/validate_commands.py` holds the two lists to each other in both
+   directions. See *Item 3* above for what it cost and what it did not verify.
 3. every registered command has a localised title, enforced by a build check;
 4. a first-party module owns the palette surface and its opening command;
 5. the palette dispatches through the single command service; and
@@ -933,3 +968,114 @@ Section 7.8 is complete when, in order:
 
 Items 1 and 2 are blocking dependencies on the command registry, not palette
 work. A palette built before them can be demonstrated and cannot be shipped.
+
+### Item 3: the measurement inverted the reflex, and the build found three more things
+
+Titles are localised strings, and §5(1) puts them in Chromium's localisation
+system rather than in a WebUI bundle — correctly, because the toolbar, the menus
+and the gestures invoke commands too and none of them can read a bundle. That
+makes item 3 a question about which `.grd`, and the Sunshine bundle is not a
+candidate: it is an `includes` grd packed through `chrome/chrome_paks.gni`,
+while a strings grd is packed per locale through
+`chrome/chrome_repack_locales.gni` — **a file the stack does not own.**
+
+Two routes, measured with `scripts/measure_file_churn.py command-titles`:
+
+| File | at 152.0.7977.42 | 153.0.8000.0 | main |
+| --- | --- | --- | --- |
+| `chrome/chrome_repack_locales.gni` | 133 lines | 2 lines differ | 2 lines differ |
+| `chrome/app/chromium_strings.grd` | 3406 lines | 64 lines differ | 250 lines differ |
+| `chrome/chrome_paks.gni` | 753 lines | 19 lines differ | 44 lines differ |
+| `tools/gritsettings/resource_ids.spec` | 1811 lines | 31 lines differ | 69 lines differ |
+| `chrome/app/generated_resources.grd` | 20169 lines | 350 lines differ | 1418 lines differ |
+
+| | Route A — a Sunshine strings grd | Route B — `chromium_strings.grd` |
+| --- | --- | --- |
+| New upstream files owned | **1**, the twenty-seventh | **0** |
+| What the edit is | one `source_pattern`, one `dep` | twenty-six `<message>` entries |
+| Churn of the file at issue | **2 lines**, at 153 *and* at trunk | 64 at 153, 250 at trunk |
+| Semantics | a Sunshine strings file holds Sunshine strings | command titles in the *branded product name* file |
+
+**The reflex is route B — take no new upstream file — and the numbers say the
+opposite.** `chrome_repack_locales.gni` is 133 lines and moves by two, twice; it
+is the calmest file measured anywhere in this repository. The file route B would
+abuse instead moves thirty times as much and is the wrong home besides.
+
+`chrome/app/generated_resources.grd` is priced in the same table so that
+declining it is a measurement rather than a feeling: 20,169 lines, 350 differing
+at the next milestone.
+
+**Route A, taken on the owner's word, 2026-08-31.**
+`0025-sunshine-command-titles.patch` creates
+`chrome/app/sunshine/sunshine_command_strings.grd` and its `BUILD.gn`, and
+`chrome/chrome_repack_locales.gni` becomes the twenty-seventh upstream file the
+stack owns. `scripts/validate_commands.py` fails when a registered command has
+no title message and when a message names no registered command — both
+directions, because a message for a retired command is a string translators are
+paid to translate for nothing.
+
+Three things the costing missed, found while building it and worth the next
+reader's attention:
+
+1. **The `grit_strings` target could not go where Chromium's own do.** It is
+   declared in `chrome/app/BUILD.gn`, which the stack does not own, and putting
+   it there would have made a twenty-eighth file. `grit_strings` is a public
+   template in `//tools/grit/grit_rule.gni`, so the target lives in a BUILD.gn
+   Sunshine creates instead. Checked before building rather than assumed.
+2. **`tools/gritsettings/resource_ids.spec` is an upstream file patch 0004
+   already owns**, so the id entry had to go in *that* patch. An upstream file
+   has exactly one owner; `scripts/patch_manifest.py` refused the second claim,
+   which is the guard doing its job.
+3. **The entry is out of alphabetical order on purpose.**
+   `chrome/app/theme/chrome_unscaled_resources.grd` carries
+   `META: {"join": 5}`, and `chrome/app/sunshine/` sorts directly before it, so
+   the alphabetical position is inside whatever that join counts.
+   `tools/gritsettings/README.md`'s simple case explicitly does not apply next
+   to a join, and grit's implementation of it was not read. Placing the entry
+   *after* the join group means the word's meaning does not matter: an
+   insertion outside a group cannot change what the group joins under any
+   reading. That is a deliberate trade of tidiness for a property that holds
+   without a compiler.
+
+**The locale list is the part that could still fail a build**, and it is the
+reason the grd's `<outputs>` block was copied from
+`chrome/app/chromium_strings.grd` one line at a time rather than derived from
+`build/config/locales.gni`. That file is a working input to this build; the GN
+list is computed with platform conditionals this repository cannot evaluate.
+Copying the working list is the only way to be right about it without a
+compiler, and §15 carries what remains unverified.
+
+### What items 1 and 2 took, and the rule that had to be reversed
+
+**§4.2 was unsatisfiable for twenty-one of the twenty-six commands, and two
+guards were the reason.** Both `scripts/validate_commands.py` and
+`scripts/verify_first_party_surfaces.py` required a `predicate` wherever
+`unavailable_reasons` were declared. A Chromium-owned command may not carry a
+Sunshine predicate — the same validator refuses one, correctly — so it could not
+declare the tokens §4.2's last paragraph says its verdicts *must* be drawn from.
+The rule was written to keep two halves of one contract together and it kept one
+half out.
+
+The coupling now runs one way: a predicate must declare what it can return;
+reasons stand without one, because the evaluation lives where this repository
+has no Python to point at. `tests/test_command_registry.py` carried the reversed
+assertion too — it asserted an empty reason list for every Chromium-owned
+command — and it now asserts a non-empty one.
+
+**Reason tokens do not reuse a command's error tokens**, and the pattern was
+already in the tree rather than invented here: `workspace.close` declares the
+reason `workspace_not_found` beside the error `workspace_missing`. §4.4 is why
+they must differ — the dispatcher re-evaluates availability immediately before
+executing, so a condition availability covers cannot also be an error, and one
+token meaning both would leave one of them unreachable.
+
+**One thing this did not settle.** `tests/test_command_registry.py` checks that
+an error is not excluded by its own availability, for `tab.group.create`, where
+it was found. Read across the registry, several other commands declare an error
+whose condition their availability sentence already excludes —
+`unbookmarkable_scheme` under "The active tab has a bookmarkable URL", and the
+find, print, save and zoom entries similarly. Under §4.4 each is reachable only
+in the window between the dispatch check and execution. Whether that window is
+real for each of them is a question about Chromium's own code and is not
+answerable from the registry, so nothing here changed them and no guard was
+widened to guess.

@@ -5,7 +5,7 @@
 A plan whose first step is now built. **It answers a standing P0.**
 
 `0018-sunshine-account-surface.patch` implements §4 steps 0 and 1 and stops
-there. What exists: a `sunshine://account` page, a row on the module home that
+there. What exists: a `chrome://sunshine-account` page, a row on the module home that
 reaches it, and one browser-side function that answers whether this build has an
 OAuth client. What does not exist: consent, authorization, token exchange,
 credential storage, the linked address, unlinking — §4 steps 2 through 7, all of

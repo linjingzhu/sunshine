@@ -235,6 +235,148 @@ and the id is a name its key chose.
 mechanism rather than two; and none of it depends on the IWA feature flag or
 the enterprise policy in §1.
 
+## 3b. The investigation ADR 0006 asked for, done
+
+`docs/decisions/0006-module-execution-model.md` § *Revisiting* names one thing
+to settle before Position B is reconsidered, on the grounds that it "may make
+the question smaller":
+
+> **can a WebUI host serve bundled resources without a registered scheme?** If
+> it can, B costs an amendment to `.ai/PROJECT_CONTEXT.md` and a rescoping of
+> `verify_architecture.py`, but leaves ADR 0003 untouched.
+
+**It can, and Sunshine has already done both halves of it.** Read at
+`152.0.7977.42`, and then found again in this repository's own patch stack.
+
+### Half one — a host that is a runtime string
+
+| Read | What it establishes |
+| --- | --- |
+| `content/public/browser/webui_config.h` | `WebUIConfig(std::string_view scheme, std::string_view host)`. The host is a **constructor argument**, not a compile-time constant, and `CreateWebUIController(web_ui, url)` receives the URL. |
+| `content/public/browser/webui_config_map.h` | `AddUntrustedWebUIConfig()` is an instance method on a singleton, keyed by `url::Origin`, with a matching `RemoveConfig(url)`. Registration is one call per origin and it is reversible. |
+| `downstream/patches/0006-sunshine-document-webui.patch` | Sunshine already calls it: `map.AddUntrustedWebUIConfig(std::make_unique<SunshineDocumentContentUIConfig>())`, and the patch's own comment records that a `chrome-untrusted://` surface "costs no fifth upstream file and no second registration point". |
+
+**No scheme is registered anywhere in that.** `chrome-untrusted://` is
+Chromium's, already there, and ADR 0003's "no `sunshine://` scheme" is untouched
+— which is exactly the outcome ADR 0006 hoped for.
+
+### Half two — bytes decided at request time
+
+`WebUIDataSource` serves compiled-in grit resources, which is not what a bundle
+needs. `URLDataSource` is the other one:
+
+| Read | What it establishes |
+| --- | --- |
+| `content/public/browser/url_data_source.h` | `GetSource()` returns a runtime string; `StartDataRequest(url, …, GotDataCallback)` answers with `base::RefCountedMemory` **computed when the request arrives**; `URLDataSource::Add(browser_context, source)` attaches it per profile. |
+| `downstream/patches/0021-sunshine-newtab-background-source.patch` | Sunshine already does this too — `UntrustedSource::StartDataRequest` gains a branch that reads a file off disk, off the UI thread, and answers with its bytes. |
+
+### Half three, which was not asked about but decides whether it is usable
+
+A `chrome-untrusted://` page defaults to `frame-ancestors 'none'` and would
+refuse the shell's iframe outright. `downstream/patches/0006` already solves it:
+`source->AddFrameAncestor(GURL(chrome::kChromeUISunshineDocumentURL))`, and its
+comment records that `WebUIDataSourceImpl::AddFrameAncestor()` CHECKs the
+argument is a `chrome://` or `chrome-untrusted://` origin, "so this cannot be
+widened to a website by mistake."
+
+### What this does and does not settle
+
+**Settled:** the mechanism ADR 0006 asked about exists, needs no scheme, and is
+in use in this repository twice over. The question is smaller than it was, in
+the specific way ADR 0006 predicted.
+
+**Not settled, and this is the load-bearing gap:** every registration Sunshine
+performs today happens at startup, in `RegisterWebUIConfigs`. That
+`AddUntrustedWebUIConfig` may be called **after** startup — when a bundle is
+installed — is read off the API's shape (a singleton with `Add` and a matching
+`Remove`) and from nothing else. No caller doing it late was found, and none was
+looked for beyond the files above. **A design that installs modules at runtime
+rests entirely on that, and it is an inference.**
+
+Also unread: whether a 56-character bundle id is acceptable to Chromium as a
+host — MM-1's 63-character limit is Sunshine's own rule, not Chromium's — and
+everything in §7 remains as it was.
+
+## 3c. Registration after startup — the inference, settled
+
+§3b left one thing standing on an inference: that
+`WebUIConfigMap::AddUntrustedWebUIConfig` may be called **after** startup, when
+a bundle is installed, rather than only from `RegisterWebUIConfigs`. A design
+that installs modules at runtime rests entirely on it, so it was read.
+
+`content/public/browser/webui_config_map.cc` at `152.0.7977.42`, the whole of
+the function that does the work:
+
+```cpp
+void WebUIConfigMap::AddWebUIConfigImpl(std::unique_ptr<WebUIConfig> config) {
+  GURL url(base::StrCat(
+      {config->scheme(), url::kStandardSchemeSeparator, config->host()}));
+  auto it = configs_map_.emplace(url::Origin::Create(url), std::move(config));
+  // CHECK if a WebUIConfig with the same host was already added.
+  CHECK(it.second) << url;
+}
+```
+
+**There is no timing check of any kind.** No startup phase is asserted, no
+"before the first navigation" guard exists, and `GetConfig` is a plain map
+lookup the navigation stack performs per navigation through
+`WebUIConfigMapWebUIControllerFactory`. A config added at 11am is found by the
+navigation at 11:01. `RemoveConfig` erases and hands the config back.
+
+**The inference was right. Three constraints came with the answer, and none of
+them had been named anywhere.**
+
+### C1 — a duplicate host crashes the browser
+
+`CHECK(it.second)` is the only check in the function, and it fires when an
+origin is already registered. The bundle id is derived from the signing key, so
+**re-installing the same module produces the same id** — and a second `Add`
+without a `Remove` is a `CHECK` failure, which in a release build is a browser
+crash, not an error return.
+
+So install is not `Add`. It is **`RemoveConfig` then `Add`**, unconditionally,
+and that ordering is a correctness requirement rather than hygiene. The same
+applies to upgrade-in-place, which is the ordinary case.
+
+### C2 — the map is UI-thread-only, and says so nowhere
+
+`configs_map_` is a plain `std::map` with no lock, and the file carries no
+`DCHECK_CURRENTLY_ON(BrowserThread::UI)` and no sequence checker. Its
+thread affinity is therefore **inferred from the absence of synchronisation**,
+not documented — which is a weaker guarantee than it looks and is worth stating
+in that form.
+
+It matters because bundle verification is exactly the work that should not run
+on the UI thread: parsing and checking a signature over a file. So the shape is
+read and verify off-thread, **hop back to the UI thread to register**, and the
+hop is not optional.
+
+### C3 — the map is process-wide, not per-profile
+
+`GetInstance()` returns a `base::NoDestructor<WebUIConfigMap>` singleton. There
+is one map for the browser process, and `AddWebUIConfigImpl` takes no
+`BrowserContext`.
+
+**A module installed in one profile is therefore registered for every profile in
+the process.** The only per-profile hook is `IsWebUIEnabled(browser_context)`,
+which `GetConfig` consults on every lookup — so per-profile installation is
+expressible, but it has to be expressed *there*, by a config that knows which
+profiles installed it. Getting this wrong does not fail loudly: it silently
+serves one profile's module to another.
+
+This is the constraint most likely to be missed, because nothing about the
+`Add` call suggests a profile is involved.
+
+### What this settles
+
+The mechanism works, at runtime, with no scheme and no upstream file beyond the
+one registration point Sunshine already owns. What it costs is three rules that
+have to be in the design from the start rather than discovered:
+**remove-before-add, register on the UI thread, and scope by profile in
+`IsWebUIEnabled`.**
+
+**Still not run.** Every line above is read; nothing was compiled or executed.
+
 ## 4. The remaining risks, in the order they should be resolved
 
 1. **Confirm the framing conclusion above against a running browser.** The

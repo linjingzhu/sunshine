@@ -27,32 +27,26 @@ direction sees the same thing.
 | What behaviour is allowed for a warned dangerous download: warn/allow, warn/block, or policy-dependent? | handoff §11, `docs/DOWNLOAD_SAFETY.md` | download release |
 | What is the default profile and data deletion and backup policy? | handoff §11 | persistence release |
 | Is partial extension compatibility acceptable for v1? | handoff §11 | Stage 1 architecture gate |
-| How does content reach the document surface — authored in the shell, or imported from files the user picks? The second is either outside SEC-8 (one-shot, no path retained, no handle held) or exactly what SEC-8 defers; that reading decides whether a file-broker contract has to come first. **Still open. Implementation of Reading A has been started ahead of the answer — see the note below.** | `docs/DOCUMENT_SURFACE_CONTRACT.md` §4, `docs/decisions/0009-document-surface-ingress-options.md` | the first document surface |
 | What is the Chromium roll cadence? A roll costs a patch-stack rebase, re-verification of 204 cited paths, and a 6 h 31 min build on the project's only machine, which is also its only CI. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §8 | security update posture |
 | When, if ever, is Sunshine distributed? The answer gates code signing and auto-update, and re-opens ADR 0004 (codec licensing) and ADR 0005 (no Safe Browsing) together. | `docs/SECURITY_ARCHITECTURE_CONTRACT.md` §9 | distribution |
 | May a broker spawn a child process under the pinned revision's sandbox policy? If it may not, no first-party module can run a tool, a Git surface cannot exist as a module in any form, and R2 of the file-broker requirements is unsatisfiable. | `docs/FILE_BROKER_REQUIREMENTS.md` §5 Q1 | the file broker, and every module that needs a tool |
 
-### Note — document surface ingress is being built before it is decided
+### Note — document surface ingress was built before it was decided, and then decided
 
-`docs/decisions/0009-document-surface-ingress-options.md` says its own Status is
-not "Accepted" and that this row "stays open until the product owner reads this
-and says which." Implementation of Reading A — content authored or pasted in the
-privileged shell — was nevertheless started, on a Manager decision, and that is
-recorded here rather than left for someone to discover from the patch stack.
+This section warned that Reading A had been implemented while the P0 was still
+open, on a Manager decision, and that the row stayed open until the owner said
+which reading was theirs.
 
-The reasoning, so it can be overruled on its merits: the owner's standing
-instruction is that a browser they can actually use has to come out of this, and
-Reading A is the only option buildable today — Reading B needs a file-broker
-contract that does not exist. ADR 0009 recommends A as the smaller first step
-for the same reason, and its §5 establishes that A does not foreclose B: import
-becomes an additional way in, not a replacement, because both readings converge
-on the same stored-document model.
+**The owner answered on 2026-08-27: Reading A.** The warning is kept rather than
+deleted because the sequence is the point — the code went first and the decision
+followed, and a reader should be able to see that this happened rather than
+find a tidy record in which it did not. It came out the way the Manager
+reasoning hoped; that is luck being confirmed, not a method being vindicated.
 
-**What this note does not claim.** It does not settle the row. If the owner's
-answer is B-first, the shell-authoring path is a surface that shipped early
-rather than work that has to be undone, and the P0 stays open until they say so.
-The one outcome this avoids is the document set claiming the question is open
-while the code has quietly answered it.
+Reading B is not closed. ADR 0009 §5 establishes that A does not foreclose it:
+import becomes an additional way in rather than a replacement, because both
+readings converge on the same stored-document model. B still needs the file
+broker contract that does not exist.
 
 ## P1 — shapes the work, does not stop it
 
@@ -91,6 +85,8 @@ reader may arrive holding the old question.
 | May the build warn that Google API keys are missing? | `docs/decisions/0005-google-api-keys.md` — no; PO-A15 forbids presenting local-only operation as an incomplete setup, and the infobar is patched out |
 | Should `GOOGLE_API_KEY` be set on the owner's machine? | `docs/decisions/0005-google-api-keys.md` — no. Sunshine runs without Safe Browsing; reversing it needs a machine environment variable, not a code change |
 | Is a permanently account-free browser the product, or is local-only the Stage 1 state of a browser that later gains sign-in? | `docs/decisions/0018-sunshine-account-link.md` — the second, and the identity is an application link rather than a browser sign-in; `docs/ACCOUNT_LINK_PLAN.md` holds the procedure |
+| Should installed modules exist as a second tier beside compiled ones? | `docs/decisions/0019-installed-module-tier.md` — yes. A web module in a signed bundle, served at `chrome-untrusted://<bundle-id>/`, mounted through the port that exists. ADR 0006 amended, not reversed; the guards enforcing the compiled tier do not move until a contract replaces them |
+| How does content reach the document surface — authored in the shell, or imported from files? | **Reading A**, decided 2026-08-27. `docs/decisions/0009-document-surface-ingress-options.md` §5 keeps B additive; B still needs a file-broker contract that does not exist |
 | Is a Sunshine module a compiled capability or a loaded web-app bundle? | `docs/decisions/0006-module-execution-model.md` — a compiled capability. Position B deferred, not rejected; revisit when the Stage 1–3 gates close |
 
 ## Keeping this honest

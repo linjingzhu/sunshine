@@ -2,6 +2,10 @@
   "schema_version": 2,
   "id": "sunshine.security",
   "display_name": "Sunshine Security Center",
+  "description": {
+    "ko": "브라우저가 이미 알고 있는 보안 상태를 한 곳에 모아 보여줍니다. 판정은 크로미움의 것이고 이 화면은 그것을 옮겨 적을 뿐입니다 — 스스로 차단하지 않고, 스스로 안전하다고 말하지 않습니다.",
+    "en": "Gathers the security state the browser already knows into one place. Every verdict is Chromium's and this surface only reports it: it blocks nothing of its own and calls nothing safe on its own authority."
+  },
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",

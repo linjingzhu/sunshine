@@ -94,13 +94,24 @@ class CommandRegistryTests(unittest.TestCase):
         self.assertIsNone(workspace.can_move_tabs(catalog, catalog.workspaces[0].id))
 
     def test_chromium_owned_commands_carry_no_sunshine_code(self) -> None:
+        """No Sunshine *code*. Declarations are a different thing.
+
+        This asserted an empty `unavailable_reasons` until 2026-08-31, which
+        made the palette contract's §4.2 unsatisfiable for twenty of the
+        twenty-six commands: their availability is evaluated on the Chromium
+        side, and that section requires the verdicts to be drawn from a token
+        set the registry declares. Refusing the declaration because the code is
+        elsewhere confused where a thing is evaluated with whether it is
+        described.
+        """
+
         for command_id, command in self.commands.items():
             if command["owner"] != "chromium":
                 continue
             with self.subTest(command=command_id):
                 self.assertIsNone(command["implementation"])
                 self.assertIsNone(command["predicate"])
-                self.assertEqual([], command["unavailable_reasons"])
+                self.assertTrue(command["unavailable_reasons"], command_id)
 
     def test_each_sunshine_command_has_exactly_one_owning_module(self) -> None:
         entrypoints = self.validator.command_entrypoints(ROOT)
@@ -121,14 +132,30 @@ class CommandRegistryTests(unittest.TestCase):
                 return command
         raise AssertionError(f"{command_id} is not in the registry")
 
-    def _rejects(self, mutate) -> None:
-        payload = copy.deepcopy(self.registry)
-        mutate(payload)
+    def _payload(self) -> dict:
+        return copy.deepcopy(self.registry)
+
+    def _validate(self, payload: dict) -> None:
         surfaces = payload["surfaces"]
         modules = self.validator.module_ids(ROOT)
+        for command in payload["commands"]:
+            self.validator.validate_command(command, surfaces, modules)
+
+    def _rejects(self, mutate) -> None:
+        payload = self._payload()
+        mutate(payload)
         with self.assertRaises(self.validator.CommandRegistryError):
-            for command in payload["commands"]:
-                self.validator.validate_command(command, surfaces, modules)
+            self._validate(payload)
+
+    def _accepts(self, payload: dict) -> None:
+        """A mutation the validator must *not* refuse.
+
+        Every other helper here proves a rule fires. This one proves a rule
+        does not, which is the half a guard loses when it is tightened without
+        anyone asking what it now forbids.
+        """
+
+        self._validate(payload)
 
     def test_a_drifting_telemetry_name_is_rejected(self) -> None:
         self._rejects(lambda p: p["commands"][0].update(telemetry="Sunshine.Command.Wrong"))
@@ -155,8 +182,83 @@ class CommandRegistryTests(unittest.TestCase):
 
         self._rejects(lambda p: self._command(p, "workspace.tab.move").update(unavailable_reasons=[]))
 
-    def test_declared_reasons_without_a_predicate_are_rejected(self) -> None:
-        self._rejects(lambda p: self._command(p, "workspace.tab.move").update(predicate=None))
+    def test_declared_reasons_without_a_predicate_are_accepted(self) -> None:
+        """The coupling runs one way, and it used to run both.
+
+        A predicate must declare what it can return. Reasons without a
+        predicate are not a promise nothing can keep -- they are the twenty
+        Chromium-owned commands, whose evaluation lives where this repository
+        has no Python to point at.
+        """
+
+        payload = self._payload()
+        self._command(payload, "workspace.tab.move").update(predicate=None)
+        self._accepts(payload)
+
+    def test_a_command_with_no_declared_reason_is_rejected(self) -> None:
+        """§4.2(6): a disabled row with no reason is a build failure."""
+
+        self._rejects(
+            lambda p: self._command(p, "browser.reload").update(unavailable_reasons=[]))
+
+    # --- §2.4: selection must be declared -----------------------------------
+
+    def test_selection_kinds_are_a_closed_set(self) -> None:
+        """§2.1: a kind whose values come from a renderer is a payload.
+
+        Widening this set is the security decision §2.2 forbids, so a new kind
+        must fail here before it can be spelled in the registry.
+        """
+
+        self._rejects(
+            lambda p: self._command(p, "workspace.switch").update(
+                selection={"kind": "url", "enumerated_by": "sunshine.workspace"}))
+
+    def test_a_selection_enumerated_by_someone_other_than_the_owner_is_rejected(self) -> None:
+        """§2.4(2): one owner enumerates and one owner executes."""
+
+        self._rejects(
+            lambda p: self._command(p, "workspace.switch").update(
+                selection={"kind": "workspace", "enumerated_by": "sunshine.security"}))
+
+    def test_a_chromium_owned_command_cannot_declare_a_selection(self) -> None:
+        """Nothing on the Sunshine side enumerates candidates for one."""
+
+        self._rejects(
+            lambda p: self._command(p, "tab.close").update(
+                selection={"kind": "tab", "enumerated_by": "chromium"}))
+
+    def test_the_three_selection_bearing_commands_are_the_ones_the_contract_names(self) -> None:
+        """§2.1's table names them, and a fourth appearing silently is the
+        drift that made `workspace.switch` unrenderable in the first place."""
+
+        bearing = {
+            command_id
+            for command_id, command in self.commands.items()
+            if command["selection"] != "none"
+        }
+        self.assertEqual(
+            {"workspace.switch", "workspace.close", "workspace.tab.move"}, bearing)
+
+    # --- Ruling 2: one row, one outcome -------------------------------------
+
+    def test_reload_and_stop_are_separate_commands(self) -> None:
+        """§3: a palette row is a static string and cannot show which of two
+        opposite outcomes it will produce. One re-fetches, discarding
+        uncommitted state; the other preserves what has arrived."""
+
+        self.assertIn("browser.reload", self.commands)
+        self.assertIn("browser.stop", self.commands)
+        reload_summary = self.commands["browser.reload"]["summary"]
+        self.assertNotIn("stop", reload_summary.lower())
+        self.assertNotIn(" or ", reload_summary.lower())
+
+    def test_reload_is_available_whenever_a_tab_is(self) -> None:
+        """§3: reload means reload in every state, including during a load,
+        where it restarts one. Its only unavailable state is having no tab."""
+
+        self.assertEqual(
+            ["no_active_tab"], self.commands["browser.reload"]["unavailable_reasons"])
 
     def test_a_token_that_is_both_a_reason_and_an_error_is_rejected(self) -> None:
         """A reason says it cannot start; an error says it did not finish."""

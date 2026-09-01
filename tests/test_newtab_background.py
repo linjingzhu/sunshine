@@ -21,6 +21,7 @@ import verify_newtab_background as checker  # noqa: E402
 
 PATCH = "downstream/patches/0020-sunshine-newtab-background-format.patch"
 SEARCHBOX_PATCH = "downstream/patches/0022-sunshine-searchbox-state.patch"
+SETTINGS_PATCH = "downstream/patches/0024-sunshine-settings-surface.patch"
 
 
 class NewTabBackgroundTests(unittest.TestCase):
@@ -270,6 +271,129 @@ class SearchboxStateTests(unittest.TestCase):
             "+:host(:not([has-user-input_])) #inputWrapper:not(:focus-within) {",
         )
         self.assertEqual([], checker.validate(self.root))
+
+
+
+class PickerTests(unittest.TestCase):
+    """NTB-11 and NTB-14: the picker, and the names it may write under.
+
+    Both rules span files that no compiler reads together. NTB-14 is three
+    lists in one C++ file that have to agree about what a background is called;
+    NTB-11 is a refusal travelling from a C++ enum through a .mojom to a
+    sentence in TypeScript, and stopping one short of the page is not a build
+    error -- it is a person who is told nothing, which is the silence §5 says
+    this feature already produces too often.
+
+    Every mutation below compiles, applies, and leaves a picker that appears to
+    work.
+    """
+
+    def setUp(self) -> None:
+        directory = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.root = Path(directory) / "repo"
+        shutil.copytree(
+            REPOSITORY_ROOT,
+            self.root,
+            ignore=shutil.ignore_patterns(".git", "__pycache__", "chromium"),
+        )
+        self.patch = self.root / SETTINGS_PATCH
+
+    def edit(self, old: str, new: str) -> None:
+        text = self.patch.read_text(encoding="utf-8")
+        self.assertIn(old, text, f"{old!r} is not in the patch to edit")
+        self.patch.write_text(text.replace(old, new), encoding="utf-8")
+
+    def assertRejected(self, needle: str) -> None:
+        failures = checker.validate(self.root)
+        self.assertTrue(failures, "the violation was accepted")
+        self.assertTrue(any(needle in f for f in failures), f"{needle!r} not in {failures}")
+
+    def test_the_repository_passes_today(self) -> None:
+        """Enforces: NTB-11, NTB-14."""
+
+        self.assertEqual([], checker.validate(REPOSITORY_ROOT))
+
+    # --- NTB-14: the three lists that name a background ---------------------
+
+    def test_a_format_mapped_to_the_wrong_name_is_rejected(self) -> None:
+        """The picker writes a WebP as .png; the reader then refuses its bytes,
+        and the whole feature fails as "the picker did nothing"."""
+
+        self.edit(
+            "    case Format::kWebp:\n+      return kAssetFileNames[2];",
+            "    case Format::kWebp:\n+      return kAssetFileNames[0];",
+        )
+        self.assertRejected("NTB-14")
+
+    def test_an_extension_that_does_not_match_its_name_is_rejected(self) -> None:
+        """The dialog offers `jpeg` where the reader looks for `.jpg`, so the
+        filter hides the file it exists to show."""
+
+        self.edit('FILE_PATH_LITERAL("jpg")', 'FILE_PATH_LITERAL("jpeg")')
+        self.assertRejected("NTB-14")
+
+    def test_a_format_with_no_name_is_rejected(self) -> None:
+        self.edit(
+            "+    case Format::kJpeg:\n+      return kAssetFileNames[1];\n", "")
+        self.assertRejected("NTB-14")
+
+    # --- NTB-11: byte for byte, before it lands, and a reason shown ---------
+
+    def test_a_refusal_the_page_cannot_describe_is_rejected(self) -> None:
+        """The browser can produce it; nobody is ever told."""
+
+        self.edit(
+            "    case BackgroundOutcome.kWriteFailed:",
+            "    case BackgroundOutcome.kNeverMentioned:",
+        )
+        self.assertRejected("has no sentence for")
+
+    def test_a_result_the_handler_cannot_translate_is_rejected(self) -> None:
+        self.edit(
+            "+    case sunshine::background::InstallResult::kTooLarge:\n"
+            "+      return BackgroundOutcome::kTooLarge;\n",
+            "",
+        )
+        self.assertRejected("does not translate")
+
+    def test_re_encoding_instead_of_copying_is_rejected(self) -> None:
+        """A converting picker turns an APNG into a photograph and says
+        nothing. It reads, in the diff, exactly like a copy."""
+
+        self.edit(
+            "+  if (!base::CopyFile(source, destination)) {",
+            "+  if (!gfx::PNGCodec::EncodeBGRA(source, destination)) {",
+        )
+        self.assertRejected("NTB-11")
+
+    def test_validating_after_the_copy_is_rejected(self) -> None:
+        """The subtle one, and the reason the check reads the *last* mention.
+
+        `kUnsupportedFormat` is decided twice -- a file shorter than a
+        signature, and a file whose signature is wrong. Moving only the second
+        below the copy leaves the first above it, so a check that read the
+        first mention accepted a picker that wrote the file and then decided it
+        was not allowed.
+        """
+
+        self.edit(
+            "+  const Format format = DetectFormat(base::as_byte_span(head));\n"
+            "+  if (format == Format::kNone) {\n"
+            "+    outcome.result = InstallResult::kUnsupportedFormat;\n"
+            "+    return outcome;\n"
+            "+  }\n",
+            "+  const Format format = DetectFormat(base::as_byte_span(head));\n",
+        )
+        self.edit(
+            "+  outcome.result = InstallResult::kInstalled;",
+            "+  if (format == Format::kNone) {\n"
+            "+    outcome.result = InstallResult::kUnsupportedFormat;\n"
+            "+    return outcome;\n"
+            "+  }\n"
+            "+  outcome.result = InstallResult::kInstalled;",
+        )
+        self.assertRejected("after base::CopyFile")
 
 
 if __name__ == "__main__":

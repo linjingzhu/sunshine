@@ -5,14 +5,20 @@
 The content area's background on `chrome://new-tab-page`, for the Chromium
 revision pinned by Sunshine OS: `152.0.7977.42` (see `config/chromium.version`).
 
-**Implemented, and never run.** Four patches:
+**Implemented, and never seen.** Five patches:
 `0020-sunshine-newtab-background-format.patch` decides what a background may
 be (§2) and reads it; `0021-sunshine-newtab-background-source.patch` serves it
-(§3); `0002-sunshine-new-tab.patch` shows it (§4);
-`0022-sunshine-searchbox-state.patch` decides what the searchbox does over it
-(§3c).
+(§3); `0002-sunshine-new-tab.patch` shows it, rests it and carries the way in
+(§3a, §3b, §4); `0022-sunshine-searchbox-state.patch` decides what the
+searchbox does over it (§3c); `0024-sunshine-settings-surface.patch` is the
+picker and the surface it lives on (§3b, §3d).
 `scripts/verify_newtab_background.py` holds the patch stack to this document.
-Nothing has been built or displayed — §5 is the whole of what that means.
+
+**Compiled, and never displayed.** This line said "Nothing has been built or
+displayed" until 2026-08-30, while §5 recorded three native builds containing
+these patches — #40, #44 and #47. The distinction the head needs is not
+built/unbuilt but compiled/seen: a compiler has accepted all of this and
+nobody has looked at any of it. §5 is the whole of what that means.
 
 Every decision below was made by the owner. This document records them and the
 evidence each rests on; it does not re-derive them.
@@ -205,7 +211,14 @@ it. This widens that residue. It is recorded here rather than fixed by amending
 PB-4, because amending the budget a feature violates is the pattern that
 produced this contract's worst defect.
 
-**Nothing is built.** No picker, no second lookup path, no profile asset.
+**All three are built now.** `0024-sunshine-settings-surface.patch` is the
+picker, `0020` searches the profile directory before the install directory, and
+a profile asset is whatever the picker copied there. What is not built is a way
+to put a file in a profile without the picker; by hand still means by hand.
+
+This paragraph said "Nothing is built. No picker, no second lookup path, no
+profile asset" until 2026-08-30, three days after the first of the three
+landed.
 
 ## 3a. Resting — the background alone, three seconds after focus leaves
 
@@ -269,7 +282,11 @@ watched, and a minimised one is not, which is the line `visibilityState` already
 draws. Nothing about resting changes what happens when the window is actually
 hidden.
 
-**Nothing is built.**
+**Resting is built**, in `0002-sunshine-new-tab.patch`: the attribute, the
+three-second timer, the exclusion rules and the reduced-motion neutraliser. It
+has never been watched happen — §5. This paragraph said "Nothing is built"
+from the day the code landed, which is the longest any of this document's
+status lines was wrong.
 
 ## 3b. The status row — the time, and the way in
 
@@ -282,6 +299,7 @@ background.
 | **NTB-9** | The clock shows minutes and wakes once per minute, aligned to the boundary, only while the surface is visible. `docs/PERFORMANCE_BUDGET.md` PB-5b is the row that permits it, and it is the only repeating task Sunshine owns. |
 | **NTB-10** | The clock survives resting; the button does not. |
 | **NTB-11** | The picker copies the chosen file **byte for byte** and validates it before it lands. A file the format rules refuse is refused with the reason shown, and nothing is written. |
+| **NTB-14** | A background's file name is decided in one place. The names the reader searches, the extensions the dialog offers, and the name the picker writes each format under are one list three times, and they agree. |
 
 **NTB-10 is the one worth arguing for.** §3a hides the page's content three
 seconds after focus leaves, and the obvious rule hides everything that is not
@@ -321,18 +339,25 @@ landing in `NtpCustomBackgroundService::SelectLocalBackgroundImage`. It writes
 **Chromium's** profile background, which is a different asset from Sunshine's
 and stays that way — two systems, one of which Sunshine does not own.
 
-### The ownership this takes
+### The ownership this takes — struck, see §3d
+
+This section said the button needed three upstream files:
 
 | File | Why |
 | --- | --- |
-| `chrome/browser/ui/webui/new_tab_page/new_tab_page.mojom` | one method for the page to call |
-| `chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h` | the declaration, and a `ui::SelectFileDialog::Listener` |
-| `chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc` | open the dialog, validate the signature, copy the bytes |
+| ~~`chrome/browser/ui/webui/new_tab_page/new_tab_page.mojom`~~ | one method for the page to call |
+| ~~`chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h`~~ | the declaration, and a `ui::SelectFileDialog::Listener` |
+| ~~`chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc`~~ | open the dialog, validate the signature, copy the bytes |
 
-Three upstream files this stack does not own today. `docs/decisions/0007-module-contribution-seam.md`
-gives a WebUI surface its files for free; a Mojo method on **upstream's** WebUI
-is not that, and this is the point where the background feature stops being
-free.
+**None of them is taken.** §3d found that this contradicted §3, put the choice
+to the owner, and the answer was to keep the button here and have it *navigate*
+to a Sunshine surface. A navigation is not a Mojo call, so upstream's handler is
+untouched and the feature stops being free somewhere cheaper.
+
+The reasoning that made this section right on its own terms still holds and is
+worth keeping: `docs/decisions/0007-module-contribution-seam.md` gives a WebUI
+surface its files for free, and a Mojo method on **upstream's** WebUI is not
+that. What changed is that the method moved to a surface that is Sunshine's.
 
 **Validation moves into the handler, and that is the substantive win.** §5
 records that a rejected file and a missing file are indistinguishable on
@@ -340,10 +365,55 @@ screen. The handler holds the bytes, the rule and the person at the same
 moment, so it can say *this is a GIF* or *this is 112 MB and the limit is 100*
 — sentences nothing in this feature can produce today.
 
-**Not built.** The clock and the row exist; the button's browser half does not,
-and a button that opens nothing is worse than no button. NTB-11 is written
-ahead of the code it constrains, which is this repository's pattern and the
-reason the allowlist defect was not repeated.
+**Built, and never run.** `0024-sunshine-settings-surface.patch` is the button,
+the surface it opens, and the picker on it. NTB-11 was written ahead of the code
+it constrains — this repository's pattern, and the reason the allowlist defect
+was not repeated — and what it constrains is a picker on a Sunshine surface
+(§3d) rather than one on this page. The invariant did not change when the place
+did: copy byte for byte, validate before it lands, say why on refusal.
+
+The button is an `<a href="chrome://sunshine-settings/">`. **A renderer-initiated
+navigation between two WebUI hosts is upstream's own arrangement, not something
+this discovered**: `chrome/browser/resources/history/side_bar.html.ts` at the pin
+carries `href="chrome://settings/clearBrowserData"`, which is `chrome://history`
+linking to a different privileged host exactly this way. Read, not assumed —
+and still not run, because nothing in this stack has been.
+
+### One clause of NTB-11 turned out to be unbuildable as written
+
+§3b said the handler could say *this is a GIF* or *this is 112 MB and the limit
+is 100*. **The second is built. The first is not, and it cannot be** — saying
+"this is a GIF" means comparing the file's bytes against a GIF signature, and
+NTB-2 forbids this build from declaring any excluded format's signature. That
+rule is not incidental: a table of refused signatures is one edit from being a
+table of accepted ones, and the guard that refuses it is the reason a renamed
+WAV cannot become a background.
+
+So the sentence a person gets names the three formats that are allowed and says
+these bytes are none of them, and adds that the file's *name* was not what
+decided it. That is the whole of what can be said without the table the rules
+refuse, and it is enough to act on. The size refusal is unaffected and reports
+both measured numbers.
+
+**NTB-11 is now enforced rather than only stated.**
+`scripts/verify_newtab_background.py` reads the chain end to end — every
+`InstallResult` the browser can produce is translated by the handler, every
+`BackgroundOutcome` the interface declares is one the browser can send, and
+every refusal has a sentence in `app.ts`. Nothing in any compiler holds those
+three declarations together: a refusal added to the browser and not to the page
+is not a build error, it is a person who is told nothing, which is the state §5
+says this feature already produces too often. The guard also refuses a picker
+that re-encodes rather than copies, and one that decides a refusal *after*
+`base::CopyFile` rather than before.
+
+**NTB-14 exists because the picker gave the file name a second author.** Until
+now one list decided what a background could be called, and only the reader read
+it. The picker writes under a name derived from the detected format, and the
+dialog filters by extension, so the same fact is now consulted in three places
+in one file. A `Format::kWebp` that returned the `.png` entry would write a WebP
+under a name the reader then refuses for its bytes — a defect that surfaces as
+"the picker did nothing", with no error anywhere. The guard checks the three
+against each other.
 
 ## 3c. The searchbox — glass at rest, solid in use
 
@@ -484,6 +554,77 @@ abrupt. That is a claim about a screen nobody has seen — §5.
 the next patch to duplicate an upstream selector fails in CI rather than on the
 owner's workstation ten hours into a queue.
 
+## 3d. Where the picker lives — this document contradicts itself
+
+**Two sections of this contract answer the same question differently, and the
+answers differ by three upstream files.** Found while starting to build it, so
+it is written down before any of it is.
+
+| Section | Says | Costs |
+| --- | --- | --- |
+| §3, *The browser will also register one* | "The picker lives on a **Sunshine settings surface**, which costs **zero upstream files** by the seam" | 0 |
+| §3b, *The ownership this takes* | the button is beside the clock **on the New Tab**, and needs `new_tab_page.mojom` plus `new_tab_page_handler.h/.cc` | **3** |
+
+Neither is wrong on its own terms. §3 was written when the picker was a
+surface; §3b was written after the owner asked for a button beside the clock,
+and it is exact about what that costs — *"a Mojo method on upstream's WebUI is
+not that, and this is the point where the background feature stops being free."*
+What nobody did was go back and reconcile them, so the document now says both.
+
+### A third shape, which neither section costed
+
+**The button is on the New Tab and opens a Sunshine surface, which holds the
+picker.** A navigation is not a Mojo call, so the New Tab page needs no method
+on upstream's handler and the three files stay unowned. The surface is free by
+ADR 0007, exactly as §3 said.
+
+| | New Tab button, Mojo picker (§3b) | New Tab button, surface picker | Surface only (§3) |
+| --- | --- | --- | --- |
+| Upstream files newly owned | **3** | **0** | **0** |
+| Clicks to a chosen file | 1 | 2 | 2, plus finding the surface |
+| Where the refusal sentence appears | in place, on the New Tab | on the surface | on the surface |
+| Survives an upstream roll | three files to re-apply | nothing to re-apply | nothing to re-apply |
+| Needs a Sunshine settings surface to exist | no | **yes** — none exists today | **yes** |
+
+**The second column is not obviously worse than the first.** It costs one extra
+click and it costs building a settings surface that does not exist — which this
+project will want for other reasons long before it wants a second Mojo method.
+What it buys is three upstream files never owned, on a page (`new_tab_page`)
+that this stack already patches heavily and re-applies at every roll.
+
+**Settled by the owner, 2026-08-27: the second column.** The button stays on the
+New Tab where §3b put it, and it navigates to a Sunshine surface that holds the
+picker. **`new_tab_page.mojom` and `new_tab_page_handler.h/.cc` are not owned**,
+and §3b's ownership table is struck.
+
+Persisting bytes is still a browser-process operation, so the picker still needs
+a Mojo method — on **Sunshine's own** handler, where ADR 0007 makes it free.
+`downstream/patches/0006-sunshine-document-webui.patch` is the worked example:
+a surface with its own `mojom` interface, its own handler, and no upstream file.
+
+What this costs instead is a settings surface that does not exist yet. That is a
+real cost and it is not hidden here — but it is one this project wants for other
+reasons before it wants a second method on upstream's New Tab handler.
+
+**All of it is built now, and none of it has been run.** The reader looks in
+both directories, `chrome://sunshine-settings` exists with its own `mojom` and
+handler, the picker is on it, and the New Tab's status row carries the link that
+opens it. §5 is the whole of what "never run" means here.
+
+Making the reader profile-aware turned up one thing worth stating, because it
+was not in §3's table and it is not obvious from it:
+
+**The availability cache had to be keyed by profile, and that was forced.**
+`WarmAvailability`/`AvailableFromCache` were one `std::atomic<int>` for the
+process, which was right while the only place a background could live was
+beside `chrome.exe` — a property of the machine, the same for every profile in
+it. The profile location makes it a property of a *profile*. A process-wide
+answer would tell the second profile that a background exists because the first
+one has one, and it would then create a frame for a file that is not there —
+the exact defect the cache was introduced to avoid, arriving from the other
+direction. It is a small map under a lock now, one entry per profile that has
+opened a window.
+
 ## 4. The animation rules — NTB-3, and PB-5a
 
 `docs/PERFORMANCE_BUDGET.md` PB-5a permits this animation and is the reason
@@ -560,10 +701,35 @@ because they already have a home.
   upstream's behaviour and now Sunshine's too. §3c argues the visible result is
   still correct because those paths also focus the box, and that argument has
   been read out of the source rather than watched happen.
-- **A rejected file is indistinguishable from no file.** `ReadInstalledBackground`
-  returns empty for a missing file, an oversized one, and one whose bytes are
-  not a permitted format alike, and no surface anywhere says which happened.
-  An owner whose background does not appear has nothing to read.
+- **A rejected file is indistinguishable from no file, everywhere except the
+  picker.** `ReadInstalledBackground` returns empty for a missing file, an
+  oversized one, and one whose bytes are not a permitted format alike, and
+  nothing that *serves* a background says which happened. The settings surface
+  is the one place that does: it holds the bytes, the rule and the person at the
+  same moment, so it can say *112 MB, and the limit is 100*. A file placed in a
+  directory by hand still produces silence, and always will — nobody is there to
+  be told.
+- **Nothing about the picker has been run.** No dialog has opened, no file has
+  been copied, and no refusal sentence has been read by anyone. What is known is
+  that the chain of declarations is complete, because a guard reads it end to
+  end — not that a person who picks a 4 GB video sees the sentence this contract
+  says they will.
+- **The settings surface's route from the New Tab is upstream's own shape,
+  read rather than exercised.** `chrome://history` links to
+  `chrome://settings/clearBrowserData` with a plain anchor at the pinned
+  revision, so a renderer-initiated navigation between WebUI hosts is
+  established practice. Whether *this* anchor, in the New Tab's shadow root,
+  navigates as intended has not been seen.
+- **The move of the generated Mojo bindings to a `mojom/` directory is the
+  least-tested change in patch 0024, and it touches a surface that works.**
+  `build_webui()` copies every surface's bindings into one directory by
+  basename; that directory used to be the document surface's own, which made
+  its prefix filter serve them for free. It is now nobody's, each surface names
+  its own file, and the document surface's import moved with it. This is read
+  from `ui/webui/resources/tools/build_webui.gni` — `outputs = [
+  "${preprocess_dir}/${mojo_base_path}/{{source_file_part}}" ]` — and the first
+  thing to check in build #47 is whether `chrome://sunshine-document` still
+  loads.
 - **One file probe per process remains, and it is a deviation from PB-4.**
   The page is told whether a background exists, so a build with no asset
   creates no frame and opens no file per tab. The browser answers from a cache

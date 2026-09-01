@@ -18,7 +18,7 @@ RUN**, runtime **NOT RUN**, measurement **NOT AVAILABLE**.
 
 ## 0. Why this document exists
 
-Twenty-five registered commands in `first_party/commands.json` each declare a
+Twenty-six registered commands in `first_party/commands.json` each declare a
 `Sunshine.Command.*` event. `docs/GESTURE_CONTRACT.md` §7 declares four more.
 `docs/DOWNLOAD_SAFETY.md` DSA-6 requires warning events.
 `docs/SIDE_PANEL_CONTRACT.md` D1 assumes a session histogram exists.
@@ -175,7 +175,7 @@ schedule; a deletion path a user can actually invoke; a published privacy
 policy; a lawful basis in every jurisdiction the browser ships to; a consent UI
 and its localisation; and a downstream patch defeating G1, G2 and G3 — including
 the one whose source comment says it exists to stop exactly this happening by
-accident. It also makes the twenty-five command names a per-install usage stream
+accident. It also makes the twenty-six command names a per-install usage stream
 leaving the machine, which is the thing `docs/SESSION_PROFILE_CONTRACT.md`'s
 secret boundary and `docs/OMNIBOX_CONTRACT.md` §9 spend their length preventing
 one field at a time.
@@ -364,7 +364,7 @@ as a user who stops using the feature.
 
 ### 5.1 The registry's privacy property, stated rather than left to chance
 
-`first_party/commands.json` gives each of the twenty-five commands a fixed
+`first_party/commands.json` gives each of the twenty-six commands a fixed
 identifier and a telemetry name derived from it — `scripts/validate_commands.py`
 computes the expected name from the identifier and rejects any drift. No command
 declares a parameter, and `docs/COMMAND_PALETTE_CONTRACT.md` invariant 3 forbids
@@ -372,7 +372,7 @@ any invocation source from supplying a payload.
 
 **T15.** That is a privacy property of the design and is now a requirement of it:
 **a Sunshine command event's name is a compile-time constant chosen from a closed
-set of twenty-five, and its payload is not derived from any runtime value the
+set of twenty-six, and its payload is not derived from any runtime value the
 user produced.** The event says a command ran. It cannot say more, because there
 is nothing in the command for it to say.
 

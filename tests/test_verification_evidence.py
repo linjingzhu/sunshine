@@ -509,7 +509,7 @@ class RepositoryStateTests(unittest.TestCase):
     def test_the_repository_passes(self) -> None:
         self.assertEqual([], self.failures, "\n".join(self.report))
 
-    def test_the_document_defines_forty_three_gates_in_two_series(self) -> None:
+    def test_the_document_defines_forty_five_gates_in_two_series(self) -> None:
         sections = guard.parse_sections(
             (REPOSITORY_ROOT / guard.DOCUMENT).read_text(encoding="utf-8")
         )
@@ -519,9 +519,29 @@ class RepositoryStateTests(unittest.TestCase):
         # tracer reported this document's gates as declared by both -- while
         # `V` belonged to no family and so could never be claimed at all.
         self.assertEqual(
-            [f"RV-{n}" for n in range(1, 39)] + [f"RVV-{n}" for n in range(1, 6)],
+            [f"RV-{n}" for n in range(1, 41)] + [f"RVV-{n}" for n in range(1, 6)],
             [gate.label for gate in found],
         )
+
+    def test_the_runtime_table_is_ordered_by_number(self) -> None:
+        """The table is a numbered list; the run sheet decides execution order.
+
+        RV-39 and RV-40 were first written into the middle of the table, beside
+        the bookmark-bar gates they belong with, and this assertion caught it.
+        Section F of `docs/RETURN_RUN_SHEET.md` says RV-39 runs first; that is
+        the right place to say it, because every other section already reorders
+        gates freely and section A starts at RV-11.
+        """
+
+        sections = guard.parse_sections(
+            (REPOSITORY_ROOT / guard.DOCUMENT).read_text(encoding="utf-8")
+        )
+        for section in sections:
+            numbers = [
+                int(gate.label.rsplit("-", 1)[1]) for gate in guard.gates(section)
+            ]
+            with self.subTest(section=section.heading[:40]):
+                self.assertEqual(sorted(numbers), numbers)
 
     def test_each_field_is_owned_by_exactly_one_section_with_a_table(self) -> None:
         """Rule 5 maps a manifest field to a gate set through the section that

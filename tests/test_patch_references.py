@@ -73,6 +73,18 @@ class DetectionTests(unittest.TestCase):
     which is correct behaviour and the wrong thing to be testing here. Patch
     0015 extends the shell's C++, so three of these moved to patch 0005, whose
     files no later patch touches.
+
+    **The two build-list injections target `modules/`, and the reason is the
+    same rule applied to a different kind of line.** A GN list is sorted, so a
+    new surface inserts itself alphabetically and quotes its three neighbours
+    as context. `shell/` is the last surface in both lists, so *every*
+    insertion lands directly above it and quotes it -- patch 0024's settings
+    surface did, and the two tests that mutated `shell/app.css` and
+    `shell/sunshine_shell_ui.cc` began failing on a reconstruction mismatch
+    rather than on what they exist to detect. `modules/` sits in the middle
+    with occupied neighbours on both sides, so nothing has quoted it and it is
+    the durable place to put this. `test_the_injection_targets_are_isolated`
+    below checks that property rather than trusting this paragraph.
     """
 
     def setUp(self) -> None:
@@ -95,6 +107,31 @@ class DetectionTests(unittest.TestCase):
         self.assertIn(old, text)
         path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
+    def test_the_injection_targets_are_isolated(self) -> None:
+        """No later patch quotes the lines the two build-list tests mutate.
+
+        This is the precondition those tests rest on, and it is not a property
+        of the lines themselves -- it is a property of where the next surface
+        happens to sort. When a patch does quote one of them, the two tests
+        below stop reporting what they are named after and start reporting a
+        reconstruction mismatch, which reads as a bug in the guard. Failing
+        here instead says which line moved and why.
+        """
+
+        directory = self.root / "downstream/patches"
+        entries = sorted(path.name for path in directory.glob("*.patch"))
+        texts = {entry: (directory / entry).read_text(encoding="utf-8")
+                 for entry in entries}
+        for owner, line in (("0007", '"modules/app.css",'),
+                            ("0007", '"modules/sunshine_modules_ui.cc",')):
+            later = [entry for entry in entries
+                     if entry[:4] > owner and line in texts[entry]]
+            self.assertEqual(
+                [], later,
+                f"{line} is now quoted by {later}; the build-list injections "
+                "need a target no later patch's context contains"
+            )
+
     def test_the_repository_as_committed_resolves(self) -> None:
         self.assertEqual([], guard.check())
         self.assertEqual([], guard.check(self.root))
@@ -107,13 +144,13 @@ class DetectionTests(unittest.TestCase):
         self.assertTrue(any("IDR_SUNSHINE_SECURIT_APP_HTML" in f for f in failures), failures)
 
     def test_a_bundle_entry_with_no_file_fails(self) -> None:
-        self.rewrite("0011", '+    "shell/app.css",', '+    "shell/missing.css",')
+        self.rewrite("0007", '+    "modules/app.css",', '+    "modules/missing.css",')
         failures = guard.check(self.root)
         self.assertTrue(any("missing.css" in f for f in failures), failures)
 
     def test_a_browser_source_with_no_file_fails(self) -> None:
         self.rewrite(
-            "0011", '+    "shell/sunshine_shell_ui.cc",', '+    "shell/absent.cc",'
+            "0007", '+    "modules/sunshine_modules_ui.cc",', '+    "modules/absent.cc",'
         )
         failures = guard.check(self.root)
         self.assertTrue(any("absent.cc" in f for f in failures), failures)

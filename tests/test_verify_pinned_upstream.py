@@ -263,6 +263,11 @@ class PinnedUpstreamTests(unittest.TestCase):
                 "chrome/browser/resources/sunshine/shell/mount_port.ts",
                 "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom",
                 "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h",
+                # Created by 0025 and cited by section 16 of
+                # docs/COMMAND_PALETTE_CONTRACT.md, which names it as the file
+                # the title guard reads. Upstream has no such path, so the
+                # citation checker must know the stack makes it.
+                "chrome/app/sunshine/sunshine_command_strings.grd",
             },
             created & cited,
         )

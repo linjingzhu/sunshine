@@ -31,11 +31,27 @@ REQUIRED_KEYS = {
     "availability",
     "implementation",
     "predicate",
+    "selection",
     "unavailable_reasons",
     "telemetry",
     "errors",
 }
+
+# `docs/COMMAND_PALETTE_CONTRACT.md` §2.1: the closed set of things a command
+# may be dispatched *against* that focus does not already determine. Each is an
+# object the browser process owns. A kind whose values come from a renderer or
+# from typed text is a payload, and §2.2 prohibits payloads outright -- so
+# widening this set is a security decision, not a schema convenience.
+SELECTION_KINDS = frozenset({"workspace", "tab", "pane"})
+NO_SELECTION = "none"
 SEGMENT = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+
+# Where the palette row's label lives. `docs/COMMAND_PALETTE_CONTRACT.md` §5(1):
+# a title is a localised string in Chromium's own system, not a field in this
+# registry, because the toolbar and the menus invoke commands too and cannot
+# read a WebUI bundle. What is checkable here is that the two lists agree.
+TITLES_PATCH = "downstream/patches/0025-sunshine-command-titles.patch"
+TITLE_MESSAGE = re.compile(r'<message name="(IDS_SUNSHINE_COMMAND_[A-Z0-9_]+)"')
 TELEMETRY = re.compile(r"^Sunshine\.Command\.[A-Za-z0-9]+$")
 CALLABLE_REF = re.compile(r"^scripts\.[a-z_]+:[a-z_]+$")
 # Tokens in documentation that look like a command: backticked, dotted, and
@@ -47,6 +63,31 @@ CHROMIUM_OWNER = "chromium"
 
 class CommandRegistryError(ValueError):
     pass
+
+
+def expected_title(command_id: str) -> str:
+    """Derive the message name so it cannot drift from the identifier.
+
+    The same trick `expected_telemetry` uses, for the same reason: two names
+    typed separately are two names that will eventually disagree, and a title
+    that disagrees is a palette row that renders its own resource id.
+    """
+
+    return "IDS_SUNSHINE_COMMAND_" + command_id.replace(".", "_").upper()
+
+
+def declared_titles(root: Path = ROOT) -> set[str] | None:
+    """Every title message the patch stack adds, or None if the patch is absent.
+
+    None rather than an empty set, because "the titles have not been built yet"
+    and "the titles were built and are empty" are different states and only the
+    second is a failure. §5(1) is a requirement on a palette that exists.
+    """
+
+    patch = root / TITLES_PATCH
+    if not patch.is_file():
+        return None
+    return set(TITLE_MESSAGE.findall(patch.read_text(encoding="utf-8")))
 
 
 def expected_telemetry(command_id: str) -> str:
@@ -147,6 +188,35 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
                 f"{command_id}: a Chromium-owned command cannot carry a Sunshine {role}"
             )
 
+    # §2.4: a command declares what kind of object it is dispatched against, and
+    # which module enumerates the candidates. `enumerated_by` is required to
+    # equal `owner` -- §2.4(2), one owner enumerates and one owner executes, so
+    # the two cannot disagree about what exists -- and is stated anyway, because
+    # a reader asking "who do I ask for the list?" should find the answer in the
+    # entry rather than have to know the ownership rule.
+    selection = command["selection"]
+    if selection != NO_SELECTION:
+        if not isinstance(selection, dict) or selection.keys() != {"kind", "enumerated_by"}:
+            raise CommandRegistryError(
+                f"{command_id}: selection must be \"none\" or "
+                "{kind, enumerated_by}"
+            )
+        if selection["kind"] not in SELECTION_KINDS:
+            raise CommandRegistryError(
+                f"{command_id}: selection kind must be one of "
+                + ", ".join(sorted(SELECTION_KINDS))
+            )
+        if owner == CHROMIUM_OWNER:
+            raise CommandRegistryError(
+                f"{command_id}: a Chromium-owned command cannot declare a "
+                "selection; nothing on the Sunshine side enumerates for it"
+            )
+        if selection["enumerated_by"] != owner:
+            raise CommandRegistryError(
+                f"{command_id}: selection must be enumerated by its owner, "
+                f"{owner}"
+            )
+
     reasons = command["unavailable_reasons"]
     if not isinstance(reasons, list) or any(
         not isinstance(r, str) or not SEGMENT.fullmatch(r) for r in reasons
@@ -155,13 +225,29 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
     if reasons != sorted(set(reasons)):
         raise CommandRegistryError(f"{command_id}: unavailable_reasons must be unique and sorted")
 
-    # The two halves of the availability contract must arrive together. A
-    # predicate with no declared reasons cannot explain a disabled command --
-    # which is the whole point -- and declared reasons with no predicate are a
-    # promise nothing can keep.
-    if bool(command["predicate"]) != bool(reasons):
+    # §4.2(6): "A command may not have an unavailable state with no token."
+    # Every availability sentence in this registry states a condition that can be
+    # false, so an empty list means the tokens were not written rather than that
+    # the command is unconditional. A command that genuinely never becomes
+    # unavailable would be the reviewed change that relaxes this.
+    if not reasons:
         raise CommandRegistryError(
-            f"{command_id}: predicate and unavailable_reasons must both be present or both absent"
+            f"{command_id}: unavailable_reasons must declare at least one token; "
+            "a disabled row with no reason is a build failure, not a runtime string"
+        )
+
+    # **The coupling runs one way only, and it used to run both.** It required a
+    # predicate wherever reasons were declared, which made §4.2's requirement
+    # unsatisfiable for the twenty Chromium-owned commands: their evaluation
+    # lives on the Chromium side of the command layer -- the same section says
+    # so -- and the rule above already refuses a Sunshine callable on them. So
+    # the registry could not declare the tokens those commands must draw their
+    # verdicts from. A predicate still requires reasons, because a predicate
+    # that can return a token nobody declared is the drift this field exists to
+    # prevent.
+    if command["predicate"] and not reasons:
+        raise CommandRegistryError(
+            f"{command_id}: a predicate must declare the reasons it can return"
         )
 
     telemetry = command["telemetry"]
@@ -244,6 +330,25 @@ def validate(root: Path = ROOT) -> int:
     unknown_in_docs = sorted(documented_commands(surfaces, root / "docs") - registered)
     if unknown_in_docs:
         raise CommandRegistryError(f"docs reference unregistered commands: {unknown_in_docs}")
+
+    # §5(1): "A build check must fail when a registered command has no title
+    # string, so the string table cannot drift from the registry the way a
+    # hidden set would." Both directions, because a message for a command that
+    # no longer exists is a row nothing can render and a string translators are
+    # paid to translate for nothing.
+    titles = declared_titles(root)
+    if titles is not None:
+        expected = {expected_title(command_id) for command_id in ids}
+        missing = sorted(expected - titles)
+        if missing:
+            raise CommandRegistryError(
+                f"registered commands with no title message: {missing}"
+            )
+        extra = sorted(titles - expected)
+        if extra:
+            raise CommandRegistryError(
+                f"title messages for unregistered commands: {extra}"
+            )
 
     return len(ids)
 
