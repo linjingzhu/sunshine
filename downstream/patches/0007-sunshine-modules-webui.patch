@@ -635,7 +635,7 @@ new file mode 100644
 index 0000000..9ccd297
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,353 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -667,6 +667,48 @@ index 0000000..9ccd297
 +inline constexpr char kSunshineModuleRegistryJson[] = R"json(
 +{
 +  "modules": [
++    {
++      "capabilities": [],
++      "data": [],
++      "display_name": "DevOS",
++      "entrypoints": [
++        {
++          "target": "chrome://sunshine-dev-os",
++          "type": "chromium_webui"
++        }
++      ],
++      "id": "sunshine.dev-os",
++      "kind": "surface",
++      "lifecycle": "profile",
++      "mount": {
++        "content_url": "chrome-untrusted://sunshine-dev-os-app/"
++      },
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular"
++        ],
++        "remote_content": false,
++        "requires_user_activation": true
++      },
++      "status": "planned",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    },
 +    {
 +      "capabilities": [],
 +      "data": [

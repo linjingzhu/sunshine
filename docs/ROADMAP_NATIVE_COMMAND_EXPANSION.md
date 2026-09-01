@@ -190,7 +190,7 @@ contracted in `docs/SECURITY_CENTER_CONTRACT.md`) and
 reached by direct navigation to their host, the same way `chrome://settings`
 is; neither has, or per its contract needs, a command-palette entry the way
 `browser.print` does. Confirming this was not a guess: `first_party/registry.json`
-lists five modules (`sunshine.document`, `sunshine.modules`,
+lists six modules (`sunshine.dev-os`, `sunshine.document`, `sunshine.modules`,
 `sunshine.new_tab`, `sunshine.security`, `sunshine.workspace`), none of which
 declares a command entrypoint.
 

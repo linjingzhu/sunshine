@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "id": "sunshine.dev-os",
+  "display_name": "DevOS",
+  "owner": "sunshine",
+  "kind": "surface",
+  "lifecycle": "profile",
+  "status": "planned",
+  "entrypoints": [
+    {
+      "type": "chromium_webui",
+      "target": "chrome://sunshine-dev-os"
+    }
+  ],
+  "mount": {
+    "content_url": "chrome-untrusted://sunshine-dev-os-app/"
+  },
+  "capabilities": [],
+  "data": [],
+  "security": {
+    "remote_content": false,
+    "requires_user_activation": true,
+    "profile_modes": [
+      "regular"
+    ],
+    "network": {
+      "access": "deny",
+      "allow": []
+    },
+    "filesystem": {
+      "access": "none"
+    },
+    "credentials": {
+      "direct_access": false
+    }
+  },
+  "verification": {
+    "native_build": "pending",
+    "runtime": "pending",
+    "visual": "pending"
+  }
+}
