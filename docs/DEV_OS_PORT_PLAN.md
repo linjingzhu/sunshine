@@ -255,11 +255,36 @@ all of it is Chromium-side.
   `docs/MODULE_MOUNT_CONTRACT.md` states in prose. `docs/FIRST_MODULE_GUIDE.md`
   §10 asks for a byte-identical `mount_port.ts`. Which of the two rules governs
   a module that ships no TypeScript is undecided.
-- **Dev OS breaks three of §7's rules today**, measured rather than estimated:
-  `innerHTML` in two places and `srcdoc` in three files (the idea-history
-  reader's isolation *is* a sandboxed `srcdoc`, so this is a redesign and not a
-  conversion); **234 `px` font sizes** and **204 colour literals** in
-  `src/styles.css`, against 418 `var()` uses already there.
+- **Dev OS breaks three of `docs/FIRST_MODULE_GUIDE.md` §7's rules today.**
+  Measured, and the counts matter less than their shape:
+
+  **Markup** (`MS-3`, `MA-6`, `MM-7`) — `innerHTML` in two places, `srcdoc` in
+  three files. The second is the hard one: the idea-history reader's isolation
+  *is* a sandboxed `srcdoc` (`sandbox=""` plus `default-src 'none'`), so this is
+  a replacement of the isolation mechanism rather than a conversion of it.
+
+  **Type** (`docs/DESIGN_SYSTEM_CONTRACT.md` §6.2) — **241** `px` font sizes
+  counting the `font:` shorthands, of which **184 (76%) are below `label-xs`**,
+  the 0.6875rem floor: fifty at 8px, eighty-one at 9px, fifty-two at 10px.
+  Three quarters of Dev OS's type is under the smallest step the scale has, and
+  §6.2 says "No computed size below `label-xs`" while ADR 0016 closed the unit
+  question — "permitting `px` would keep none of [the scale's properties]". So
+  this is a visual redesign and not a token swap: raising 8px and 9px to 11px
+  moves every card height, column width and line break, including the layout
+  measured against `docs/MODULE_SHELL_CONTRACT.md` §2's widths. `label-xs` is
+  also "never for prose, never for a control's only label", which is exactly
+  what Dev OS's 8-9px is for.
+
+  **Colour** (§3) — 204 literals over 109 distinct values, and a fact that
+  comes before the count: §3 says the New Tab "is the only surface with
+  bindings", and binding a role means locating the identifier in
+  `ui/color/color_id.h` in the pinned tree, with "Roles are not bound by
+  guessing at a name that follows the pattern". Dev OS is a new surface, so it
+  has **no bindings at all**, and accent/on-accent and focus are unbound even
+  for the New Tab.
+
+  **So the colour work cannot finish before the Chromium host above exists.**
+  Of the three, markup is the only large one that is not blocked on this side.
 - **The manifest is a second copy.** `first_party/modules/sunshine-dev-os/module.json`
   is what this repository's validators read; `linjingzhu/dev-os@sunshine/module.json`
   is the module author's. Nothing compares them, which is the same shape of
