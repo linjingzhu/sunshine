@@ -224,11 +224,14 @@ question that is still open.
 
 ### "How large is the view layer actually?"
 
-52 assets was a count of files. Measured: `src/views/*.js` is **2,746 lines**
-across 11 files, `src/*.js` is 5,258, `server.js` is 1,485.
+52 assets was a count of files. Measured: `src/views/*.js` is **3,569 lines
+across 12 files**, `src/*.js` is 5,258, `server.js` is 1,485. The smaller
+figure that stood here first — 2,746 across 11 — was true before
+`history-entry.js` and the board panel existed and was re-quoted from an older
+document rather than re-measured.
 
-`innerHTML` is assigned in exactly **two** places — the render entry point, and
-region E's own panel element. The views build strings and return them; they
+`innerHTML` is assigned in exactly **one** place now — the render entry point.
+Region E was the other and has been converted. The views build strings and return them; they
 touch no document, which is why the tests can run them without one. So the
 `MS-3` rewrite is 2,746 lines of string building to convert, behind a call site
 that does not change.
@@ -258,10 +261,15 @@ all of it is Chromium-side.
 - **Dev OS breaks three of `docs/FIRST_MODULE_GUIDE.md` §7's rules today.**
   Measured, and the counts matter less than their shape:
 
-  **Markup** (`MS-3`, `MA-6`, `MM-7`) — `innerHTML` in two places, `srcdoc` in
-  three files. The second is the hard one: the idea-history reader's isolation
-  *is* a sandboxed `srcdoc` (`sandbox=""` plus `default-src 'none'`), so this is
-  a replacement of the isolation mechanism rather than a conversion of it.
+  **Markup** (`MS-3`, `MA-6`, `MM-7`) — `innerHTML` in **one** place and
+  `srcdoc` in **one** file. Both numbers moved after this was first written:
+  Dev OS has since converted its region E panel, and a ratchet test there
+  counted code rather than filenames, which found that "three `srcdoc` files"
+  was two files discussing the mechanism in prose plus one using it. The one
+  real use is the hard part: the idea-history reader's isolation *is* a
+  sandboxed `srcdoc` (`sandbox=""` plus `default-src 'none'`), so replacing it
+  changes the mechanism rather than the syntax. Twelve view files still build
+  markup, and `src/app.js` is the assignment they all end at.
 
   **Type** (`docs/DESIGN_SYSTEM_CONTRACT.md` §6.2) — **241** `px` font sizes
   counting the `font:` shorthands, of which **184 (76%) are below `label-xs`**,
