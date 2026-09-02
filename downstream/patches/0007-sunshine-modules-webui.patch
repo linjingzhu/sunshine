@@ -742,7 +742,7 @@ new file mode 100644
 index 0000000..9ccd297
 --- /dev/null
 +++ b/chrome/browser/ui/webui/sunshine/modules/sunshine_module_registry.h
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,377 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -774,6 +774,52 @@ index 0000000..9ccd297
 +inline constexpr char kSunshineModuleRegistryJson[] = R"json(
 +{
 +  "modules": [
++    {
++      "capabilities": [],
++      "data": [],
++      "description": {
++        "en": "Brings several repositories' development state onto one surface: open pull requests and merge conflicts, CI, milestones, the decisions waiting on a person, and the Projects boards a repository sits on. What it could not read is reported as unread rather than drawn as zero.",
++        "ko": "\uc5ec\ub7ec \uc800\uc7a5\uc18c\uc758 \uac1c\ubc1c \uc0c1\ud0dc\ub97c \ud55c \ud654\uba74\uc73c\ub85c \ubaa8\uc74d\ub2c8\ub2e4 \u2014 \uc5f4\ub9b0 PR\uacfc \ubcd1\ud569 \ucda9\ub3cc, CI, \ub9c8\uc77c\uc2a4\ud1a4, \uc0ac\ub78c\uc744 \uae30\ub2e4\ub9ac\ub294 \uacb0\uc815, \uadf8\ub9ac\uace0 \uc800\uc7a5\uc18c\uac00 \uc62c\ub77c\uac00 \uc788\ub294 Projects \ubcf4\ub4dc. \uc77d\uc9c0 \ubabb\ud55c \uac83\uc740 0\uc73c\ub85c \uadf8\ub9ac\uc9c0 \uc54a\uace0 \uc77d\uc9c0 \ubabb\ud588\ub2e4\uace0 \ub9d0\ud569\ub2c8\ub2e4."
++      },
++      "display_name": "DevOS",
++      "entrypoints": [
++        {
++          "target": "chrome://sunshine-dev-os",
++          "type": "chromium_webui"
++        }
++      ],
++      "id": "sunshine.dev-os",
++      "kind": "surface",
++      "lifecycle": "profile",
++      "mount": {
++        "content_url": "chrome-untrusted://sunshine-dev-os-app/"
++      },
++      "owner": "sunshine",
++      "schema_version": 2,
++      "security": {
++        "credentials": {
++          "direct_access": false
++        },
++        "filesystem": {
++          "access": "none"
++        },
++        "network": {
++          "access": "deny",
++          "allow": []
++        },
++        "profile_modes": [
++          "regular"
++        ],
++        "remote_content": false,
++        "requires_user_activation": true
++      },
++      "status": "planned",
++      "verification": {
++        "native_build": "pending",
++        "runtime": "pending",
++        "visual": "pending"
++      }
++    },
 +    {
 +      "capabilities": [],
 +      "data": [

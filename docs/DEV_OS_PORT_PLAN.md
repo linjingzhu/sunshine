@@ -2,9 +2,20 @@
 
 ## 0. Status
 
-**Plan, not work.** Nothing is built. It is written from the owner's own
-description of Dev OS; every claim about that application is theirs rather than
-measured by me, and §8 says so again where it matters.
+**Plan, and now a module slot.** Dev OS is registered:
+`first_party/modules/sunshine-dev-os/module.json`, `status: planned` — an
+architecture slot, not something shipped. It is the **first module in this
+repository to declare a `mount`**, so `scripts/verify_module_mount.py` reports
+`1 module(s) declare a mount` rather than zero for the first time.
+
+Nothing Chromium-side is built: no `chrome://sunshine-dev-os` and no
+`chrome-untrusted://sunshine-dev-os-app/` host exists. §6 Stage 1 is still
+ahead, and §8 records what is now measured against what is still not.
+
+Dev OS's own half — the port copy, the adapter, the mounted shell and region E —
+is built and was verified against a host that is not this one. That work and its
+measurements live in `linjingzhu/dev-os@docs/SUNSHINE_MODULE.md`; §7 below now
+carries the answers rather than the questions.
 
 `docs/MODULE_PORTING_GUIDE.md` is the general method.
 `docs/MARKETPICK_PORT_PLAN.md` is the same method applied to a different app,
@@ -13,7 +24,9 @@ the most useful thing either of them shows.
 
 ## 1. What Dev OS is
 
-As described by the owner:
+As described by the owner, and since **read**: every row below was checked
+against the repository at `linjingzhu/dev-os@522fcd5`, and the three corrections
+are noted where they belong rather than silently applied.
 
 | | |
 | --- | --- |
@@ -156,34 +169,133 @@ application waiting on three capabilities Sunshine has not decided to grant, and
 the honest next step is to decide those, in that order, rather than to port a
 shell around an empty middle.
 
-## 7. What has to be established before any of this
+## 7. What had to be established, answered
 
-- **What Dev OS is without its three capabilities.** §6. This is the first
-  question and it governs whether the port starts.
-- **Whether session execution is even on the table.** It has no contract, no
-  ADR and no precedent here. Ask before designing.
-- **What the six screens do**, individually — which read local state, which
-  call GitHub, which touch the session directory. The staging in §6 assumes a
-  split it has not verified.
-- **Where the `node --test` suites go.** This repository's suite is Python and
-  runs no JavaScript; Chromium has WebUI browser tests that this project does
-  not use. Dev OS's tests are therefore at real risk of being lost in the port,
-  and losing them silently would be the worst outcome available. Decide their
-  home before moving code, not after.
-- **How large the view layer actually is** — 52 assets is a count of files, not
-  of work.
+Every question below was open when this plan was written. Each is now answered
+from Dev OS's code rather than from its description; the measurements are in
+`linjingzhu/dev-os@docs/SUNSHINE_MODULE.md`.
+
+### "What is Dev OS without its three capabilities?"
+
+The plan called this the first question, said it governs whether the port
+starts, and guessed the answer might be *"not much"*.
+
+**Measured with no GitHub token, no transcript directory and no terminal: all
+six screens render, every empty state is a sentence rather than a blank, and
+every asserted value is masked** — digits to `n`, letters to `x`, shape kept.
+That is not a degraded mode built for this question; it is what Dev OS's
+`src/mask.js` and its "degradation is a value" rule already do.
+
+So the answer is neither "not much" nor "everything". It is **a working shell
+that asserts no facts**, which makes Stage 1 a real starting point and still
+worth less to a user than Stage 2.
+
+### "What the six screens do, individually"
+
+The staging in §6 assumed a split it had not verified. This is the split:
+
+| Screen | GitHub | `~/.claude/projects/` | Terminal | Local only |
+| --- | --- | --- | --- | --- |
+| Command Center | workspace sync | — | — | decisions, deferrals |
+| Projects | workspace sync | — | — | drafts |
+| Project | workspace sync, idea history, **Projects boards**, policy-doc read/propose | discovered sessions | — | drafts, deferrals |
+| Decision Inbox | labelled issues | — | — | resolutions, deferrals |
+| AI Sessions | — | discovery | **launch** | stored sessions |
+| Activity | — | — | — | **entirely** |
+| Settings | credential state | — | — | — |
+
+**This is worse for Stage 1 than the plan assumed, and in a direction that
+matters.** When §6 was written, two screens needed nothing at all. Both have
+since gained a GitHub source: the Decision Inbox reads `needs-decision` issues,
+and the Project screen reads Projects (v2) boards over GraphQL. The staging is
+unchanged — those reads degrade like every other one — but "Dev OS without
+GitHub" is now a smaller product than it was, not a larger one.
+
+### "Where do the `node --test` suites go?"
+
+**1,449 tests across 43 files**, zero dependencies, plain ESM under
+`node --test`. They do not depend on Dev OS's server or on a DOM: pure modules
+with injected clocks, injected `fetch` and injected readers.
+
+The plan is right that they are at real risk — this repository's suite is Python
+and runs no JavaScript. But **they need a JavaScript runner, not a port**, and
+deciding their home before moving code remains the right order. This is the one
+question that is still open.
+
+### "How large is the view layer actually?"
+
+52 assets was a count of files. Measured: `src/views/*.js` is **3,569 lines
+across 12 files**, `src/*.js` is 5,258, `server.js` is 1,485. The smaller
+figure that stood here first — 2,746 across 11 — was true before
+`history-entry.js` and the board panel existed and was re-quoted from an older
+document rather than re-measured.
+
+`innerHTML` is assigned in exactly **one** place now — the render entry point.
+Region E was the other and has been converted. The views build strings and return them; they
+touch no document, which is why the tests can run them without one. So the
+`MS-3` rewrite is 2,746 lines of string building to convert, behind a call site
+that does not change.
+
+### "Whether session execution is even on the table"
+
+Still unasked. It has no contract, no ADR and no precedent here, and §6 Stage 4
+still says so.
 
 ## 8. NOT VERIFIED
 
-- **I have not seen Dev OS.** Every fact in §1 is the owner's description,
-  relayed. No file, route, view or test has been read.
-- The claim in §2 that Sunshine's shell is Dev OS's design rests on the title of
-  the layout rules the owner supplied, and on the regions matching. It has not
-  been checked against Dev OS's code.
-- The region mapping in §3 and the questions in §4 are reasoned from
-  descriptions of screens, not from the screens.
-- The host port that Stage 1 depends on exists and has carried no message.
-  `docs/MODULE_MOUNT_CONTRACT.md` defines it and
-  `downstream/patches/0012-sunshine-module-mount.patch` implements the shell's
-  half, so the six nav items and the `shell()` deletion in §3 now have a shape
-  to target. Nothing has been built and no module declares a mount.
+The three items this section carried first — that Dev OS had not been seen, that
+the shell-is-Dev-OS claim rested on a title, and that the region mapping was
+reasoned from descriptions — are settled. What replaces them is narrower and
+all of it is Chromium-side.
+
+- **No Chromium host exists.** `chrome://sunshine-dev-os` and
+  `chrome-untrusted://sunshine-dev-os-app/` are declared in the manifest and
+  registered nowhere. The comparable work is
+  `downstream/patches/0006-sunshine-document-webui.patch`.
+- **The port copy is a translation, not the file.** Dev OS carries
+  `src/host/mount-port.js` — this repository's `mount_port.ts` rewritten as
+  dependency-free ESM, with every constant pinned by test to the value
+  `docs/MODULE_MOUNT_CONTRACT.md` states in prose. `docs/FIRST_MODULE_GUIDE.md`
+  §10 asks for a byte-identical `mount_port.ts`. Which of the two rules governs
+  a module that ships no TypeScript is undecided.
+- **Dev OS breaks three of `docs/FIRST_MODULE_GUIDE.md` §7's rules today.**
+  Measured, and the counts matter less than their shape:
+
+  **Markup** (`MS-3`, `MA-6`, `MM-7`) — `innerHTML` in **one** place and
+  `srcdoc` in **one** file. Both numbers moved after this was first written:
+  Dev OS has since converted its region E panel, and a ratchet test there
+  counted code rather than filenames, which found that "three `srcdoc` files"
+  was two files discussing the mechanism in prose plus one using it. The one
+  real use is the hard part: the idea-history reader's isolation *is* a
+  sandboxed `srcdoc` (`sandbox=""` plus `default-src 'none'`), so replacing it
+  changes the mechanism rather than the syntax. Twelve view files still build
+  markup, and `src/app.js` is the assignment they all end at.
+
+  **Type** (`docs/DESIGN_SYSTEM_CONTRACT.md` §6.2) — **241** `px` font sizes
+  counting the `font:` shorthands, of which **184 (76%) are below `label-xs`**,
+  the 0.6875rem floor: fifty at 8px, eighty-one at 9px, fifty-two at 10px.
+  Three quarters of Dev OS's type is under the smallest step the scale has, and
+  §6.2 says "No computed size below `label-xs`" while ADR 0016 closed the unit
+  question — "permitting `px` would keep none of [the scale's properties]". So
+  this is a visual redesign and not a token swap: raising 8px and 9px to 11px
+  moves every card height, column width and line break, including the layout
+  measured against `docs/MODULE_SHELL_CONTRACT.md` §2's widths. `label-xs` is
+  also "never for prose, never for a control's only label", which is exactly
+  what Dev OS's 8-9px is for.
+
+  **Colour** (§3) — 204 literals over 109 distinct values, and a fact that
+  comes before the count: §3 says the New Tab "is the only surface with
+  bindings", and binding a role means locating the identifier in
+  `ui/color/color_id.h` in the pinned tree, with "Roles are not bound by
+  guessing at a name that follows the pattern". Dev OS is a new surface, so it
+  has **no bindings at all**, and accent/on-accent and focus are unbound even
+  for the New Tab.
+
+  **So the colour work cannot finish before the Chromium host above exists.**
+  Of the three, markup is the only large one that is not blocked on this side.
+- **The manifest is a second copy.** `first_party/modules/sunshine-dev-os/module.json`
+  is what this repository's validators read; `linjingzhu/dev-os@sunshine/module.json`
+  is the module author's. Nothing compares them, which is the same shape of
+  liability the mount port has and without the test that answers it there.
+- **`status` is `planned` and every `verification` field is `pending`**, which
+  is accurate: nothing has been built, run or looked at in Chromium.
