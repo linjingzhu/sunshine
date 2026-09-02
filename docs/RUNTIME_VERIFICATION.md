@@ -544,7 +544,19 @@ build was made to answer, and nobody has looked yet.
 
 **The sheet sat queued for six hours and fifty-three minutes before it could be
 built at all.** The self-hosted runner was off; the job was not lost and was
-picked up unchanged when it returned. Recorded because three earlier runs in
+picked up unchanged when it returned.
+
+**There is a deadline on that, and this paragraph did not say so.** GitHub
+cancels a run that has been `queued` for 24 hours. Build #48, run
+`33401443955`, was dispatched at 14:14:09Z on 2026-08-31 against a runner that
+was never woken, and was cancelled at 14:14:12Z the next day by nothing but the
+clock. "The job was not lost" is true inside the window and false outside it,
+and a reader who took this sentence for a guarantee would leave a build queued
+overnight and find nothing in the morning.
+`docs/WINDOWS_CHROMIUM_BUILD.md` carries the same correction where it tells
+someone to wait.
+
+Recorded because three earlier runs in
 the same state were cancelled and re-dispatched, which discarded the wait
 without shortening it -- run #17 waited 13h34m and then succeeded.
 
