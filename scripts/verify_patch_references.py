@@ -190,9 +190,58 @@ def _resolves(included: str, produced: dict[str, list[str]]) -> bool:
     return False
 
 
+# Files the stack creates whose whole point is being parsed by a tool before a
+# compiler ever sees them.
+MARKUP_SUFFIXES = (".grd", ".grdp", ".xml", ".rc.xml")
+
+
+def check_markup_parses(produced: dict[str, list[str]], failures: list[str]) -> None:
+    """Every XML file the stack creates must be well-formed XML.
+
+    **This is the cheapest check in this repository and it was written after a
+    six-hour build died in fourteen seconds without it.** Build #49 failed in
+    `//tools/gritsettings:default_resource_ids` with
+
+        sunshine_command_strings.grd:12:20: not well-formed (invalid token)
+
+    because the file's opening comment contained `--`, which XML forbids inside
+    a comment. This repository writes `--` for an em dash everywhere in prose,
+    so the habit that produced it is the house style meeting a format that does
+    not allow it.
+
+    Nothing offline caught it. The patch applied, `verify_pinned_upstream`
+    applied the whole stack to the real pinned tree, twenty-six guards passed
+    and 881 tests passed -- because every one of them asks whether the patch
+    *lands*, and none asked whether what it lands is a file its own reader can
+    parse. That is the same gap that failed build #46 on stylelint, one format
+    over.
+
+    Only created files are checked. `stack_files` reconstructs those in full;
+    an upstream file the stack merely edits is a partial view and parsing it
+    would report a truncation as a defect.
+    """
+
+    import xml.parsers.expat
+
+    for path, lines in sorted(produced.items()):
+        if not path.endswith(MARKUP_SUFFIXES):
+            continue
+        parser = xml.parsers.expat.ParserCreate()
+        text = "\n".join(lines)
+        try:
+            parser.Parse(text, True)
+        except xml.parsers.expat.ExpatError as error:
+            failures.append(
+                f"{path}: not well-formed XML at line {error.lineno}, column "
+                f"{error.offset}: {xml.parsers.expat.ErrorString(error.code)}"
+            )
+
+
 def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     produced = stack_files(root)
+
+    check_markup_parses(produced, failures)
 
     if RESOURCES_BUILD not in produced or BROWSER_BUILD not in produced:
         return [
