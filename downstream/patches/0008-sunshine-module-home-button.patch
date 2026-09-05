@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
-index 79828c5..c6ec318 100644
+index 79828c5..ee20837 100644
 --- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
 +++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
 @@ -81,6 +81,7 @@
@@ -10,7 +10,29 @@ index 79828c5..c6ec318 100644
  #include "chrome/common/url_constants.h"
  #include "chrome/grit/generated_resources.h"
  #include "chrome/grit/theme_resources.h"
-@@ -713,6 +714,10 @@ gfx::Size BookmarkBarView::GetMinimumSize() const {
+@@ -182,6 +183,21 @@ gfx::ImageSkia* GetImageSkiaNamed(int id) {
+   return ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(id);
+ }
+ 
++// Sunshine's folder mark for the bookmark bar. Upstream draws a themed vector
++// icon here; this is the owner's artwork, which is a raster and so takes no
++// colour. Both button states therefore get the same image: the bar's disabled
++// cue is the label colour ConfigureButton() sets a few lines below, not the
++// icon's.
++//
++// The managed-bookmarks button keeps upstream's icon deliberately. It marks a
++// folder the profile's policy controls, which is a different thing to say than
++// "this is a folder", and saying it in Sunshine's artwork would say the first
++// and lose the second.
++ui::ImageModel SunshineBookmarkFolderIcon() {
++  return ui::ImageModel::FromImageSkia(
++      *GetImageSkiaNamed(IDR_SUNSHINE_BOOKMARK_FOLDER));
++}
++
+ std::u16string GetFolderButtonAccessibleName(std::u16string_view folder_title) {
+   return folder_title.empty()
+              ? l10n_util::GetStringUTF16(IDS_UNNAMED_BOOKMARK_FOLDER)
+@@ -713,6 +729,10 @@ gfx::Size BookmarkBarView::GetMinimumSize() const {
      gfx::Size size = apps_page_shortcut_->GetPreferredSize();
      width += size.width() + bookmark_bar_button_padding;
    }
@@ -21,7 +43,7 @@ index 79828c5..c6ec318 100644
  
    return gfx::Size(width, height);
  }
-@@ -775,6 +780,15 @@ void BookmarkBarView::Layout(PassKey) {
+@@ -775,6 +795,15 @@ void BookmarkBarView::Layout(PassKey) {
      max_x -= all_bookmarks_pref.width() + bookmark_bar_button_padding;
    }
  
@@ -37,7 +59,17 @@ index 79828c5..c6ec318 100644
    // Start with the apps page shortcut button.
    if (apps_page_shortcut_->GetVisible()) {
      apps_page_shortcut_->SetBounds(x, y, apps_page_shortcut_pref.width(),
-@@ -1444,6 +1458,22 @@ void BookmarkBarView::AppsPageShortcutPressed(const ui::Event& event) {
+@@ -1391,8 +1420,7 @@ void BookmarkBarView::WriteDragDataForView(View* sender,
+                ? favicon::GetDefaultFaviconModel(kColorBookmarkBarBackground)
+                : ui::ImageModel::FromImage(image);
+   } else {
+-    icon = chrome::GetBookmarkFolderIcon(
+-        chrome::BookmarkFolderIconType::kNormal, ui::kColorMenuIcon);
++    icon = SunshineBookmarkFolderIcon();
+   }
+ 
+   button_drag_utils::SetDragImage(
+@@ -1444,6 +1472,22 @@ void BookmarkBarView::AppsPageShortcutPressed(const ui::Event& event) {
    chrome::UpdateBookmarkBarVisibilityPrefOnUserAction(browser_->GetProfile());
  }
  
@@ -60,7 +92,7 @@ index 79828c5..c6ec318 100644
  void BookmarkBarView::OnButtonPressed(const bookmarks::BookmarkNode* node,
                                        const ui::Event& event) {
    // Only URL nodes have regular buttons on the bookmarks bar; folder clicks
-@@ -1628,6 +1658,13 @@ void BookmarkBarView::Init() {
+@@ -1628,6 +1672,13 @@ void BookmarkBarView::Init() {
  
    // Child views are traversed in the order they are added. Make sure the order
    // they are added matches the visual order.
@@ -74,7 +106,7 @@ index 79828c5..c6ec318 100644
    apps_page_shortcut_ = AddChildView(CreateAppsPageShortcutButton());
  
    managed_bookmarks_button_ = AddChildView(CreateManagedBookmarksButton());
-@@ -1835,6 +1872,34 @@ BookmarkBarView::CreateAppsPageShortcutButton() {
+@@ -1835,6 +1886,34 @@ BookmarkBarView::CreateAppsPageShortcutButton() {
    return button;
  }
  
@@ -109,7 +141,43 @@ index 79828c5..c6ec318 100644
  void BookmarkBarView::ConfigureButton(const BookmarkNode* node,
                                        views::LabelButton* button) {
    button->SetText(node->GetTitle());
-@@ -2221,6 +2286,33 @@ void BookmarkBarView::UpdateAppearanceForTheme() {
+@@ -1849,13 +1928,10 @@ void BookmarkBarView::ConfigureButton(const BookmarkNode* node,
+     button->SetTextColor(views::Button::ButtonState::STATE_DISABLED,
+                          kColorBookmarkBarForegroundDisabled);
+     if (node->is_folder()) {
+-      ui::ImageModel icon = chrome::GetBookmarkFolderIcon(
+-          chrome::BookmarkFolderIconType::kNormal, kColorBookmarkFolderIcon);
+-      button->SetImageModel(views::Button::STATE_NORMAL, icon);
+-      button->SetImageModel(
+-          views::Button::STATE_DISABLED,
+-          chrome::GetBookmarkFolderIcon(chrome::BookmarkFolderIconType::kNormal,
+-                                        ui::kColorIconDisabled));
++      button->SetImageModel(views::Button::STATE_NORMAL,
++                            SunshineBookmarkFolderIcon());
++      button->SetImageModel(views::Button::STATE_DISABLED,
++                            SunshineBookmarkFolderIcon());
+     }
+   }
+ 
+@@ -2196,14 +2272,10 @@ void BookmarkBarView::UpdateAppearanceForTheme() {
+   const SkColor color = color_provider->GetColor(kColorBookmarkBarForeground);
+   {
+     all_bookmarks_button_->SetEnabledTextColors(color);
+-    ui::ImageModel all_bookmarks_icon = chrome::GetBookmarkFolderIcon(
+-        chrome::BookmarkFolderIconType::kNormal, kColorBookmarkFolderIcon);
+     all_bookmarks_button_->SetImageModel(views::Button::STATE_NORMAL,
+-                                         all_bookmarks_icon);
+-    all_bookmarks_button_->SetImageModel(
+-        views::Button::STATE_DISABLED,
+-        chrome::GetBookmarkFolderIcon(chrome::BookmarkFolderIconType::kNormal,
+-                                      ui::kColorIconDisabled));
++                                         SunshineBookmarkFolderIcon());
++    all_bookmarks_button_->SetImageModel(views::Button::STATE_DISABLED,
++                                         SunshineBookmarkFolderIcon());
+   }
+ 
+   {
+@@ -2221,6 +2293,33 @@ void BookmarkBarView::UpdateAppearanceForTheme() {
  
    apps_page_shortcut_->SetEnabledTextColors(color);
  

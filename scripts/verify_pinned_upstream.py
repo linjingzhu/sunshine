@@ -46,6 +46,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import patch_manifest  # noqa: E402
+import verify_asset_overlay  # noqa: E402
 
 SOURCES = {
     "googlesource": (
@@ -476,15 +477,27 @@ def check_citations(source: str, version: str, root: Path, report: list[str]) ->
 
 
 def check_asset_overlay(source: str, version: str, root: Path, report: list[str]) -> bool:
-    """Every overlay destination must still be a file upstream.
+    """Overlay destinations, asked of upstream in whichever direction applies.
 
-    The overlay replaces whole binary files by path -- see
+    The overlay carries whole binary files by path -- see
     `docs/decisions/0008-binary-asset-overlay.md` -- and a whole-file copy
     cannot fail the way a patch does. `git apply` rejects a hunk whose context
-    moved; `shutil.copyfile` is happy to write anywhere. So if upstream renames
-    `chromium.ico`, nothing downstream complains: the copy lands beside the real
-    icon, the `.rc` file still names Chromium's, and the build ships Chromium's
-    icon under Sunshine's name. This is the only check that would notice.
+    moved; `shutil.copyfile` is happy to write anywhere. So the probe is the
+    only thing standing between a moved upstream file and a build that reports
+    success while shipping the wrong bytes, and there are two ways to get it
+    wrong:
+
+    * a **replacement** must still exist. If upstream renames `chromium.ico`,
+      the copy lands beside the real icon, the `.rc` still names Chromium's,
+      and the build ships Chromium's icon under Sunshine's name.
+    * an **addition** must not exist. An added image is new by construction --
+      a patch introduces the `.grd` entry that reads it -- so upstream having
+      a file of that name means the copy is quietly replacing a real Chromium
+      resource, and the patch's entry may now be reading upstream's drawing.
+
+    Which is which is declared in `scripts/verify_asset_overlay.py`, not
+    inferred from the answer; inferring it would make a mistyped destination
+    into an addition and skip the very check that catches it.
 
     It is an existence probe, not a comparison. Upstream's own artwork is
     expected to differ -- replacing it is the point.
@@ -497,9 +510,18 @@ def check_asset_overlay(source: str, version: str, root: Path, report: list[str]
     if not destinations:
         return True
 
+    additions = verify_asset_overlay.ADDITIONS
     healthy = True
     for destination in destinations:
-        if exists(source, version, destination):
+        present = exists(source, version, destination)
+        if destination in additions:
+            if present:
+                report.append(
+                    f"  FAIL overlay addition already exists upstream: {destination}")
+                healthy = False
+            else:
+                report.append(f"  OK   overlay addition is new upstream: {destination}")
+        elif present:
             report.append(f"  OK   overlay destination: {destination}")
         else:
             report.append(f"  FAIL overlay destination absent upstream: {destination}")
