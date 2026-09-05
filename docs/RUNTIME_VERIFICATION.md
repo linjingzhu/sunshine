@@ -142,6 +142,10 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-41 | Show the bookmark bar with at least one folder on it, and look at the folder icons | Every folder on the bar wears the owner's artwork from `resource/folder.png` — a cyan back panel behind a translucent blue front panel — and not Chromium's outline folder. The buttons have not moved: the artwork is drawn at 24 dip, which is the size the vector icon it replaces was drawn at | patch 0026 and the overlay additions, ADR 0020 |
 | RV-42 | Click a bookmark folder on the bar and look at the folder icons inside the menu that drops down | They are still Chromium's monochrome outline folders. **This is expected and recorded, not a defect:** the menu is drawn by `bookmark_menu_delegate.cc`, which the stack does not own, and ADR 0020 prices the fix at a 29th upstream file. The check exists so the inconsistency is seen deliberately rather than reported as a bug | ADR 0020 consequences |
 | RV-43 | Set the display to 200% scaling, restart, and look at a bar folder icon | The icon is crisp, not a blurred upscale. A blur here means grit did not find `downstream/assets/chrome/app/theme/default_200_percent/sunshine/bookmark_folder.png` and `fallback_to_low_resolution` silently rescaled the 100 percent image — which is the failure the overlay's scale-set check exists to make impossible before a build, and this is its runtime half | `theme_resources.grd` outputs, ADR 0020 §2 |
+| RV-44 | Open a split view (tab context menu &rarr; split, or drag a tab to the window edge) and look at the divider between the two panes | A round button sits on the divider, above the drag handle, showing a split-scene icon pointing at the side the **active** pane would move to. It is visible without hovering — that is the whole point of the feature, and a button that appears only on hover has failed it | patch 0027, ADR 0021 |
+| RV-45 | Click that button | The two panes exchange places, the tab strip order changes with them, and the active tab stays active. The icon then points the other way. This is `MultiContentsView::OnSwap()`, the same swap a double-click on the divider performs — check both and confirm they do the same thing | ADR 0021 decision |
+| RV-46 | Drag the divider left and right, then press Tab until the drag handle takes focus and press the arrow keys | Resizing still works by both routes. The button must not have eaten the drag: a press that starts on the button does not resize, but anywhere else on the divider still does | patch 0027 against upstream `views::ResizeArea` |
+| RV-47 | Hover the button, then compare the gap between the two panes against a screenshot of build #47 | The tooltip reads "Reverse views" — the menu item's own string, not a new one. The divider is 20 px rather than 10, and the panes are correspondingly narrower. Whether that reads as a divider with a control on it or as a gap is the open question ADR 0021 records | ADR 0021 consequences |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -257,7 +261,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-43, RVV-1..RVV-5
+gate       RV-1..RV-47, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

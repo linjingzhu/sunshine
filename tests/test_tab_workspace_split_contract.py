@@ -73,11 +73,58 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         self.assertIn("native runtime verification pending", self.text)
         self.assertIn("not a completed browser feature", self.text)
 
+    # The one patch allowed to name a deferred runtime, and the reason it is
+    # allowed: it adds an affordance for an upstream action, not a runtime.
+    # `docs/decisions/0021-split-swap-affordance.md`.
+    SPLIT_AFFORDANCE_PATCH = "0027-sunshine-split-swap-button.patch"
+
     def test_runtime_patch_series_is_unchanged(self) -> None:
         series = (ROOT / "downstream" / "patches" / "series").read_text(encoding="utf-8")
-        for deferred in ("workspace", "split", "tab-group"):
+        for deferred in ("workspace", "tab-group"):
             with self.subTest(deferred=deferred):
                 self.assertNotIn(deferred, series.lower())
+
+        # `split` was in that list until patch 0027. Dropping it outright would
+        # have retired the rule; what the rule protects is that Sunshine ships
+        # no split *runtime*, so the name is allowed for exactly one patch and
+        # the property is checked directly below.
+        named = [
+            line.strip()
+            for line in series.splitlines()
+            if "split" in line.lower() and line.strip()
+        ]
+        self.assertEqual([self.SPLIT_AFFORDANCE_PATCH], named)
+
+    def test_the_split_affordance_reaches_upstream_and_writes_nothing(self) -> None:
+        """The affordance may call upstream's swap; it may not become a model.
+
+        Invariant 12 says Sunshine writes no split state and contains no split
+        model, and section 4.2 retired three commands to avoid "a second code
+        path that could drift from the native one". Both survive only if the
+        button's single route out is `MultiContentsView::OnSwap()` -- the same
+        function the splitter's own double-click calls. Reaching the tab strip
+        directly, or storing any of the split's own state, would be the second
+        path arriving under a different name.
+        """
+
+        patch = (ROOT / "downstream" / "patches" / self.SPLIT_AFFORDANCE_PATCH).read_text(
+            encoding="utf-8"
+        )
+        added = "\n".join(
+            line[1:] for line in patch.splitlines()
+            if line.startswith("+") and not line.startswith("+++")
+        )
+
+        self.assertIn("OnSwap()", added)
+        for forbidden in (
+            "ReverseTabsInSplit",
+            "RemoveSplit",
+            "SplitTabVisualData(",
+            "split_ratio",
+            "SetSplitRatio",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, added)
 
     def test_permanently_excluded_vertical_tabs_are_not_in_stage_roadmap(self) -> None:
         roadmap = (

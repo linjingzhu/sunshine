@@ -229,11 +229,24 @@ disagree. Until that commit lands, the table above is the contract.
 No replacement Sunshine command is proposed. Split view needs no Sunshine
 command surface.
 
+That remains true after `downstream/patches/0027-sunshine-split-swap-button.patch`,
+which adds a swap button to the splitter. A button on a view is not a command:
+nothing enters `first_party/commands.json`, nothing enters the registry's
+surface list, and the retirement above is not reversed. The button reaches the
+same `MultiContentsView::OnSwap()` the splitter's own double-click reaches, so
+the "second code path that could drift from the native one" this section
+retired the commands to avoid is still not created. See
+`docs/decisions/0021-split-swap-affordance.md`.
+
 ## 5. UX contract
 
 - **Entry points:** tab context menu for groups/move/split; workspace switcher
   adjacent to the tab strip. Split entry points are Chromium's, unchanged and
-  unwrapped.
+  unwrapped, with **one Sunshine addition**: a swap button on the splitter,
+  `docs/decisions/0021-split-swap-affordance.md`. It calls
+  `MultiContentsView::OnSwap()`, which is the function a double-click on the
+  splitter already reaches, so it wraps nothing — it makes an existing entry
+  point visible. Every other split entry point is untouched.
 - **Visible result:** workspace switching changes the visible tab set without a
   page reload; split view displays exactly two independently focusable pages.
 - **Blocked behavior:** cross-profile moves remain blocked and show a concise
