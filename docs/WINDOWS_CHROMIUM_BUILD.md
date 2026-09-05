@@ -271,6 +271,19 @@ Windows box runs no processes.
 This happened for seven hours on 2026-08-18, with run `32049595199` waiting the
 whole time, so it is written down rather than rediscovered.
 
+**A queued run is not kept forever, and this section used to imply it was.**
+GitHub cancels a workflow run that has sat in `queued` for **24 hours**. Run
+`33401443955` — build #48 — was queued at 14:14:09Z on 2026-08-31 and its
+`updated_at` moved for the first time at 14:14:12Z the next day, three seconds
+past the day mark, with conclusion `cancelled`. Nobody cancelled it.
+
+That matters because the advice everywhere else here is *wait, do not
+re-dispatch* — which is right, and `docs/RUNTIME_VERIFICATION.md` records run
+#17 waiting 13 h 34 m and then succeeding. **The waiting advice holds only
+inside the 24-hour window.** Past it the run is gone and a new dispatch is the
+only option, so a build queued against a runner that will not be woken before
+tomorrow is a build that has to be dispatched again anyway.
+
 **Diagnose first.** In an elevated PowerShell:
 
 ```powershell
@@ -287,13 +300,31 @@ Get-Process Runner.Listener -ErrorAction SilentlyContinue
 
 **Then fix the cause rather than the symptom.** An interactive runner dies with
 its window and with every sign-out. Installing it as a service survives both,
-and is a change to the machine — take it deliberately:
+and is a change to the machine — take it deliberately.
+
+**This section named `svc.cmd install` and `svc.cmd start` until 2026-09-01,
+and neither exists on the runner machine.** Both returned
+`CommandNotFoundException` from `C:\actions-runner`. `svc.sh` is the runner's
+Linux and macOS service script; the Windows package has no `svc.cmd` to match
+it, and the instruction was written from the wrong platform's documentation.
+
+**What is verified is `run.cmd`**, which is what the paragraph above already
+says and what brings the runner back now. For the service, look before typing:
 
 ```powershell
 cd C:\actions-runner
-.\svc.cmd install
-.\svc.cmd start
+Get-ChildItem -Filter *.cmd | Select-Object Name
+.\config.cmd --help
 ```
+
+On the Windows runner a service is installed by `config.cmd` when the runner is
+configured, not by a separate script afterwards, so an interactively-configured
+runner is re-configured rather than upgraded in place — which needs a
+registration token from the repository's Actions settings and is a decision
+about the machine rather than a command to paste. **The exact invocation is
+deliberately not written here**, because the last time this document guessed at
+one it sent someone to a command that does not exist, and `config.cmd --help`
+on the machine is a better source than this file.
 
 **A service still does not survive sleep.** Nothing in the runner keeps a
 machine awake, so a build queued overnight needs the machine configured not to

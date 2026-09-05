@@ -20,12 +20,25 @@ What is checked here, without touching the network:
     succeeds, and the build ships the file the patch was supposed to change.
   * every `.ico` is a structurally valid Windows icon whose entries are inside
     the file and whose sizes are exactly the set Chromium's own icons carry
+  * every declared *addition* -- an overlay file upstream does not have, which
+    a patch introduces by naming it -- is really in the overlay, is really
+    named by the patch that claims to name it, and brings its whole set of
+    scale factors with it
 
-What is *not* checked here is whether the destination still exists upstream.
-That needs the pinned revision, so `scripts/verify_pinned_upstream.py` owns it.
-An overlay whose destination upstream deleted or renamed would otherwise write
-a new file into the checkout and change nothing about the build -- the icon
-would silently stay Chromium's.
+What is *not* checked here is whether the destination exists upstream. That
+needs the pinned revision, so `scripts/verify_pinned_upstream.py` owns it, and
+it asks the question in both directions: a replacement upstream deleted or
+renamed would otherwise write a new file into the checkout and change nothing
+about the build, and an addition upstream has since acquired would silently
+overwrite a real Chromium file instead of adding Sunshine's.
+
+**Why additions are declared rather than inferred.** An overlay file that
+upstream does not have could be recognised by asking upstream, but then a
+mistyped destination -- `default_200_pecent/`, a renamed subdirectory -- would
+answer "upstream does not have it" and be waved through as an addition, which
+is exactly the failure the existence probe exists to catch. Declaring them
+turns both mistakes into failures: a typo is an undeclared file that upstream
+lacks, and a stale declaration is a declared file upstream has.
 
 This guard claims no invariant identifier; no contract declares one for the
 overlay format.
@@ -47,6 +60,28 @@ OVERLAY_DIR = "downstream/assets"
 # when there is none, so a set that differs from upstream's changes which entry
 # the shell picks at some DPI settings and not others.
 REQUIRED_ICO_SIZES = frozenset({16, 32, 48, 256})
+
+# Overlay destinations Chromium does not have, mapped to the patch that gives
+# each one a reader. Nothing in the tree looks for a file by this path on its
+# own -- an added image is reachable only because a `.grd` entry names it, so
+# the patch carrying that entry is the other half of the addition and is named
+# here so the two can be checked against each other.
+ADDITIONS: dict[str, str] = {
+    "chrome/app/theme/default_100_percent/sunshine/bookmark_folder.png":
+        "0026-sunshine-bookmark-folder-artwork.patch",
+    "chrome/app/theme/default_200_percent/sunshine/bookmark_folder.png":
+        "0026-sunshine-bookmark-folder-artwork.patch",
+    "chrome/app/theme/default_300_percent/sunshine/bookmark_folder.png":
+        "0026-sunshine-bookmark-folder-artwork.patch",
+}
+
+# The scale factors `chrome/app/theme/theme_resources.grd` reads: one `<output>`
+# per context. `fallback_to_low_resolution="true"` in that file means a missing
+# one does not fail the build -- Chrome upscales the 100 percent image, and the
+# result is soft on exactly the machines that have the pixels for it and
+# nowhere else. So a partial set is refused here, where it is visible.
+THEME_SCALE_DIRECTORIES = ("default_100_percent", "default_200_percent",
+                           "default_300_percent")
 
 ICONDIR = struct.Struct("<HHH")
 ICONDIRENTRY = struct.Struct("<BBBBHHII")
@@ -176,6 +211,85 @@ def ico_sizes(path: Path) -> set[int]:
     return sizes
 
 
+def stack_text(root: Path = ROOT) -> str:
+    """Every line the patch stack adds, as one blob to search.
+
+    Only added lines. A path that appears in a patch's *context* is a path
+    upstream already reads, which is the opposite of what an addition needs to
+    prove.
+    """
+
+    lines: list[str] = []
+    for patch in sorted((root / "downstream/patches").glob("*.patch")):
+        for line in patch.read_text(encoding="utf-8").splitlines():
+            if line.startswith("+") and not line.startswith("+++"):
+                lines.append(line[1:])
+    return "\n".join(lines)
+
+
+def series_names(root: Path = ROOT) -> list[str]:
+    series = root / "downstream/patches/series"
+    if not series.is_file():
+        return []
+    return [line.strip() for line in series.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("#")]
+
+
+def grd_reference(destination: str) -> str:
+    """How a `theme_resources.grd` entry names an image at this destination.
+
+    The `<structure file="...">` attribute is relative to the scale directory,
+    so the destination's path below `default_NNN_percent/` is the string the
+    patch has to contain. Deriving it here rather than storing it keeps the
+    directory layout the single declaration it was designed to be.
+    """
+
+    parts = PurePosixPath(destination).parts
+    for index, part in enumerate(parts):
+        if part in THEME_SCALE_DIRECTORIES:
+            return PurePosixPath(*parts[index + 1:]).as_posix()
+    return PurePosixPath(destination).name
+
+
+def check_additions(files: dict[str, Path], root: Path, failures: list[str]) -> None:
+    """Each declared addition is present, is named by its patch, and is complete."""
+
+    names = series_names(root)
+    added = stack_text(root)
+
+    for destination, patch in sorted(ADDITIONS.items()):
+        if destination not in files:
+            failures.append(
+                f"{destination} is declared an addition but is not in the overlay")
+            continue
+        if patch not in names:
+            failures.append(
+                f"{destination} names {patch}, which is not in downstream/patches/series")
+            continue
+        reference = grd_reference(destination)
+        if reference not in added:
+            failures.append(
+                f"{destination} is declared an addition, but no patch adds a line "
+                f"naming `{reference}`; an image nothing reads is an image the "
+                "build ignores")
+
+    # A scale set is all or nothing. Ask it of the sibling directories rather
+    # than of the declaration, so a scale that was rendered but never declared
+    # is caught too.
+    for destination in sorted(set(ADDITIONS) | set(files)):
+        pure = PurePosixPath(destination)
+        if not any(part in THEME_SCALE_DIRECTORIES for part in pure.parts):
+            continue
+        for scale in THEME_SCALE_DIRECTORIES:
+            sibling = PurePosixPath(*[
+                scale if part in THEME_SCALE_DIRECTORIES else part for part in pure.parts
+            ]).as_posix()
+            if sibling not in files:
+                failures.append(
+                    f"{destination} has no {scale} counterpart; "
+                    "theme_resources.grd upscales the 100 percent image silently")
+
+
 def validate(root: Path = ROOT) -> list[str]:
     """Every problem found, as lines. Empty means the overlay is sound."""
 
@@ -189,6 +303,8 @@ def validate(root: Path = ROOT) -> list[str]:
             f"{destination} is not tracked by git; the build runner checks out "
             "from git and would find nothing to copy (check .gitignore)"
         )
+
+    check_additions(files, root, failures)
 
     claimed = patch_targets(root)
     for destination in sorted(files):
@@ -224,9 +340,14 @@ def main() -> int:
             print(f"  {failure}", file=sys.stderr)
         return 1
 
-    print(f"Asset overlay passed: {len(files)} file(s) replacing upstream assets.")
-    for destination in sorted(files):
-        print(f"  {destination}")
+    replacing = [name for name in sorted(files) if name not in ADDITIONS]
+    adding = [name for name in sorted(files) if name in ADDITIONS]
+    print(f"Asset overlay passed: {len(replacing)} file(s) replacing upstream assets, "
+          f"{len(adding)} adding.")
+    for destination in replacing:
+        print(f"  replaces {destination}")
+    for destination in adding:
+        print(f"  adds     {destination}")
     return 0
 
 

@@ -46,8 +46,8 @@ index 0000000..26d9860
 +in a period; this is the row a person reads.
 +
 +The message name is derived from the command identifier the same way the
-+telemetry name is -- `browser.zoom.in` becomes IDS_SUNSHINE_COMMAND_BROWSER_ZOOM_IN
-+-- so the two cannot drift apart by being typed separately.
++telemetry name is: `browser.zoom.in` becomes IDS_SUNSHINE_COMMAND_BROWSER_ZOOM_IN,
++so the two cannot drift apart by being typed separately.
 +`scripts/validate_commands.py` fails when a registered command has no message
 +here, and when a message here names no registered command.
 +

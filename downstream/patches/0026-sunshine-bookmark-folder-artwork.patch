@@ -1,0 +1,14 @@
+diff --git a/chrome/app/theme/theme_resources.grd b/chrome/app/theme/theme_resources.grd
+index 1613917..e5e43e9 100644
+--- a/chrome/app/theme/theme_resources.grd
++++ b/chrome/app/theme/theme_resources.grd
+@@ -346,6 +346,9 @@
+         </if> <!-- _google_chrome -->
+         <structure type="chrome_scaled_image" name="IDR_SHOPPING_ON_IOS" file="common/shopping_on_ios.png" />
+         <structure type="chrome_scaled_image" name="IDR_SHOPPING_ON_IOS_DARK" file="common/shopping_on_ios_dark.png" />
++        <!-- Sunshine's bookmark bar folder. The image is supplied by the
++             binary asset overlay, not by this tree. -->
++        <structure type="chrome_scaled_image" name="IDR_SUNSHINE_BOOKMARK_FOLDER" file="sunshine/bookmark_folder.png" />
+       </if> <!-- not is_android -->
+       <if expr="is_chromeos">
+         <structure type="chrome_scaled_image" name="IDR_LOGO_AVATAR_CIRCLE_BLUE_COLOR" file="cros/logo_avatar_circle_blue_color.png" />

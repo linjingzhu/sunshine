@@ -892,7 +892,30 @@ resolves.
 
 ## 15. Not verified
 
-**Nothing about the command titles has been built.** The grd's `<outputs>`
+**Built #49 failed on the grd, and not on either thing this section named.**
+The file's opening comment contained `--`, which XML forbids inside a comment,
+and grit's XML parser rejected it before reaching a single question about
+locales or resource ids:
+
+```text
+sunshine_command_strings.grd:12:20: not well-formed (invalid token)
+ACTION //tools/gritsettings:default_resource_ids
+```
+
+Fourteen seconds, after twenty-six guards and 881 tests passed. **Every one of
+them asks whether a patch lands; none asked whether what it lands can be read
+by the tool that reads it** — the same gap that failed build #46 on stylelint,
+one format over. `scripts/verify_patch_references.py` now parses every XML file
+the stack creates, and reproduces #49's failure at the same file, line and
+column when the `--` is put back.
+
+The habit that produced it is this repository's own: `--` is written for an em
+dash in every document here, and an XML comment is the one place that is
+illegal. That is why the answer is a guard rather than a resolution to
+remember.
+
+**The two things this section did name are still unverified.** The grd's
+`<outputs>`
 block mirrors `chrome/app/chromium_strings.grd`'s, one locale at a time, which
 is the closest thing to a proof available without a compiler — that file is an
 input this build already consumes. What has not been checked is whether grit

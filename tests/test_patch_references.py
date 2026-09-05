@@ -189,5 +189,59 @@ class DetectionTests(unittest.TestCase):
             guard.check(self.root)
 
 
+
+class MarkupTests(unittest.TestCase):
+    """Enforces: every XML file the stack creates parses.
+
+    Written after build #49 died in fourteen seconds on a `--` inside an XML
+    comment, having passed twenty-six guards and 881 tests on the way there.
+    Every one of those asks whether a patch *lands*; none asked whether what it
+    lands can be read by the tool that reads it.
+    """
+
+    def test_the_repository_parses_today(self) -> None:
+        self.assertEqual([], guard.check(REPOSITORY_ROOT))
+
+    def test_a_double_hyphen_in_a_comment_is_rejected(self) -> None:
+        """The exact defect, in the exact shape it arrived in.
+
+        XML forbids `--` inside a comment. This repository writes `--` for an em
+        dash throughout its prose, so the habit that produced it is the house
+        style meeting a format that does not allow it -- which is why a guard is
+        the right answer and "remember not to" is not.
+        """
+
+        failures: list[str] = []
+        guard.check_markup_parses(
+            {"chrome/app/x.grd": [
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                "<!-- a comment -- with a double hyphen in it -->",
+                "<grit><release seq=\"1\"><messages></messages></release></grit>",
+            ]},
+            failures,
+        )
+        self.assertTrue(failures, "the malformed comment was accepted")
+        self.assertIn("not well-formed", failures[0])
+
+    def test_a_well_formed_grd_passes(self) -> None:
+        failures: list[str] = []
+        guard.check_markup_parses(
+            {"chrome/app/x.grd": [
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                "<!-- a comment with an em dash \u2014 in it -->",
+                "<grit><release seq=\"1\"><messages></messages></release></grit>",
+            ]},
+            failures,
+        )
+        self.assertEqual([], failures)
+
+    def test_a_file_that_is_not_markup_is_not_parsed(self) -> None:
+        """A `.ts` file full of angle brackets is not an XML document."""
+
+        failures: list[str] = []
+        guard.check_markup_parses({"a/b.ts": ["const x = a < b && c > d;"]}, failures)
+        self.assertEqual([], failures)
+
+
 if __name__ == "__main__":
     unittest.main()

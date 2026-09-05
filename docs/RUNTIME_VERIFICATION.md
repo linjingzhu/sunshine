@@ -139,6 +139,9 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-38 | In the module shell, press **Register** at the foot of the dock | It arrives at the module home's registration section. Nothing is installed, nothing changes, and the section says why: a module is compiled in. The control is at the very bottom of B, below the Names toggle | MODULE SHELL §1, MH-1, patch 0014 |
 | RV-39 | With a normal browser window focused, press `Ctrl+Shift+B`, then press it again. Then do the same from the menu — ⋮ &rarr; Bookmarks and lists &rarr; Show bookmarks bar | The bar hides and shows, by both routes. If the menu item is greyed out the command is disabled and the accelerator is inert by construction; if the menu works and the key does not, the key is not reaching the browser | upstream `BrowserCommandController::UpdateCommandsForBookmarkBar`, and the precondition every gate below rests on |
 | RV-40 | Hide the bookmark bar while the Sunshine module-home button is on it | The button goes with the bar. There is then no bookmark-bar route to `chrome://sunshine-modules`, and ADR 0014 §5 does not say whether that is intended | patch 0008 |
+| RV-41 | Show the bookmark bar with at least one folder on it, and look at the folder icons | Every folder on the bar wears the owner's artwork from `resource/folder.png` — a cyan back panel behind a translucent blue front panel — and not Chromium's outline folder. The buttons have not moved: the artwork is drawn at 24 dip, which is the size the vector icon it replaces was drawn at | patch 0026 and the overlay additions, ADR 0020 |
+| RV-42 | Click a bookmark folder on the bar and look at the folder icons inside the menu that drops down | They are still Chromium's monochrome outline folders. **This is expected and recorded, not a defect:** the menu is drawn by `bookmark_menu_delegate.cc`, which the stack does not own, and ADR 0020 prices the fix at a 29th upstream file. The check exists so the inconsistency is seen deliberately rather than reported as a bug | ADR 0020 consequences |
+| RV-43 | Set the display to 200% scaling, restart, and look at a bar folder icon | The icon is crisp, not a blurred upscale. A blur here means grit did not find `downstream/assets/chrome/app/theme/default_200_percent/sunshine/bookmark_folder.png` and `fallback_to_low_resolution` silently rescaled the 100 percent image — which is the failure the overlay's scale-set check exists to make impossible before a build, and this is its runtime half | `theme_resources.grd` outputs, ADR 0020 §2 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -254,7 +257,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-40, RVV-1..RVV-5
+gate       RV-1..RV-43, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
@@ -544,7 +547,19 @@ build was made to answer, and nobody has looked yet.
 
 **The sheet sat queued for six hours and fifty-three minutes before it could be
 built at all.** The self-hosted runner was off; the job was not lost and was
-picked up unchanged when it returned. Recorded because three earlier runs in
+picked up unchanged when it returned.
+
+**There is a deadline on that, and this paragraph did not say so.** GitHub
+cancels a run that has been `queued` for 24 hours. Build #48, run
+`33401443955`, was dispatched at 14:14:09Z on 2026-08-31 against a runner that
+was never woken, and was cancelled at 14:14:12Z the next day by nothing but the
+clock. "The job was not lost" is true inside the window and false outside it,
+and a reader who took this sentence for a guarantee would leave a build queued
+overnight and find nothing in the morning.
+`docs/WINDOWS_CHROMIUM_BUILD.md` carries the same correction where it tells
+someone to wait.
+
+Recorded because three earlier runs in
 the same state were cancelled and re-dispatched, which discarded the wait
 without shortening it -- run #17 waited 13h34m and then succeeded.
 

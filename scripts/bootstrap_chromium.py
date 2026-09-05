@@ -12,6 +12,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import verify_asset_overlay  # noqa: E402
+
 # `fetch chromium` is exactly `gclient config` followed by `gclient sync
 # --nohooks`, and it exposes no way to bound concurrency. gclient defaults to one
 # job per core, so a 24-thread runner opens 24 anonymous clones against
@@ -145,14 +148,29 @@ def apply_overlay(src: pathlib.Path) -> None:
     have its edit discarded here, which is why `verify_asset_overlay.py` refuses
     that overlap outright rather than leaving the order to decide it.
 
-    Every destination must already exist. Chromium reads these by fixed path
-    from `.rc` files, so writing one that upstream does not have produces a file
-    nothing compiles and a build that silently keeps the old icon.
+    A destination that replaces an upstream file must already exist. Chromium
+    reads those by fixed path from `.rc` files, so writing one upstream does not
+    have produces a file nothing compiles and a build that silently keeps the
+    old icon.
+
+    A destination declared an *addition* in `scripts/verify_asset_overlay.py`
+    must not exist, and its directory may not either -- an added image is
+    reachable because a patch adds a `.grd` entry naming it, so the file is new
+    by construction. Finding one already there means upstream has since grown a
+    file of that name and the copy would be silently replacing it.
     """
 
+    additions = verify_asset_overlay.ADDITIONS
     for destination, source in overlay_assets().items():
         target = src / destination
-        if not target.exists():
+        if destination in additions:
+            if target.exists():
+                raise SystemExit(
+                    f"overlay addition already exists in the Chromium checkout: "
+                    f"{destination} (declared an addition, but upstream has it)"
+                )
+            target.parent.mkdir(parents=True, exist_ok=True)
+        elif not target.exists():
             raise SystemExit(
                 f"overlay destination is not in the Chromium checkout: {destination}"
             )
