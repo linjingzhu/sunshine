@@ -13,7 +13,7 @@ registry entry is created, changed, or proposed by this document. No product
 decision is made here; every place a command's shape depends on an open P0 is
 cited and left open.
 
-**On the seam itself.** `downstream/patches/series` holds twenty-six patches today —
+**On the seam itself.** `downstream/patches/series` holds twenty-seven patches today —
 `0001-sunshine-branding`, `0002-sunshine-new-tab`,
 `0003-sunshine-no-missing-api-key-warning`, `0004-sunshine-webui-seam`,
 `0005-sunshine-security-webui`, `0006-sunshine-document-webui`,
@@ -22,7 +22,7 @@ cited and left open.
 `0011-sunshine-module-shell`, `0012-sunshine-module-mount`, `0013-sunshine-module-shell-entry`, `0014-sunshine-module-registration-entry`, `0015-sunshine-shell-frame-policy`, `0016-sunshine-module-storage-port`, `0017-sunshine-mouse-gestures`, `0018-sunshine-account-surface`, `0019-sunshine-account-client-argument`, `0020-sunshine-newtab-background-format`, `0021-sunshine-newtab-background-source`,
 `0022-sunshine-searchbox-state`,
 `0023-sunshine-installer-install-root`, `0024-sunshine-settings-surface`, `0025-sunshine-command-titles`,
-`0026-sunshine-bookmark-folder-artwork`. The seam
+`0026-sunshine-bookmark-folder-artwork`, `0027-sunshine-split-swap-button`. The seam
 described in `docs/decisions/0007-module-contribution-seam.md` is now the
 fourth of those, and the two surfaces built on it have been added behind it —
 which is the seam doing exactly what the ADR said it would: a surface patch
