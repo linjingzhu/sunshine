@@ -194,6 +194,12 @@ def _resolves(included: str, produced: dict[str, list[str]]) -> bool:
 # compiler ever sees them.
 MARKUP_SUFFIXES = (".grd", ".grdp", ".xml", ".rc.xml")
 
+# One braced import statement, and the names inside it. `type` specifiers are
+# what upstream's WebUI eslint config refuses to see beside a value in the same
+# statement -- @webui-eslint/no-mixed-type-and-value-imports.
+BRACED_IMPORT = re.compile(
+    r"^import\s*\{([^}]*)\}\s*from\s*['\"][^'\"]+['\"];", re.M | re.S)
+
 
 def check_markup_parses(produced: dict[str, list[str]], failures: list[str]) -> None:
     """Every XML file the stack creates must be well-formed XML.
@@ -237,11 +243,50 @@ def check_markup_parses(produced: dict[str, list[str]], failures: list[str]) -> 
             )
 
 
+def check_typescript_imports(produced: dict[str, list[str]], failures: list[str]) -> None:
+    """Refuse an import statement upstream's own eslint would refuse.
+
+    Build #53 died here, ninety-nine seconds in, on one line of one new file:
+
+        Do not mix type and value imports in the same statement.
+        Split them into separate import statements instead
+        @webui-eslint/no-mixed-type-and-value-imports
+
+    This is the third build lost to the same shape. #46 went to stylelint, #49
+    to a `.grd` the XML parser could not read, #53 to eslint. `check_markup_parses`
+    above was written for the second of those and says in its own docstring what
+    the gap was -- nothing asked whether what the stack lands can be read by the
+    tool that reads it. That answer was one format short.
+
+    The rule is decidable from the text, which is the only reason it belongs
+    here: a statement whose braces hold both a bare name and a `type` name is
+    the whole of it. Nothing else about eslint is reimplemented, and this makes
+    no claim to be eslint -- it closes the one hole a build has already fallen
+    through.
+    """
+
+    for path, lines in sorted(produced.items()):
+        if not path.endswith(".ts"):
+            continue
+        text = "\n".join(lines)
+        for match in BRACED_IMPORT.finditer(text):
+            names = [name.strip() for name in match.group(1).split(",") if name.strip()]
+            typed = [name for name in names if name.startswith("type ")]
+            valued = [name for name in names if not name.startswith("type ")]
+            if typed and valued:
+                line = text[: match.start()].count("\n") + 1
+                failures.append(
+                    f"{path}:{line}: one import statement carries a value "
+                    f"({valued[0]}) and a type ({typed[0]}); upstream's eslint "
+                    "refuses that -- split them into two statements")
+
+
 def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     produced = stack_files(root)
 
     check_markup_parses(produced, failures)
+    check_typescript_imports(produced, failures)
 
     if RESOURCES_BUILD not in produced or BROWSER_BUILD not in produced:
         return [
