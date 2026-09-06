@@ -194,5 +194,65 @@ class MountPortSourceTests(unittest.TestCase):
         self.assertNotIn("innerHTML", self.app)
 
 
+class ModuleAppTests(unittest.TestCase):
+    """The first app plugged into the port, read as source."""
+
+    APP = "chrome/browser/resources/sunshine/dev_os_app/app.ts"
+    COPY = "chrome/browser/resources/sunshine/dev_os_app/mount_port.ts"
+    HTML = "chrome/browser/resources/sunshine/dev_os_app/app.html"
+
+    def setUp(self) -> None:
+        self.guard = load("verify_module_mount")
+        self.files = load("verify_patch_references").stack_files(ROOT)
+        self.app = "\n".join(self.files[self.APP])
+        self.html = "\n".join(self.files[self.HTML])
+
+    def test_the_copy_matches_the_port_below_its_header(self) -> None:
+        """The one failure copying invites, and the check that closes it.
+
+        Two files drift, both keep the name, and the shell and the app
+        disagree about what a message is while every other check passes.
+        """
+
+        self.assertEqual([], self.guard.check(ROOT))
+
+    def test_a_drifted_copy_is_reported_with_the_line(self) -> None:
+        original = "/* header */\nexport const MAX_TABS = 200;\n"
+        drifted = "/* other header */\nexport const MAX_TABS = 500;\n"
+        body = self.guard._after_header
+        self.assertNotEqual(body(original), body(drifted))
+        message = self.guard._first_difference(body(original), body(drifted))
+        self.assertIn("MAX_TABS = 500", message)
+        self.assertIn("MAX_TABS = 200", message)
+
+    def test_the_app_validates_before_it_acts(self) -> None:
+        """Enforces: the port's own rule that every inbound message is untrusted."""
+
+        self.assertIn("hostMessage(event.data)", self.app)
+        self.assertIn("if (message === null)", self.app)
+        # And it listens to one origin, not to whoever framed it.
+        self.assertIn("event.origin !== SHELL_ORIGIN", self.app)
+
+    def test_the_app_draws_none_of_the_shell(self) -> None:
+        """Section 7 point 4: the largest deletion in a port.
+
+        A module that kept its own tab strip or title bar would show two of
+        everything, because the shell draws both from the module's `describe`.
+        """
+
+        for owned_by_the_shell in ("tablist", "role=\"tab\"", "<nav", "<header"):
+            with self.subTest(markup=owned_by_the_shell):
+                self.assertNotIn(owned_by_the_shell, self.html.lower())
+
+    def test_the_app_writes_text_and_never_markup(self) -> None:
+        self.assertNotIn("innerHTML", self.app)
+        self.assertIn("textContent", self.app)
+
+    def test_the_panel_region_does_not_describe(self) -> None:
+        """A describe from the panel would be E deciding what D is."""
+
+        self.assertIn("if (region !== 'body')", self.app)
+
+
 if __name__ == "__main__":
     unittest.main()

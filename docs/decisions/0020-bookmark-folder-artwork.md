@@ -168,6 +168,30 @@ in.
   `resource/icon.png` — the convention `scripts/render_app_icons.py` already
   reads from.
 
+### An addition survives a reset, and that broke every build after the first
+
+Build #52 failed in ninety seconds on the second overlay file:
+
+```
+overlay addition already exists in the Chromium checkout:
+chrome/app/theme/default_100_percent/sunshine/bookmark_folder.png
+(declared an addition, but upstream has it)
+```
+
+Upstream did not have it. **The previous build did.** An overlay addition is
+untracked in the Chromium checkout — it is a file Chromium does not have — so
+`git checkout --force` has no opinion about it and leaves it where the last
+build put it. That is the same failure `remove_created_paths()` already existed
+to prevent for patch-created files, one category over, and the addition rule
+was written without noticing that the category had grown.
+
+The fix is that a reset deletes declared additions too, which is also what
+makes the message honest: after a reset, a file at one of those paths really is
+upstream's. Without `--reset` the workspace belongs to whoever is working in it
+and the previous copy is expected, so the check does not apply there — refusing
+would turn a re-run into an error and teach the next reader to delete the check
+rather than the file.
+
 ## NOT VERIFIED
 
 - **Nothing here has been compiled.** The stack applies cleanly to a fresh

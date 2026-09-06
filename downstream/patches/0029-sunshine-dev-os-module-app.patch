@@ -1,0 +1,1096 @@
+diff --git a/chrome/browser/resources/sunshine/BUILD.gn b/chrome/browser/resources/sunshine/BUILD.gn
+index b332d42..da1d80b 100644
+--- a/chrome/browser/resources/sunshine/BUILD.gn
++++ b/chrome/browser/resources/sunshine/BUILD.gn
+@@ -48,6 +48,8 @@ build_webui("build") {
+   static_files = [
+     "account/app.css",
+     "account/app.html",
++    "dev_os_app/app.css",
++    "dev_os_app/app.html",
+     "document/app.css",
+     "document/app.html",
+     "document_content/app.css",
+@@ -63,6 +65,12 @@ build_webui("build") {
+   ]
+   ts_files = [
+     "account/app.ts",
++    "dev_os_app/app.ts",
++
++    # A copy of shell/mount_port.ts, not an import of it: section 7 of
++    # docs/MODULE_MOUNT_CONTRACT.md and MA-1. verify_module_mount.py compares
++    # the two, so the copy cannot drift into a second port.
++    "dev_os_app/mount_port.ts",
+     "document/app.ts",
+     "document/host.ts",
+     "document_content/app.ts",
+diff --git a/chrome/browser/resources/sunshine/dev_os_app/app.css b/chrome/browser/resources/sunshine/dev_os_app/app.css
+new file mode 100644
+index 0000000..904c126
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/dev_os_app/app.css
+@@ -0,0 +1,48 @@
++/* Copyright 2026 The Sunshine OS contributors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * This stylesheet declares no colour, for the two reasons
++ * chrome/browser/resources/sunshine/document_content/app.css gives at length
++ * and which apply here without change.
++ *
++ * It cannot: chrome://theme is not reachable from a chrome-untrusted://
++ * origin, so a colour here would be either a new theme source on an untrusted
++ * origin or a literal, and docs/DESIGN_SYSTEM_CONTRACT.md section 2.3 requires
++ * a colour that escapes the theme to fail visibly rather than be papered over.
++ *
++ * It should not: a module app is content, not chrome. Lending it the browser's
++ * own palette would let a mounted module imitate the shell that embeds it,
++ * which is the confusion the shell/frame split exists to prevent. That matters
++ * more for a module than for a document, because a module is authored
++ * elsewhere and may be authored by anyone.
++ *
++ * What is left is layout, in rem, on the section 6.2 scale. */
++
++body {
++  margin: 0;
++}
++
++#body {
++  display: block;
++  padding: 1rem;
++}
++
++h1 {
++  font-size: 1rem;
++  line-height: 1.5;
++  margin: 0 0 0.5rem;
++}
++
++p {
++  font-size: 0.875rem;
++  line-height: 1.43;
++  margin: 0 0 0.5rem;
++}
++
++ul {
++  font-size: 0.875rem;
++  line-height: 1.43;
++  margin: 0;
++  padding-inline-start: 1.5rem;
++}
+diff --git a/chrome/browser/resources/sunshine/dev_os_app/app.html b/chrome/browser/resources/sunshine/dev_os_app/app.html
+new file mode 100644
+index 0000000..6ca234e
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/dev_os_app/app.html
+@@ -0,0 +1,25 @@
++<!doctype html>
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
++<head>
++  <meta charset="utf-8">
++  <meta name="color-scheme" content="light dark">
++  <title>DevOS</title>
++  <link rel="stylesheet" href="app.css">
++</head>
++<body>
++  <!-- No title bar, no tab list, no switcher, no panel container. Those are
++       regions A, B, C and D's header, and docs/MODULE_SHELL_CONTRACT.md
++       section 1 gives every one of them to the browser -- section 7 point 4 of
++       the mount contract calls this "the largest deletion in most ports". What
++       is left is a body, which is all a module is.
++
++       The text below is what the frame shows before its first mount
++       message arrives. It is markup rather than a string assembled at runtime, which
++       is SEC-14, and it says the honest thing: an unmounted frame has not been
++       told which module it is or which tab to draw. -->
++  <main id="body">
++    <p id="state">Waiting to be mounted.</p>
++  </main>
++  <script type="module" src="app.js"></script>
++</body>
++</html>
+diff --git a/chrome/browser/resources/sunshine/dev_os_app/app.ts b/chrome/browser/resources/sunshine/dev_os_app/app.ts
+new file mode 100644
+index 0000000..195793a
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/dev_os_app/app.ts
+@@ -0,0 +1,232 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * The first module app: the other half of the mount port.
++ *
++ * `docs/MODULE_MOUNT_CONTRACT.md` section 9 said, until this file existed,
++ * that "the socket is built; nothing is plugged into it". Every message in
++ * sections 3 and 4 was unexchanged, and RV-35 and RV-36 -- both of which begin
++ * "with a module mounted" -- could not be run at all.
++ *
++ * **This is deliberately not a port of Dev OS.** `docs/DEV_OS_PORT_PLAN.md` is
++ * that work. This app exists to make the port carry a message, so it does the
++ * four things section 7 asks of a module app and nothing else:
++ *
++ *  1. it validates every inbound message with `hostMessage()` and drops what
++ *     returns null;
++ *  2. it posts `describe` when `mount` arrives, and again whenever what it
++ *     would describe has changed;
++ *  3. it renders the tab `activate` names, and posts `select` when it moves
++ *     its own selection;
++ *  4. it draws no tab list, no title, no switcher and no panel container.
++ *
++ * **It draws no data, and says so.** The Dev OS manifest promises pull
++ * requests, CI and milestones read from repositories this frame cannot reach:
++ * its own `module.json` declares network access "deny" and the data source
++ * enforces it with `connect-src 'none';`. A surface that filled the gap with
++ * plausible numbers would be doing the one thing `docs/DEV_OS_PORT_PLAN.md`
++ * forbids in as many words -- "what it could not read is reported as unread
++ * rather than drawn as zero". So each tab states what it will show and that it
++ * has read nothing.
++ */
++
++import {hostMessage, type HostMessage, type MountAction, type MountTab} from './mount_port.js';
++
++/**
++ * The shell's origin, and the only sender this frame listens to.
++ *
++ * A module frame is embedded by a host it did not choose, so the check is on
++ * the origin rather than on the frame relationship: `event.source ===
++ * parent` would be true for any page that framed this one.
++ */
++const SHELL_ORIGIN = 'chrome://sunshine-shell';
++
++/**
++ * The tabs this app offers. Ids are `IDENTIFIER`-shaped by construction -- no
++ * slash, no colon -- because that is what the port admits.
++ */
++const TABS: MountTab[] = [
++  {id: 'overview', label: 'Overview', icon: 'module'},
++  {id: 'repositories', label: 'Repositories', icon: 'list'},
++  {id: 'decisions', label: 'Decisions', icon: 'inbox'},
++];
++
++/**
++ * The header actions. `refresh` re-reads nothing and says so; `details` asks
++ * the shell for region E rather than opening a panel of its own, which is the
++ * only way a module is allowed to want one.
++ */
++const ACTIONS: MountAction[] = [
++  {id: 'refresh', label: 'Refresh', icon: null},
++  {id: 'details', label: 'Details', icon: 'document'},
++];
++
++/** What each tab says. Whole sentences, because a heading is not an answer. */
++const BODIES: Record<string, {heading: string, lines: string[]}> = {
++  overview: {
++    heading: 'Overview',
++    lines: [
++      'This module is mounted. The frame you are reading was navigated to by ' +
++          'the shell, told which module it is and which region it occupies, ' +
++          'and it answered with the title, tabs and actions drawn around it.',
++      'It has read no repository. Its manifest declares network access "deny" ' +
++          'and the data source enforces that with connect-src \'none\', so ' +
++          'there is nothing here to summarise and nothing is drawn as zero.',
++    ],
++  },
++  repositories: {
++    heading: 'Repositories',
++    lines: [
++      'Open pull requests, merge conflicts, CI and milestones per repository ' +
++          'will be listed here.',
++      'Unread: this build has no route to a repository.',
++    ],
++  },
++  decisions: {
++    heading: 'Decisions',
++    lines: [
++      'The decisions waiting on a person will be listed here.',
++      'Unread: this build has no route to a repository.',
++    ],
++  },
++};
++
++/** The whole of this app's state. Four fields, and none of them is the shell's. */
++let moduleId = '';
++let region: 'body'|'panel' = 'body';
++let activeTab = TABS[0]!.id;
++let panelRole = '';
++
++function post(message: object): void {
++  window.parent.postMessage(message, SHELL_ORIGIN);
++}
++
++/**
++ * Whole state, never a delta -- the port's own rule, and for its own reason: a
++ * delta obliges the shell to keep a second copy of this model in agreement
++ * with this one, and the copy is where the two drift apart.
++ *
++ * A `describe` from the panel region would be discarded by the shell, so this
++ * does not send one. Sending it anyway and relying on the shell to drop it
++ * would be a module asserting something it is not allowed to assert and being
++ * saved by the receiver.
++ */
++function describe(): void {
++  if (region !== 'body') {
++    return;
++  }
++  post({
++    type: 'describe',
++    title: 'DevOS',
++    path: '',
++    icon: 'module',
++    dirty: false,
++    tabs: TABS,
++    activeTab,
++    actions: ACTIONS,
++  });
++}
++
++function render(): void {
++  const root = document.getElementById('body');
++  if (!root) {
++    return;
++  }
++  root.textContent = '';
++
++  // The panel region renders the role the shell asked for, and the body region
++  // renders the active tab. One content URL, two regions, told apart by the
++  // mount message and by nothing else.
++  const key = region === 'panel' ? 'overview' : activeTab;
++  const content = BODIES[key] ?? BODIES['overview']!;
++
++  const heading = document.createElement('h1');
++  heading.textContent =
++      region === 'panel' ? `Details: ${content.heading}` : content.heading;
++  root.appendChild(heading);
++
++  if (region === 'panel' && panelRole !== '') {
++    const role = document.createElement('p');
++    role.textContent = `Region E is showing the role "${panelRole}".`;
++    root.appendChild(role);
++  }
++
++  for (const line of content.lines) {
++    const paragraph = document.createElement('p');
++    // textContent, never markup: every string here is Sunshine's own, and the
++    // habit is the point rather than this file's strings. The word for the
++    // other API is left unwritten on purpose -- tests/test_module_mount.py
++    // greps this file for it, and a rule that a comment can trip is a rule
++    // whose next reader weakens the test instead of the code.
++    paragraph.textContent = line;
++    root.appendChild(paragraph);
++  }
++
++  if (region !== 'panel') {
++    const note = document.createElement('p');
++    note.textContent = `Mounted as "${moduleId}" in region ${region}.`;
++    root.appendChild(note);
++  }
++}
++
++function onHostMessage(message: HostMessage): void {
++  switch (message.type) {
++    case 'mount':
++      moduleId = message.module;
++      region = message.region;
++      panelRole = message.panelRole;
++      // An empty activeTab means the shell has no selection to restore, which
++      // is not the same as an unknown one: the module chooses its own first
++      // tab and tells the shell what it chose, through describe below.
++      activeTab = TABS.some((tab) => tab.id === message.activeTab) ?
++          message.activeTab :
++          TABS[0]!.id;
++      render();
++      describe();
++      return;
++
++    case 'activate':
++      if (!TABS.some((tab) => tab.id === message.tab)) {
++        // A tab this module does not have. Dropped rather than guessed at, and
++        // no describe follows: nothing changed.
++        return;
++      }
++      activeTab = message.tab;
++      render();
++      return;
++
++    case 'action':
++      if (message.action === 'refresh') {
++        // There is nothing to re-read. Re-describing is still the honest
++        // response: it is what this module would do if there were.
++        render();
++        describe();
++      } else if (message.action === 'details') {
++        post({type: 'request-panel', role: 'details'});
++      }
++      return;
++
++    case 'panel':
++      panelRole = message.role;
++      render();
++      return;
++
++    default:
++      // 'storage-result' -- this app asks the store for nothing, so an answer
++      // to a question it never posed is dropped rather than acted on.
++      return;
++  }
++}
++
++window.addEventListener('message', (event: MessageEvent) => {
++  if (event.origin !== SHELL_ORIGIN) {
++    return;
++  }
++  const message = hostMessage(event.data);
++  if (message === null) {
++    return;
++  }
++  onHostMessage(message);
++});
+diff --git a/chrome/browser/resources/sunshine/dev_os_app/mount_port.ts b/chrome/browser/resources/sunshine/dev_os_app/mount_port.ts
+new file mode 100644
+index 0000000..b3f7c68
+--- /dev/null
++++ b/chrome/browser/resources/sunshine/dev_os_app/mount_port.ts
+@@ -0,0 +1,553 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * The module mount port: the whole vocabulary a mounted module and its shell
++ * exchange.
++ *
++ * **This file is a copy.** `docs/MODULE_MOUNT_CONTRACT.md` section 7 point 1
++ * says a module app copies this file rather than importing it, and
++ * `docs/MODULE_APP_GUIDE.md` MA-1 is why: an app that imported it from
++ * Sunshine would be an app that runs only inside Sunshine, and the port exists
++ * so that the same module renders in a host Sunshine did not write. The
++ * original is `chrome/browser/resources/sunshine/shell/mount_port.ts`, and
++ * `scripts/verify_module_mount.py` compares the two byte for byte below this
++ * header -- a copy that drifts is two ports wearing one name, which is the
++ * failure copying invites and the only one worth guarding.
++ *
++ * `docs/MODULE_MOUNT_CONTRACT.md` is the contract; this file is its executable
++ * form, and `scripts/verify_module_mount.py` compares the two.
++ *
++ * **This file imports nothing.** Not the shell, not geometry, not Chromium,
++ * not the Mojo bindings -- nothing. That is what makes it a file a module app
++ * copies rather than depends on: `docs/MODULE_APP_GUIDE.md` MA-1 says an app
++ * imports nothing only Sunshine provides, and a port declared in a file that
++ * reaches for a browser is not a port. The iPad shell of
++ * `docs/decisions/0013-module-data-portability.md` implements the same
++ * messages against the same validators, and this file is the thing both hosts
++ * agree on.
++ *
++ * **Everything here is data.** No message carries a path, a handle, a URL, a
++ * function or a capability -- MA-2. The strongest form of that is structural
++ * rather than declared: an identifier is constrained by `IDENTIFIER` to
++ * characters that cannot spell a scheme or a path, and a label is display text
++ * the shell only ever writes with `textContent`. There is no field a host
++ * could navigate to even if it wanted to.
++ *
++ * **Validation is total and returns null.** Every inbound message is untrusted
++ * -- the module half runs in an unprivileged frame whose content may have been
++ * authored anywhere -- so nothing here throws, nothing here repairs a message
++ * into something usable, and a message wrong in any particular is dropped
++ * whole. A partially-accepted message is how a shell ends up drawing half of
++ * something a module did not say.
++ */
++
++/** Shell to module. A closed set: a name not here is not a message. */
++export const HOST_MESSAGES =
++    ['mount', 'activate', 'action', 'panel', 'storage-result'] as const;
++
++/** Module to shell. Also closed, and also the whole of it. */
++export const MODULE_MESSAGES =
++    ['describe', 'select', 'request-panel', 'storage-request'] as const;
++
++export type HostMessageType = (typeof HOST_MESSAGES)[number];
++export type ModuleMessageType = (typeof MODULE_MESSAGES)[number];
++
++/**
++ * The two regions a module is mounted into. D's body and E's role content are
++ * separate frames of the same module, told apart by this and by nothing else,
++ * so a module can render one document differently in each without the shell
++ * needing a second content URL for it.
++ */
++export const REGIONS = ['body', 'panel'] as const;
++export type Region = (typeof REGIONS)[number];
++
++/**
++ * The icons a module may ask for, by name.
++ *
++ * A closed set rather than an image, because an image is a URL and a URL is
++ * the one thing MA-2 keeps off this port. A module names a role and the shell
++ * draws whatever it draws for that role, which also means the icon follows the
++ * theme instead of being a picture that does not.
++ */
++export const ICONS = [
++  'module',
++  'document',
++  'list',
++  'table',
++  'console',
++  'chart',
++  'inbox',
++  'settings',
++] as const;
++export type IconName = (typeof ICONS)[number];
++
++/**
++ * Identifiers cross the port; locations do not. The character set is the
++ * enforcement: no slash, no colon, so nothing shaped like a path or a scheme
++ * survives validation, and the shell never has to inspect a string for what it
++ * might mean.
++ */
++export const IDENTIFIER = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
++
++/** Display text is capped so one module cannot make the shell unreadable. */
++export const MAX_LABEL = 120;
++/** A tab list longer than this is a module using C as a data store. */
++export const MAX_TABS = 200;
++
++/**
++ * A document body crosses as one `postMessage` payload, which is one copy in
++ * each direction. The bound is here so that a single save cannot stall the
++ * shell; a document larger than this needs streaming, which is a later problem
++ * and should be solved as one rather than by raising this number.
++ */
++export const MAX_BODY = 4 * 1024 * 1024;
++
++/** The store's whole vocabulary. `docs/DOCUMENT_STORE_CONTRACT.md`. */
++export const STORAGE_OPS = ['list', 'read', 'save', 'remove'] as const;
++export type StorageOp = (typeof STORAGE_OPS)[number];
++
++/**
++ * Why a request was refused, from a closed set.
++ *
++ * `no-store` is the answer whenever the user has not chosen a store, and it is
++ * the only answer the shell can give until the browser side exists. That is
++ * `DS-8` stated as behaviour: there is no fallback into the profile, because a
++ * silent fallback is how a person ends up with documents in two places and
++ * only one of them synced.
++ */
++export const STORAGE_ERRORS =
++    ['', 'no-store', 'not-found', 'refused', 'failed'] as const;
++export type StorageError = (typeof STORAGE_ERRORS)[number];
++
++/**
++ * A document's title, which **becomes its filename**.
++ *
++ * This is the one string a module sends that reaches the filesystem, so it is
++ * the one validated hardest. No separator, no traversal, no control character,
++ * no leading or trailing space, and not empty -- a title that could be a path
++ * would be `MA-2` broken by the field that looks least like a location.
++ *
++ * `DS-3` is what makes this safe to be strict about: identity is inside the
++ * document, so a title Sunshine adjusts or a user renames costs nothing.
++ */
++export const TITLE_FORBIDDEN = /[\u0000-\u001f\u007f/\\:*?"<>|]/;
++
++export function documentTitle(value: unknown): string|null {
++  if (typeof value !== 'string' || value.length === 0 ||
++      value.length > MAX_LABEL) {
++    return null;
++  }
++  if (TITLE_FORBIDDEN.test(value) || value !== value.trim()) {
++    return null;
++  }
++  // "." and ".." are directories on every platform this runs on.
++  return value === '.' || value === '..' ? null : value;
++}
++
++/** One document, as the store describes it. Never a path. */
++export interface StorageDocument {
++  id: string;
++  title: string;
++  updatedAt: string;
++  device: string;
++  /** True when a second file carries this id -- `DS-6`. */
++  conflict: boolean;
++}
++
++export interface MountTab {
++  id: string;
++  label: string;
++  icon: IconName|null;
++}
++
++export interface MountAction {
++  id: string;
++  label: string;
++  icon: IconName|null;
++}
++
++/**
++ * Everything the shell draws on a module's behalf, in one message.
++ *
++ * Whole state, never a delta. The document surface's host takes the same
++ * position for the same reason: a delta obliges the receiver to keep a second
++ * copy of the model in agreement with the first, and the copy is where the two
++ * drift apart.
++ */
++export interface MountDescription {
++  type: 'describe';
++  title: string;
++  path: string;
++  icon: IconName|null;
++  dirty: boolean;
++  tabs: MountTab[];
++  activeTab: string;
++  actions: MountAction[];
++}
++
++export interface MountSelection {
++  type: 'select';
++  tab: string;
++}
++
++export interface MountPanelRequest {
++  type: 'request-panel';
++  role: string;
++}
++
++/**
++ * The module asking the store for something.
++ *
++ * `requestId` is the module's to coin and the shell's to echo. Correlation
++ * lives in the message rather than in the order of messages, because
++ * `postMessage` gives no ordering guarantee worth relying on across a
++ * navigation.
++ */
++export interface StorageRequest {
++  type: 'storage-request';
++  requestId: string;
++  op: StorageOp;
++  /** The document, for `read` and `remove`. Empty for `list` and a new save. */
++  id: string;
++  /** `save` only. */
++  title: string;
++  /** `save` only. */
++  body: string;
++}
++
++export type ModuleMessage =
++    MountDescription|MountSelection|MountPanelRequest|StorageRequest;
++
++export interface HostMount {
++  type: 'mount';
++  /** The module's own id, so a frame knows which module it is rendering. */
++  module: string;
++  region: Region;
++  activeTab: string;
++  panelRole: string;
++}
++
++export interface HostActivate {
++  type: 'activate';
++  tab: string;
++}
++
++export interface HostAction {
++  type: 'action';
++  action: string;
++}
++
++export interface HostPanel {
++  type: 'panel';
++  role: string;
++}
++
++/** The answer to exactly one `StorageRequest`, echoing its `requestId`. */
++export interface HostStorageResult {
++  type: 'storage-result';
++  requestId: string;
++  ok: boolean;
++  /** Empty when `ok`. One of `STORAGE_ERRORS` otherwise. */
++  error: StorageError;
++  /** `list` only. */
++  documents: StorageDocument[];
++  /** `save` only: the id the document has, which a new one is given here. */
++  id: string;
++  /** `read` only. */
++  body: string;
++}
++
++export type HostMessage =
++    HostMount|HostActivate|HostAction|HostPanel|HostStorageResult;
++
++// -- validation ---------------------------------------------------------------
++//
++// Each of these takes `unknown` and returns either the typed value or null.
++// They are a chain of refusals rather than a schema, so that the reason a
++// message was dropped is readable at the line that dropped it.
++
++function record(value: unknown): Record<string, unknown>|null {
++  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
++    return null;
++  }
++  return value as Record<string, unknown>;
++}
++
++export function identifier(value: unknown): string|null {
++  return typeof value === 'string' && IDENTIFIER.test(value) ? value : null;
++}
++
++/**
++ * Display text. Empty is allowed -- a module with no path to show should be
++ * able to say so -- but a non-string, an over-long string, or one carrying a
++ * control character is not: the last of those is how a label smuggles a line
++ * break into a single-line region.
++ */
++export function label(value: unknown): string|null {
++  if (typeof value !== 'string' || value.length > MAX_LABEL) {
++    return null;
++  }
++  return /[\u0000-\u001f\u007f]/.test(value) ? null : value;
++}
++
++/**
++ * A document body. Bounded, and not otherwise inspected.
++ *
++ * Control characters are *not* rejected here, unlike a label: a body is a file
++ * and a file may contain anything a file contains. Nothing draws it -- the
++ * shell hands it to the store and the store writes it -- so there is nothing
++ * for a control character to corrupt.
++ */
++export function body(value: unknown): string|null {
++  return typeof value === 'string' && value.length <= MAX_BODY ? value : null;
++}
++
++export function icon(value: unknown): IconName|null {
++  return typeof value === 'string' &&
++          (ICONS as readonly string[]).includes(value) ?
++      value as IconName :
++      null;
++}
++
++function tab(value: unknown): MountTab|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const id = identifier(fields['id']);
++  const text = label(fields['label']);
++  if (id === null || text === null) {
++    return null;
++  }
++  return {id, label: text, icon: icon(fields['icon'])};
++}
++
++function storageDocument(value: unknown): StorageDocument|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const id = identifier(fields['id']);
++  const title = documentTitle(fields['title']);
++  const updatedAt = label(fields['updatedAt']);
++  const device = label(fields['device']);
++  if (id === null || title === null || updatedAt === null || device === null) {
++    return null;
++  }
++  return {id, title, updatedAt, device, conflict: fields['conflict'] === true};
++}
++
++/**
++ * One inbound message from a module.
++ *
++ * `actions` is capped by the caller rather than here: the cap is
++ * `HEADER_ACTIONS_MAX`, a measurement of the header, and it belongs with the
++ * other measurements in geometry.ts. This file owns the shape of a message;
++ * the shell owns how much of it fits.
++ */
++export function moduleMessage(value: unknown): ModuleMessage|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const type = fields['type'];
++  if (typeof type !== 'string' ||
++      !(MODULE_MESSAGES as readonly string[]).includes(type)) {
++    return null;
++  }
++
++  if (type === 'select') {
++    const selected = identifier(fields['tab']);
++    return selected === null ? null : {type: 'select', tab: selected};
++  }
++
++  if (type === 'request-panel') {
++    const role = identifier(fields['role']);
++    return role === null ? null : {type: 'request-panel', role};
++  }
++
++  if (type === 'storage-request') {
++    const requestId = identifier(fields['requestId']);
++    const op = fields['op'];
++    if (requestId === null || typeof op !== 'string' ||
++        !(STORAGE_OPS as readonly string[]).includes(op)) {
++      return null;
++    }
++    // Each operation is checked for what *it* needs, rather than every field
++    // being required of every operation. A `list` that had to carry an empty
++    // title and an empty body would be a message shaped by the validator
++    // instead of by the request.
++    const id = op === 'list' ? '' : identifier(fields['id']) ?? '';
++    if ((op === 'read' || op === 'remove') && id === '') {
++      return null;
++    }
++    let title = '';
++    let content = '';
++    if (op === 'save') {
++      const proposed = documentTitle(fields['title']);
++      const proposedBody = body(fields['body']);
++      if (proposed === null || proposedBody === null) {
++        return null;
++      }
++      title = proposed;
++      content = proposedBody;
++    }
++    return {
++      type: 'storage-request',
++      requestId,
++      op: op as StorageOp,
++      id,
++      title,
++      body: content,
++    };
++  }
++
++  const title = label(fields['title']);
++  const path = label(fields['path']);
++  if (title === null || path === null) {
++    return null;
++  }
++  const rawTabs = fields['tabs'];
++  const rawActions = fields['actions'];
++  if (!Array.isArray(rawTabs) || !Array.isArray(rawActions) ||
++      rawTabs.length > MAX_TABS) {
++    return null;
++  }
++
++  const tabs: MountTab[] = [];
++  for (const entry of rawTabs) {
++    const parsed = tab(entry);
++    if (parsed === null) {
++      return null;
++    }
++    tabs.push(parsed);
++  }
++
++  const actions: MountAction[] = [];
++  for (const entry of rawActions) {
++    const parsed = tab(entry);
++    if (parsed === null) {
++      return null;
++    }
++    actions.push(parsed);
++  }
++
++  // An active tab naming nothing in the list is not something the shell can
++  // resolve for the module, so it becomes "none selected" rather than a guess.
++  const active = identifier(fields['activeTab']) ?? '';
++  return {
++    type: 'describe',
++    title,
++    path,
++    icon: icon(fields['icon']),
++    dirty: fields['dirty'] === true,
++    tabs,
++    activeTab: tabs.some((entry) => entry.id === active) ? active : '',
++    actions,
++  };
++}
++
++/**
++ * The same treatment in the other direction.
++ *
++ * A module validating what its host sends is not suspicion of Sunshine: the
++ * point of the port is that Sunshine is one host of several, and a module that
++ * trusted every host would be a module that works only with the careful ones.
++ */
++export function hostMessage(value: unknown): HostMessage|null {
++  const fields = record(value);
++  if (!fields) {
++    return null;
++  }
++  const type = fields['type'];
++  if (typeof type !== 'string' ||
++      !(HOST_MESSAGES as readonly string[]).includes(type)) {
++    return null;
++  }
++
++  if (type === 'activate') {
++    const activated = identifier(fields['tab']);
++    return activated === null ? null : {type: 'activate', tab: activated};
++  }
++  if (type === 'action') {
++    const invoked = identifier(fields['action']);
++    return invoked === null ? null : {type: 'action', action: invoked};
++  }
++  if (type === 'panel') {
++    const role = identifier(fields['role']);
++    return role === null ? null : {type: 'panel', role};
++  }
++
++  if (type === 'storage-result') {
++    const requestId = identifier(fields['requestId']);
++    const error = fields['error'];
++    if (requestId === null || typeof error !== 'string' ||
++        !(STORAGE_ERRORS as readonly string[]).includes(error)) {
++      return null;
++    }
++    const rawDocuments = fields['documents'];
++    const documents: StorageDocument[] = [];
++    if (Array.isArray(rawDocuments)) {
++      for (const entry of rawDocuments) {
++        const parsed = storageDocument(entry);
++        if (parsed === null) {
++          return null;
++        }
++        documents.push(parsed);
++      }
++    }
++    return {
++      type: 'storage-result',
++      requestId,
++      ok: fields['ok'] === true,
++      error: error as StorageError,
++      documents,
++      id: identifier(fields['id']) ?? '',
++      body: body(fields['body']) ?? '',
++    };
++  }
++
++  const module = identifier(fields['module']);
++  const region = fields['region'];
++  const panelRole = identifier(fields['panelRole']);
++  if (module === null || panelRole === null || typeof region !== 'string' ||
++      !(REGIONS as readonly string[]).includes(region)) {
++    return null;
++  }
++  return {
++    type: 'mount',
++    module,
++    region: region as Region,
++    activeTab: identifier(fields['activeTab']) ?? '',
++    panelRole,
++  };
++}
++
++/**
++ * Whether a string is a content URL the shell will mount.
++ *
++ * `chrome-untrusted://` and nothing else, a bare host, and the root path. The
++ * registry is compiled into the binary rather than accepted from anywhere, so
++ * this is not filtering hostile input -- it keeps the one place a URL enters
++ * the shell at all in the shape the contract says it is, and makes a mistyped
++ * manifest fail visibly instead of navigating somewhere.
++ */
++export function contentUrl(value: unknown): string|null {
++  if (typeof value !== 'string' || !value.startsWith('chrome-untrusted://')) {
++    return null;
++  }
++  const rest = value.slice('chrome-untrusted://'.length);
++  const slash = rest.indexOf('/');
++  if (slash === -1 || rest.slice(slash) !== '/') {
++    return null;
++  }
++  const host = rest.slice(0, slash);
++  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(host) ? value : null;
++}
++
++/** The origin a frame at `url` posts from, for the equality check. */
++export function originOf(url: string): string {
++  return url.slice(0, url.length - 1);
++}
+diff --git a/chrome/browser/ui/webui/sunshine/BUILD.gn b/chrome/browser/ui/webui/sunshine/BUILD.gn
+index 3c7d5b1..97b2365 100644
+--- a/chrome/browser/ui/webui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/webui/sunshine/BUILD.gn
+@@ -54,6 +54,8 @@ source_set("sunshine") {
+     # Extended by each surface patch.
+     "account/sunshine_account_ui.cc",
+     "account/sunshine_account_ui.h",
++    "dev_os_app/sunshine_dev_os_app_ui.cc",
++    "dev_os_app/sunshine_dev_os_app_ui.h",
+     "document/sunshine_document_content_ui.cc",
+     "document/sunshine_document_content_ui.h",
+     "document/sunshine_document_handler.cc",
+diff --git a/chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.cc b/chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.cc
+new file mode 100644
+index 0000000..3efe1ac
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.cc
+@@ -0,0 +1,56 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.h"
++
++#include "chrome/browser/ui/webui/sunshine/sunshine_webui_resources.h"
++#include "chrome/grit/sunshine_resources.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "services/network/public/mojom/content_security_policy.mojom.h"
++#include "ui/webui/webui_util.h"
++#include "url/gurl.h"
++
++SunshineDevOsAppUI::SunshineDevOsAppUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  // Named by the whole URL rather than a bare host, which is what
++  // content/public/browser/web_ui_data_source.h requires for a
++  // chrome-untrusted:// source.
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      web_ui->GetWebContents()->GetBrowserContext(),
++      chrome::kChromeUISunshineDevOsAppURL);
++
++  webui::SetupWebUIDataSource(source, sunshine::SurfaceResources("dev_os_app"),
++                              IDR_SUNSHINE_DEV_OS_APP_APP_HTML);
++
++  // Embeddable by the module shell and by nothing else. Without this the
++  // default "frame-ancestors 'none';" refuses the iframe outright, which is
++  // the failure patch 0015 already found once from the other side -- the shell
++  // named no framable origin and its child-src would have blocked every mount.
++  source->AddFrameAncestor(GURL(chrome::kChromeUISunshineShellURL));
++
++  // The module.json this app belongs to declares network "deny" and filesystem
++  // "none". These directives are that declaration made true rather than
++  // described: "default-src 'self';" already implies each one, but a directive
++  // that is only implied is a directive the next edit can lose silently.
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ConnectSrc, "connect-src 'none';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ImgSrc, "img-src 'self' data:;");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::MediaSrc, "media-src 'none';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::FontSrc, "font-src 'self';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ObjectSrc, "object-src 'none';");
++  // A module app embeds nothing of its own. Region E is the shell's, and a
++  // module that framed a second document would be a module deciding what E is.
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::ChildSrc, "child-src 'none';");
++  source->OverrideContentSecurityPolicy(
++      network::mojom::CSPDirectiveName::FormAction, "form-action 'none';");
++}
++
++SunshineDevOsAppUI::~SunshineDevOsAppUI() = default;
+diff --git a/chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.h b/chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.h
+new file mode 100644
+index 0000000..9e29926
+--- /dev/null
++++ b/chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.h
+@@ -0,0 +1,59 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_SUNSHINE_DEV_OS_APP_SUNSHINE_DEV_OS_APP_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_SUNSHINE_DEV_OS_APP_SUNSHINE_DEV_OS_APP_UI_H_
++
++#include "chrome/common/sunshine/sunshine_webui_hosts.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++namespace content {
++class WebUI;
++}
++
++class SunshineDevOsAppUI;
++
++// The first mounted module app, at chrome-untrusted://sunshine-dev-os-app.
++//
++// **What this is for.** docs/MODULE_MOUNT_CONTRACT.md section 9 said, until
++// this file existed, that "the socket is built; nothing is plugged into it" --
++// every message in sections 3 and 4 was unexchanged and RV-35 and RV-36 could
++// not be run at all, because no module declared a mount that resolved to
++// anything. first_party/modules/sunshine-dev-os/module.json declared the URL;
++// nothing served it, so mounting it would have shown an empty frame. This is
++// the other half of that declaration.
++//
++// It is deliberately the *smallest* app that exercises the port rather than a
++// port of Dev OS: it speaks mount, describe, activate, select and action, and
++// it draws no data, because docs/DEV_OS_PORT_PLAN.md is a separate piece of
++// work and a surface that drew placeholder numbers would be the thing that
++// document forbids -- "what it could not read is reported as unread rather
++// than drawn as zero".
++//
++// Everything structural is copied from SunshineDocumentContentUIConfig, which
++// is the proven untrusted surface in this tree: a plain WebUIController rather
++// than a ui::MojoWebUIController, no BindInterface overload, no
++// WEB_UI_CONTROLLER_TYPE_DECL, and absent from RegisterWebUIInterfaceBrokers()
++// -- four independent absences, any one of which is enough to keep this
++// renderer without a Mojo pipe. A module app reaches the browser through the
++// mount port and through nothing else.
++class SunshineDevOsAppUIConfig
++    : public content::DefaultWebUIConfig<SunshineDevOsAppUI> {
++ public:
++  SunshineDevOsAppUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIUntrustedScheme,
++                           chrome::kChromeUISunshineDevOsAppHost) {}
++};
++
++class SunshineDevOsAppUI : public content::WebUIController {
++ public:
++  explicit SunshineDevOsAppUI(content::WebUI* web_ui);
++  SunshineDevOsAppUI(const SunshineDevOsAppUI&) = delete;
++  SunshineDevOsAppUI& operator=(const SunshineDevOsAppUI&) = delete;
++  ~SunshineDevOsAppUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_SUNSHINE_DEV_OS_APP_SUNSHINE_DEV_OS_APP_UI_H_
+diff --git a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+index 3755aca..aeb4ce3 100644
+--- a/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
++++ b/chrome/browser/ui/webui/sunshine/sunshine_webui_registry.h
+@@ -15,6 +15,7 @@
+ 
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document.mojom.h"
+ #include "chrome/browser/ui/webui/sunshine/account/sunshine_account_ui.h"
++#include "chrome/browser/ui/webui/sunshine/dev_os_app/sunshine_dev_os_app_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_content_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/document/sunshine_document_ui.h"
+ #include "chrome/browser/ui/webui/sunshine/modules/sunshine_modules_ui.h"
+@@ -113,6 +114,14 @@ inline void RegisterWebUIConfigs(content::WebUIConfigMap& map) {
+   map.AddUntrustedWebUIConfig(
+       std::make_unique<SunshineDocumentContentUIConfig>());
+ 
++  // The first module app. Registered here rather than discovered from the
++  // module registry, because a module's content URL is compiled into the
++  // binary either way and a registration derived from a manifest would be a
++  // second place a host can come from -- docs/MODULE_MOUNT_CONTRACT.md section
++  // 1: "the one URL in the whole arrangement comes from the registry compiled
++  // into the binary".
++  map.AddUntrustedWebUIConfig(std::make_unique<SunshineDevOsAppUIConfig>());
++
+   RegisterWebUIInterfaceBrokers();
+ }
+ 
+diff --git a/chrome/common/sunshine/sunshine_webui_hosts.h b/chrome/common/sunshine/sunshine_webui_hosts.h
+index 0a62934..41813fd 100644
+--- a/chrome/common/sunshine/sunshine_webui_hosts.h
++++ b/chrome/common/sunshine/sunshine_webui_hosts.h
+@@ -40,6 +40,16 @@ inline constexpr char kChromeUISunshineAccountURL[] =
+ // section 1 is why they are two, and `chrome-untrusted` is Chromium's own
+ // scheme -- content/public/common/url_constants.h declares
+ // kChromeUIUntrustedScheme -- so ADR 0003 and SEC-13 are untouched.
++// The first mountable module app. It is a chrome-untrusted:// host for the
++// same reason the document frame is: module content is authored elsewhere, and
++// docs/MODULE_MOUNT_CONTRACT.md section 1 turns on the module renderer never
++// holding browser privilege. It is absent from kSunshineWebUIHosts below --
++// nothing navigates here by name, and a module app that could be opened as a
++// top-level page would be a page with no shell to answer its describe.
++inline constexpr char kChromeUISunshineDevOsAppHost[] = "sunshine-dev-os-app";
++inline constexpr char kChromeUISunshineDevOsAppURL[] =
++    "chrome-untrusted://sunshine-dev-os-app/";
++
+ inline constexpr char kChromeUISunshineDocumentHost[] = "sunshine-document";
+ inline constexpr char kChromeUISunshineDocumentURL[] =
+     "chrome://sunshine-document/";

@@ -112,7 +112,22 @@ def patch_created_paths(patch_path: pathlib.Path) -> set[str]:
 
 
 def remove_created_paths(src: pathlib.Path, patch_names: list[str]) -> None:
-    """Delete the files the stack creates, so the stack can create them again."""
+    """Delete the files the stack creates, so the stack can create them again.
+
+    **And the files the overlay adds, for the same reason one category over.**
+    An overlay addition is untracked in the Chromium checkout -- it is a file
+    Chromium does not have -- so `git checkout --force` has no opinion about it
+    and leaves it where the last build put it, exactly as it does for a
+    patch-created file. `apply_overlay()` then finds it present and refuses,
+    because a file already at an addition's path is supposed to mean upstream
+    has grown one.
+
+    This was build #52: the artwork copied cleanly on the first build and every
+    build after it failed in ninety seconds, on the second overlay file, with a
+    message about upstream that was not true. Deleting additions here is what
+    makes that message honest -- after a reset, anything at one of those paths
+    really is upstream's.
+    """
 
     for patch_name in patch_names:
         for path in sorted(patch_created_paths(ROOT / "downstream/patches" / patch_name)):
@@ -120,6 +135,12 @@ def remove_created_paths(src: pathlib.Path, patch_names: list[str]) -> None:
             if target.is_file():
                 target.unlink()
                 print(f"reset: {path}")
+
+    for path in sorted(verify_asset_overlay.ADDITIONS):
+        target = src / path
+        if target.is_file():
+            target.unlink()
+            print(f"reset: {path}")
 
 
 def overlay_assets() -> dict[str, pathlib.Path]:
@@ -141,7 +162,7 @@ def overlay_assets() -> dict[str, pathlib.Path]:
     }
 
 
-def apply_overlay(src: pathlib.Path) -> None:
+def apply_overlay(src: pathlib.Path, reset: bool) -> None:
     """Copy the binary assets the patch stack cannot carry.
 
     After the patches, deliberately. A patch that edited the same path would
@@ -154,17 +175,24 @@ def apply_overlay(src: pathlib.Path) -> None:
     old icon.
 
     A destination declared an *addition* in `scripts/verify_asset_overlay.py`
-    must not exist, and its directory may not either -- an added image is
-    reachable because a patch adds a `.grd` entry naming it, so the file is new
-    by construction. Finding one already there means upstream has since grown a
-    file of that name and the copy would be silently replacing it.
+    should not exist -- an added image is reachable because a patch adds a
+    `.grd` entry naming it, so the file is new by construction, and finding one
+    already there means upstream has since grown a file of that name.
+
+    **That check only means what it says after a reset**, which is why it is
+    conditional. `remove_created_paths()` deletes declared additions, so in a
+    build-owned workspace anything left at one of those paths is upstream's.
+    Without `--reset` the workspace belongs to whoever is working in it and the
+    file at that path is almost certainly the previous run's copy of this same
+    asset; refusing there would turn a re-run into an error and teach the next
+    reader to delete the check rather than the file.
     """
 
     additions = verify_asset_overlay.ADDITIONS
     for destination, source in overlay_assets().items():
         target = src / destination
         if destination in additions:
-            if target.exists():
+            if reset and target.exists():
                 raise SystemExit(
                     f"overlay addition already exists in the Chromium checkout: "
                     f"{destination} (declared an addition, but upstream has it)"
@@ -319,7 +347,7 @@ def main() -> int:
         run("git", "apply", "--check", str(patch_path), cwd=src)
         run("git", "apply", str(patch_path), cwd=src)
 
-    apply_overlay(src)
+    apply_overlay(src, args.reset)
 
     print(f"Sunshine Chromium checkout ready at {src}")
     return 0
