@@ -111,10 +111,10 @@ index 0000000..6ca234e
 +</html>
 diff --git a/chrome/browser/resources/sunshine/dev_os_app/app.ts b/chrome/browser/resources/sunshine/dev_os_app/app.ts
 new file mode 100644
-index 0000000..195793a
+index 0000000..0e9119e
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/dev_os_app/app.ts
-@@ -0,0 +1,232 @@
+@@ -0,0 +1,237 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -149,7 +149,12 @@ index 0000000..195793a
 + * has read nothing.
 + */
 +
-+import {hostMessage, type HostMessage, type MountAction, type MountTab} from './mount_port.js';
++// Split rather than one statement: upstream's WebUI eslint config forbids
++// mixing a value and a type in the same import
++// (@webui-eslint/no-mixed-type-and-value-imports), and build #53 died on
++// exactly that line.
++import {hostMessage} from './mount_port.js';
++import type {HostMessage, MountAction, MountTab} from './mount_port.js';
 +
 +/**
 + * The shell's origin, and the only sender this frame listens to.

@@ -245,3 +245,53 @@ class MarkupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TypeScriptImportTests(unittest.TestCase):
+    """Enforces: no import statement mixes a value with a type.
+
+    Written after build #53 died ninety-nine seconds in, on one line of one new
+    file, with upstream's own eslint saying exactly what was wrong:
+
+        Do not mix type and value imports in the same statement.
+        @webui-eslint/no-mixed-type-and-value-imports
+
+    The third build lost to the same shape -- #46 to stylelint, #49 to an XML
+    parser, #53 to eslint -- and the second one to be lost after a guard was
+    written for the previous one. `MarkupTests` closed the format above this;
+    this closes the format beside it.
+    """
+
+    def failures_for(self, source: str) -> list[str]:
+        failures: list[str] = []
+        guard.check_typescript_imports({"a/b.ts": source.splitlines()}, failures)
+        return failures
+
+    def test_the_mixed_import_that_failed_build_53(self) -> None:
+        failures = self.failures_for(
+            "import {hostMessage, type HostMessage} from './mount_port.js';")
+        self.assertEqual(1, len(failures))
+        self.assertIn("hostMessage", failures[0])
+        self.assertIn("type HostMessage", failures[0])
+
+    def test_two_statements_are_how_it_is_written(self) -> None:
+        self.assertEqual([], self.failures_for(
+            "import {hostMessage} from './mount_port.js';\n"
+            "import type {HostMessage, MountTab} from './mount_port.js';"))
+
+    def test_a_multi_line_statement_is_read_whole(self) -> None:
+        """The form a formatter produces, which is the one worth catching."""
+
+        self.assertEqual(1, len(self.failures_for(
+            "import {\n  hostMessage,\n  type HostMessage,\n} from './p.js';")))
+
+    def test_a_file_that_is_not_typescript_is_not_read(self) -> None:
+        failures: list[str] = []
+        guard.check_typescript_imports(
+            {"a/b.js": ["import {a, type B} from './c.js';"]}, failures)
+        self.assertEqual([], failures)
+
+    def test_the_repository_has_none(self) -> None:
+        failures: list[str] = []
+        guard.check_typescript_imports(guard.stack_files(), failures)
+        self.assertEqual([], failures)
