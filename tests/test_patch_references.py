@@ -11,6 +11,7 @@ only do if the stack applies in the order its series states.
 """
 
 from pathlib import Path
+import re
 import shutil
 import sys
 import tempfile
@@ -295,3 +296,90 @@ class TypeScriptImportTests(unittest.TestCase):
         failures: list[str] = []
         guard.check_typescript_imports(guard.stack_files(), failures)
         self.assertEqual([], failures)
+
+
+class BundleIdAllocationTests(unittest.TestCase):
+    """Enforces: the resource bundle fits the ids the spec allocates it.
+
+    Written after build #54 died two minutes in, one id short:
+
+        ID range overflow.: Generated .grd file used more IDs (31) than were
+        allocated for it (30) for type includes.
+
+    The fourth build lost to something decidable before the build, and the
+    third in a row -- #52 bootstrap, #53 eslint, #54 grit. Adding a surface
+    adds four files and nobody looks at a number in `resource_ids.spec` that
+    only grit ever reads.
+    """
+
+    BUILD = "chrome/browser/resources/sunshine/BUILD.gn"
+
+    def test_the_repository_fits(self) -> None:
+        failures: list[str] = []
+        guard.check_bundle_id_allocation(guard.stack_files(), failures)
+        self.assertEqual([], failures)
+
+    def test_the_count_agrees_with_what_grit_reported(self) -> None:
+        """Grit said 31 when #54 failed. This arithmetic has to say 31 too.
+
+        A guard whose number is its own opinion is a guard that passes while
+        the build fails, which is worse than not having it.
+        """
+
+        build = "\n".join(guard.stack_files()[self.BUILD])
+        needed = sum(
+            len(re.findall(r'"([^"]+)"', body))
+            for _name, body in guard.BUNDLE_LISTS.findall(build))
+        self.assertEqual(31, needed)
+
+    def test_one_id_too_few_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "downstream/patches").mkdir(parents=True)
+            (root / "downstream/patches/0004-sunshine-webui-seam.patch").write_text(
+                '+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/sunshine/'
+                'resources.grd": {\n'
+                '+    "META": {"sizes": {"includes": [2]}},\n'
+                '+  },\n',
+                encoding="utf-8")
+            produced = {
+                self.BUILD: [
+                    "  static_files = [",
+                    '    "a/app.html",',
+                    '    "a/app.css",',
+                    "  ]",
+                    "  ts_files = [",
+                    '    "a/app.ts",',
+                    "  ]",
+                ]
+            }
+            failures: list[str] = []
+            guard.check_bundle_id_allocation(produced, failures, root)
+            self.assertEqual(1, len(failures))
+            self.assertIn("needs 3 include ids", failures[0])
+            self.assertIn("allocates 2", failures[0])
+
+    def test_exactly_enough_is_enough(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "downstream/patches").mkdir(parents=True)
+            (root / "downstream/patches/0004-sunshine-webui-seam.patch").write_text(
+                '+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/sunshine/'
+                'resources.grd": {\n'
+                '+    "META": {"sizes": {"includes": [3]}},\n'
+                '+  },\n',
+                encoding="utf-8")
+            produced = {
+                self.BUILD: [
+                    "  static_files = [",
+                    '    "a/app.html",',
+                    '    "a/app.css",',
+                    "  ]",
+                    "  ts_files = [",
+                    '    "a/app.ts",',
+                    "  ]",
+                ]
+            }
+            failures: list[str] = []
+            guard.check_bundle_id_allocation(produced, failures, root)
+            self.assertEqual([], failures)
