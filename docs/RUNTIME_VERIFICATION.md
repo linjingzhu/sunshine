@@ -119,7 +119,7 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-18 | Delete a project that had documents, then reopen the surface | The project and every document of it are gone | DOC-7, DOCA-6 |
 | RV-19 | With a section open, press refresh, then download | Refresh re-reads from the store without disturbing an unsaved edit in the editor; download saves an `.html` file whose contents are the stored document | DOC-3, DOC-8 |
 | RV-20 | Press the right mouse button in page content and drag left 200 px, then release; repeat dragging right; repeat with a drag of 50 px | Left goes back, right goes forward, and the short drag shows the context menu instead. Neither long drag shows a menu, and no press does both | GESTURE contract §3.2, patch 0017 |
-| RV-21 | Show the bookmark bar and look at its leading edge | One Sunshine button sits there, left of the saved tab group button, tooltip "Sunshine modules". Its glyph is not the grid the tab group button uses | ADR 0014 §5, patch 0008 |
+| RV-21 | Show the bookmark bar and look at its leading edge | One Sunshine button sits there, tooltip "Sunshine modules", and **it is the only button there** — patch 0028 turns off the saved tab group button that used to sit beside it. Before #52 the wording of this gate was "left of the saved tab group button"; if that button is still present, patch 0028 did not take and RV-48 says why | ADR 0014 §5, patch 0008, ADR 0022 |
 | RV-22 | Click that button, then ctrl-click it | The first opens `chrome://sunshine-modules` in the current tab; the second opens it in a new background tab. Disposition follows the modifier, as it does for every other button on this bar | ADR 0014 §2 |
 | RV-23 | On `chrome://sunshine-modules`, compare the left column against `first_party/registry.json` | The same modules, the same order, and the count in the heading matches. This is the gate the sync guard cannot reach: the guard compares the patch to `first_party/`, not the running page to either | patch 0007, `verify_module_registry_sync.py` |
 | RV-24 | Select each module in the left column | Its declared network, filesystem and credential values are the manifest's own words, and a value other than `deny`/`none`/no is the one that stands out | MODULE HOME §2 |
@@ -146,6 +146,8 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-45 | Click that button | The two panes exchange places, the tab strip order changes with them, and the active tab stays active. The icon then points the other way. This is `MultiContentsView::OnSwap()`, the same swap a double-click on the divider performs — check both and confirm they do the same thing | ADR 0021 decision |
 | RV-46 | Drag the divider left and right, then press Tab until the drag handle takes focus and press the arrow keys | Resizing still works by both routes. The button must not have eaten the drag: a press that starts on the button does not resize, but anywhere else on the divider still does | patch 0027 against upstream `views::ResizeArea` |
 | RV-47 | Hover the button, then compare the gap between the two panes against a screenshot of build #47 | The tooltip reads "Reverse views" — the menu item's own string, not a new one. The divider is 20 px rather than 10, and the panes are correspondingly narrower. Whether that reads as a divider with a control on it or as a gap is the open question ADR 0021 records | ADR 0021 consequences |
+| RV-48 | On a **fresh profile**, show the bookmark bar | No saved tab group button and no separator beside it. If one is there, check the profile first: the pref is syncable and stored only once toggled, so a profile that toggled it back on keeps its own `true` and the new default is not wrong | patch 0028, `bookmark_bar.show_tab_groups` |
+| RV-49 | Right-click the bookmark bar and read the menu | **"Show tab groups" is still there, unchecked, and still works.** Only the default moved; the control upstream gave the user is untouched, and a menu item that did nothing would be the defect this gate exists to catch | `IDC_BOOKMARK_BAR_TOGGLE_SHOW_TAB_GROUPS`, ADR 0022 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -261,7 +263,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-47, RVV-1..RVV-5
+gate       RV-1..RV-49, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
