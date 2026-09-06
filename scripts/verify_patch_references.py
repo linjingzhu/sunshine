@@ -243,6 +243,66 @@ def check_markup_parses(produced: dict[str, list[str]], failures: list[str]) -> 
             )
 
 
+BUNDLE_BUILD = "chrome/browser/resources/sunshine/BUILD.gn"
+BUNDLE_SPEC_KEY = "chrome/browser/resources/sunshine/resources.grd"
+# Deliberately not named GN_LIST: that name is taken, by the general one at the
+# top of this file that gn_lists() uses for every list in a BUILD.gn. Shadowing
+# it here narrowed gn_lists() to three list names, so the browser target's
+# `sources` stopped being read and the check that an entry names a file the
+# stack creates silently passed on anything. Its test caught it in the same
+# minute; the comment is here so the name is not reused by the next reader.
+BUNDLE_LISTS = re.compile(
+    r"(static_files|ts_files|mojo_files)\s*=\s*\[(.*?)\n\s*\]", re.S)
+SPEC_SIZE = re.compile(
+    re.escape(BUNDLE_SPEC_KEY) + r"\"\s*:\s*\{.*?\"includes\"\s*:\s*\[(\d+)\]", re.S)
+
+
+def check_bundle_id_allocation(produced: dict[str, list[str]], failures: list[str],
+                               root: Path = ROOT) -> None:
+    """Refuse a resource bundle that needs more ids than the spec allocates.
+
+    Build #54 died here, one id short:
+
+        ID range overflow.: Generated .grd file used more IDs (31) than were
+        allocated for it (30) for type includes.
+
+    `build_webui()` emits one `<include>` per file, so the bundle's appetite is
+    just `static_files + ts_files + mojo_files` -- and adding a surface adds
+    four of them without anyone looking at the number in
+    `tools/gritsettings/resource_ids.spec`. That number is a `META: sizes`
+    declaration rather than a count grit derives, which is exactly why it goes
+    stale: nothing but grit itself ever compares the two, and grit runs
+    two minutes into a build on the owner's workstation.
+
+    The arithmetic is this guard's own, and it is checked against grit's:
+    when #54 failed, grit said 31 and this counted 31.
+    """
+
+    if BUNDLE_BUILD not in produced:
+        return
+    build = "\n".join(produced[BUNDLE_BUILD])
+    needed = 0
+    for _name, body in BUNDLE_LISTS.findall(build):
+        needed += len(re.findall(r'"([^"]+)"', body))
+
+    spec_patch = root / "downstream/patches/0004-sunshine-webui-seam.patch"
+    if not spec_patch.is_file():
+        return
+    match = SPEC_SIZE.search(spec_patch.read_text(encoding="utf-8"))
+    if match is None:
+        failures.append(
+            f"{BUNDLE_SPEC_KEY}: no includes allocation found in "
+            "0004-sunshine-webui-seam.patch, so nothing bounds the bundle")
+        return
+
+    allocated = int(match.group(1))
+    if needed > allocated:
+        failures.append(
+            f"{BUNDLE_SPEC_KEY}: the bundle needs {needed} include ids and the "
+            f"spec allocates {allocated}; grit fails the build with ID range "
+            "overflow. Raise the META sizes in 0004-sunshine-webui-seam.patch")
+
+
 def check_typescript_imports(produced: dict[str, list[str]], failures: list[str]) -> None:
     """Refuse an import statement upstream's own eslint would refuse.
 
@@ -287,6 +347,7 @@ def check(root: Path = ROOT) -> list[str]:
 
     check_markup_parses(produced, failures)
     check_typescript_imports(produced, failures)
+    check_bundle_id_allocation(produced, failures, root)
 
     if RESOURCES_BUILD not in produced or BROWSER_BUILD not in produced:
         return [

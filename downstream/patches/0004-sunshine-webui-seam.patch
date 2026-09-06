@@ -384,7 +384,7 @@ index 24ed276..73e27c5 100644
 +  # the declared sizes here overlap freely, webui_gallery's own 5140+90 running
 +  # past both of its neighbours.
 +  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/sunshine/resources.grd": {
-+    "META": {"sizes": {"includes": [30]}},
++    "META": {"sizes": {"includes": [50]}},
 +    "includes": [5170],
 +  },
    "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/whats_new/resources.grd": {
