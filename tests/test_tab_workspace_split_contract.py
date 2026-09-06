@@ -73,58 +73,70 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         self.assertIn("native runtime verification pending", self.text)
         self.assertIn("not a completed browser feature", self.text)
 
-    # The one patch allowed to name a deferred runtime, and the reason it is
-    # allowed: it adds an affordance for an upstream action, not a runtime.
-    # `docs/decisions/0021-split-swap-affordance.md`.
-    SPLIT_AFFORDANCE_PATCH = "0027-sunshine-split-swap-button.patch"
+    # A patch may name a deferred runtime only if it does not implement one.
+    # Each entry is the word, the single patch allowed to carry it, and the
+    # property that makes it an exception rather than a breach -- what its
+    # added lines must contain, and what they must not. The forbidden lists are
+    # the names a real implementation of that runtime could not avoid.
+    #
+    # `workspace` has no exception: nothing implements or borders it yet.
+    DEFERRED_RUNTIMES = {
+        # docs/decisions/0021-split-swap-affordance.md: an affordance for an
+        # upstream action. Its one route out must stay MultiContentsView::OnSwap().
+        "split": (
+            "0027-sunshine-split-swap-button.patch",
+            ("OnSwap()",),
+            ("ReverseTabsInSplit", "RemoveSplit", "SplitTabVisualData(",
+             "split_ratio", "SetSplitRatio"),
+        ),
+        # docs/decisions/0022-no-tab-groups-on-the-bookmark-bar.md: a registered
+        # default moves from true to false. Touching the tab group model, the
+        # saved-tab-group views, or that feature's own prefs would be a runtime.
+        "tab-group": (
+            "0028-sunshine-no-tab-groups-on-bookmark-bar.patch",
+            ("kShowTabGroupsInBookmarkBar",),
+            ("SavedTabGroupBar", "SavedTabGroupUtils", "TabGroupModel",
+             "TabGroupId", "tab_groups::prefs"),
+        ),
+    }
 
     def test_runtime_patch_series_is_unchanged(self) -> None:
         series = (ROOT / "downstream" / "patches" / "series").read_text(encoding="utf-8")
-        for deferred in ("workspace", "tab-group"):
-            with self.subTest(deferred=deferred):
-                self.assertNotIn(deferred, series.lower())
+        self.assertNotIn("workspace", series.lower())
 
-        # `split` was in that list until patch 0027. Dropping it outright would
-        # have retired the rule; what the rule protects is that Sunshine ships
-        # no split *runtime*, so the name is allowed for exactly one patch and
-        # the property is checked directly below.
-        named = [
-            line.strip()
-            for line in series.splitlines()
-            if "split" in line.lower() and line.strip()
-        ]
-        self.assertEqual([self.SPLIT_AFFORDANCE_PATCH], named)
+        # `split` and `tab-group` were in that list too. Dropping either
+        # outright would have retired the rule; what the rule protects is that
+        # Sunshine ships no runtime for them, so each name is allowed for
+        # exactly one patch and the property is checked directly below.
+        for word, (allowed, _, _) in self.DEFERRED_RUNTIMES.items():
+            with self.subTest(deferred=word):
+                named = [
+                    line.strip()
+                    for line in series.splitlines()
+                    if word in line.lower() and line.strip()
+                ]
+                self.assertEqual([allowed], named)
 
-    def test_the_split_affordance_reaches_upstream_and_writes_nothing(self) -> None:
-        """The affordance may call upstream's swap; it may not become a model.
+    def test_each_deferred_runtime_exception_stays_an_exception(self) -> None:
+        """A patch allowed to name a deferred runtime may not implement one.
 
-        Invariant 12 says Sunshine writes no split state and contains no split
-        model, and section 4.2 retired three commands to avoid "a second code
-        path that could drift from the native one". Both survive only if the
-        button's single route out is `MultiContentsView::OnSwap()` -- the same
-        function the splitter's own double-click calls. Reaching the tab strip
-        directly, or storing any of the split's own state, would be the second
-        path arriving under a different name.
+        This is the half of the rule that survives the exceptions. Without it
+        the allow-list above is a hole: any future patch could take the
+        permitted name and bring a model in behind it.
         """
 
-        patch = (ROOT / "downstream" / "patches" / self.SPLIT_AFFORDANCE_PATCH).read_text(
-            encoding="utf-8"
-        )
-        added = "\n".join(
-            line[1:] for line in patch.splitlines()
-            if line.startswith("+") and not line.startswith("+++")
-        )
-
-        self.assertIn("OnSwap()", added)
-        for forbidden in (
-            "ReverseTabsInSplit",
-            "RemoveSplit",
-            "SplitTabVisualData(",
-            "split_ratio",
-            "SetSplitRatio",
-        ):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, added)
+        for word, (allowed, required, forbidden) in self.DEFERRED_RUNTIMES.items():
+            patch = (ROOT / "downstream" / "patches" / allowed).read_text(encoding="utf-8")
+            added = "\n".join(
+                line[1:] for line in patch.splitlines()
+                if line.startswith("+") and not line.startswith("+++")
+            )
+            for marker in required:
+                with self.subTest(deferred=word, required=marker):
+                    self.assertIn(marker, added)
+            for marker in forbidden:
+                with self.subTest(deferred=word, forbidden=marker):
+                    self.assertNotIn(marker, added)
 
     def test_permanently_excluded_vertical_tabs_are_not_in_stage_roadmap(self) -> None:
         roadmap = (
