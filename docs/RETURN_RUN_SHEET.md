@@ -46,6 +46,7 @@ Blocks run top to bottom. Within a block the order does not matter.
 | **F — bookmark bar and module home** | **RV-39 first**, then RV-41, RV-42, RV-21, RV-22, RV-23, RV-24, RV-25, RV-37, RVV-4, RVV-5, RV-40, RV-43 last | A normal browser window; `first_party/registry.json` open beside it | 35 min |
 | **F1 — the bookmark bar's leading edge** | RV-48, RV-49 | A fresh profile for RV-48 | 5 min |
 | **F2 — split view** | **RV-44 first**, then RV-45, RV-46, RV-47 | Two tabs, split side by side; a screenshot of build #47's split for RV-47 | 15 min |
+| **F3 — a module actually mounted** | RV-50 first, then RV-51, RV-52, RV-53, RV-35, RV-36 | `chrome://sunshine-shell`; RV-35 needs `chrome://process-internals` in a second tab | 25 min |
 | **G — the module shell** | RV-31, RV-32, RV-33, RV-34, RV-38 | `chrome://sunshine-shell`; a window narrow enough to hit the clamp | 30 min |
 | **H — the document surface** | RV-13, RV-14, RV-15, RV-16, RV-17, RV-18, RV-19 | `chrome://sunshine-document`, DevTools open for RV-16 | 40 min |
 

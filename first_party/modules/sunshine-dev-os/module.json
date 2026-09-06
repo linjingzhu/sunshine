@@ -9,7 +9,7 @@
   "owner": "sunshine",
   "kind": "surface",
   "lifecycle": "profile",
-  "status": "planned",
+  "status": "prepared",
   "entrypoints": [
     {
       "type": "chromium_webui",

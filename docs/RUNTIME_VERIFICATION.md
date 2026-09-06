@@ -148,6 +148,10 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-47 | Hover the button, then compare the gap between the two panes against a screenshot of build #47 | The tooltip reads "Reverse views" — the menu item's own string, not a new one. The divider is 20 px rather than 10, and the panes are correspondingly narrower. Whether that reads as a divider with a control on it or as a gap is the open question ADR 0021 records | ADR 0021 consequences |
 | RV-48 | On a **fresh profile**, show the bookmark bar | No saved tab group button and no separator beside it. If one is there, check the profile first: the pref is syncable and stored only once toggled, so a profile that toggled it back on keeps its own `true` and the new default is not wrong | patch 0028, `bookmark_bar.show_tab_groups` |
 | RV-49 | Right-click the bookmark bar and read the menu | **"Show tab groups" is still there, unchecked, and still works.** Only the default moved; the control upstream gave the user is untouched, and a menu item that did nothing would be the defect this gate exists to catch | `IDC_BOOKMARK_BAR_TOGGLE_SHOW_TAB_GROUPS`, ADR 0022 |
+| RV-50 | Open `chrome://sunshine-shell` and choose DevOS in the dock | The module renders. The header reads **DevOS**, region C offers **Overview / Repositories / Decisions**, and the header offers **Refresh** and **Details** — all of it drawn by the shell from one `describe` the frame posted when its `mount` arrived. **This is the first message the mount port has ever carried**; before patch 0029 the content URL resolved to nothing and this gate could not be run | patch 0029, mount contract §3/§4 |
+| RV-51 | Click each tab in region C | The body follows. Then confirm the reverse direction is not drawn twice: the module renders **no tab strip of its own** inside D, no title, and no switcher — §7 point 4 calls that the largest deletion in a port, and a module that kept its own copy would show two of everything | MS-1, mount contract §7 |
+| RV-52 | Press **Details** in the header | Region E opens. The module asked for it with `request-panel` rather than opening a panel itself, so if E does not open the message did not arrive — check the shell's `child-src` before the module | mount contract §4 |
+| RV-53 | With DevOS mounted, read what each tab actually says | Every tab states what it will show **and that it has read nothing**. No counts, no zeros, no empty charts. The manifest declares network `deny` and the data source enforces it with `connect-src 'none'`, so a number here would be invented — which is the failure `docs/DEV_OS_PORT_PLAN.md` names in its own words | ADR 0023, patch 0029 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -263,7 +267,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-49, RVV-1..RVV-5
+gate       RV-1..RV-53, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

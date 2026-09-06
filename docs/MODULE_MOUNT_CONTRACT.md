@@ -254,9 +254,19 @@ because most seams here have needed one:
 
 ## 9. NOT VERIFIED
 
-- **No module declares a mount.** The socket is built; nothing is plugged into
-  it. Every message in §3 and §4 is therefore unexchanged, and the first port to
-  arrive should expect to find at least one thing here wrong.
+- **One module declares a mount, and something now serves it.**
+  `first_party/modules/sunshine-dev-os/module.json` names
+  `chrome-untrusted://sunshine-dev-os-app/`, and
+  `downstream/patches/0029-sunshine-dev-os-module-app.patch` registers the host
+  that answers it. Until that patch the URL was two strings in a registry and
+  nothing served them, so mounting would have shown an empty frame — which is
+  worth stating plainly because this section said "the socket is built;
+  nothing is plugged into it" for long enough that the sentence read as
+  permanent.
+- **Every message in §3 and §4 is still unexchanged.** Nothing has compiled
+  and no frame has loaded. The first port to arrive should still expect to
+  find at least one thing here wrong; the difference is that there is now
+  something to run, and RV-50 to RV-53 are how.
 - **One thing here was already wrong and is fixed.** Until patch 0015 the shell
   named no framable origin, so its default `child-src 'none';` would have
   blocked every mounted frame — the port could not have carried a message even
@@ -267,6 +277,10 @@ because most seams here have needed one:
   policy, and both of upstream's linters passed on them. That is the type
   system and the style rules agreeing, not the port working.
 - MM-9 and MM-10 need the browser and are unrun.
+- **The app that plugs in is not Dev OS.** It speaks the port and draws no
+  data, because `docs/DEV_OS_PORT_PLAN.md` is separate work and a surface
+  that filled the gap with plausible numbers would break that document's own
+  rule. What it proves, if it works, is the port — not the module.
 - **A module in E belonging to a different module than D's is not
   implemented.** `docs/MODULE_SHELL_CONTRACT.md` §1 permits it; the shell mounts
   the same module in both regions and there is no message that would say

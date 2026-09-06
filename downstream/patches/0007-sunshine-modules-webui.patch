@@ -813,7 +813,7 @@ index 0000000..9ccd297
 +        "remote_content": false,
 +        "requires_user_activation": true
 +      },
-+      "status": "planned",
++      "status": "prepared",
 +      "verification": {
 +        "native_build": "pending",
 +        "runtime": "pending",

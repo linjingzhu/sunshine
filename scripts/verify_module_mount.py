@@ -48,6 +48,21 @@ APP = "chrome/browser/resources/sunshine/shell/app.ts"
 SHELL_UI = "chrome/browser/ui/webui/sunshine/shell/sunshine_shell_ui.cc"
 CONTRACT = "docs/MODULE_MOUNT_CONTRACT.md"
 
+# Every module app's copy of the port. Section 7 point 1 of the contract, and
+# MA-1, say an app copies `mount_port.ts` rather than importing it: an app that
+# imported it from Sunshine would run only inside Sunshine, and the port exists
+# so the same module renders in a host Sunshine did not write.
+#
+# Copying invites exactly one failure, and this is the list that makes it
+# checkable. Two files drift, both keep the name, and the shell and the app
+# disagree about what a message is while every other check passes -- the shell
+# validating with one set of rules and the app answering with another is a bug
+# that shows as a message silently dropped, which is the hardest kind to find
+# from a screenshot.
+PORT_COPIES = (
+    "chrome/browser/resources/sunshine/dev_os_app/mount_port.ts",
+)
+
 # `export const NAME = ['a', 'b'] as const;`.
 #
 # `\s*` after the `=` because clang-format wraps the declaration onto the next
@@ -83,7 +98,7 @@ def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     files = verify_patch_references.stack_files(root)
 
-    for path in (PORT, MOUNT, APP, SHELL_UI):
+    for path in (PORT, MOUNT, APP, SHELL_UI, *PORT_COPIES):
         if path not in files:
             failures.append(f"{path}: the patch stack does not create it")
     if failures:
@@ -229,8 +244,49 @@ def check(root: Path = ROOT) -> list[str]:
                 f"validate_first_party_modules.CONTENT_URL disagrees with MM-1 on {probe!r}"
             )
 
-    print(f"module mount: {declared} module(s) declare a mount.")
+    # -- a copy of the port is the port, or it is a second port --------------
+    #
+    # The comparison starts after each file's own opening block comment,
+    # because that is the one part a copy is expected to differ in: the copy
+    # says it is a copy and names its original. Everything below it -- every
+    # message name, every validator, every bound -- must be identical, and a
+    # single changed character is reported rather than tolerated.
+    for copy in PORT_COPIES:
+        original_body = _after_header("\n".join(files[PORT]))
+        copy_body = _after_header("\n".join(files[copy]))
+        if original_body is None or copy_body is None:
+            failures.append(
+                f"{copy}: one of the two files has no opening block comment to "
+                "compare below")
+            continue
+        if original_body != copy_body:
+            failures.append(
+                f"{copy} has drifted from {PORT}: " + _first_difference(
+                    original_body, copy_body))
+
+    print(f"module mount: {declared} module(s) declare a mount, "
+          f"{len(PORT_COPIES)} copy of the port checked against it.")
     return failures
+
+
+def _after_header(source: str) -> str | None:
+    """Everything below the file's opening block comment."""
+
+    end = source.find("*/")
+    return None if end == -1 else source[end + 2:]
+
+
+def _first_difference(original: str, copy: str) -> str:
+    """Where the two part company, in the terms a reader can act on."""
+
+    left = original.splitlines()
+    right = copy.splitlines()
+    for number, (a, b) in enumerate(zip(left, right), start=1):
+        if a != b:
+            return (f"line {number} below the header reads {b.strip()!r} in the "
+                    f"copy and {a.strip()!r} in the original")
+    return (f"the copy has {len(right)} lines below its header and the original "
+            f"has {len(left)}")
 
 
 def main() -> int:
