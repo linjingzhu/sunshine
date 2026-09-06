@@ -361,7 +361,7 @@ class BootstrapWiringTests(unittest.TestCase):
         # asked this; an addition has nothing to be missing.
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(SystemExit) as raised:
-                self.bootstrap.apply_overlay(Path(directory))
+                self.bootstrap.apply_overlay(Path(directory), reset=True)
             self.assertIn("not in the Chromium checkout", str(raised.exception))
 
     def test_an_addition_upstream_already_has_stops_the_bootstrap(self):
@@ -374,7 +374,7 @@ class BootstrapWiringTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(b"upstream")
             with self.assertRaises(SystemExit) as raised:
-                self.bootstrap.apply_overlay(checkout)
+                self.bootstrap.apply_overlay(checkout, reset=True)
             self.assertIn("declared an addition, but upstream has it",
                           str(raised.exception))
 
@@ -389,7 +389,7 @@ class BootstrapWiringTests(unittest.TestCase):
                 target = checkout / destination
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(b"upstream")
-            self.bootstrap.apply_overlay(checkout)
+            self.bootstrap.apply_overlay(checkout, reset=True)
             for destination in overlay.ADDITIONS:
                 self.assertTrue((checkout / destination).is_file(), destination)
 

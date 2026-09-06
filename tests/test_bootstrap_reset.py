@@ -140,6 +140,67 @@ class RemovalTests(unittest.TestCase):
             # The reason `git clean` was not the fix.
             self.assertTrue(build_output.exists())
 
+    def test_an_overlay_addition_is_removed_too(self):
+        """Build #52, and the reason it failed in ninety seconds.
+
+        An overlay addition is untracked in the Chromium checkout, so
+        `git checkout --force` leaves it where the last build put it -- and
+        then `apply_overlay()` finds it present and reports that upstream has
+        grown a file of that name, which is not true. The artwork copied
+        cleanly on the first build and every build after it failed.
+        """
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            patches = root / "downstream/patches"
+            patches.mkdir(parents=True)
+            (patches / "0001-fixture.patch").write_text(CREATED, encoding="utf-8")
+
+            src = root / "src"
+            additions = sorted(bootstrap.verify_asset_overlay.ADDITIONS)
+            self.assertTrue(additions, "the fixture needs a declared addition")
+            for path in additions:
+                target = src / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"stale")
+
+            original = bootstrap.ROOT
+            bootstrap.ROOT = root
+            try:
+                bootstrap.remove_created_paths(src, ["0001-fixture.patch"])
+            finally:
+                bootstrap.ROOT = original
+
+            for path in additions:
+                with self.subTest(addition=path):
+                    self.assertFalse((src / path).exists())
+
+    def test_an_addition_present_without_reset_is_not_an_error(self):
+        """A workspace nobody reset is a workspace somebody is working in.
+
+        Refusing there would turn a re-run into an error, and teach the next
+        reader to delete the check rather than the file.
+        """
+
+        with tempfile.TemporaryDirectory() as directory:
+            src = Path(directory) / "src"
+            for path in sorted(bootstrap.verify_asset_overlay.ADDITIONS):
+                target = src / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"the previous run's copy")
+
+            original = bootstrap.ROOT
+            bootstrap.ROOT = REPOSITORY_ROOT
+            try:
+                # Replacements are absent from this fixture, so the run stops at
+                # the first of those rather than at an addition. Reaching that
+                # message is the assertion: an addition did not raise first.
+                with self.assertRaises(SystemExit) as raised:
+                    bootstrap.apply_overlay(src, reset=False)
+                self.assertIn("is not in the Chromium checkout", str(raised.exception))
+            finally:
+                bootstrap.ROOT = original
+
     def test_a_path_that_is_already_gone_is_not_an_error(self):
         # The cold-workspace case, which is every first build.
         with tempfile.TemporaryDirectory() as directory:
