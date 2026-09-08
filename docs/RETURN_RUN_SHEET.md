@@ -31,6 +31,15 @@ once.
 `chrome://process-internals` are upstream debugging surfaces whose output may
 have changed under the pin. If a row cannot be found, that is the result.
 
+**There is a Korean sheet, and it is generated from this file.**
+`gate-sheet.html` at the repository root carries every gate below with a
+step-by-step walkthrough, a PASS/FAIL/NOT RUN control and an export box.
+`scripts/build_gate_sheet.py` builds it from this document's block table and
+`docs/RUNTIME_VERIFICATION.md`'s gate table, so the two cannot say different
+things — and CI now regenerates it and refuses a committed copy that does not
+match, which it did not do for the three releases the sheet spent silently
+failing to build at all.
+
 ## 2. The order, and what each block needs
 
 Blocks run top to bottom. Within a block the order does not matter.
