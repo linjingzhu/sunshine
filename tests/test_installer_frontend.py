@@ -322,3 +322,86 @@ class PatchStackTests(GuardTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StaticRuntimeTests(unittest.TestCase):
+    """Enforces: IU-17.
+
+    Build #55 produced a `sunshine-setup.exe` that did nothing when it was
+    double-clicked. Not a dialog, not an error, nothing -- because the loader
+    failed before `wWinMain`, and every failure this program knows how to
+    report is reported from inside `wWinMain`.
+
+    The cause was one absent token. `cl.exe` defaults to `/MD`, so the binary
+    needed the Visual C++ runtime DLLs; the build machine had them and the
+    machine it was carried to did not.
+    """
+
+    def setUp(self) -> None:
+        self.build = (REPOSITORY_ROOT / "scripts/build_installer_frontend.ps1").read_text(
+            encoding="utf-8")
+
+    def compile_line(self) -> str:
+        """The cl.exe invocation alone.
+
+        Read from `cl.exe` to the end of its backtick continuations, because
+        the prose above it names `/MD` on purpose -- the comment explaining why
+        /MT is there has to be able to say what /MT is not.
+        """
+
+        after = self.build.split("& cl.exe", 1)[1]
+        lines: list[str] = []
+        for line in after.splitlines():
+            lines.append(line)
+            if not line.rstrip().endswith("`"):
+                break
+        return "\n".join(lines)
+
+    def test_the_compile_line_asks_for_the_static_runtime(self) -> None:
+        line = self.compile_line()
+        self.assertIn("/MT", line)
+        self.assertNotIn("/MD", line)
+
+    def test_the_guard_refuses_the_line_that_shipped_build_55(self) -> None:
+        without = self.build.replace("/O2 /GL /MT /guard:cf", "/O2 /GL /guard:cf", 1)
+        self.assertNotIn("/MT", without.split("cl.exe")[1].split("`")[0])
+        failures: list[str] = []
+        # The guard reads the file, so give it one that carries the defect.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (guard.SOURCE, guard.RESOURCE, guard.MANIFEST,
+                             guard.BUILD, guard.CONTRACT):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
+                if relative == guard.BUILD:
+                    text = without
+                target.write_text(text, encoding="utf-8")
+            failures = guard.check(root)
+        self.assertTrue(any("/MT" in f for f in failures), failures)
+        self.assertTrue(any("before wWinMain" in f for f in failures), failures)
+
+    def test_a_double_click_reaches_the_dialog_or_a_message_box(self) -> None:
+        """Why silence located the fault outside the program.
+
+        A double-click passes no arguments, so `elevated_continuation` is
+        false and the only failure that can precede the dialog is a command
+        line this program does not recognise -- which it reports. Every quiet
+        exit lives inside the elevated branch, behind a switch a double-click
+        cannot supply. So a run that shows nothing at all never reached
+        `wWinMain`, which is what made the loader the place to look.
+        """
+
+        source = (REPOSITORY_ROOT / "installer/sunshine_setup.cpp").read_text(
+            encoding="utf-8")
+        body = source[source.index("int WINAPI wWinMain"):]
+        before_dialog, _, _ = body.partition("if (elevated_continuation)")
+        # The one pre-dialog failure, and it speaks.
+        self.assertIn("ParseCommandLine", before_dialog)
+        self.assertIn("MessageBoxW", before_dialog)
+        self.assertNotIn("return kExitRefusedElevation", before_dialog)
+
+        quiet_branch, _, after = body.partition("INITCOMMONCONTROLSEX")
+        self.assertIn("return kExitRefusedElevation", quiet_branch)
+        # And the dialog path reports the one thing that can go wrong with it.
+        self.assertIn("could not open its installer window", after)

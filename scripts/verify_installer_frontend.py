@@ -113,6 +113,29 @@ def check(root: Path = ROOT) -> list[str]:
     if failures:
         return failures
 
+    # -- IU-17: it runs on a machine that never had a compiler ----------------
+    #
+    # `cl.exe` defaults to /MD, the dynamic CRT, and a binary built that way
+    # needs VCRUNTIME140.dll, VCRUNTIME140_1.dll and MSVCP140.dll wherever it
+    # runs. The build machine has them because Visual Studio put them there, so
+    # this is invisible in every place it is built and fatal in every place it
+    # is used: the loader fails before wWinMain, so not one of the message
+    # boxes below ever runs and the user sees nothing at all.
+    #
+    # Build #55's installer did exactly that. The flag is one token and the
+    # failure it prevents is silent, which is the whole argument for checking
+    # it here rather than trusting whoever next edits the command line.
+    if not re.search(r"cl\.exe[^\n]*(`\n[^\n]*)*\s/MT\b", build):
+        failures.append(
+            f"{BUILD}: the front-end is not compiled with /MT, so it links the "
+            "dynamic CRT and does nothing on a machine without the Visual C++ "
+            "redistributable -- silently, because the loader fails before "
+            "wWinMain (IU-17)")
+    if re.search(r"cl\.exe[^\n]*(`\n[^\n]*)*\s/MD\b", build):
+        failures.append(
+            f"{BUILD}: the front-end is compiled with /MD, which is the dynamic "
+            "CRT (IU-17)")
+
     # -- IU-7: asInvoker, and only that ---------------------------------------
     levels = re.findall(r'requestedExecutionLevel\s+level="([^"]+)"', manifest)
     if levels != ["asInvoker"]:
