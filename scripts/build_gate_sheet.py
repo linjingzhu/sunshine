@@ -980,7 +980,11 @@ def build(root: Path = ROOT) -> str:
 
 
 def main() -> int:
-    OUT.write_text(build(), encoding="utf-8")
+    # newline="\n" rather than the platform default. The sheet is committed and
+    # CI now diffs it, and the self-hosted guard runs on Windows: without this
+    # the same generator would produce CRLF there and LF here, and the check
+    # would report a stale sheet on a machine that had just regenerated it.
+    OUT.write_text(build(), encoding="utf-8", newline="\n")
     print(f"Wrote {OUT.relative_to(ROOT)}")
     return 0
 
