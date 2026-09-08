@@ -100,7 +100,20 @@ inline constexpr wchar_t kEngineSha256[] = L"$hash";
         # elements, which is either a diagnostic or a binary the side-by-side
         # loader refuses to start. IU-7 needs exactly one, and it needs to be
         # the one in sunshine_setup.manifest.
-        & cl.exe /nologo /std:c++20 /W4 /permissive- /EHsc /O2 /GL /guard:cf /Qspectre `
+        # /MT, and it is the difference between a setup program and a file
+        # that does nothing when double-clicked. Without it cl.exe defaults to
+        # /MD, the *dynamic* CRT, and the produced binary needs
+        # VCRUNTIME140.dll, VCRUNTIME140_1.dll and MSVCP140.dll on whatever
+        # machine runs it. The build machine has them because Visual Studio put
+        # them there; a machine that has never had a compiler on it does not,
+        # and the loader fails before wWinMain is entered -- so every message
+        # box this program would show for a real error never runs, and the user
+        # sees nothing at all. That is what happened to build #55's installer.
+        #
+        # An installer is the one program that cannot ask for a redistributable,
+        # because installing the redistributable is the thing it exists to do.
+        # Chromium's own mini_installer links statically for the same reason.
+        & cl.exe /nologo /std:c++20 /W4 /permissive- /EHsc /O2 /GL /MT /guard:cf /Qspectre `
             /DUNICODE /D_UNICODE `
             /Fe:sunshine-setup.exe sunshine_setup.cpp sunshine_setup.res `
             /link /SUBSYSTEM:WINDOWS /LTCG /GUARD:CF /MANIFESTUAC:NO `
