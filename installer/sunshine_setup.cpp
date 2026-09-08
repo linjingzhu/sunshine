@@ -764,6 +764,9 @@ struct DialogState {
   Palette palette;
   HBRUSH surface_brush = nullptr;
   HBITMAP banner = nullptr;
+  // Whether RefreshLocation is already on the stack. See the comment at the
+  // top of that function: without this the dialog never opened at all.
+  bool refreshing_location = false;
 };
 
 // Reads the root out of the edit box. Empty means "the default", which is what
@@ -781,7 +784,30 @@ std::wstring RootFromDialog(HWND dialog) {
   return root;
 }
 
+// Re-entrant by construction, so the re-entry is what has to be stopped.
+//
+// This function writes IDC_LOCATION_EDIT, and an edit control notifies its
+// parent with EN_CHANGE when its text is set -- by a person typing or by
+// SetDlgItemTextW, the control does not distinguish. The dialog's EN_CHANGE
+// handler is this function. So every write below is a synchronous call back
+// into here.
+//
+// That was unbounded, and it was reached on the very first call: WM_INITDIALOG
+// seeds the dialog per-user, per-user takes the branch that clears the box, and
+// the clear re-entered. sunshine-setup.exe therefore exhausted its stack inside
+// DialogBoxParamW before the window was ever shown -- exit code 0xC00000FD,
+// STATUS_STACK_OVERFLOW, and to the person who ran it a program that did
+// nothing at all. Build #56 shipped that.
+//
+// The flag is what tells a programmatic write apart from a person's edit. The
+// outer call has already read the controls it was about to act on, so a nested
+// call has nothing to add; returning from it is not a dropped update.
 void RefreshLocation(HWND dialog, DialogState* state) {
+  if (state->refreshing_location) {
+    return;
+  }
+  state->refreshing_location = true;
+
   const bool machine = ::IsDlgButtonChecked(dialog, IDC_SCOPE_MACHINE) == BST_CHECKED;
   state->choices.system_level = machine;
 
@@ -792,14 +818,22 @@ void RefreshLocation(HWND dialog, DialogState* state) {
   ::EnableWindow(::GetDlgItem(dialog, IDC_LOCATION_EDIT), machine);
   ::EnableWindow(::GetDlgItem(dialog, IDC_BROWSE), machine);
   if (!machine) {
-    ::SetDlgItemTextW(dialog, IDC_LOCATION_EDIT, L"");
+    // Only when there is something to clear. A WM_SETTEXT that changes nothing
+    // still notifies, and the notification it raises here is the one the flag
+    // above exists to absorb; not raising it is better than absorbing it.
+    if (::GetWindowTextLengthW(::GetDlgItem(dialog, IDC_LOCATION_EDIT)) > 0) {
+      ::SetDlgItemTextW(dialog, IDC_LOCATION_EDIT, L"");
+    }
     state->choices.install_root.clear();
   }
 
   const std::wstring root = machine ? RootFromDialog(dialog) : std::wstring();
   state->choices.install_root = root;
+  // A static, not an edit: this one notifies nobody.
   ::SetDlgItemTextW(dialog, IDC_LOCATION_NOTE,
                     InstallLocation(machine, root).c_str());
+
+  state->refreshing_location = false;
 }
 
 // The folder browser. `IFileDialog` with `FOS_PICKFOLDERS` rather than
