@@ -103,6 +103,29 @@ def _read(root: Path, relative: str, failures: list[str]) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _function_body(code: str, name: str) -> str | None:
+    """The braced body of the first definition of `name`, or None.
+
+    Brace counting rather than a parser: this file has no string literal
+    containing an unbalanced brace, and the check that uses it says what it
+    assumes rather than pretending to understand C++.
+    """
+
+    start = re.search(rf"^\w[\w:<>*&\s]*\b{re.escape(name)}\s*\([^;]*?\)\s*\{{",
+                      code, re.M)
+    if not start:
+        return None
+    depth = 0
+    for index in range(start.end() - 1, len(code)):
+        if code[index] == "{":
+            depth += 1
+        elif code[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return code[start.end():index]
+    return None
+
+
 def check(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     source = _read(root, SOURCE, failures)
@@ -377,6 +400,58 @@ def check(root: Path = ROOT) -> list[str]:
             f"{SOURCE}: does not read the light/dark preference, which is the "
             "second read IU-16 permits and the reason it permits one; IU-16"
         )
+
+    # -- IU-18: the notification loop that never opened a window -------------
+    #
+    # An edit control notifies its parent with EN_CHANGE whenever its text is
+    # set, and it does not care whether a person typed it or the program wrote
+    # it. So a WM_COMMAND/EN_CHANGE handler that writes the same box calls
+    # itself, synchronously, forever. Build #56 shipped exactly that: the write
+    # was on the per-user branch, WM_INITDIALOG seeds the dialog per-user, and
+    # the process died of STATUS_STACK_OVERFLOW inside DialogBoxParamW with no
+    # window ever drawn and nothing at all on screen.
+    #
+    # What is checked is the mechanism rather than a name. Find the function the
+    # EN_CHANGE case calls; if that function writes an edit control, it must
+    # hold a re-entrancy flag -- read in an early return, set true, set false --
+    # and that flag must be a member of DialogState, which is the only thing
+    # that lives across the nested call.
+    handler = re.search(r"EN_CHANGE\)\s*\{\s*(\w+)\(", source_code)
+    if not handler:
+        failures.append(
+            f"{SOURCE}: the EN_CHANGE case does not call a named function, so "
+            "this check cannot tell whether it can re-enter itself (IU-18)")
+    else:
+        name = handler.group(1)
+        body = _function_body(source_code, name)
+        if body is None:
+            failures.append(
+                f"{SOURCE}: EN_CHANGE calls {name}, which is not defined here "
+                "(IU-18)")
+        elif "SetDlgItemTextW" in body and "_EDIT" in body:
+            guard = re.search(
+                r"if\s*\(\s*state->(\w+)\s*\)\s*\{\s*return;\s*\}", body)
+            if not guard:
+                failures.append(
+                    f"{SOURCE}: {name} handles EN_CHANGE and writes an edit "
+                    "control, so setting that control calls it again. It has no "
+                    "re-entrancy guard, which is unbounded recursion and a "
+                    "dialog that never opens (IU-18)")
+            else:
+                flag = guard.group(1)
+                for value in ("true", "false"):
+                    if f"state->{flag} = {value};" not in body:
+                        failures.append(
+                            f"{SOURCE}: {name}'s re-entrancy guard never sets "
+                            f"{flag} to {value}, so it either never engages or "
+                            "never releases (IU-18)")
+                if not re.search(
+                        rf"struct DialogState\s*\{{[^}}]*\bbool {flag} = false;",
+                        source_code, re.S):
+                    failures.append(
+                        f"{SOURCE}: {flag} is not a `bool ... = false` member of "
+                        "DialogState; a guard that does not outlive the call it "
+                        "guards guards nothing (IU-18)")
 
     # -- IU-1: zero upstream Chromium files ----------------------------------
     for patch in sorted((root / "downstream/patches").glob("*.patch")):

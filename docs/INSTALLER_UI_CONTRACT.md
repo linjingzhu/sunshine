@@ -242,8 +242,17 @@ person.
 | IU-13 | The dialog draws with themed common controls and strips no control's theme. It owner-draws only the banner image. It is legible from 100% to 300% scaling. | U |
 | IU-14 | Every control is reachable and operable from the keyboard alone, with a visible focus indicator, and every control has an accessible name. | U |
 | IU-15 | Every path that reaches the engine passes through the dialog, or through an elevation the dialog started: two call sites, one window. The elevated continuation verifies that it holds an elevated token rather than believing the command line. **The boundary is stated rather than overclaimed:** a caller that is already administrator can drive the continuation, and no check inside this program prevents that — such a caller does not need this program. | O |
-| IU-16 | The only state the front-end reads about the machine before the user has agreed to anything is whether Sunshine is installed and at what version. **Exactly one read, and nothing is written.** The light/dark preference was the one permitted exception and is no longer read, because the platform now draws. | O |
+| IU-16 | The only state the front-end reads about the machine before the user has agreed to anything is whether Sunshine is installed and at what version, and whether the user has chosen a dark theme. **Exactly two reads, both named here, and nothing is written.** | O |
 | IU-17 | The front-end links the **static** C runtime, so it starts on a machine that has never had a compiler on it. `cl.exe` defaults to `/MD`; a binary built that way needs `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll` and `MSVCP140.dll`, which Visual Studio puts on every machine this is built on and no machine it is used on. The loader then fails **before `wWinMain`**, so not one of this program's error dialogs runs and the user sees nothing at all — which is what build #55's installer did. An installer is the one program that cannot ask for a redistributable. | B |
+| IU-18 | **No handler in the dialog writes a control whose write notifies that same handler**, unless it holds a flag in `DialogState` across the nested call. An edit control raises `EN_CHANGE` when its text is set, and it does not distinguish a person typing from `SetDlgItemTextW`; `RefreshLocation` handles `EN_CHANGE` and writes `IDC_LOCATION_EDIT`, so it called itself without bound. `WM_INITDIALOG` seeds the dialog per-user, which is the branch that writes the box — so this was reached on **every** launch, inside `DialogBoxParamW`, before any window was shown. Build #56's installer died of `STATUS_STACK_OVERFLOW` (`0xC00000FD`) and looked, to the person who ran it, exactly like build #55's: a double-click that did nothing. | B |
+
+**Two silent failures, two different causes, one symptom.** IU-17 and IU-18
+were both written after a build that did nothing when double-clicked, and the
+second was diagnosed as the first — the `/MT` fix was shipped, changed nothing,
+and the real fault was still in the source. What separated them was the exit
+code: a loader failure never enters the program, and `0xC00000FD` says it did.
+**A program that shows nothing has an exit code, and reading it is the first
+step rather than the last.**
 
 **No check claims any of these yet, because no code implements them.** IU-1 to
 IU-8 become decidable the moment the front-end is written, and the guard that

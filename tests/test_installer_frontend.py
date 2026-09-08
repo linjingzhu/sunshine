@@ -382,14 +382,20 @@ class StaticRuntimeTests(unittest.TestCase):
         self.assertTrue(any("before wWinMain" in f for f in failures), failures)
 
     def test_a_double_click_reaches_the_dialog_or_a_message_box(self) -> None:
-        """Why silence located the fault outside the program.
+        """No quiet exit can explain a silent double-click.
 
         A double-click passes no arguments, so `elevated_continuation` is
         false and the only failure that can precede the dialog is a command
         line this program does not recognise -- which it reports. Every quiet
-        exit lives inside the elevated branch, behind a switch a double-click
-        cannot supply. So a run that shows nothing at all never reached
-        `wWinMain`, which is what made the loader the place to look.
+        `return` lives inside the elevated branch, behind a switch a
+        double-click cannot supply.
+
+        That much is what this test checks, and it holds. The inference drawn
+        from it did not: it was read as "so the program never reached
+        wWinMain", and the loader was blamed. Build #56's exit code was
+        0xC00000FD -- STATUS_STACK_OVERFLOW -- which says the program ran and
+        then recursed to death in RefreshLocation. This rules out a quiet
+        return. It never ruled out a crash.
         """
 
         source = (REPOSITORY_ROOT / "installer/sunshine_setup.cpp").read_text(
@@ -405,3 +411,103 @@ class StaticRuntimeTests(unittest.TestCase):
         self.assertIn("return kExitRefusedElevation", quiet_branch)
         # And the dialog path reports the one thing that can go wrong with it.
         self.assertIn("could not open its installer window", after)
+
+
+class RefreshLocationDoesNotCallItself(unittest.TestCase):
+    """The defect that made build #56 do nothing when double-clicked.
+
+    `SetDlgItemTextW` on an edit control makes it notify its parent with
+    EN_CHANGE, and the dialog's EN_CHANGE handler is `RefreshLocation`, which
+    writes that same control on the per-user branch. `WM_INITDIALOG` seeds the
+    dialog per-user, so the recursion started before the window existed and the
+    process died of STATUS_STACK_OVERFLOW inside `DialogBoxParamW`.
+    """
+
+    def setUp(self) -> None:
+        self.source = (REPOSITORY_ROOT / "installer/sunshine_setup.cpp").read_text(
+            encoding="utf-8")
+
+    def body(self) -> str:
+        found = guard._function_body(self.source, "RefreshLocation")
+        assert found is not None
+        return found
+
+    def test_the_handler_holds_a_flag_across_the_nested_call(self) -> None:
+        body = self.body()
+        self.assertIn("if (state->refreshing_location) {", body)
+        self.assertIn("state->refreshing_location = true;", body)
+        self.assertIn("state->refreshing_location = false;", body)
+        # It has to outlive the call, so it is state and not a local.
+        self.assertIn("bool refreshing_location = false;", self.source)
+
+    def test_the_flag_is_released_on_the_way_out(self) -> None:
+        """Not merely present -- released after the last write to a control.
+
+        A guard set true and cleared before the writes it protects is a guard
+        that is not there, and would read as present to a check that only
+        greps.
+        """
+
+        body = self.body()
+        engaged = body.index("state->refreshing_location = true;")
+        released = body.index("state->refreshing_location = false;")
+        last_write = body.rindex("SetDlgItemTextW")
+        self.assertLess(engaged, last_write)
+        self.assertLess(last_write, released)
+
+    def test_init_reaches_the_branch_that_writes_the_box(self) -> None:
+        """Why it failed on every launch rather than on some of them.
+
+        WM_INITDIALOG calls RefreshLocation, `Choices::system_level` defaults
+        to false, and false is the branch that writes IDC_LOCATION_EDIT. There
+        was no sequence of clicks that avoided this.
+        """
+
+        self.assertIn("bool system_level = false;", self.source)
+        init = self.source[self.source.index("case WM_INITDIALOG"):]
+        init = init[:init.index("case WM_SETTINGCHANGE")]
+        self.assertIn("RefreshLocation(dialog, state);", init)
+        body = self.body()
+        per_user = body[body.index("if (!machine) {"):]
+        self.assertIn("IDC_LOCATION_EDIT, L\"\"", per_user)
+
+    def test_the_guard_refuses_the_source_that_shipped_build_56(self) -> None:
+        without = self.source
+        for line in ("  if (state->refreshing_location) {\n    return;\n  }\n"
+                     "  state->refreshing_location = true;\n\n",
+                     "\n  state->refreshing_location = false;\n"):
+            self.assertIn(line, without)
+            without = without.replace(line, "", 1)
+        self.assertNotIn("refreshing_location = true", without)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (guard.SOURCE, guard.RESOURCE, guard.MANIFEST,
+                             guard.BUILD, guard.CONTRACT):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
+                if relative == guard.SOURCE:
+                    text = without
+                target.write_text(text, encoding="utf-8")
+            failures = guard.check(root)
+        self.assertTrue(any("re-entrancy guard" in f for f in failures), failures)
+
+    def test_the_guard_refuses_a_flag_that_is_only_a_local(self) -> None:
+        """A guard that does not outlive the nested call does nothing."""
+
+        weakened = self.source.replace(
+            "  bool refreshing_location = false;\n", "", 1)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (guard.SOURCE, guard.RESOURCE, guard.MANIFEST,
+                             guard.BUILD, guard.CONTRACT):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
+                if relative == guard.SOURCE:
+                    text = weakened
+                target.write_text(text, encoding="utf-8")
+            failures = guard.check(root)
+        self.assertTrue(any("DialogState" in f for f in failures), failures)
+

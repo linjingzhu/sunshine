@@ -152,6 +152,8 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-51 | Click each tab in region C | The body follows. Then confirm the reverse direction is not drawn twice: the module renders **no tab strip of its own** inside D, no title, and no switcher — §7 point 4 calls that the largest deletion in a port, and a module that kept its own copy would show two of everything | MS-1, mount contract §7 |
 | RV-52 | Press **Details** in the header | Region E opens. The module asked for it with `request-panel` rather than opening a panel itself, so if E does not open the message did not arrive — check the shell's `child-src` before the module | mount contract §4 |
 | RV-53 | With DevOS mounted, read what each tab actually says | Every tab states what it will show **and that it has read nothing**. No counts, no zeros, no empty charts. The manifest declares network `deny` and the data source enforces it with `connect-src 'none'`, so a number here would be invented — which is the failure `docs/DEV_OS_PORT_PLAN.md` names in its own words | ADR 0023, patch 0029 |
+| RV-54 | Double-click `sunshine-setup.exe` on a machine that has never had a compiler on it, and wait five seconds | **A window appears.** This is the whole gate. Builds #55 and #56 both failed it, for unrelated reasons — a missing C runtime and a stack overflow — and both looked identical from the outside: a double-click, then nothing. If nothing appears, do not guess: run `(Start-Process .\sunshine-setup.exe -PassThru -Wait).ExitCode` and read the number before touching the source | IU-17, IU-18 |
+| RV-55 | In that window, switch between **Just me** and **All users**, typing a path into the location box in between | The location note under the box follows every change, the box empties and greys out on **Just me**, and the dialog stays responsive throughout. `RefreshLocation` runs on each of these and re-enters itself on each of them; a freeze or a disappearance here is IU-18's guard failing rather than a slow machine | IU-18, IU-4 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -267,7 +269,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-53, RVV-1..RVV-5
+gate       RV-1..RV-55, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

@@ -33,7 +33,17 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "gate-sheet.html"
 
-BUILD = "#47 (0ba6134)"
+# The build whose binary these gates are about. Every result the sheet exports
+# carries it, so a stale value attributes a person's evening to a binary they
+# did not run -- which is the same argument the "one stamp" rule below already
+# makes, applied to the stamp itself.
+#
+# It said #47 while #56 was the shipped build, and nothing noticed because
+# nothing regenerated the sheet. `check_stamp_is_current` below now refuses a
+# stamp older than the newest build docs/RUNTIME_VERIFICATION.md talks about.
+# The sha is added once the build exists; before that the number alone is all
+# that is known, and claiming more would be the defect this comment describes.
+BUILD = "#57"
 # Named for the revision, not "pinned": `scripts/verify_no_interposition.py`
 # reads a field called `PINNED` as a tab-pinned flag, and it is right to --
 # the word means two unrelated things in this project and this one is the
@@ -56,8 +66,15 @@ BLOCK_TITLES = {
     "E2": ("마우스 제스처",
            "빌드 #40에서 처음 컴파일된 패치 0017입니다. 이 인스톨러 또는 이후 것으로만 실행하십시오."),
     "F": ("북마크바와 모듈 홈", ""),
+    "F1": ("북마크바 시작 가장자리", "패치 0028 이 기본값을 껐습니다. RV-48 은 **새 프로필**에서만 답이 나옵니다."),
+    "F2": ("좌우 분할 화면", ""),
+    "F3": ("모듈이 실제로 마운트된 상태",
+           "패치 0029 로 처음 생긴 상태입니다. RV-35·RV-36 은 여기서 처음 실행 가능해졌습니다."),
     "G": ("모듈 셸", ""),
     "H": ("문서 표면", ""),
+    "A0": ("셋업 창이 뜨는가",
+           "빌드 #55 와 #56 이 연달아 창이 안 뜨는 셋업을 냈습니다. 여기서 실패하면 아래 전부가 "
+           "실행 불가이니, 추측하지 마시고 종료 코드를 먼저 읽어주십시오."),
 }
 
 STOP_HARD = {"RV-1", "RV-2", "RV-3"}
@@ -65,10 +82,12 @@ STOP_BLOCK = {"RV-26", "RV-29", "RV-30"}
 CONDITIONAL = {
     "RV-28": "같은 기계에 실제 Chromium 또는 Chrome이 설치돼 있어야 합니다. 없으면 NOT RUN 이 결과입니다.",
 }
-BLOCKED = {
-    "RV-35": "마운트를 선언한 모듈이 없습니다. 열 프레임도, 파괴할 프레임도 없습니다.",
-    "RV-36": "같은 원인. 마운트된 모듈 둘을 오가려면 마운트된 모듈이 둘 있어야 합니다.",
-}
+# RV-35 and RV-36 sat here because no module declared a mount, so there was no
+# frame to open and none to destroy. Patch 0029 is one, which is exactly the
+# condition their entries named -- so they are runnable and back on the sheet.
+# RV-36 needs two mounted modules and there is one, which is a NOT RUN with a
+# reason rather than a gate this generator should hide.
+BLOCKED: dict[str, str] = {}
 DONE = {
     "RV-7": "빌드 #12 (커밋 6aa75ff) 에서 PASS 기록됨. 이 시트의 유일한 기존 증거입니다.",
 }
@@ -163,7 +182,7 @@ KOREAN = {
 "RV-20": ("페이지 본문에서 오른쪽 버튼을 누른 채 왼쪽으로 200 px 끌고 놓는다. 오른쪽으로도 반복하고, 50 px 만 끄는 것도 반복한다",
   "왼쪽은 뒤로, 오른쪽은 앞으로 가고, **짧은 드래그는 대신 컨텍스트 메뉴**를 띄운다. 긴 드래그는 둘 다 메뉴를 띄우지 않으며, 어떤 누름도 두 가지를 동시에 하지 않는다"),
 "RV-21": ("북마크바를 표시하고 시작 가장자리를 본다",
-  "Sunshine 버튼 하나가 저장된 탭 그룹 버튼 **왼쪽**에 있고 툴팁은 'Sunshine modules'. 그 글리프는 탭 그룹 버튼이 쓰는 격자가 아니다"),
+  "Sunshine 버튼 하나가 거기 있고 툴팁은 'Sunshine modules'. 그리고 **거기 있는 버튼은 그것뿐**이다 — 패치 0028 이 저장된 탭 그룹 버튼을 껐다. 탭 그룹 버튼이 아직 보이면 패치가 먹지 않은 것이고 RV-48 이 이유를 말한다"),
 "RV-22": ("그 버튼을 클릭하고, 이어서 ctrl+클릭한다",
   "첫 번째는 현재 탭에 `chrome://sunshine-modules` 를 열고, 두 번째는 **새 배경 탭**에 연다. 이 바의 다른 모든 버튼과 마찬가지로 처리 방식이 수정자 키를 따른다"),
 "RV-23": ("`chrome://sunshine-modules` 에서 왼쪽 열을 `first_party/registry.json` 과 대조한다",
@@ -208,6 +227,40 @@ KOREAN = {
   "글리프가 두 테마 모두에서 `kColorBookmarkButtonIcon` 을 해석한다 — 옆의 오버플로 버튼과 동일하게. 테마 변경을 견디는 고정색이 결코 아니다"),
 "RVV-5": ("북마크바를 키보드만으로 이동한다",
   "Sunshine 버튼이 **첫 번째 정지점**이고, 그려진 위치와 일치한다 — `Init()` 의 자식 순서가 곧 포커스 순서다"),
+"RV-39": ("일반 창을 띄운 채 `Ctrl+Shift+B` 를 누르고, 다시 누른다. 이어서 메뉴로도 같은 것을 한다 — ⋮ → 북마크 및 목록 → 북마크바 표시",
+  "**두 경로 모두**로 바가 숨고 나타난다. 메뉴 항목이 흐리게 죽어 있으면 명령 자체가 꺼진 것이고 단축키는 구조상 무효다. 메뉴는 되는데 키가 안 되면 키가 브라우저까지 닿지 않는 것이다"),
+"RV-40": ("Sunshine 모듈 홈 버튼이 북마크바에 있는 상태에서 바를 숨긴다",
+  "버튼도 바와 함께 사라진다. 그러면 `chrome://sunshine-modules` 로 가는 북마크바 경로가 없어지는데, ADR 0014 §5 는 그것이 의도인지 **말하고 있지 않다**"),
+"RV-41": ("북마크바에 폴더가 하나 이상 있는 상태로 표시하고 폴더 아이콘을 본다",
+  "바의 모든 폴더가 대표님 이미지(`resource/folder.png`) 를 입고 있다 — 청록 뒷판 위에 반투명 파란 앞판. Chromium 의 외곽선 폴더가 아니다. 버튼 위치는 그대로다: 대체된 벡터 아이콘과 같은 24 dip 로 그린다"),
+"RV-42": ("바의 북마크 폴더를 클릭해서 내려온 메뉴 **안쪽**의 폴더 아이콘을 본다",
+  "여전히 Chromium 의 단색 외곽선 폴더다. **이것은 결함이 아니라 예상되고 기록된 상태다** — 그 메뉴는 스택이 소유하지 않는 `bookmark_menu_delegate.cc` 가 그리고, ADR 0020 은 그 수정의 값을 29번째 업스트림 파일로 매겼다"),
+"RV-43": ("디스플레이 배율을 200% 로 바꾸고 다시 시작한 뒤 바의 폴더 아이콘을 본다",
+  "흐릿하게 늘어난 것이 아니라 **선명**하다. 흐리다면 grit 이 `default_200_percent/sunshine/bookmark_folder.png` 를 못 찾고 100% 이미지를 조용히 확대한 것이다"),
+"RV-44": ("좌우 분할 화면을 연다(탭 우클릭 → 분할, 또는 탭을 창 가장자리로 끌기). 두 패널 사이의 구분선을 본다",
+  "구분선 위, 드래그 손잡이 **위쪽**에 둥근 버튼이 하나 있고, **활성** 패널이 옮겨갈 방향을 가리키는 아이콘이 그려져 있다. 마우스를 올리지 않아도 보인다 — 올려야 보이면 그건 실패다"),
+"RV-45": ("그 버튼을 누른다",
+  "두 패널이 자리를 바꾸고, 탭 순서도 함께 바뀌며, 활성 탭은 활성인 채로 남는다. 아이콘은 반대 방향을 가리키게 된다. 구분선 **더블클릭**도 같은 동작인지 함께 확인한다"),
+"RV-46": ("구분선을 좌우로 끌어본다. 이어서 Tab 을 눌러 드래그 손잡이에 포커스를 주고 화살표 키를 누른다",
+  "두 경로 모두로 크기 조절이 여전히 된다. 버튼이 드래그를 먹으면 안 된다 — **버튼 위**에서 시작한 누름은 크기를 바꾸지 않지만, 구분선의 **다른 곳**은 여전히 바꾼다"),
+"RV-47": ("버튼에 마우스를 올려 툴팁을 읽고, 빌드 #47 분할 화면 스크린샷과 간격을 비교한다",
+  "툴팁은 'Reverse views' — 메뉴 항목이 쓰던 문자열 그대로이고 새로 만든 문장이 아니다. 구분선이 10px 에서 **20px** 로 넓어졌고 그만큼 패널이 좁아졌다. 이게 '컨트롤이 놓인 구분선' 으로 보이는지 그냥 '벌어진 틈' 으로 보이는지가 ADR 0021 이 남겨둔 질문이다"),
+"RV-48": ("**새 프로필**에서 북마크바를 표시한다",
+  "저장된 탭 그룹 버튼도, 그 옆 구분선도 없다. 있다면 프로필부터 확인하십시오 — 이 설정은 동기화되고 **한 번이라도 켠 프로필은 자기 값을 유지**하므로, 새 기본값이 틀린 것이 아니다"),
+"RV-49": ("북마크바를 우클릭해서 메뉴를 읽는다",
+  "**'탭 그룹 표시' 항목이 그대로 있고, 체크는 꺼져 있으며, 눌러보면 동작한다.** 기본값만 움직였을 뿐 업스트림이 사용자에게 준 컨트롤은 손대지 않았다. 눌러도 아무 일 없는 항목이라면 그것이 이 게이트가 잡으려는 결함이다"),
+"RV-50": ("`chrome://sunshine-shell` 을 열고 독에서 DevOS 를 고른다",
+  "모듈이 그려진다. 헤더는 **DevOS**, C 영역에 **Overview / Repositories / Decisions**, 헤더에 **Refresh** 와 **Details** — 전부 프레임이 마운트될 때 보낸 하나의 `describe` 를 보고 셸이 그린 것이다. **마운트 포트가 메시지를 나른 것은 이번이 처음이다**"),
+"RV-51": ("C 영역의 탭을 하나씩 눌러본다",
+  "본문이 따라 바뀐다. 그다음 반대 방향이 두 번 그려지지 않는지 확인한다: 모듈은 D 안에 **자기 탭 줄을 전혀 그리지 않고**, 제목도 스위처도 없다. 자기 것을 남겨둔 모듈이라면 모든 게 두 개로 보인다"),
+"RV-52": ("헤더의 **Details** 를 누른다",
+  "E 영역이 열린다. 모듈은 패널을 직접 연 게 아니라 `request-panel` 로 **요청**했으므로, E 가 안 열리면 메시지가 도착하지 않은 것이다 — 모듈보다 셸의 `child-src` 를 먼저 보십시오"),
+"RV-53": ("DevOS 가 마운트된 상태에서 각 탭이 실제로 무엇이라고 쓰여 있는지 읽는다",
+  "모든 탭이 무엇을 보여줄 것인지와 **아무것도 읽지 않았다는 것**을 함께 말한다. 숫자도, 0 도, 빈 차트도 없다. 매니페스트가 네트워크를 `deny` 로 선언하고 `connect-src 'none'` 이 그것을 강제하므로, **여기 숫자가 있다면 그것은 지어낸 것**이다"),
+"RV-54": ("컴파일러가 깔린 적 없는 기계에서 `sunshine-setup.exe` 를 더블클릭하고 5초 기다린다",
+  "**창이 뜬다.** 이 게이트는 그게 전부다. 빌드 #55 와 #56 이 서로 다른 이유로 — C 런타임 누락과 스택 오버플로 — 여기서 실패했고, 밖에서 보기엔 둘이 똑같았다: 더블클릭, 그리고 아무 일 없음. **안 뜨면 추측하지 마시고** PowerShell 에서 `(Start-Process .\sunshine-setup.exe -PassThru -Wait).ExitCode` 를 실행해 숫자를 먼저 읽어주십시오"),
+"RV-55": ("그 창에서 **이 PC의 나만** 과 **모든 사용자** 를 오간다. 사이에 위치 상자에 경로를 한 번 입력해본다",
+  "상자 아래 위치 설명이 매번 따라 바뀌고, **나만** 에서는 상자가 비면서 흐려지며, 그동안 대화창이 계속 반응한다. `RefreshLocation` 이 이 동작마다 실행되고 매번 자기 자신을 다시 부른다 — 여기서 멈추거나 창이 사라지면 그건 느린 기계가 아니라 IU-18 의 가드가 무너진 것이다"),
 }
 
 
@@ -549,6 +602,125 @@ RETEST_HOWTO = {
   "새 탭을 **두 번** 열어본다"],
   "새 탭 배경에 그 사진이 보인다. **첫 번째 탭에 안 보이고 두 번째부터 보이는 것은 알려진 동작**이고 결함이 아닙니다",
   "두 번 다 안 보인다 → 파일 이름·위치·형식 중 하나가 어긋난 것인데 **화면은 그 이유를 알려주지 않습니다.** 넣으신 파일 이름과 정확한 폴더 경로를 메모에 적어주십시오"),
+# --- Block F: the bookmark bar, its folders, and module home ---------------
+"RV-39": (["일반 창(시크릿 아님)을 하나 띄우고 페이지를 아무거나 연다",
+  "`Ctrl+Shift+B` 를 누른다. 이어서 한 번 더 누른다",
+  "이번엔 오른쪽 위 ⋮ → 북마크 및 목록 → **북마크바 표시** 를 눌러본다. 다시 눌러 되돌린다"],
+  "두 경로 모두로 바가 숨었다 나타난다",
+  "**메뉴 항목이 흐리게 죽어 있다** → 명령 자체가 꺼진 것이고 단축키도 구조상 안 됩니다. **메뉴는 되는데 키만 안 된다** → 키가 브라우저까지 안 닿는 것입니다. 둘 중 어느 쪽인지 꼭 적어주십시오 — 아래 F 블록 전부가 여기에 달려 있습니다"),
+
+"RV-40": (["북마크바를 켜고 시작 가장자리의 Sunshine 버튼을 확인한다",
+  "`Ctrl+Shift+B` 로 바를 숨긴다"],
+  "버튼도 바와 함께 사라진다",
+  "바를 숨겼는데 버튼이 남아 있다. (참고: 사라지는 게 정상 동작이고, 그게 의도인지는 ADR 0014 가 답하지 않았습니다 — 느끼신 바가 있으면 메모에 적어주십시오)"),
+
+"RV-41": (["북마크바에 **폴더**가 하나도 없으면 하나 만든다: 바를 우클릭 → 폴더 추가",
+  "바의 폴더 아이콘을 본다",
+  "빌드 #47 이전 스크린샷이 있으면 나란히 놓고 본다"],
+  "폴더가 대표님이 올리신 이미지다 — 청록 뒷판 위에 반투명 파란 앞판. 버튼 위치와 간격은 그대로",
+  "**Chromium 의 회색 외곽선 폴더 그대로다** → 패치 0026 이나 오버레이가 안 들어간 것입니다. 또는 아이콘 때문에 버튼이 커지거나 밀렸다"),
+
+"RV-42": (["RV-41 에서 본 그 폴더를 **클릭**해서 메뉴를 내린다",
+  "메뉴 **안쪽** 항목들의 폴더 아이콘을 본다"],
+  "안쪽은 여전히 Chromium 의 단색 외곽선 폴더다. **이게 정상이고 예상된 결과입니다**",
+  "(이 게이트는 사실상 실패할 수 없습니다. 안쪽까지 새 아이콘이면 오히려 적어주십시오 — 제 설명이 틀린 것입니다)"),
+
+"RV-43": (["Windows 설정 → 시스템 → 디스플레이 → 배율을 **200%** 로 바꾼다",
+  "안내대로 로그아웃했다가 다시 로그인하거나, 최소한 Sunshine 을 완전히 껐다 켠다",
+  "북마크바의 폴더 아이콘을 확대해서 본다",
+  "확인이 끝나면 배율을 원래대로 돌려놓는다"],
+  "아이콘이 선명하다. 가장자리가 뭉개지거나 번지지 않는다",
+  "**흐릿하게 확대된 것처럼 보인다** → 200% 이미지를 못 찾고 100% 짜리를 늘린 것입니다. 이건 빌드 문제이니 그대로 적어주십시오"),
+
+# --- Block F1: what the leading edge no longer has -------------------------
+"RV-48": (["**새 프로필**을 만든다: 오른쪽 위 프로필 아이콘 → 추가 → (로그인 없이) 계속",
+  "새로 열린 창에서 `Ctrl+Shift+B` 로 북마크바를 켠다",
+  "바의 **시작(왼쪽) 가장자리**를 본다"],
+  "Sunshine 버튼 하나만 있고, 저장된 탭 그룹 격자 버튼도 그 옆 구분선도 없다",
+  "탭 그룹 버튼이 아직 있다 → **먼저 새 프로필이 맞는지 확인해주십시오.** 이 설정은 동기화되고 한 번이라도 켠 프로필은 자기 값을 유지하므로, 기존 프로필에서는 남아 있는 것이 정상입니다"),
+
+"RV-49": (["북마크바의 빈 곳을 **우클릭**한다",
+  "메뉴에서 '탭 그룹 표시' 를 찾는다",
+  "눌러서 켜고, 바를 본다. 다시 눌러 끈다"],
+  "항목이 그대로 있고 체크는 꺼져 있으며, **켜면 탭 그룹 버튼이 돌아오고 끄면 사라진다**",
+  "항목이 메뉴에서 아예 없어졌거나, 눌러도 아무 변화가 없다. 둘 다 결함입니다 — 기본값만 바꿨지 컨트롤을 없앤 게 아닙니다"),
+
+# --- Block F2: split view --------------------------------------------------
+"RV-44": (["탭 두 개를 연다",
+  "한쪽 탭을 우클릭 → **분할 화면**(또는 탭을 창 오른쪽 가장자리로 끈다)",
+  "두 패널 **사이의 구분선**을 본다. 마우스는 올리지 않는다"],
+  "구분선 위, 드래그 손잡이보다 **위쪽**에 둥근 버튼이 하나 보인다. 마우스를 안 올려도 보인다",
+  "**마우스를 올려야만 보인다** → 실패입니다(그게 이 기능의 전부입니다). 아예 없다 → 패치 0027 이 안 들어간 것"),
+
+"RV-45": (["두 패널의 내용을 구분할 수 있게 서로 다른 페이지를 띄운다",
+  "어느 쪽이 **활성**인지 기억해둔다(탭 줄에서 진하게 보이는 쪽)",
+  "그 버튼을 누른다",
+  "이어서 구분선을 **더블클릭**해본다"],
+  "두 패널이 자리를 바꾸고, 탭 순서도 같이 바뀌며, 활성 탭은 활성 그대로. 아이콘이 반대를 가리키게 된다. **더블클릭도 똑같이 동작한다**",
+  "내용만 바뀌고 탭 순서는 그대로이거나, 활성 탭이 바뀌거나, 버튼과 더블클릭의 결과가 서로 다르다"),
+
+"RV-46": (["구분선의 **버튼이 아닌 곳**을 잡고 좌우로 끌어본다",
+  "이번엔 **버튼 위**에서 누른 채 끌어본다",
+  "Tab 을 여러 번 눌러 드래그 손잡이에 포커스가 갈 때까지 간 뒤 ← → 키를 눌러본다"],
+  "버튼이 아닌 곳으로는 크기가 바뀌고, **버튼 위에서 시작한 누름은 크기를 바꾸지 않으며**, 화살표 키로도 조절된다",
+  "구분선 어디를 잡아도 안 끌리거나(버튼이 드래그를 먹은 것), 반대로 버튼을 눌렀는데 크기가 바뀐다(스왑이 안 될 것)"),
+
+"RV-47": (["버튼에 마우스를 **올린 채** 잠시 기다려 툴팁을 읽는다",
+  "빌드 #47 의 분할 화면 스크린샷을 옆에 띄운다(없으면 이 항목은 눈대중으로)",
+  "두 패널 사이 간격을 비교한다"],
+  "툴팁은 **Reverse views**. 구분선이 이전보다 약 두 배(10px → 20px) 넓고 패널이 그만큼 좁다",
+  "툴팁 문구가 다르거나 안 뜬다. **간격에 대한 판단은 실패가 아니라 의견입니다** — '컨트롤이 놓인 구분선'으로 보이는지 '그냥 벌어진 틈'으로 보이는지 한 줄 적어주시면 그게 ADR 0021 의 답이 됩니다"),
+
+# --- Block F3: a module actually mounted -----------------------------------
+"RV-50": (["주소창에 `chrome://sunshine-shell` 을 넣고 Enter",
+  "왼쪽 독(세로 목록)에서 **DevOS** 를 고른다",
+  "헤더와 그 아래 탭 줄을 본다"],
+  "헤더에 **DevOS**, 그 아래 **Overview / Repositories / Decisions** 세 탭, 헤더 오른쪽에 **Refresh** 와 **Details**",
+  "빈 화면이거나 '모듈을 불러올 수 없다'는 식의 문구. 독에 DevOS 가 아예 없으면 그것도 적어주십시오"),
+
+"RV-51": (["세 탭을 하나씩 눌러본다",
+  "본문(가운데 큰 영역) 안쪽에 **또 다른 탭 줄이나 제목이 있는지** 본다"],
+  "탭을 누르면 본문이 바뀐다. 그리고 본문 **안에는** 탭 줄도, 모듈 제목도, 모듈 스위처도 없다",
+  "본문 안에 탭 줄이 하나 더 있어 **모든 게 두 개로 보인다** → 모듈이 자기 것을 안 지운 것입니다"),
+
+"RV-52": (["헤더 오른쪽의 **Details** 를 누른다"],
+  "오른쪽에 패널(E 영역)이 열린다",
+  "아무 일도 안 일어난다 → 모듈의 요청이 셸에 도착하지 않은 것입니다. 그대로 적어주십시오"),
+
+"RV-53": (["세 탭을 하나씩 열어 **쓰여 있는 문장을 읽는다**",
+  "숫자·0·빈 차트·'0개의 저장소' 같은 표현이 하나라도 있는지 본다"],
+  "탭마다 '무엇을 보여줄 것인가' 와 **'아직 아무것도 읽지 않았다'** 를 말한다. 숫자가 하나도 없다",
+  "**숫자나 0 이나 빈 차트가 보인다 → 그것은 지어낸 값입니다.** 이 모듈은 네트워크가 막혀 있어 읽을 수가 없습니다. 무엇이 보였는지 그대로 적어주십시오"),
+
+"RV-35": (["DevOS 가 마운트된 상태에서 **Details** 로 E 영역을 연다",
+  "두 번째 탭에 `chrome://process-internals` 를 열고 프레임 수를 적어둔다",
+  "첫 탭으로 돌아가 E 영역을 **닫는다**",
+  "`chrome://process-internals` 를 새로고침하고 다시 센다"],
+  "E 를 닫으면 프레임이 **하나 줄어든다** — 치워둔 영역 뒤에서 모듈이 계속 돌지 않는다",
+  "프레임 수가 그대로다 → 숨겼을 뿐 살아 있는 것입니다"),
+
+"RV-36": (["독에서 DevOS 를 고른다. 어떤 탭에 있었는지 기억해둔다",
+  "다른 모듈로 갔다가 DevOS 로 돌아온다",
+  "**마운트를 선언한 모듈이 DevOS 하나뿐이면 여기까지가 한계입니다 — NOT RUN 으로 적어주십시오**"],
+  "돌아왔을 때 DevOS 가 **처음부터 다시 시작**한다. 이전 상태가 남아 있지 않다",
+  "이전 탭·스크롤 위치가 그대로 남아 있다 → 프레임이 재사용된 것입니다"),
+
+# --- Block A0: the setup window -------------------------------------------
+"RV-54": (["`sunshine-setup.exe` 가 있는 폴더를 연다",
+  "**더블클릭하고 5초 센다**",
+  "**창이 안 뜨면 여기서 멈추십시오.** PowerShell 을 열고 그 폴더로 이동한 뒤 아래를 그대로 실행합니다",
+  "`(Start-Process .\\sunshine-setup.exe -PassThru -Wait).ExitCode`",
+  "화면에 나온 **숫자를 그대로** 메모에 적어주십시오"],
+  "설치 창이 뜬다",
+  "**아무것도 안 뜬다** → 위 숫자가 원인을 말해줍니다. `-1073741571` 이면 스택 오버플로(#56 과 같은 것), `-1073741515` 면 DLL 누락(#55 와 같은 것)입니다. 숫자 없이 '안 됩니다' 만으로는 두 개를 구분할 수 없습니다"),
+
+"RV-55": (["뜬 창에서 **모든 사용자** 를 고른다",
+  "위치 상자에 아무 경로나 입력해본다 (예: `D:\\Test`)",
+  "**이 PC의 나만** 으로 바꾼다",
+  "다시 **모든 사용자** 로 바꾼다",
+  "이걸 서너 번 빠르게 반복한다"],
+  "상자 아래 설명 문장이 매번 따라 바뀌고, **나만** 에서는 상자가 비면서 흐려진다. 창이 계속 반응한다",
+  "**창이 멈추거나 사라진다** → 느린 게 아니라 결함입니다. 어느 동작에서 그랬는지 적어주십시오. 이게 빌드 #56 이 아예 안 뜬 바로 그 원인입니다"),
 }
 
 
@@ -557,6 +729,28 @@ HOWTO.update(RETEST_HOWTO)
 GATE_ROW = re.compile(r"^\| (RV-\d+|RVV-\d+) \| (.*?) \| (.*?) \|(?: (.*?) \|)?\s*$", re.M)
 BLOCK_ROW = re.compile(
     r"^\| \*\*([A-Z]\d?) — [^|]*\*\* \| ([^|]+) \| ([^|]+) \| ([^|]+) \|\s*$", re.M)
+
+
+def check_stamp_is_current(root: Path) -> None:
+    """Refuse a BUILD stamp older than the newest build the document discusses.
+
+    `docs/RUNTIME_VERIFICATION.md` names builds as it records what each one
+    did, so the highest number in it is a lower bound on what has been built.
+    A stamp below that is not merely old -- it is a claim about which binary a
+    result describes, and it would be wrong.
+    """
+
+    text = (root / "docs/RUNTIME_VERIFICATION.md").read_text(encoding="utf-8")
+    cited = [int(n) for n in re.findall(r"#(\d\d)\b", text)]
+    stamped = re.match(r"#(\d+)", BUILD)
+    if not stamped:
+        raise SystemExit(f"BUILD does not start with a build number: {BUILD!r}")
+    if cited and int(stamped.group(1)) < max(cited):
+        raise SystemExit(
+            f"BUILD says {BUILD}, but docs/RUNTIME_VERIFICATION.md already "
+            f"discusses build #{max(cited)}. Every exported result carries this "
+            "stamp, so a stale one attributes the run to the wrong binary"
+        )
 
 
 def gates(root: Path) -> dict[str, dict[str, str]]:
@@ -577,7 +771,11 @@ def blocks(root: Path) -> list[tuple[str, list[str], str, str]]:
     found = []
     for match in BLOCK_ROW.finditer(text):
         letter = match.group(1)
-        ids = [part.strip() for part in match.group(2).split(",") if part.strip()]
+        # The cell is written for a person: "**RV-39 first**, then RV-41, ...,
+        # RV-43 last". Splitting on commas handed those decorations through as
+        # gate ids and every one of them failed the lookup below. The order in
+        # the cell is still the order that is kept; only the prose is dropped.
+        ids = re.findall(r"RVV?-\d+", match.group(2))
         needs = re.sub(r"`", "", match.group(3)).strip()
         minutes = match.group(4).strip()
         found.append((letter, ids, needs, minutes))
@@ -661,6 +859,8 @@ def build(root: Path = ROOT) -> str:
     # export text -- and the second copy went two builds stale without anything
     # noticing. A result that names the wrong build is a result about an unknown
     # binary, so there is now one stamp and nothing else may spell one.
+    check_stamp_is_current(root)
+
     hardcoded = re.findall(r"#\d\d\b", SCRIPT + SHELL)
     if hardcoded:
         raise SystemExit(
@@ -669,8 +869,14 @@ def build(root: Path = ROOT) -> str:
         )
 
     gate = gates(root)
-    if len(gate) != 43:
-        raise SystemExit(f"expected 43 gates in RUNTIME_VERIFICATION.md, parsed {len(gate)}")
+    # There was a bare `len(gate) != 43` here, and it is gone rather than
+    # raised to 60. It was a second place to write a number that the two checks
+    # below already decide exactly: KOREAN must be a bijection with the gate
+    # table, so a gate added or removed upstream fails there, by name, saying
+    # which. The count said only that something had moved -- and because
+    # nothing in CI ran this script, what it actually did for fifteen gates and
+    # three releases was refuse to generate the sheet at all, silently, while
+    # the owner went on using a stale one.
 
     # A gate added upstream without a translation must stop this script rather
     # than appear in English among Korean rows, where a reader would take the
@@ -774,7 +980,11 @@ def build(root: Path = ROOT) -> str:
 
 
 def main() -> int:
-    OUT.write_text(build(), encoding="utf-8")
+    # newline="\n" rather than the platform default. The sheet is committed and
+    # CI now diffs it, and the self-hosted guard runs on Windows: without this
+    # the same generator would produce CRLF there and LF here, and the check
+    # would report a stale sheet on a machine that had just regenerated it.
+    OUT.write_text(build(), encoding="utf-8", newline="\n")
     print(f"Wrote {OUT.relative_to(ROOT)}")
     return 0
 

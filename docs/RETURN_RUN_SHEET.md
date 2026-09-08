@@ -31,12 +31,22 @@ once.
 `chrome://process-internals` are upstream debugging surfaces whose output may
 have changed under the pin. If a row cannot be found, that is the result.
 
+**There is a Korean sheet, and it is generated from this file.**
+`gate-sheet.html` at the repository root carries every gate below with a
+step-by-step walkthrough, a PASS/FAIL/NOT RUN control and an export box.
+`scripts/build_gate_sheet.py` builds it from this document's block table and
+`docs/RUNTIME_VERIFICATION.md`'s gate table, so the two cannot say different
+things — and CI now regenerates it and refuses a committed copy that does not
+match, which it did not do for the three releases the sheet spent silently
+failing to build at all.
+
 ## 2. The order, and what each block needs
 
 Blocks run top to bottom. Within a block the order does not matter.
 
 | Block | Gates | Needs | Rough |
 | --- | --- | --- | --- |
+| **A0 — the setup window** | RV-54 first, then RV-55 | `sunshine-setup.exe`, and PowerShell open beside it in case nothing appears | 5 min |
 | **A — the files, before anything is launched** | RV-11, RV-26, RV-29, RV-30, RV-28 | The installer, Explorer, `regedit` | 15 min |
 | **B — the security posture, first launch** | RV-1, RV-2, RV-3, RV-4 | The browser open | 10 min |
 | **C — is it Sunshine** | RV-10, RV-27, RV-12 | Launched, and pinned to the taskbar once | 10 min |
@@ -49,6 +59,16 @@ Blocks run top to bottom. Within a block the order does not matter.
 | **F3 — a module actually mounted** | RV-50 first, then RV-51, RV-52, RV-53, RV-35, RV-36 | `chrome://sunshine-shell`; RV-35 needs `chrome://process-internals` in a second tab | 25 min |
 | **G — the module shell** | RV-31, RV-32, RV-33, RV-34, RV-38 | `chrome://sunshine-shell`; a window narrow enough to hit the clamp | 30 min |
 | **H — the document surface** | RV-13, RV-14, RV-15, RV-16, RV-17, RV-18, RV-19 | `chrome://sunshine-document`, DevTools open for RV-16 | 40 min |
+
+**Why A0 exists and comes before A.** Every gate in A is about a machine that
+has been installed onto, and the way it gets installed is `sunshine-setup.exe`.
+Two builds in a row shipped a setup that opened nothing at all — #55 for a
+missing C runtime, #56 for a stack overflow — and both times the session was
+spent on the browser's gates while the one binary the owner actually
+double-clicked was the broken one. A0 asks the only question that has to be
+answered before any of this starts: **did a window appear.** If it did not, the
+exit code says which of the two failures it was, and RV-54 says how to read it
+rather than leaving the reader to guess from silence.
 
 **Why RV-39 comes first inside F.** Every other gate in this section was
 written against "the bookmark bar shown", and that was the section's stated

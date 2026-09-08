@@ -136,6 +136,17 @@ jobs:
       - name: Verify runtime-verification evidence
         run: python scripts/verify_verification_evidence.py
 
+      - name: Rebuild the Korean gate sheet and check it is not stale
+        # The generator is not a guard, so nothing ran it, so nothing noticed
+        # when it stopped generating: fifteen gates went untranslated and it
+        # refused to produce a sheet at all for three releases while the owner
+        # went on opening the committed one. Running it here makes both
+        # failures loud -- a gate with no Korean, and a committed sheet that
+        # nobody regenerated.
+        run: |
+          python scripts/build_gate_sheet.py
+          git diff --exit-code -- gate-sheet.html
+
       - name: Trace contract invariant coverage
         run: python scripts/trace_invariants.py
 
