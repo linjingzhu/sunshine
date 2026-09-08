@@ -2,15 +2,33 @@
 
 ## 0. Status
 
-**Plan, and now a module slot.** Dev OS is registered:
-`first_party/modules/sunshine-dev-os/module.json`, `status: planned` — an
-architecture slot, not something shipped. It is the **first module in this
-repository to declare a `mount`**, so `scripts/verify_module_mount.py` reports
-`1 module(s) declare a mount` rather than zero for the first time.
+**Plan, a module slot, and half a Chromium host.** Dev OS is registered:
+`first_party/modules/sunshine-dev-os/module.json`, `status: prepared`. It is the
+**first module in this repository to declare a `mount`**, so
+`scripts/verify_module_mount.py` reports `1 module(s) declare a mount, 1 copy of
+the port checked against it` rather than zero for the first time.
 
-Nothing Chromium-side is built: no `chrome://sunshine-dev-os` and no
-`chrome-untrusted://sunshine-dev-os-app/` host exists. §6 Stage 1 is still
-ahead, and §8 records what is now measured against what is still not.
+**One of the two hosts now exists, and this section said otherwise for a
+while.** It read "Nothing Chromium-side is built: no `chrome://sunshine-dev-os`
+and no `chrome-untrusted://sunshine-dev-os-app/` host exists", and by then
+`downstream/patches/0029-sunshine-dev-os-module-app.patch` was in `series` and
+registering the second of those. Re-measured rather than re-read:
+
+| | State |
+| --- | --- |
+| `chrome-untrusted://sunshine-dev-os-app/` | **Registered**, by patch 0029. |
+| `chrome://sunshine-dev-os` | **Not registered.** Declared in the manifest's `entrypoints` and in 0007's baked registry, and nothing serves it. |
+
+**And what 0029 serves is not Dev OS.** Its own header says so — "This is
+deliberately not a port of Dev OS" — it is a stand-in that exercises every
+message in the mount port and states, on each of its three tabs, that it has
+read nothing. That was the right thing to build: it made
+`docs/MODULE_MOUNT_CONTRACT.md` §9's "the socket is built; nothing is plugged
+into it" false, and let RV-35 and RV-36 run at all. It is not progress on this
+plan, and counting it as such is how a status section starts lying.
+
+§6 Stage 1 is still ahead. §8 records what is now measured against what is
+still not.
 
 Dev OS's own half — the port copy, the adapter, the mounted shell and region E —
 is built and was verified against a host that is not this one. That work and its
@@ -248,10 +266,17 @@ the shell-is-Dev-OS claim rested on a title, and that the region mapping was
 reasoned from descriptions — are settled. What replaces them is narrower and
 all of it is Chromium-side.
 
-- **No Chromium host exists.** `chrome://sunshine-dev-os` and
-  `chrome-untrusted://sunshine-dev-os-app/` are declared in the manifest and
-  registered nowhere. The comparable work is
+- **Half a Chromium host exists.** `chrome-untrusted://sunshine-dev-os-app/`
+  is registered by `downstream/patches/0029-sunshine-dev-os-module-app.patch`
+  and serves a stand-in, not Dev OS. `chrome://sunshine-dev-os` is declared in
+  the manifest's `entrypoints` and in 0007's baked registry and is registered
+  nowhere; the comparable work is
   `downstream/patches/0006-sunshine-document-webui.patch`.
+
+  This bullet said "No Chromium host exists" after the first of the two was
+  built, which is the failure this whole section is for. Measured with `grep`
+  over `downstream/patches/` and `python3 scripts/verify_module_mount.py`, not
+  re-read from the previous revision.
 - **The port copy is a translation, not the file.** Dev OS carries
   `src/host/mount-port.js` — this repository's `mount_port.ts` rewritten as
   dependency-free ESM, with every constant pinned by test to the value
@@ -292,7 +317,13 @@ all of it is Chromium-side.
   for the New Tab.
 
   **So the colour work cannot finish before the Chromium host above exists.**
-  Of the three, markup is the only large one that is not blocked on this side.
+  Of the three, markup is the only large one that is not blocked on this side —
+  **and it is what Stage 1 is blocked on.** §5 states the collision and §6
+  Stage 1 requires "the views rewritten to build nodes"; put together, the
+  mechanical rewrite nobody can see is the single thing standing between Dev OS
+  and a Sunshine window. It is worth saying in one place, because a rewrite that
+  changes no pixel reads like an optional cleanup until you notice it is on the
+  critical path and nothing else is.
 - **The manifest is a second copy.** `first_party/modules/sunshine-dev-os/module.json`
   is what this repository's validators read; `linjingzhu/dev-os@sunshine/module.json`
   is the module author's. Nothing compares them, which is the same shape of
