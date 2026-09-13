@@ -95,6 +95,23 @@ says *there is a swap here*, and the tooltip names it. That is a real
 reduction, it was the owner's call, and RV-47 is rewritten to check the new
 answer rather than to keep asking the old question.
 
+**Build #61 shipped the dot invisible, and the reason is worth keeping.** The
+mark was given `views::CreateRoundedRectBackground` and nothing else. The resize
+area sits between two layer-backed contents containers, so a child painting into
+its parent's layer is drawn beneath them; events are targeted by view bounds, so
+the dot took clicks and swapped the panes the whole time it could not be seen.
+
+`MultiContentsResizeHandle` -- the one view in that upstream file known to
+render -- calls `SetPaintToLayer(ui::LAYER_TEXTURED)` and
+`SetFillsBoundsOpaquely(false)` before setting its background, and its own
+comment explains the choice of layer type. The first version copied the
+background and neither of the other two.
+
+Nothing in this project compiles Chromium, so no compiler was going to catch
+this and none did: #61 compiled cleanly. `tests/test_patch_structure.py` now
+reads the patch for all three calls and for their order, and the version that
+shipped is refused by name.
+
 The tooltip is unchanged and was never missing — `IDS_SPLIT_TAB_REVERSE_VIEWS`,
 the menu item's own string, since the first version.
 

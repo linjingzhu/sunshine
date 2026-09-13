@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/frame/multi_contents_resize_area.cc b/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
-index 37a68df..6a322cb 100644
+index 37a68df..78837ad 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
 @@ -4,6 +4,9 @@
@@ -38,7 +38,7 @@ index 37a68df..6a322cb 100644
  MultiContentsResizeHandle::MultiContentsResizeHandle() {
    // Cannot use `SOLID_COLOR_LAYER`, since resize handle has rounded corners,
    // and applying layer based rounded corners will clip the focus ring.
-@@ -83,12 +92,53 @@ MultiContentsResizeArea::MultiContentsResizeArea(
+@@ -83,12 +92,66 @@ MultiContentsResizeArea::MultiContentsResizeArea(
    flex_layout_manager_->SetMainAxisAlignment(views::LayoutAlignment::kCenter)
        .SetCrossAxisAlignment(views::LayoutAlignment::kCenter);
  
@@ -61,6 +61,19 @@ index 37a68df..6a322cb 100644
 +                          base::Unretained(this))));
 +  sunshine_swap_button_->SetPreferredSize(
 +      gfx::Size(kSunshineSwapButtonSize, kSunshineSwapButtonSize));
++  // **Its own layer, and without this the dot takes clicks and draws nothing.**
++  //
++  // The resize area sits between two contents containers that are layer-backed,
++  // so a child painting into the parent's layer ends up beneath them. Events
++  // are targeted by view bounds rather than by layers, which is why the first
++  // version swapped the panes when pressed and was invisible the whole time.
++  //
++  // `MultiContentsResizeHandle` -- the one view in this file known to render --
++  // does exactly this, and its own comment says why the layer must be TEXTURED
++  // rather than SOLID_COLOR: a solid-colour layer's rounded corners clip the
++  // focus ring. The same reasoning applies to a circle.
++  sunshine_swap_button_->SetPaintToLayer(ui::LAYER_TEXTURED);
++  sunshine_swap_button_->layer()->SetFillsBoundsOpaquely(false);
 +  sunshine_swap_button_->SetBackground(views::CreateRoundedRectBackground(
 +      kColorSidePanelHoverResizeAreaHandle, kSunshineSwapButtonSize / 2));
 +  // The menu item's own label. A second string for the same action would be a
@@ -92,7 +105,7 @@ index 37a68df..6a322cb 100644
  void MultiContentsResizeArea::SetLayout(split_tabs::SplitTabLayout layout) {
    Axis old_axis = axis();
    set_axis(layout == split_tabs::SplitTabLayout::kSideBySide ? Axis::kHorizontal
-@@ -170,16 +220,34 @@ void MultiContentsResizeArea::OnLayoutUpdated() {
+@@ -170,16 +233,34 @@ void MultiContentsResizeArea::OnLayoutUpdated() {
        axis() == Axis::kHorizontal ? views::LayoutOrientation::kVertical
                                    : views::LayoutOrientation::kHorizontal);
  
