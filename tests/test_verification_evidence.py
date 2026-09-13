@@ -509,7 +509,7 @@ class RepositoryStateTests(unittest.TestCase):
     def test_the_repository_passes(self) -> None:
         self.assertEqual([], self.failures, "\n".join(self.report))
 
-    def test_the_document_defines_sixty_gates_in_two_series(self) -> None:
+    def test_the_document_defines_sixty_six_gates_in_two_series(self) -> None:
         sections = guard.parse_sections(
             (REPOSITORY_ROOT / guard.DOCUMENT).read_text(encoding="utf-8")
         )
@@ -519,7 +519,7 @@ class RepositoryStateTests(unittest.TestCase):
         # tracer reported this document's gates as declared by both -- while
         # `V` belonged to no family and so could never be claimed at all.
         self.assertEqual(
-            [f"RV-{n}" for n in range(1, 56)] + [f"RVV-{n}" for n in range(1, 6)],
+            [f"RV-{n}" for n in range(1, 62)] + [f"RVV-{n}" for n in range(1, 6)],
             [gate.label for gate in found],
         )
 

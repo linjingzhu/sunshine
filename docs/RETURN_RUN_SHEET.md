@@ -52,13 +52,22 @@ Blocks run top to bottom. Within a block the order does not matter.
 | **C — is it Sunshine** | RV-10, RV-27, RV-12 | Launched, and pinned to the taskbar once | 10 min |
 | **D — new tab** | RV-8, RV-9, RVV-1, RVV-2, RVV-3 | A window that can be resized; light and dark | 20 min |
 | **E — media** | RV-5, RV-6 | Network, and one H.264/AAC and one VP9 or AV1 source | 10 min |
+| **E1 — DRM** | RV-57 first, then RV-58, RV-56 last | A Netflix (or other DRM) account, and network | 10 min |
 | **E2 — mouse gestures** | RV-20 | Any page with history in both directions; a link, an image and some selected text to try it on | 15 min |
 | **F — bookmark bar and module home** | **RV-39 first**, then RV-41, RV-42, RV-21, RV-22, RV-23, RV-24, RV-25, RV-37, RVV-4, RVV-5, RV-40, RV-43 last | A normal browser window; `first_party/registry.json` open beside it | 35 min |
 | **F1 — the bookmark bar's leading edge** | RV-48, RV-49 | A fresh profile for RV-48 | 5 min |
+| **F4 — the home button** | RV-59 first, then RV-60, RV-61 | The same fresh profile as F1 | 5 min |
 | **F2 — split view** | **RV-44 first**, then RV-45, RV-46, RV-47 | Two tabs, split side by side; a screenshot of build #47's split for RV-47 | 15 min |
 | **F3 — a module actually mounted** | RV-50 first, then RV-51, RV-52, RV-53, RV-35, RV-36 | `chrome://sunshine-shell`; RV-35 needs `chrome://process-internals` in a second tab | 25 min |
 | **G — the module shell** | RV-31, RV-32, RV-33, RV-34, RV-38 | `chrome://sunshine-shell`; a window narrow enough to hit the clamp | 30 min |
 | **H — the document surface** | RV-13, RV-14, RV-15, RV-16, RV-17, RV-18, RV-19 | `chrome://sunshine-document`, DevTools open for RV-16 | 40 min |
+
+**Why RV-56 runs last inside E1.** It is the gate everyone wants the answer
+to, and it is the one that takes time to fail honestly: the CDM is fetched by
+the component updater rather than compiled in, so a first play can fail while
+the download is still in flight. Running `chrome://components` first means that
+when RV-56 does fail, its cause is already on the sheet — a version, a
+`0.0.0.0`, or no row at all — instead of being guessed at afterwards.
 
 **Why A0 exists and comes before A.** Every gate in A is about a machine that
 has been installed onto, and the way it gets installed is `sunshine-setup.exe`.

@@ -94,19 +94,37 @@ class RenderTests(unittest.TestCase):
                 self.assertEqual("PNG", image.format)
                 self.assertEqual((24, 24), image.size)
 
-    def test_the_transparent_margin_is_cropped_away(self):
-        # A bookmark bar button sizes itself to the image it is given, so
-        # shipping the source's margin would draw the folder at a fraction of
-        # the slot and align it with nothing beside it.
+    def test_the_source_margin_is_discarded_and_COVERAGE_put_back(self):
+        """Both halves, and the fixture is what tells them apart.
+
+        The source is 120 pixels of drawing adrift in a 200-pixel canvas, so
+        it fills 60% of its own canvas. A renderer that skipped the crop and
+        merely scaled the whole canvas would leave ink across 0.60 * COVERAGE
+        of the box -- 48% at COVERAGE 0.8 -- while one that crops first leaves
+        exactly COVERAGE. Asserting the width therefore proves the crop
+        happened as well as the inset, which a bounds-touch assertion did not.
+        """
+
+        size = 48
         with tempfile.TemporaryDirectory() as directory:
-            data = renderer.render(self.source(directory), 48)
+            data = renderer.render(self.source(directory), size)
             with Image.open(io.BytesIO(data)) as image:
                 bounds = image.convert("RGBA").getchannel("A").getbbox()
-        # The drawing is wider than it is tall, so it touches left and right.
-        self.assertEqual(0, bounds[0])
-        self.assertEqual(48, bounds[2])
-        self.assertGreater(bounds[1], 0)
-        self.assertLess(bounds[3], 48)
+
+        width = bounds[2] - bounds[0]
+        self.assertAlmostEqual(size * renderer.COVERAGE, width, delta=1)
+        # Centred: the margin is the same on both sides, to a pixel of rounding.
+        self.assertAlmostEqual(bounds[0], size - bounds[2], delta=1)
+        self.assertAlmostEqual(bounds[1], size - bounds[3], delta=1)
+        # And it is a margin, not a crop to the edge -- which is the whole
+        # point of the change and what the previous version of this test
+        # asserted the opposite of.
+        self.assertGreater(bounds[0], 0)
+        self.assertLess(bounds[2], size)
+
+    def test_coverage_is_a_fraction_that_leaves_a_margin(self):
+        self.assertGreater(renderer.COVERAGE, 0)
+        self.assertLess(renderer.COVERAGE, 1)
 
     def test_an_entirely_transparent_source_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -124,6 +142,94 @@ class RenderTests(unittest.TestCase):
              "--check"],
             capture_output=True, text=True, check=False)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+
+@needs_pillow
+class DifferenceTests(unittest.TestCase):
+    """What `--check` may forgive, and what it must not.
+
+    It compared bytes until the self-hosted Windows runner re-rendered this
+    artwork and produced different 48px and 72px images from the same source.
+    The committed images were not stale; byte-identity across machines is not
+    a property Pillow offers, and the check had only ever run on Linux, so
+    nothing had said so. These tests draw the line where it now sits.
+    """
+
+    def art(self, *, size=48, shift=0, noise=0, alpha=255):
+        art = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        for x in range(8 + shift, size - 8 + shift):
+            for y in range(12, size - 12):
+                if 0 <= x < size:
+                    art.putpixel((x, y), (10 + noise, 20 + noise, 30 + noise, alpha))
+        return art
+
+    def encoded(self, image, **save):
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG", **save)
+        return buffer.getvalue()
+
+    def test_the_same_pixels_encoded_differently_are_not_a_difference(self):
+        """The failure that started this: re-encoding is not staleness."""
+
+        art = self.art()
+        loose = self.encoded(art, optimize=False, compress_level=1)
+        tight = self.encoded(art, optimize=True)
+        self.assertNotEqual(loose, tight)
+        worst, why = renderer.difference(loose, tight)
+        self.assertEqual("", why)
+        self.assertEqual(0, worst)
+
+    def test_colour_under_a_transparent_pixel_is_not_a_difference(self):
+        """Two encoders may write anything under `alpha == 0`.
+
+        Comparing raw RGBA would call these 255 apart and make the check
+        useless, which is why colour is compared composited over black.
+        """
+
+        clear_black = Image.new("RGBA", (8, 8), (0, 0, 0, 0))
+        clear_white = Image.new("RGBA", (8, 8), (255, 255, 255, 0))
+        worst, why = renderer.difference(self.encoded(clear_black),
+                                         self.encoded(clear_white))
+        self.assertEqual("", why)
+        self.assertEqual(0, worst)
+
+    def test_ink_that_moved_is_a_difference(self):
+        """A changed COVERAGE or BASE_DIP, which is what this must still catch.
+
+        Moving the drawing by one pixel is far smaller than either would do,
+        and it already exceeds TOLERANCE by a wide margin.
+        """
+
+        worst, why = renderer.difference(self.encoded(self.art()),
+                                         self.encoded(self.art(shift=1)))
+        self.assertEqual("", why)
+        self.assertGreater(worst, renderer.TOLERANCE)
+
+    def test_a_different_size_is_refused_without_comparing_pixels(self):
+        worst, why = renderer.difference(self.encoded(self.art(size=48)),
+                                         self.encoded(self.art(size=24)))
+        self.assertIn("48x48", why)
+        self.assertIn("24x24", why)
+        self.assertEqual(255, worst)
+
+    def test_tolerance_is_small_enough_to_be_invisible(self):
+        """It forgives a resampler, not a recolour.
+
+        8/255 is about 3%. The check is allowed to miss a difference nobody
+        can see; it is not allowed to miss a different drawing.
+        """
+
+        self.assertGreater(renderer.TOLERANCE, 0)
+        self.assertLessEqual(renderer.TOLERANCE, 16)
+
+    def test_a_shade_within_tolerance_passes_and_beyond_it_does_not(self):
+        base = self.encoded(self.art())
+        inside, why = renderer.difference(base, self.encoded(self.art(noise=renderer.TOLERANCE)))
+        self.assertEqual("", why)
+        self.assertLessEqual(inside, renderer.TOLERANCE)
+        outside, why = renderer.difference(base, self.encoded(self.art(noise=renderer.TOLERANCE + 20)))
+        self.assertEqual("", why)
+        self.assertGreater(outside, renderer.TOLERANCE)
 
 
 if __name__ == "__main__":

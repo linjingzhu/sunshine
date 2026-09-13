@@ -197,7 +197,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 
 <div class="wrap">
   <header class="mast">
-    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #57</p>
+    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #58</p>
     <h1>다시 볼 열일곱 가지</h1>
     <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
     제 설명이 부실해서 손대지 못하신 항목들입니다.
@@ -398,6 +398,93 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         </div>
         <div class="controls">
           <div class="states" role="group" aria-label="RV-30 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-E1">
+      <header class="bhead">
+        <span class="letter">E1</span>
+        <div class="bmeta">
+          <h2>DRM (넷플릭스 등)</h2>
+          <p class="needs"><span class="nlabel">준비</span>A Netflix (or other DRM) account, and network <span class="dot">·</span> <span class="mins">10 min</span></p>
+        </div>
+        <span class="bcount" data-block="E1">0/3</span>
+      </header>
+      <p class="blocknote">패치가 아니라 빌드 인자 하나로 켠 것입니다(ADR 0024). CDM 자체는 빌드에 들어 있지 않고 실행 중에 내려받습니다 — 그래서 RV-56 은 한 번 실패해도 바로 FAIL 이 아닙니다.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-57">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-57</span></div>
+        <div class="body">
+          <p class="step"><code>chrome://components</code> 를 열고 <strong>Widevine Content Decryption Module</strong> 을 찾는다</p>
+          <ol class="do"><li>주소창에 <code>chrome://components</code> 를 넣고 Enter</li><li>Ctrl+F 로 <code>Widevine</code> 을 찾는다</li><li>줄이 있으면 <strong>버전 숫자를 그대로 메모에 적는다</strong></li><li>그 줄의 <strong>업데이트 확인</strong> 버튼을 누르고 10초쯤 기다린 뒤 버전을 다시 본다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span><strong>Widevine Content Decryption Module</strong> 줄이 있고, 버전이 <code>0.0.0.0</code> 이 아닌 실제 숫자다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><strong>줄이 아예 없다</strong> → 빌드에 플래그가 안 들어간 것입니다(제 쪽 문제). <strong><code>0.0.0.0</code> 그대로다</strong> → 등록은 됐는데 못 받은 것입니다. 어느 쪽인지가 중요하니 꼭 구분해서 적어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>그 줄이 있다. 버전 숫자가 RV-56 의 실패 원인 두 가지를 갈라준다 — 실제 버전이면 CDM 은 받아졌고 문제는 딴 데 있는 것, <code>0.0.0.0</code> 이면 등록은 됐지만 못 받은 것(빌드가 아니라 업데이터 문제), <strong>줄이 아예 없으면</strong> 빌드에 플래그가 안 들어간 것이다. 결론 내리기 전에 그 줄의 <strong>업데이트 확인</strong>을 눌러본다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://components` and find **Widevine Content Decryption Module**</p>
+            <p class="exp"><span class="explabel">expected</span>The row exists. Its version is what separates the two ways RV-56 can fail: a real version means the CDM downloaded and something else is wrong; `0.0.0.0` means registered but never fetched, which is the component updater failing rather than the build; **no row at all** means `ENABLE_WIDEVINE_CDM_COMPONENT` is off and the build did not carry the flag. Press **Check for update** on the row before concluding</p>
+          </details>
+          <span class="inv">`registration.cc`, ADR 0024 §1</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-57 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-58">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-58</span></div>
+        <div class="body">
+          <p class="step"><code>chrome://settings/content/protectedContent</code> 를 연다</p>
+          <ol class="do"><li>주소창에 <code>chrome://settings/content/protectedContent</code> 를 넣고 Enter</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>페이지가 열리고 &#x27;사이트가 보호된 콘텐츠를 재생할 수 있음&#x27; 쪽이 선택돼 있다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>페이지가 안 열리거나, 꺼져 있다(꺼져 있으면 켜고 RV-56 을 해주십시오)</p>
+          <p class="exp"><span class="explabel">계약 문구</span>페이지가 있고 보호된 콘텐츠 재생이 허용돼 있다. 넷플릭스 오류 문구가 사용자에게 가라고 지목한 바로 그 화면이라서, 이걸 건너뛴 게이트 실행은 <strong>사이트가 실제로 지목한 것 하나를 배제하지 못한다</strong></p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `chrome://settings/content/protectedContent`</p>
+            <p class="exp"><span class="explabel">expected</span>The page exists and protected content is allowed. Netflix&#x27;s own error text tells the user to come here, so a gate run that skips it cannot rule out the one thing the site actually named — and whether the surface survives Sunshine&#x27;s patches has never been checked</p>
+          </details>
+          <span class="inv">ADR 0024 §6</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-58 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-56">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-56</span></div>
+        <div class="body">
+          <p class="step">네트워크가 연결된 상태에서 넷플릭스 작품을 열고 재생을 누른다. 실패하면 2분 기다렸다가 새로고침하고 한 번 더 해본다</p>
+          <ol class="do"><li>넷플릭스에 로그인하고 아무 작품이나 연 뒤 재생을 누른다</li><li><strong>실패해도 여기서 멈추지 마십시오.</strong> 2분 기다립니다</li><li>페이지를 새로고침하고 다시 재생해봅니다</li><li>그래도 안 되면 RV-57 에서 적어두신 버전이 그 사이에 바뀌었는지 다시 봅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>영상이 재생된다. <strong>처음엔 실패했다가 재시도에서 되는 것도 PASS 입니다</strong> — CDM 을 내려받는 중이었던 것이고 정상입니다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>두 번 다 M7701-1003 이 뜬다 → 오류 코드와 RV-57 의 버전을 <strong>함께</strong> 적어주십시오. 그 둘이 있어야 빌드 문제인지 업데이터 문제인지 구분됩니다</p>
+          <p class="exp"><span class="explabel">계약 문구</span><strong>재생된다.</strong> ADR 0024 가 존재하는 이유이자, 그것에 답할 수 있는 유일한 게이트다. <code>enable_widevine=true</code> 는 키 시스템을 컴파일할 뿐이고 <strong>CDM 자체는 실행 중에 구글 컴포넌트 업데이터가 내려받는다</strong> — 그 서비스가 브랜딩 없는 브라우저에 CDM 을 내주는지는 소스로 알 수 없다. 재시도는 선택이 아니다: 내려받기가 첫 재생 시도와 동기화돼 있지 않아서, <strong>처음 실패하고 나중에 성공하면 그것은 PASS</strong> 다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With network, open a Netflix title and press play. If it fails, wait two minutes, reload, and try once more</p>
+            <p class="exp"><span class="explabel">expected</span>**It plays.** This is the gate ADR 0024 exists for and the only one that can answer it: `enable_widevine=true` compiles the key system, but the CDM itself arrives at run time from Google&#x27;s component updater, and whether that service serves one to an unbranded browser with no API key is not decidable from source. The retry is not optional — the fetch is not synchronous with the first playback attempt, so a first failure and a later success is a **PASS**, and recording FAIL without the retry answers a different question</p>
+          </details>
+          <span class="inv">ADR 0024 §6, `enable_widevine_cdm_component`</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-56 결과">
             <button type="button" class="st st-pass" data-state="pass">PASS</button>
             <button type="button" class="st st-fail" data-state="fail">FAIL</button>
             <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
@@ -684,6 +771,93 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         </div>
         <div class="controls">
           <div class="states" role="group" aria-label="RV-49 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-F4">
+      <header class="bhead">
+        <span class="letter">F4</span>
+        <div class="bmeta">
+          <h2>홈 버튼</h2>
+          <p class="needs"><span class="nlabel">준비</span>The same fresh profile as F1 <span class="dot">·</span> <span class="mins">5 min</span></p>
+        </div>
+        <span class="bcount" data-block="F4">0/3</span>
+      </header>
+      <p class="blocknote">업스트림이 이미 갖고 있던 버튼인데 기본값이 꺼져 있었습니다(ADR 0025). 기본값만 움직였으므로 RV-59 는 **새 프로필**에서만 답이 나옵니다.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-59">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-59</span></div>
+        <div class="body">
+          <p class="step"><strong>새 프로필</strong>에서 새로고침 버튼과 주소창 사이의 툴바를 본다</p>
+          <ol class="do"><li><strong>새 프로필</strong>을 씁니다 — F1 에서 만드신 그 프로필이면 됩니다</li><li>툴바에서 새로고침 버튼과 주소창 <strong>사이</strong>를 봅니다</li><li>집 모양 아이콘이 있는지 확인합니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>집 모양 홈 버튼이 있다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>없다 → <strong>먼저 새 프로필인지 확인해주십시오.</strong> 이 설정은 동기화되고 한 번이라도 켜거나 끈 프로필은 자기 값을 유지하므로, 기존 프로필에 없는 것은 정상입니다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>집 모양 홈 버튼이 있다. 기존 프로필에는 없을 수 있는데 그건 실패가 아니다 — 이 설정은 동기화되고 <strong>한 번이라도 값을 쓴 프로필은 자기 값을 유지</strong>한다. RV-48 과 똑같은 함정이니 프로필부터 확인한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">On a **fresh profile**, look at the toolbar between reload and the address bar</p>
+            <p class="exp"><span class="explabel">expected</span>A house-shaped home button is there. On an existing profile it may not be, and that is not a failure: the pref is syncable, so a profile that has ever written a value keeps its own — the same trap as RV-48. Check the profile before reporting this one</p>
+          </details>
+          <span class="inv">patch 0030, ADR 0025</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-59 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-60">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-60</span></div>
+        <div class="body">
+          <p class="step">그 버튼을 누른다</p>
+          <ol class="do"><li>홈 버튼을 누릅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span><strong>새 탭 페이지</strong>가 열린다 — Sunshine 워드마크와 검색창이 있는 그 화면</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>빈 페이지가 열리거나, 구글 같은 다른 사이트가 열린다. 무엇이 열렸는지 주소를 적어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span><strong>새 탭 페이지</strong>가 열린다 — 워드마크와 검색창이 있는 Sunshine 자체 화면. 빈 페이지도 아니고 다른 URL 도 아니다. ADR 0025 는 홈 URL 을 <strong>일부러 정하지 않았고</strong> <code>kHomePageIsNewTabPage</code> 를 업스트림의 <code>true</code> 그대로 두었다. 그 판단이 맞았는지 말해주는 게 이 게이트다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Press it</p>
+            <p class="exp"><span class="explabel">expected</span>The **New Tab page** opens — Sunshine&#x27;s own, with the wordmark and search field. Not a blank page, and not a URL from anywhere else. ADR 0025 deliberately did not choose a home URL; it left `kHomePageIsNewTabPage` at upstream&#x27;s `true`, and this is the gate that says whether that reading was right</p>
+          </details>
+          <span class="inv">`prefs::kHomePageIsNewTabPage`, ADR 0025</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-60 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-61">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-61</span></div>
+        <div class="body">
+          <p class="step">설정 → 모양 → <strong>홈 버튼 표시</strong> 를 껐다 켠다</p>
+          <ol class="do"><li>설정(⋮ → 설정) → <strong>모양</strong> 으로 갑니다</li><li><strong>홈 버튼 표시</strong> 를 찾아 끕니다. 툴바를 봅니다</li><li>다시 켭니다. 툴바를 봅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>끄면 버튼이 사라지고 켜면 돌아온다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>토글이 아예 없거나, 눌러도 버튼이 그대로다. 둘 다 결함입니다 — 기본값만 바꿨지 사용자 스위치를 없앤 게 아닙니다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>버튼이 사라졌다가 돌아온다. <strong>움직인 것은 기본값뿐</strong>이고, 이 한 줄이 그 주장을 확인해준다 — 사용자가 되돌릴 수 없는 기본값이었다면 그건 ADR 0025 가 기록한 것과 다른, 더 나쁜 결정이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Settings &amp;rarr; Appearance &amp;rarr; **Show home button**, toggle it off and on</p>
+            <p class="exp"><span class="explabel">expected</span>The button goes and comes back. **Only the default moved**, and this is the line of checking that claim is worth: a default the user cannot reverse would be a different and worse decision than the one ADR 0025 records</p>
+          </details>
+          <span class="inv">ADR 0025 consequences</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-61 결과">
             <button type="button" class="st st-pass" data-state="pass">PASS</button>
             <button type="button" class="st st-fail" data-state="fail">FAIL</button>
             <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
@@ -1414,7 +1588,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
     var L = [];
     L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
-    L.push("- 빌드: #57, 152.0.7977.42");
+    L.push("- 빌드: #58, 152.0.7977.42");
     L.push("- 작성: " + new Date().toLocaleString());
     var n = {pass:0, fail:0, na:0};
     live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });

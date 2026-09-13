@@ -1,0 +1,24 @@
+diff --git a/chrome/browser/ui/browser_ui_prefs.cc b/chrome/browser/ui/browser_ui_prefs.cc
+index 7b0257c..d0dc295 100644
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -118,7 +118,18 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+ 
+   registry->RegisterBooleanPref(prefs::kHomePageIsNewTabPage, true,
+                                 pref_registration_flags);
+-  registry->RegisterBooleanPref(prefs::kShowHomeButton, false,
++  // Sunshine ships this on. Upstream's default is false, so the home button
++  // exists but nobody who has not been through Settings has ever seen it --
++  // and a browser whose home button is off by default is one where "go back to
++  // where I start" is a thing you configure rather than a thing you press.
++  //
++  // Only the default moves. Settings -> Appearance -> Show home button still
++  // writes this pref, so the switch upstream gave the user is untouched and
++  // anyone who wants the button gone has it. The home *target* is not touched
++  // either: kHomePageIsNewTabPage stays true immediately above, so the button
++  // opens the New Tab page -- which is Sunshine's own surface -- rather than a
++  // URL this patch would have had to choose.
++  registry->RegisterBooleanPref(prefs::kShowHomeButton, true,
+                                 pref_registration_flags);
+   registry->RegisterBooleanPref(prefs::kSplitViewDragAndDropEnabled, true,
+                                 pref_registration_flags);
