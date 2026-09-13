@@ -144,5 +144,93 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 
+@needs_pillow
+class DifferenceTests(unittest.TestCase):
+    """What `--check` may forgive, and what it must not.
+
+    It compared bytes until the self-hosted Windows runner re-rendered this
+    artwork and produced different 48px and 72px images from the same source.
+    The committed images were not stale; byte-identity across machines is not
+    a property Pillow offers, and the check had only ever run on Linux, so
+    nothing had said so. These tests draw the line where it now sits.
+    """
+
+    def art(self, *, size=48, shift=0, noise=0, alpha=255):
+        art = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        for x in range(8 + shift, size - 8 + shift):
+            for y in range(12, size - 12):
+                if 0 <= x < size:
+                    art.putpixel((x, y), (10 + noise, 20 + noise, 30 + noise, alpha))
+        return art
+
+    def encoded(self, image, **save):
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG", **save)
+        return buffer.getvalue()
+
+    def test_the_same_pixels_encoded_differently_are_not_a_difference(self):
+        """The failure that started this: re-encoding is not staleness."""
+
+        art = self.art()
+        loose = self.encoded(art, optimize=False, compress_level=1)
+        tight = self.encoded(art, optimize=True)
+        self.assertNotEqual(loose, tight)
+        worst, why = renderer.difference(loose, tight)
+        self.assertEqual("", why)
+        self.assertEqual(0, worst)
+
+    def test_colour_under_a_transparent_pixel_is_not_a_difference(self):
+        """Two encoders may write anything under `alpha == 0`.
+
+        Comparing raw RGBA would call these 255 apart and make the check
+        useless, which is why colour is compared composited over black.
+        """
+
+        clear_black = Image.new("RGBA", (8, 8), (0, 0, 0, 0))
+        clear_white = Image.new("RGBA", (8, 8), (255, 255, 255, 0))
+        worst, why = renderer.difference(self.encoded(clear_black),
+                                         self.encoded(clear_white))
+        self.assertEqual("", why)
+        self.assertEqual(0, worst)
+
+    def test_ink_that_moved_is_a_difference(self):
+        """A changed COVERAGE or BASE_DIP, which is what this must still catch.
+
+        Moving the drawing by one pixel is far smaller than either would do,
+        and it already exceeds TOLERANCE by a wide margin.
+        """
+
+        worst, why = renderer.difference(self.encoded(self.art()),
+                                         self.encoded(self.art(shift=1)))
+        self.assertEqual("", why)
+        self.assertGreater(worst, renderer.TOLERANCE)
+
+    def test_a_different_size_is_refused_without_comparing_pixels(self):
+        worst, why = renderer.difference(self.encoded(self.art(size=48)),
+                                         self.encoded(self.art(size=24)))
+        self.assertIn("48x48", why)
+        self.assertIn("24x24", why)
+        self.assertEqual(255, worst)
+
+    def test_tolerance_is_small_enough_to_be_invisible(self):
+        """It forgives a resampler, not a recolour.
+
+        8/255 is about 3%. The check is allowed to miss a difference nobody
+        can see; it is not allowed to miss a different drawing.
+        """
+
+        self.assertGreater(renderer.TOLERANCE, 0)
+        self.assertLessEqual(renderer.TOLERANCE, 16)
+
+    def test_a_shade_within_tolerance_passes_and_beyond_it_does_not(self):
+        base = self.encoded(self.art())
+        inside, why = renderer.difference(base, self.encoded(self.art(noise=renderer.TOLERANCE)))
+        self.assertEqual("", why)
+        self.assertLessEqual(inside, renderer.TOLERANCE)
+        outside, why = renderer.difference(base, self.encoded(self.art(noise=renderer.TOLERANCE + 20)))
+        self.assertEqual("", why)
+        self.assertGreater(outside, renderer.TOLERANCE)
+
+
 if __name__ == "__main__":
     unittest.main()

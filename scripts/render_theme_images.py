@@ -71,6 +71,24 @@ COVERAGE = 0.80
 
 SCALES = (100, 200, 300)
 
+# How far a re-render may drift from the committed bytes before `--check` calls
+# the images stale, as a per-channel difference out of 255.
+#
+# **It is not zero, and the reason is a CI failure rather than a preference.**
+# `--check` compared bytes, and byte-identity across machines is a property
+# Pillow does not offer: the self-hosted Windows runner re-rendered this
+# artwork and produced different 48px and 72px images from the same source,
+# while the 24px one matched. The committed images were not stale. The check
+# was asserting something the tool cannot deliver, and it had never run
+# anywhere but Linux before, so nothing had said so.
+#
+# What the check is for survives the change intact. It exists to catch artwork
+# swapped without regenerating, a hand-edited image, and a COVERAGE or BASE_DIP
+# that moved without the files following -- and every one of those moves ink by
+# whole pixels, which is orders of magnitude above resampling noise. What it
+# stops catching is a difference no one can see.
+TOLERANCE = 8
+
 
 class Family:
     """One drawing, its source, and the resource file name grit reads."""
@@ -111,6 +129,36 @@ def render(source: Path, size: int) -> bytes:
     return buffer.getvalue()
 
 
+def difference(committed: bytes, rendered: bytes) -> tuple[int, str]:
+    """(worst per-channel difference, reason it cannot be compared at all).
+
+    Alpha is compared on its own and colour is compared composited over black,
+    because a fully transparent pixel's colour channels are not defined: two
+    encoders may write anything under `alpha == 0` and the drawings are still
+    the same drawing. Comparing raw RGBA would report those as differences of
+    up to 255 and turn this check into noise.
+    """
+
+    from PIL import Image, ImageChops
+
+    first = Image.open(io.BytesIO(committed)).convert("RGBA")
+    second = Image.open(io.BytesIO(rendered)).convert("RGBA")
+    if first.size != second.size:
+        return 255, f"is {first.size[0]}x{first.size[1]}, a fresh render is {second.size[0]}x{second.size[1]}"
+
+    def flattened(image):
+        black = Image.new("RGBA", image.size, (0, 0, 0, 255))
+        return Image.alpha_composite(black, image).convert("RGB")
+
+    worst = 0
+    for pair in ((flattened(first), flattened(second)),
+                 (first.getchannel("A"), second.getchannel("A"))):
+        diff = ImageChops.difference(*pair)
+        for channel in diff.split():
+            worst = max(worst, channel.getextrema()[1])
+    return worst, ""
+
+
 def targets(root: Path = ROOT) -> list[tuple[Path, Path, int]]:
     """(source, destination, pixel size) for every image this tool owns."""
 
@@ -138,10 +186,24 @@ def main() -> int:
         if args.check:
             if not destination.is_file():
                 stale.append(f"{relative}: not committed")
-            elif destination.read_bytes() != rendered:
-                stale.append(f"{relative}: differs from a fresh render of {source.name}")
+                continue
+            committed = destination.read_bytes()
+            if committed == rendered:
+                print(f"OK   {relative} ({size}x{size}) byte-identical")
+                continue
+            worst, why = difference(committed, rendered)
+            if why:
+                stale.append(f"{relative}: {why}")
+            elif worst > TOLERANCE:
+                stale.append(
+                    f"{relative}: differs from a fresh render of {source.name} "
+                    f"by {worst}/255, over the {TOLERANCE} this tool allows for "
+                    "one machine's resampler against another's")
             else:
-                print(f"OK   {relative} ({size}x{size})")
+                # Named rather than silent: a reader who sees this wants to know
+                # the images were re-encoded somewhere else, not that a check
+                # was skipped.
+                print(f"OK   {relative} ({size}x{size}) within {worst}/255")
         else:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(rendered)
