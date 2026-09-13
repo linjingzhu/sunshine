@@ -1,0 +1,20 @@
+// Copyright 2026 The Sunshine Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include <windows.h>
+
+#include "uninstall_resource.h"
+
+// The Sunshine icon, so the file is recognisable beside sunshine-setup.exe in
+// a download folder. It is the same artwork ADR 0008's overlay supplies for
+// chrome.exe, staged by scripts/build_installer_frontend.ps1.
+IDI_UNINSTALL ICON "sunshine.ico"
+
+// **No DIALOGEX in this file, and that is the design rather than an omission.**
+// UN-1: `setup.exe --uninstall` launches `chrome.exe --uninstall` to draw the
+// confirmation, which is also where the delete-my-profile choice lives and
+// where a running browser is detected. A dialog here would be a second
+// confirmation in front of that one, asking the same question worse. The only
+// windows this program shows are the three MessageBoxes for the cases where
+// there is nothing to launch.

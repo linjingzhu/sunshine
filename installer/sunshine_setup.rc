@@ -11,48 +11,77 @@
 // writes the hash the program checks it against.
 IDR_ENGINE RCDATA "mini_installer.exe"
 
-// The banner. Compiled in (IU-6); the running program opens no image file.
-IDR_BANNER RCDATA "banner.png"
-
 IDI_SETUP ICON "sunshine.ico"
 
-// Exactly one EDITTEXT, and it is the install root.
+// **Standard controls, and no owner-draw anywhere. IU-19.**
 //
-// This file used to carry none, and said so: "the install location is a label
-// (IU-4) and the product name has no control at all (IU-5)". The owner reversed
-// the first of those, so the blanket rule no longer expresses the surviving
-// one. IU-5 stands and is now the reason there is exactly one box rather than
-// none -- `scripts/verify_installer_frontend.py` counts them and checks which
-// control it is, because "no text box anywhere" was a proxy for two invariants
-// and only one of them is left.
+// This dialog used to paint itself: an owner-drawn banner, owner-drawn buttons
+// and a palette translated by hand from the design system. The owner asked for
+// the system's own dialog instead, and what that removed is worth listing,
+// because every item was a defect or a liability that only existed to support
+// the custom look:
 //
-// The product name still has no control. The executable's name is a different
-// question and `docs/INSTALLER_CHOICE_PLAN.md` section 4 is what it costs.
-IDD_SETUP DIALOGEX 0, 0, 340, 252
+//   * the banner, whose aspect ratio was wrong by about 7% and which was still
+//     the placeholder it shipped as;
+//   * DrawButton and DrawBanner, and with them the WM_DRAWITEM dispatch;
+//   * SetWindowTheme(control, L"", L"") on six checkboxes, which *stripped* the
+//     theme from real controls so a hand-mixed colour would apply -- the thing
+//     IU-13 asks a dialog not to do, done to satisfy the palette;
+//   * CurrentPalette, SystemPrefersDark and the registry read behind them, so
+//     light and dark now come from Windows rather than from a table this file
+//     had to keep in step with the design system.
+//
+// What it costs: Sunshine's installer looks like every other installer. That is
+// what was asked for, and docs/decisions/0027 records it as a reversal of D6
+// rather than as a refinement of it.
+//
+// Exactly one EDITTEXT, and it is the install root (IU-4). The product name
+// still has no control at all (IU-5).
+IDD_SETUP DIALOGEX 0, 0, 340, 210
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Sunshine"
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    CONTROL         "", IDC_BANNER, "Static", SS_OWNERDRAW, 0, 0, 340, 56
-    LTEXT           "Install Sunshine", IDC_HEADLINE, 16, 68, 308, 12
-    AUTORADIOBUTTON "Install for me only", IDC_SCOPE_USER, 16, 88, 150, 10, WS_GROUP | WS_TABSTOP
-    AUTORADIOBUTTON "Install for all users on this computer", IDC_SCOPE_MACHINE, 16, 102, 200, 10
-    EDITTEXT        IDC_LOCATION_EDIT, 28, 118, 236, 13, ES_AUTOHSCROLL | WS_TABSTOP
-    CONTROL         "Browse...", IDC_BROWSE, "Button", BS_OWNERDRAW | WS_TABSTOP, 270, 118, 54, 13
-    LTEXT           "", IDC_LOCATION_NOTE, 28, 136, 296, 10
-    AUTOCHECKBOX    "Desktop shortcut", IDC_DESKTOP_SHORTCUT, 16, 158, 150, 10, WS_GROUP | WS_TABSTOP
-    AUTOCHECKBOX    "Taskbar shortcut", IDC_TASKBAR_SHORTCUT, 16, 172, 150, 10
-    AUTOCHECKBOX    "Quick Launch shortcut", IDC_QUICK_LAUNCH_SHORTCUT, 176, 158, 150, 10
-    AUTOCHECKBOX    "Make Sunshine my default browser", IDC_MAKE_DEFAULT, 176, 172, 150, 10
-    AUTOCHECKBOX    "Open Sunshine when this finishes", IDC_LAUNCH_WHEN_DONE, 16, 188, 200, 10
-    LTEXT           "", IDC_STATUS, 16, 208, 308, 10
-    // Generic CONTROL rather than DEFPUSHBUTTON/PUSHBUTTON, and the reason is
-    // not style. BS_PUSHBUTTON, BS_DEFPUSHBUTTON and BS_OWNERDRAW all occupy
-    // the same BS_TYPEMASK nibble -- they are alternatives, not flags -- so
-    // `DEFPUSHBUTTON ... BS_OWNERDRAW` silently discarded the default-button
-    // half and left the dialog with no default push button at all. Enter then
-    // sent IDOK, which nothing handled, and the keyboard could not reach
-    // Install. IU-14 requires every control to be operable from the keyboard.
-    CONTROL         "Install", IDC_INSTALL, "Button", BS_OWNERDRAW | WS_TABSTOP | WS_GROUP, 200, 226, 60, 16
-    CONTROL         "Cancel", IDCANCEL, "Button", BS_OWNERDRAW | WS_TABSTOP, 268, 226, 56, 16
+    // The headline belongs to every page and is the only control that is never
+    // hidden: it is what says which of the three the reader is looking at.
+    LTEXT           "Install Sunshine", IDC_HEADLINE, 16, 14, 308, 12
+
+    // --- Page 1: the choices -------------------------------------------
+    AUTORADIOBUTTON "Install for me only", IDC_SCOPE_USER, 16, 36, 150, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Install for all users on this computer", IDC_SCOPE_MACHINE, 16, 50, 200, 10
+    EDITTEXT        IDC_LOCATION_EDIT, 28, 66, 236, 14, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Browse...", IDC_BROWSE, 270, 65, 54, 16
+    LTEXT           "", IDC_LOCATION_NOTE, 28, 85, 296, 10
+    AUTOCHECKBOX    "Desktop shortcut", IDC_DESKTOP_SHORTCUT, 16, 106, 150, 10, WS_GROUP | WS_TABSTOP
+    AUTOCHECKBOX    "Taskbar shortcut", IDC_TASKBAR_SHORTCUT, 16, 120, 150, 10
+    AUTOCHECKBOX    "Quick Launch shortcut", IDC_QUICK_LAUNCH_SHORTCUT, 176, 106, 150, 10
+    AUTOCHECKBOX    "Make Sunshine my default browser", IDC_MAKE_DEFAULT, 176, 120, 150, 10
+    AUTOCHECKBOX    "Open Sunshine when this finishes", IDC_LAUNCH_WHEN_DONE, 16, 136, 200, 10
+
+    // --- Page 2: the progress bar ---------------------------------------
+    //
+    // PBS_MARQUEE, and IU-21 is that it may not be anything else. The engine
+    // reports no progress to anyone -- it is `mini_installer.exe` unpacking an
+    // archive and handing off to setup.exe -- so a bar that advanced would be
+    // drawing a number this program made up. A marquee says "working, duration
+    // unknown", which is the true statement.
+    CONTROL         "", IDC_PROGRESS, "msctls_progress32", PBS_MARQUEE | WS_BORDER, 16, 60, 308, 14
+    LTEXT           "", IDC_STATUS, 16, 84, 308, 20
+
+    // --- Page 3: what happened ------------------------------------------
+    LTEXT           "", IDC_RESULT, 16, 40, 308, 90
+
+    // --- The buttons ----------------------------------------------------
+    //
+    // DEFPUSHBUTTON and PUSHBUTTON now that nothing is owner-drawn. The older
+    // version needed generic CONTROL entries because BS_DEFPUSHBUTTON and
+    // BS_OWNERDRAW share the BS_TYPEMASK nibble -- they are alternatives, not
+    // flags -- so `DEFPUSHBUTTON ... BS_OWNERDRAW` silently discarded the
+    // default-button half and left the dialog with no default button at all.
+    // Removing the owner-draw removes the collision with it.
+    DEFPUSHBUTTON   "Install", IDC_INSTALL, 200, 184, 60, 16
+    PUSHBUTTON      "Cancel", IDCANCEL, 268, 184, 56, 16
+    // Page 3's only control, in the same place as Cancel. Never visible at the
+    // same time as it.
+    PUSHBUTTON      "Close", IDC_CLOSE, 268, 184, 56, 16
 END

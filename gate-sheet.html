@@ -197,7 +197,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 
 <div class="wrap">
   <header class="mast">
-    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #58</p>
+    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #59</p>
     <h1>다시 볼 열일곱 가지</h1>
     <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
     제 설명이 부실해서 손대지 못하신 항목들입니다.
@@ -262,9 +262,9 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <span class="letter">A0</span>
         <div class="bmeta">
           <h2>셋업 창이 뜨는가</h2>
-          <p class="needs"><span class="nlabel">준비</span>sunshine-setup.exe, and PowerShell open beside it in case nothing appears <span class="dot">·</span> <span class="mins">5 min</span></p>
+          <p class="needs"><span class="nlabel">준비</span>sunshine-setup.exe, and PowerShell open beside it in case nothing appears. RV-65 needs Windows switched between light and dark <span class="dot">·</span> <span class="mins">15 min</span></p>
         </div>
-        <span class="bcount" data-block="A0">0/2</span>
+        <span class="bcount" data-block="A0">0/6</span>
       </header>
       <p class="blocknote">빌드 #55 와 #56 이 연달아 창이 안 뜨는 셋업을 냈습니다. 여기서 실패하면 아래 전부가 실행 불가이니, 추측하지 마시고 종료 코드를 먼저 읽어주십시오.</p>
       <div class="gates">
@@ -311,6 +311,193 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         </div>
         <div class="controls">
           <div class="states" role="group" aria-label="RV-55 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-65">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-65</span></div>
+        <div class="body">
+          <p class="step"><code>sunshine-setup.exe</code> 를 라이트 모드에서 열고, Windows 를 다크로 바꾼 뒤 다시 연다</p>
+          <ol class="do"><li>Windows 설정 → 개인 설정 → 색 에서 <strong>라이트</strong> 로 둡니다</li><li><code>sunshine-setup.exe</code> 를 열어보고 닫습니다</li><li>설정에서 <strong>다크</strong> 로 바꿉니다</li><li>다시 열어봅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>두 번 다 Windows 다른 프로그램들과 같은 모양이다. 글자가 안 보이거나 배경과 같은 색인 곳이 없다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>어느 한쪽에서 글자가 안 읽히거나, 버튼이 이상하게 보인다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>둘 다 <strong>Windows 대화창처럼</strong> 보인다 — 실제로 Windows 대화창이기 때문이다. IU-19 가 손으로 섞던 팔레트와, 그 팔레트를 먹이려고 체크박스 6개의 테마를 벗기던 <code>SetWindowTheme</code> 호출을 없앴다. 이제 이 화면의 색은 Sunshine 이 틀릴 수 있는 것이 아니다 — 그게 요점이지만, 아직 아무도 눈으로 보지 않았다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open `sunshine-setup.exe` in light mode, then switch Windows to dark and open it again</p>
+            <p class="exp"><span class="explabel">expected</span>It looks like a Windows dialog in both, because it **is** one: IU-19 removed the hand-mixed palette and the `SetWindowTheme` calls that stripped six checkboxes so the palette would apply. Nothing here is Sunshine&#x27;s to get wrong any more, which is the point — but nobody has looked</p>
+          </details>
+          <span class="inv">IU-19, ADR 0027</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-65 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-66">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-66</span></div>
+        <div class="body">
+          <p class="step">설치를 누르고 창을 지켜본다</p>
+          <ol class="do"><li>설치 버튼을 누릅니다</li><li><strong>창을 닫지 마시고</strong> 그대로 지켜봅니다</li><li>진행 막대가 움직이는지 봅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>창이 남아 있고 막대가 계속 움직인다. 막대가 끝까지 차지 않는 것은 <strong>정상</strong>입니다 — 진행률을 알 방법이 없어서 일부러 그렇게 했습니다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><strong>창이 닫혀버린다</strong>, 또는 <strong>막대가 멈춰 있다</strong>(스레드 문제), 또는 창이 하얗게 되고 &#x27;응답 없음&#x27; 이 뜬다</p>
+          <p class="exp"><span class="explabel">계약 문구</span><strong>창이 닫히지 않고 남아 있고</strong>, 진행 막대가 움직이고, 닫지 말라는 안내가 보인다. 이전에는 대화창이 닫히고 설치 내내 빈 바탕화면만 보였다. 막대는 <strong>끝까지 차지 않는다</strong>: 얼마나 진행됐는지 알려주는 것이 아무것도 없어서 IU-21 이 숫자를 지어내는 것을 금지한다. 막대가 <strong>멈춰 있으면</strong> 그건 설계가 아니라 스레드가 죽은 것이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Press Install and watch the window</p>
+            <p class="exp"><span class="explabel">expected</span>**The window stays open**, a progress bar animates, and text says not to close it. Before this the dialog closed and the desktop was empty for the whole install. The bar is a marquee and never fills: nothing tells the program how far along it is, and IU-21 forbids inventing a number. A bar that sits still is the thread failing, not the design</p>
+          </details>
+          <span class="inv">IU-20, IU-21</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-66 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-67">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-67</span></div>
+        <div class="body">
+          <p class="step">끝날 때까지 기다린다</p>
+          <ol class="do"><li>설치가 끝날 때까지 기다립니다</li><li>마지막 화면의 <strong>문장</strong>과 <strong>결과 코드 숫자</strong>를 둘 다 적어주십시오</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>결과 화면이 뜨고, 문장과 숫자가 서로 맞는다 (0·1·2·30 = 설치됨, 3·4·5·6 = 바뀐 것 없음, 나머지 = 실패)</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>화면이 안 뜨거나, 문장과 숫자가 어긋난다 (예: 숫자는 7 인데 &#x27;설치되었습니다&#x27; 라고 한다)</p>
+          <p class="exp"><span class="explabel">계약 문구</span>무슨 일이 있었는지 말하는 화면이 뜨고, <strong>설치 프로그램의 결과 코드가 문장 옆에 숫자로 찍힌다</strong>. 둘을 대조한다: 0·1·2·30 은 설치됨, 3·4·5·6 은 바뀐 것 없음, 나머지는 실패다. 문장은 그 숫자를 읽은 것이고, 이 게이트가 그 읽기를 검산하는 자리다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Wait for it to finish</p>
+            <p class="exp"><span class="explabel">expected</span>A page says what happened and **prints the installer&#x27;s result code beside it**. Check the two against `installer::InstallStatus`: 0, 1, 2 and 30 are installed; 3, 4, 5, 6 are nothing-changed; anything else is a failure. The sentence is a reading of the number and this gate is where the reading gets checked</p>
+          </details>
+          <span class="inv">IU-22</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-67 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-68">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-68</span></div>
+        <div class="body">
+          <p class="step"><strong>모든 사용자</strong>를 고르고 설치를 누른 뒤, UAC 를 <strong>거절</strong>한다</p>
+          <ol class="do"><li><strong>모든 사용자</strong> 를 고릅니다</li><li>설치를 누릅니다</li><li>UAC 창이 뜨면 <strong>아니오</strong> 를 누릅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>설치 창이 <strong>첫 페이지로 돌아가고</strong> 골라둔 것들이 그대로 있다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>창이 닫히거나, 오류가 뜨거나, 내 계정 설치로 슬쩍 바뀐다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>창이 첫 페이지로 돌아가고 골라둔 선택들이 그대로 있다. 오류 창도 아니고, 대신 내 계정으로 설치하는 것도 아니고, 창이 닫히지도 않는다. IU-12 의 규칙인데 ADR 0027 이전에는 없던 경로다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Choose **All users**, press Install, and refuse the UAC prompt</p>
+            <p class="exp"><span class="explabel">expected</span>The window returns to its first page with the choices as they were. Not an error dialog, not a per-user install instead, and not a closed window. IU-12&#x27;s rule through a path that did not exist before ADR 0027</p>
+          </details>
+          <span class="inv">IU-12, IU-20</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-68 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-Z">
+      <header class="bhead">
+        <span class="letter">Z</span>
+        <div class="bmeta">
+          <h2>제거 실행기</h2>
+          <p class="needs"><span class="nlabel">준비</span>sunshine-uninstall.exe. **Run this block last:** RV-62 and RV-63 remove Sunshine <span class="dot">·</span> <span class="mins">10 min</span></p>
+        </div>
+        <span class="bcount" data-block="Z">0/3</span>
+      </header>
+      <p class="blocknote">**이 블록은 맨 마지막에 하십시오. RV-62·RV-63 은 Sunshine 을 실제로 제거합니다.** RV-64 만 아무 때나 할 수 있어서 블록 안에서는 그게 먼저입니다.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-64">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-64</span></div>
+        <div class="body">
+          <p class="step">Sunshine 이 설치돼 <strong>있지 않은</strong> 기계에서 실행한다</p>
+          <ol class="do"><li><code>sunshine-uninstall.exe</code> 를 <strong>Sunshine 이 안 깔린 기계</strong>에서 실행합니다</li><li>그런 기계가 없으시면, 이 항목은 NOT RUN 으로 두시고 RV-62 로 가셔도 됩니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>&#x27;Sunshine 이 설치돼 있지 않은 것 같다&#x27;는 안내 창이 뜬다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>아무 일도 안 일어나거나, 빨간 오류 창이 뜬다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>&#x27;설치돼 있지 않은 것 같다&#x27;고 말한다. 크래시도 아니고, 침묵도 아니고, 오류가 아닌 상태를 오류 창으로 알리지도 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Run it on a machine where Sunshine is **not** installed</p>
+            <p class="exp"><span class="explabel">expected</span>It says Sunshine does not appear to be installed. Not a crash, not silence, and not an error dialog for a state that is not an error</p>
+          </details>
+          <span class="inv">UN-5</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-64 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-62">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-62</span></div>
+        <div class="body">
+          <p class="step"><strong>내 계정</strong>으로 설치된 상태에서 <code>sunshine-uninstall.exe</code> 를 더블클릭한다</p>
+          <ol class="do"><li><strong>여기서부터 Sunshine 이 지워집니다. 다른 확인은 다 끝내고 하십시오.</strong></li><li><code>sunshine-uninstall.exe</code> 를 더블클릭합니다</li><li>뜨는 창이 <strong>몇 개</strong>인지 세어주십시오</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>확인 창이 <strong>하나만</strong> 뜬다 (데이터 삭제 체크박스가 있는 Chromium 자체 창). UAC 는 뜨지 않는다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><strong>창이 두 개 뜬다</strong>(Sunshine 창 다음에 확인 창) → UN-1 위반입니다. <strong>UAC 가 뜬다</strong> → 내 계정 설치인데 권한을 올린 것이고, UN-3 위반이라 중요합니다. <strong>아무것도 안 뜬다</strong> → PowerShell 에서 <code>(Start-Process .\sunshine-uninstall.exe -PassThru -Wait).ExitCode</code> 로 숫자를 읽어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>업스트림 자체 확인 창이 뜬다 — <code>chrome.exe</code> 가 그리는, 데이터 삭제 선택지가 함께 있는 그 창. <strong>Sunshine 자체 창이 먼저 뜨지 않는다</strong>; 그게 UN-1 이고 창이 둘 보이면 그것이 실패다. UAC 도 뜨지 않는다: 내 계정 설치의 명령은 <code>HKEY_CURRENT_USER</code> 에서 읽은 것이고 UN-3 이 그걸 권한 상승하는 것을 금지한다. 아무것도 안 뜨면 추측하지 말고 종료 코드를 읽는다 — 빌드 #55·#56 의 교훈이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With Sunshine installed **per-user**, double-click `sunshine-uninstall.exe`</p>
+            <p class="exp"><span class="explabel">expected</span>Upstream&#x27;s own confirmation dialog appears — the one `chrome.exe` draws, with the delete-my-data choice on it. **No dialog of Sunshine&#x27;s own comes first**; that is UN-1 and seeing two would be the failure. No UAC prompt either: a per-user command is read from `HKEY_CURRENT_USER` and UN-3 forbids elevating it. If nothing at all appears, read the exit code before guessing — the lesson of builds #55 and #56</p>
+          </details>
+          <span class="inv">UN-1, UN-3, ADR 0026</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-62 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-63">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-63</span></div>
+        <div class="body">
+          <p class="step"><strong>모든 사용자</strong>로 설치된 상태에서 더블클릭한다</p>
+          <ol class="do"><li><strong>모든 사용자</strong>로 설치하신 경우에만 해당합니다</li><li><code>sunshine-uninstall.exe</code> 를 더블클릭합니다</li><li>UAC 가 뜨면 <strong>한 번은 거절</strong>해봅니다. 그 뒤 Sunshine 이 그대로 있는지 확인합니다</li><li>다시 실행해서 이번엔 승인합니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>UAC 가 먼저 뜨고 그다음 확인 창이 뜬다. 거절했을 때는 아무것도 지워지지 않고 오류 창도 안 뜬다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>UAC 가 아예 안 뜨거나, 거절했는데 뭔가 지워졌거나, 거절이 오류로 표시된다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>UAC 가 <strong>먼저</strong> 뜨고, 그다음 업스트림 창이 뜬다. 실행기가 권한을 올리는 유일한 경우이며, 올려서 실행하는 명령은 <code>HKEY_LOCAL_MACHINE</code> 에서 온 것이다. UAC 를 한 번 거절해본다: 아무것도 제거되지 않고, 오류로도 보고되지 않아야 한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With Sunshine installed **per-machine**, double-click it</p>
+            <p class="exp"><span class="explabel">expected</span>A UAC prompt appears **first**, then upstream&#x27;s dialog. This is the only case where the launcher elevates, and it elevates a command that came from `HKEY_LOCAL_MACHINE`. Refuse the prompt once: nothing should be removed and nothing should be reported as an error</p>
+          </details>
+          <span class="inv">UN-3, UN-4</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-63 결과">
             <button type="button" class="st st-pass" data-state="pass">PASS</button>
             <button type="button" class="st st-fail" data-state="fail">FAIL</button>
             <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
@@ -1588,7 +1775,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
     var L = [];
     L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
-    L.push("- 빌드: #58, 152.0.7977.42");
+    L.push("- 빌드: #59, 152.0.7977.42");
     L.push("- 작성: " + new Date().toLocaleString());
     var n = {pass:0, fail:0, na:0};
     live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });

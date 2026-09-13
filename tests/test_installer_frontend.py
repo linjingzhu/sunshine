@@ -7,7 +7,9 @@ its failures are worth.
 """
 
 from pathlib import Path
+import re
 import shutil
+import xml.dom.minidom
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,17 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
 import verify_installer_frontend as guard  # noqa: E402
+
+# Every file `guard.check()` reads.
+#
+# It was written out at each call site, and adding the uninstall launcher's
+# three files broke a test about `/MT` -- which then reported "missing" for
+# files the test was not about. One list, so the next file added to the guard
+# does not fail a test that has nothing to do with it.
+GUARD_INPUTS = (
+    guard.SOURCE, guard.RESOURCE, guard.MANIFEST, guard.BUILD, guard.CONTRACT,
+    guard.UNINSTALL_SOURCE, guard.UNINSTALL_RESOURCE, guard.UNINSTALL_MANIFEST,
+)
 
 
 class GuardTestCase(unittest.TestCase):
@@ -97,21 +110,84 @@ class CommentTests(GuardTestCase):
 
 
 class DrawingTests(GuardTestCase):
-    def test_owner_drawn_controls_with_no_draw_handler_are_rejected(self) -> None:
-        """The defect this rule was written for. BS_OWNERDRAW with no
-        WM_DRAWITEM compiles, passes every other rule, and renders blank
-        rectangles that only someone running the build would ever see."""
+    """IU-19: the dialog is the system's, so nothing here paints.
 
-        self.rewrite("installer/sunshine_setup.cpp", "case WM_DRAWITEM: {", "case WM_NULL: {")
-        self.assertFailsWith("draw nothing")
+    **These tests used to assert the opposite** -- that an owner-drawn control
+    draws itself, that the banner is decoded from memory, that a hand-painted
+    control draws its own focus rectangle. Each was a rule about doing custom
+    painting correctly. The owner asked for the system's dialog, so the rules
+    became "do not paint", which forbids by construction every defect the old
+    ones caught and needs no `WM_DRAWITEM` to be correct.
+    """
 
-    def test_decoding_the_banner_from_anything_but_memory_is_rejected(self) -> None:
-        self.rewrite("installer/sunshine_setup.cpp", "InitializeFromMemory", "InitializeFromFilename")
-        self.assertFailsWith("IU-6")
+    def test_an_owner_drawn_control_is_rejected(self) -> None:
+        self.rewrite(
+            "installer/sunshine_setup.rc",
+            'PUSHBUTTON      "Browse...", IDC_BROWSE, 270, 65, 54, 16',
+            'CONTROL "Browse...", IDC_BROWSE, "Button", BS_OWNERDRAW | WS_TABSTOP, 270, 65, 54, 16',
+        )
+        self.assertFailsWith("IU-19")
 
-    def test_an_owner_drawn_control_without_a_focus_indicator_is_rejected(self) -> None:
-        self.rewrite("installer/sunshine_setup.cpp", "::DrawFocusRect(", "::DrawEdge(")
-        self.assertFailsWith("IU-14")
+    def test_a_draw_handler_coming_back_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.cpp", "case kEngineFinished: {",
+                     "case WM_DRAWITEM: case kEngineFinished: {")
+        self.assertFailsWith("painted by hand")
+
+    def test_stripping_a_control_theme_is_rejected(self) -> None:
+        """The violation the old palette needed, now that its reason is gone.
+
+        Six checkboxes had `SetWindowTheme(c, L"", L"")` applied so a hand-mixed
+        colour would take -- IU-13 asks a dialog not to do exactly that, and it
+        was being done to serve the look IU-19 removed.
+        """
+
+        self.rewrite("installer/sunshine_setup.cpp",
+                     "      RefreshLocation(dialog, state);\n      ShowPage",
+                     '      ::SetWindowTheme(dialog, L"", L"");\n'
+                     "      RefreshLocation(dialog, state);\n      ShowPage")
+        self.assertFailsWith("SetWindowTheme")
+
+    def test_imposing_a_colour_the_system_did_not_choose_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.cpp", "enum Page {",
+                     "auto* brush = ::CreateSolidBrush(0);\nenum Page {")
+        self.assertFailsWith("IU-19")
+
+
+class ProgressTests(GuardTestCase):
+    """IU-20 and IU-21.
+
+    The window now stays open while the engine runs, which is the whole reason
+    the progress page exists -- before this the dialog closed and the person
+    watched an empty desktop for however long `mini_installer.exe` took.
+
+    **IU-21 guards against a plausible change rather than a careless one.**
+    Replacing a marquee with a filling bar looks like an improvement. It is not
+    available: nothing tells this program how far the install has got, so any
+    position it sets is a number it made up.
+    """
+
+    def test_a_bar_that_claims_to_know_its_position_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.rc", "PBS_MARQUEE | WS_BORDER", "WS_BORDER")
+        self.assertFailsWith("IU-21")
+
+    def test_setting_a_position_is_rejected(self) -> None:
+        self.rewrite("installer/sunshine_setup.cpp", "PBM_SETMARQUEE", "PBM_SETPOS")
+        self.assertFailsWith("invented")
+
+    def test_running_the_engine_on_the_ui_thread_is_rejected(self) -> None:
+        """A progress bar that cannot animate reads as a hang."""
+
+        self.rewrite("installer/sunshine_setup.cpp", "::CreateThread(", "::RunHere(")
+        self.assertFailsWith("freezes")
+
+    def test_forgetting_the_progress_class_is_rejected(self) -> None:
+        """Without ICC_PROGRESS_CLASS the control fails to create and
+        DialogBoxParamW returns -1 -- a window that never opens, which is the
+        failure mode two builds of this program have already shipped."""
+
+        self.rewrite("installer/sunshine_setup.cpp",
+                     "ICC_STANDARD_CLASSES | ICC_PROGRESS_CLASS", "ICC_STANDARD_CLASSES")
+        self.assertFailsWith("never opens")
 
 
 class ElevationTests(GuardTestCase):
@@ -188,7 +264,15 @@ class InstallingTests(GuardTestCase):
         self.assertFailsWith("IU-2")
 
     def test_opening_an_image_at_run_time_is_rejected(self) -> None:
-        self.rewrite("installer/sunshine_setup.cpp", "struct Palette {", "struct Palette { void* p = LoadImageW(0,0,0,0,0,0);")
+        """IU-6 outlived the image it was written for.
+
+        There is no banner any more, so nothing in this program has a reason to
+        open one -- which makes the rule cheaper to keep than to retire, and
+        keeps the next person who wants a logo from reaching for a file path.
+        """
+
+        self.rewrite("installer/sunshine_setup.cpp", "enum Page {",
+                     "void* p = LoadImageW(0,0,0,0,0,0);\nenum Page {")
         self.assertFailsWith("IU-6")
 
 
@@ -213,8 +297,8 @@ class InputTests(GuardTestCase):
 
         self.rewrite(
             "installer/sunshine_setup.rc",
-            'LTEXT           "", IDC_LOCATION_NOTE, 28, 136, 296, 10',
-            'EDITTEXT        IDC_EXE_NAME, 28, 136, 296, 13, ES_AUTOHSCROLL',
+            'LTEXT           "", IDC_LOCATION_NOTE, 28, 85, 296, 10',
+            'EDITTEXT        IDC_EXE_NAME, 28, 85, 296, 13, ES_AUTOHSCROLL',
         )
         self.assertFailsWith("exactly one is")
 
@@ -235,8 +319,8 @@ class InputTests(GuardTestCase):
 
         self.rewrite(
             "installer/sunshine_setup.rc",
-            'LTEXT           "", IDC_LOCATION_NOTE, 28, 136, 296, 10',
-            'CONTROL         "", IDC_EXE_NAME, "Edit", ES_AUTOHSCROLL, 28, 136, 296, 13')
+            'LTEXT           "", IDC_LOCATION_NOTE, 28, 85, 296, 10',
+            'CONTROL         "", IDC_EXE_NAME, "Edit", ES_AUTOHSCROLL, 28, 85, 296, 13')
         self.assertFailsWith("Edit")
 
 
@@ -278,17 +362,21 @@ class InstallRootTests(GuardTestCase):
 
 
 class RegistryReadTests(GuardTestCase):
-    def test_a_third_registry_read_is_rejected(self) -> None:
-        """IU-16 permits two and names both. A third is inventory of a machine
-        the installer has not been given permission to change."""
+    def test_a_second_registry_read_is_rejected(self) -> None:
+        """IU-16 permits one since IU-19. A second is inventory of a machine
+        the installer has not been given permission to change.
+
+        It permitted two until the dialog stopped drawing itself: the second
+        was `AppsUseLightTheme`, and Windows now decides light or dark.
+        """
 
         self.rewrite(
             "installer/sunshine_setup.cpp",
-            "  return status == ERROR_SUCCESS && type == REG_DWORD && light == 0;",
-            "  ::RegOpenKeyExW(HKEY_LOCAL_MACHINE, L\"x\", 0, 0, &key);\n"
-            "  return status == ERROR_SUCCESS && type == REG_DWORD && light == 0;",
+            "  return std::wstring();\n}\n\n// ----",
+            "  ::RegOpenKeyExW(HKEY_LOCAL_MACHINE, L\"x\", 0, 0, nullptr);\n"
+            "  return std::wstring();\n}\n\n// ----",
         )
-        self.assertFailsWith("IU-16 permits exactly two")
+        self.assertFailsWith("IU-16 permits exactly one")
 
     def test_dropping_the_version_read_is_rejected(self) -> None:
         self.rewrite(
@@ -369,8 +457,7 @@ class StaticRuntimeTests(unittest.TestCase):
         # The guard reads the file, so give it one that carries the defect.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for relative in (guard.SOURCE, guard.RESOURCE, guard.MANIFEST,
-                             guard.BUILD, guard.CONTRACT):
+            for relative in GUARD_INPUTS:
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
@@ -465,7 +552,10 @@ class RefreshLocationDoesNotCallItself(unittest.TestCase):
 
         self.assertIn("bool system_level = false;", self.source)
         init = self.source[self.source.index("case WM_INITDIALOG"):]
-        init = init[:init.index("case WM_SETTINGCHANGE")]
+        # The next case in the switch, whatever it is called. It used to be
+        # WM_SETTINGCHANGE, which IU-19 removed along with the palette that
+        # needed to follow the system theme.
+        init = init[:init.index("case kEngineFinished")]
         self.assertIn("RefreshLocation(dialog, state);", init)
         body = self.body()
         per_user = body[body.index("if (!machine) {"):]
@@ -482,8 +572,7 @@ class RefreshLocationDoesNotCallItself(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for relative in (guard.SOURCE, guard.RESOURCE, guard.MANIFEST,
-                             guard.BUILD, guard.CONTRACT):
+            for relative in GUARD_INPUTS:
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
@@ -500,8 +589,7 @@ class RefreshLocationDoesNotCallItself(unittest.TestCase):
             "  bool refreshing_location = false;\n", "", 1)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for relative in (guard.SOURCE, guard.RESOURCE, guard.MANIFEST,
-                             guard.BUILD, guard.CONTRACT):
+            for relative in GUARD_INPUTS:
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 text = (REPOSITORY_ROOT / relative).read_text(encoding="utf-8")
@@ -510,4 +598,132 @@ class RefreshLocationDoesNotCallItself(unittest.TestCase):
                 target.write_text(text, encoding="utf-8")
             failures = guard.check(root)
         self.assertTrue(any("DialogState" in f for f in failures), failures)
+
+
+class UninstallLauncherTests(unittest.TestCase):
+    """UN-1 through UN-5, each by breaking the source.
+
+    The launcher is small enough to be trusted by reading, which is exactly
+    why it is not. **UN-3's failure mode is a local privilege escalation**: the
+    per-user `UninstallString` lives in `HKEY_CURRENT_USER`, which the
+    unprivileged user owns, so a launcher that elevated what it found there
+    would run an attacker's command line as administrator — shipped as a
+    convenience, with an icon.
+    """
+
+    def setUp(self) -> None:
+        self.source = guard.code_only(
+            (REPOSITORY_ROOT / guard.UNINSTALL_SOURCE).read_text(encoding="utf-8"))
+        self.resource = guard.code_only(
+            (REPOSITORY_ROOT / guard.UNINSTALL_RESOURCE).read_text(encoding="utf-8"))
+        self.manifest = (REPOSITORY_ROOT / guard.UNINSTALL_MANIFEST).read_text(
+            encoding="utf-8")
+        self.build = (REPOSITORY_ROOT / guard.BUILD).read_text(encoding="utf-8")
+
+    def check(self, *, source=None, resource=None, manifest=None, build=None):
+        return guard.check_uninstall_launcher(
+            self.source if source is None else source,
+            self.resource if resource is None else resource,
+            self.manifest if manifest is None else manifest,
+            self.build if build is None else build)
+
+    def test_the_launcher_as_written_passes(self) -> None:
+        self.assertEqual([], self.check())
+
+    def test_elevating_every_command_is_refused(self) -> None:
+        """The escalation itself: `runas` with no conditional."""
+
+        broken = self.source.replace(
+            'installation.machine ? L"runas" : L"open"', 'L"runas"')
+        self.assertNotEqual(broken, self.source)
+        failures = self.check(source=broken)
+        self.assertTrue(any("privilege escalation" in f for f in failures), failures)
+
+    def test_a_hive_flag_forced_true_is_refused(self) -> None:
+        """The same defect one level down, which reading would likely miss.
+
+        The conditional is still there and still mentions both hives; only the
+        flag it tests has stopped depending on which hive answered. A check
+        that looked for the word `runas` beside the word `HKEY_LOCAL_MACHINE`
+        would pass this.
+        """
+
+        broken = self.source.replace("found.machine = hive.second;",
+                                     "found.machine = true;")
+        self.assertNotEqual(broken, self.source)
+        failures = self.check(source=broken)
+        self.assertTrue(any("bare `true`" in f for f in failures), failures)
+
+    def test_requiring_administrator_in_the_manifest_is_refused(self) -> None:
+        broken = self.manifest.replace('level="asInvoker"',
+                                       'level="requireAdministrator"')
+        failures = self.check(manifest=broken)
+        self.assertTrue(any("asInvoker" in f for f in failures), failures)
+
+    def test_writing_the_registry_is_refused(self) -> None:
+        broken = self.source.replace("::RegOpenKeyExW(hive.first",
+                                     "::RegSetValueExW(hive.first")
+        failures = self.check(source=broken)
+        self.assertTrue(any("permits reads only" in f for f in failures), failures)
+
+    def test_reading_a_value_the_contract_does_not_name_is_refused(self) -> None:
+        broken = self.source.replace('L"DisplayVersion"', 'L"InstallLocation"')
+        failures = self.check(source=broken)
+        self.assertTrue(any("InstallLocation" in f for f in failures), failures)
+
+    def test_a_dialog_of_its_own_is_refused(self) -> None:
+        """UN-1. The browser already draws one, and it is the better one."""
+
+        failures = self.check(
+            resource=self.resource + "\nIDD_CONFIRM DIALOGEX 0, 0, 200, 100\n")
+        self.assertTrue(any("asks the same question worse" in f for f in failures),
+                        failures)
+
+    def test_taking_the_profile_decision_from_the_browser_is_refused(self) -> None:
+        broken = self.source.replace(
+            "kExitCouldNotRun = 0xB3",
+            'kExitCouldNotRun = 0xB3;\nconstexpr wchar_t kD[] = L"--delete-profile"')
+        failures = self.check(source=broken)
+        self.assertTrue(any("delete-profile" in f for f in failures), failures)
+
+    def test_the_launcher_must_be_built_with_the_static_runtime(self) -> None:
+        """IU-17 is about the machine a binary runs on.
+
+        An uninstaller runs on machines that never had a compiler, and a loader
+        failure there shows the user nothing at all — which is the whole of
+        what happened to build #55.
+        """
+
+        line = guard._compile_line(self.build, "sunshine_uninstall.cpp")
+        self.assertIn("/MT", line)
+        self.assertNotIn("/MD", line)
+
+    def test_a_build_that_stops_producing_it_is_refused(self) -> None:
+        broken = self.build.replace("sunshine-uninstall.exe", "something-else.exe")
+        failures = self.check(build=broken)
+        self.assertTrue(any("nobody builds" in f for f in failures), failures)
+
+    def test_exit_codes_do_not_collide_with_the_setup_front_end(self) -> None:
+        """§5 and UN-4: the engine's code passes through, so ours must not
+        occupy a value either the engine or the other binary already uses."""
+
+        setup = (REPOSITORY_ROOT / guard.SOURCE).read_text(encoding="utf-8")
+        mine = set(re.findall(r"constexpr int kExit\w+ = (0x[0-9A-Fa-f]+);", self.source))
+        theirs = set(re.findall(r"constexpr int kExit\w+ = (0x[0-9A-Fa-f]+);", setup))
+        self.assertTrue(mine)
+        self.assertTrue(theirs)
+        self.assertEqual(set(), mine & theirs)
+        # And clear of installer::InstallStatus, which starts at 0.
+        self.assertTrue(all(int(code, 16) > 0x10 for code in mine))
+
+    def test_the_manifest_is_well_formed_xml(self) -> None:
+        """A `--` inside an XML comment is not a comment, and this file had one.
+
+        Build #49 was lost to a `.grd` an XML parser could not read. The same
+        mistake in a manifest is a binary the side-by-side loader refuses to
+        start, which looks from outside exactly like the two silent installers
+        already in this project's history.
+        """
+
+        xml.dom.minidom.parseString(self.manifest)
 

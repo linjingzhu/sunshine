@@ -113,3 +113,10 @@ jobs:
           if (-not (Test-Path $frontEnd)) { throw "the installer front-end is missing: $frontEnd" }
           $feMegabytes = [math]::Round((Get-Item $frontEnd).Length / 1MB, 1)
           Write-Host "Front-end ($feMegabytes MB): $frontEnd"
+          # The uninstall launcher, for the same reason as the line above: it is
+          # a third artifact from the same script, and a step that silently
+          # produced nothing would otherwise leave the job green.
+          $uninstaller = Join-Path $directory "sunshine-uninstall.exe"
+          if (-not (Test-Path $uninstaller)) { throw "the uninstall launcher is missing: $uninstaller" }
+          $unKilobytes = [math]::Round((Get-Item $uninstaller).Length / 1KB, 1)
+          Write-Host "Uninstall launcher ($unKilobytes KB): $uninstaller"
