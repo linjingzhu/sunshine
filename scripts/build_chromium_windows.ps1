@@ -73,7 +73,27 @@ $gnArgs = @(
   # in docs/decisions/0004-media-codecs.md -- that premise, not convenience, is
   # what makes it permissible, and it must be revisited before any distribution.
   "proprietary_codecs=true",
-  'ffmpeg_branding="Chrome"'
+  'ffmpeg_branding="Chrome"',
+  # Widevine, and therefore Netflix and every other DRM site. Also not
+  # Chromium's default and also not switched off by anyone: `enable_widevine`
+  # derives from `is_chrome_branded`, so this build had no key system at all
+  # and said so as Netflix error M7701-1003.
+  #
+  # This adds no binary to the tree. `bundle_widevine_cdm` stays false because
+  # its default wants a branded build, so `widevinecdm.dll` is never looked for
+  # here; `enable_widevine_cdm_component` derives true on Windows and the CDM is
+  # fetched at run time by Chromium's own component updater.
+  #
+  # Host verification stays off for the same branding reason, which matters more
+  # than it reads: `ignore_missing_widevine_signing_cert` defaults to
+  # `!is_official_build` and this build is official, so a signing step would
+  # have failed the build outright for want of a certificate. No signing step is
+  # generated.
+  #
+  # The premise is in docs/decisions/0024-drm-widevine.md and it is narrower
+  # than ADR 0004's: Widevine's licence names *use*, not only distribution.
+  # Revisit it before this build reaches anyone else.
+  "enable_widevine=true"
 )
 
 # Appended only when a client was supplied, so args.gn in a build without one

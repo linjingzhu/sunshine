@@ -41,14 +41,21 @@ PASSED, FAILED, UNAVAILABLE = "PASS", "FAIL", "NOT AVAILABLE"
 
 ARTIFACTS = ("chrome.exe", "mini_installer.exe")
 
-# What ADR 0004 decided, stated as the two arguments that carry it. Read back
-# from the generated configuration rather than from the script that writes it:
-# the question is what the build used, not what the source intended.
+# What ADR 0004 and ADR 0024 decided, stated as the arguments that carry them.
+# Read back from the generated configuration rather than from the script that
+# writes it: the question is what the build used, not what the source intended.
+#
+# `enable_widevine` is here for a reason the others are not. It is the argument
+# whose absence produced a user-visible failure nobody could attribute -- Netflix
+# error M7701-1003, which names a *setting* rather than a missing key system --
+# so a build that quietly lost it would look like a site problem rather than a
+# build problem. This is the cheapest place to say otherwise.
 REQUIRED_ARGS = (
     "is_official_build=true",
     "is_debug=false",
     "proprietary_codecs=true",
     'ffmpeg_branding="Chrome"',
+    "enable_widevine=true",
 )
 
 # Scheme names Sunshine must not have registered with Windows. ADR 0003 settled

@@ -59,6 +59,30 @@ class BuildOutputTests(unittest.TestCase):
         failures = [name for status, name in self.statuses() if status == built.FAILED]
         self.assertIn("build argument proprietary_codecs=true", failures)
 
+    def test_widevine_disabled_in_the_actual_build_fails(self) -> None:
+        """ADR 0024, and the one argument whose loss is hardest to attribute.
+
+        A build without it plays every unprotected video perfectly and fails on
+        Netflix with M7701-1003 -- a message that names a *setting* the user is
+        told to change. So the symptom points at the user's browser
+        configuration and not at the build, which is exactly how build #57 spent
+        a session being diagnosed as a site problem. This is the cheapest place
+        to say what it really is.
+        """
+
+        kept = [arg for arg in built.REQUIRED_ARGS if not arg.startswith("enable_widevine")]
+        self.write_args("\n".join(kept))
+        failures = [name for status, name in self.statuses() if status == built.FAILED]
+        self.assertIn("build argument enable_widevine=true", failures)
+
+    def test_widevine_explicitly_turned_off_fails(self) -> None:
+        """Absent and false are different edits and both have to be refused."""
+
+        kept = [arg for arg in built.REQUIRED_ARGS if not arg.startswith("enable_widevine")]
+        self.write_args("\n".join(kept) + "\nenable_widevine=false")
+        failures = [name for status, name in self.statuses() if status == built.FAILED]
+        self.assertIn("build argument enable_widevine=true", failures)
+
     def test_a_sandbox_disabling_argument_in_the_build_fails(self) -> None:
         self.write_args("\n".join(built.REQUIRED_ARGS) + '\nextra_cflags="--no-sandbox"')
         failures = [name for status, name in self.statuses() if status == built.FAILED]
