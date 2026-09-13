@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/frame/multi_contents_resize_area.cc b/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
-index 37a68df..c6e5894 100644
+index 37a68df..6a322cb 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
-@@ -4,23 +4,32 @@
+@@ -4,6 +4,9 @@
  
  #include "chrome/browser/ui/views/frame/multi_contents_resize_area.h"
  
@@ -12,14 +12,8 @@ index 37a68df..c6e5894 100644
  #include "base/i18n/number_formatting.h"
  #include "base/i18n/rtl.h"
  #include "base/numerics/safe_conversions.h"
-+#include "chrome/app/vector_icons/vector_icons.h"
- #include "chrome/browser/ui/color/chrome_color_id.h"
- #include "chrome/browser/ui/views/frame/multi_contents_view.h"
- #include "chrome/grit/generated_resources.h"
- #include "components/split_tabs/split_tab_visual_data.h"
- #include "ui/base/l10n/l10n_util.h"
+@@ -15,12 +18,15 @@
  #include "ui/base/metadata/metadata_impl_macros.h"
-+#include "ui/base/ui_base_features.h"
  #include "ui/compositor/layer.h"
  #include "ui/compositor/layer_type.h"
 +#include "ui/gfx/geometry/insets.h"
@@ -27,7 +21,6 @@ index 37a68df..c6e5894 100644
  #include "ui/views/accessibility/view_accessibility.h"
  #include "ui/views/background.h"
 +#include "ui/views/controls/button/image_button.h"
-+#include "ui/views/controls/button/image_button_factory.h"
  #include "ui/views/controls/focus_ring.h"
  #include "ui/views/controls/highlight_path_generator.h"
  #include "ui/views/layout/flex_layout.h"
@@ -35,7 +28,7 @@ index 37a68df..c6e5894 100644
  
  namespace {
  constexpr int kHandleCornerRadius = 2;
-@@ -34,6 +43,9 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(MultiContentsResizeHandle,
+@@ -34,6 +40,9 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(MultiContentsResizeHandle,
  DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(MultiContentsResizeArea,
                                        kMultiContentsResizeAreaElementId);
  
@@ -45,20 +38,31 @@ index 37a68df..c6e5894 100644
  MultiContentsResizeHandle::MultiContentsResizeHandle() {
    // Cannot use `SOLID_COLOR_LAYER`, since resize handle has rounded corners,
    // and applying layer based rounded corners will clip the focus ring.
-@@ -83,18 +95,78 @@ MultiContentsResizeArea::MultiContentsResizeArea(
+@@ -83,12 +92,53 @@ MultiContentsResizeArea::MultiContentsResizeArea(
    flex_layout_manager_->SetMainAxisAlignment(views::LayoutAlignment::kCenter)
        .SetCrossAxisAlignment(views::LayoutAlignment::kCenter);
  
-+  // Before the handle, so the button sits above it in a side-by-side split and
-+  // to its left in a stacked one -- the reading order in both.
-+  sunshine_swap_button_ =
-+      AddChildView(views::CreateVectorImageButtonWithNativeTheme(
-+          base::BindRepeating(&MultiContentsResizeArea::OnSunshineSwapPressed,
-+                              base::Unretained(this)),
-+          kSplitSceneRightIcon, kSunshineSwapIconSize,
-+          kColorSidePanelHoverResizeAreaHandle));
++  // Before the handle, so the dot sits above it in a side-by-side split and to
++  // its left in a stacked one -- the reading order in both.
++  //
++  // **A dot rather than an icon, and that is what keeps the splitter its
++  // original width.** The first version drew upstream's split-scene arrow at 16
++  // pixels, which needed a 20 pixel button, which widened the splitter from
++  // upstream's 10 to 20 -- and the panes gave up the difference. The owner
++  // looked at it and said it read as a gap rather than as a divider with a
++  // control on it, which is the question ADR 0021 left open and RV-47 was
++  // written to ask.
++  //
++  // The mark is drawn the way `MultiContentsResizeHandle` draws itself, with
++  // the same colour token and the same call -- a rounded rect whose radius is
++  // half its side, which is a circle. Nothing here paints by hand.
++  sunshine_swap_button_ = AddChildView(std::make_unique<views::ImageButton>(
++      base::BindRepeating(&MultiContentsResizeArea::OnSunshineSwapPressed,
++                          base::Unretained(this))));
 +  sunshine_swap_button_->SetPreferredSize(
 +      gfx::Size(kSunshineSwapButtonSize, kSunshineSwapButtonSize));
++  sunshine_swap_button_->SetBackground(views::CreateRoundedRectBackground(
++      kColorSidePanelHoverResizeAreaHandle, kSunshineSwapButtonSize / 2));
 +  // The menu item's own label. A second string for the same action would be a
 +  // second thing to translate and a second thing to disagree with the menu.
 +  sunshine_swap_button_->SetTooltipText(
@@ -75,32 +79,6 @@ index 37a68df..c6e5894 100644
    OnLayoutUpdated();
  }
  
-+void MultiContentsResizeArea::UpdateSunshineSwapButton() {
-+  // Which way the *active* pane would travel, which is what the icon shows and
-+  // what `SplitTabMenuModel::GetReversePositionIcon` shows for the same action.
-+  // `GetActiveIndex()` is 0 for the start pane -- left when side by side, top
-+  // when stacked -- so the active pane always moves away from its own side.
-+  const bool active_is_start = multi_contents_view_->GetActiveIndex() == 0;
-+  const gfx::VectorIcon* icon = nullptr;
-+  if (axis() == Axis::kHorizontal) {
-+    icon = active_is_start
-+               ? &(features::IsRoundedIconsEnabled() ? kSplitSceneRightIcon
-+                                                     : kSplitSceneRightOldIcon)
-+               : &(features::IsRoundedIconsEnabled() ? kSplitSceneLeftIcon
-+                                                     : kSplitSceneLeftOldIcon);
-+  } else {
-+    icon = active_is_start
-+               ? &(features::IsRoundedIconsEnabled() ? kSplitSceneDownIcon
-+                                                     : kSplitSceneDownOldIcon)
-+               : &(features::IsRoundedIconsEnabled() ? kSplitSceneUpIcon
-+                                                     : kSplitSceneUpOldIcon);
-+  }
-+  views::SetImageFromVectorIconWithColor(
-+      sunshine_swap_button_, *icon, kSunshineSwapIconSize,
-+      views::IconColors(kColorSidePanelHoverResizeAreaHandle,
-+                        kColorSidePanelHoverResizeAreaHandle));
-+}
-+
 +void MultiContentsResizeArea::OnSunshineSwapPressed() {
 +  // `OnSwap()` CHECKs that a split is open. The button only exists inside the
 +  // resize area, and the resize area is only visible in a split -- but the
@@ -114,28 +92,23 @@ index 37a68df..c6e5894 100644
  void MultiContentsResizeArea::SetLayout(split_tabs::SplitTabLayout layout) {
    Axis old_axis = axis();
    set_axis(layout == split_tabs::SplitTabLayout::kSideBySide ? Axis::kHorizontal
-                                                              : Axis::kVertical);
-   if (axis() != old_axis) {
-     OnLayoutUpdated();
-+  } else {
-+    // Reached on every `ShowSplitView`, where the axis is usually unchanged but
-+    // the active pane may not be the one the icon was last drawn for.
-+    UpdateSunshineSwapButton();
-   }
- }
- 
-@@ -170,16 +242,30 @@ void MultiContentsResizeArea::OnLayoutUpdated() {
+@@ -170,16 +220,34 @@ void MultiContentsResizeArea::OnLayoutUpdated() {
        axis() == Axis::kHorizontal ? views::LayoutOrientation::kVertical
                                    : views::LayoutOrientation::kHorizontal);
  
 -  gfx::Size preferred_size(kHandleResizeAxisSize + kHandleResizeAxisPadding,
 -                           kHandleOffAxisSize);
-+  // Across the splitter, the wider of the two children decides. Upstream's ten
-+  // pixels hold a four pixel handle; the button needs twenty, and the panes
-+  // give up the difference through `MultiContentsView::GetViewSizes()`, which
-+  // reads this preferred size. Along the splitter the preferred size is only a
-+  // description -- the available space decides the real length -- but it is
-+  // written honestly so a reader of it is not told the wrong thing.
++  // Across the splitter, the wider of the two children decides, and the dot is
++  // sized so that it is not the wider one: `kSunshineSwapButtonSize` is ten,
++  // which is exactly what upstream's handle already asks for
++  // (`kHandleResizeAxisSize + kHandleResizeAxisPadding`). **So the splitter is
++  // upstream's width and the panes give up nothing**, which is the whole point
++  // of the change -- `MultiContentsView::GetViewSizes()` reads this preferred
++  // size and subtracts it from the panes.
++  //
++  // Along the splitter the preferred size is only a description -- the
++  // available space decides the real length -- but it is written honestly so a
++  // reader is not told the wrong thing.
 +  gfx::Size preferred_size(
 +      std::max(kHandleResizeAxisSize + kHandleResizeAxisPadding,
 +               kSunshineSwapButtonSize),
@@ -153,12 +126,11 @@ index 37a68df..c6e5894 100644
    SetPreferredSize(preferred_size);
    resize_handle_->SetPreferredSize(resize_handle_preferred_size);
 +  resize_handle_->SetProperty(views::kMarginsKey, handle_margins);
-+  UpdateSunshineSwapButton();
  }
  
  ui::KeyboardCode MultiContentsResizeArea::DecreaseContentsSizeKeyCode() {
 diff --git a/chrome/browser/ui/views/frame/multi_contents_resize_area.h b/chrome/browser/ui/views/frame/multi_contents_resize_area.h
-index 460c40a..4e7c8a3 100644
+index 460c40a..7dc0d16 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_resize_area.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_resize_area.h
 @@ -21,6 +21,7 @@ enum class SplitTabLayout;
@@ -169,17 +141,21 @@ index 460c40a..4e7c8a3 100644
  }
  
  // Keyboard-accessible drag handle icon intended to be drawn on top of a
-@@ -53,12 +54,28 @@ class MultiContentsResizeArea : public views::ResizeArea {
+@@ -53,7 +54,21 @@ class MultiContentsResizeArea : public views::ResizeArea {
    static constexpr int kHandleResizeAxisPadding = 6;
    static constexpr int kHandleResizeAxisSize = 4;
  
-+  // Sunshine's swap button, drawn on the splitter above the drag handle. The
-+  // splitter is widened to this to hold it, which is where the ten pixels
-+  // upstream reserves for the handle become twenty.
-+  static constexpr int kSunshineSwapButtonSize = 20;
-+  static constexpr int kSunshineSwapIconSize = 16;
-+  // Between the button and the drag handle, so the two read as two controls
-+  // rather than one tall smudge.
++  // Sunshine's swap control: a dot on the splitter, above the drag handle.
++  //
++  // **Ten, and the number is not free.** It is exactly
++  // `kHandleResizeAxisSize + kHandleResizeAxisPadding`, the width upstream
++  // already reserves for the handle, so the dot never becomes the widest child
++  // and the splitter keeps upstream's width. The first version was twenty --
++  // large enough for a 16 pixel icon -- and doubled the splitter, taking the
++  // difference out of the panes.
++  static constexpr int kSunshineSwapButtonSize = 10;
++  // Between the dot and the drag handle, so the two read as two controls
++  // rather than one smudge.
 +  static constexpr int kSunshineSwapButtonSpacing = 8;
 +
    DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kMultiContentsResizeAreaElementId);
@@ -187,18 +163,7 @@ index 460c40a..4e7c8a3 100644
  
    explicit MultiContentsResizeArea(MultiContentsView* multi_contents_view);
  
-   void SetLayout(split_tabs::SplitTabLayout layout);
- 
-+  // Points the swap button's icon at the side the active pane would move to,
-+  // the way `SplitTabMenuModel` points the menu item's. Called by
-+  // `MultiContentsView` wherever the active pane changes, because the button
-+  // outlives every one of those changes and nothing else would correct it.
-+  void UpdateSunshineSwapButton();
-+
-   // views::ResizeArea:
-   void OnGestureEvent(ui::GestureEvent* event) override;
-   void OnMouseReleased(const ui::MouseEvent& event) override;
-@@ -77,8 +94,14 @@ class MultiContentsResizeArea : public views::ResizeArea {
+@@ -77,8 +92,14 @@ class MultiContentsResizeArea : public views::ResizeArea {
  
    std::pair<int, int> GetAccessibleAlertStringIds();
  
@@ -213,33 +178,3 @@ index 460c40a..4e7c8a3 100644
  
    raw_ptr<views::FlexLayout> flex_layout_manager_;
  };
-diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
-index 5b3e4c8..96aa024 100644
---- a/chrome/browser/ui/views/frame/multi_contents_view.cc
-+++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
-@@ -328,6 +328,13 @@ void MultiContentsView::SwapContentsInSplitView() {
-   std::swap(contents_container_views_[0], contents_container_views_[1]);
- 
-   active_index_ = active_index_ == 0 ? 1 : 0;
-+
-+  // Sunshine's swap button draws the direction the active pane would travel, so
-+  // it is wrong the moment that pane changes sides. This is one of the two
-+  // places `active_index_` moves.
-+  if (resize_area_) {
-+    resize_area_->UpdateSunshineSwapButton();
-+  }
- }
- 
- void MultiContentsView::SetActiveIndex(int index) {
-@@ -340,6 +347,11 @@ void MultiContentsView::SetActiveIndex(int index) {
-   GetActiveContentsView()->set_is_primary_web_contents_for_window(true);
-   GetInactiveContentsView()->set_is_primary_web_contents_for_window(false);
-   UpdateContentsBorderAndOverlay();
-+
-+  // The other place `active_index_` moves; see SwapContentsInSplitView().
-+  if (resize_area_) {
-+    resize_area_->UpdateSunshineSwapButton();
-+  }
- }
- 
- void MultiContentsView::UpdateSplitVisualData(

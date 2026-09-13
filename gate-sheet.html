@@ -197,7 +197,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 
 <div class="wrap">
   <header class="mast">
-    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #59</p>
+    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #60</p>
     <h1>다시 볼 열일곱 가지</h1>
     <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
     제 설명이 부실해서 손대지 못하신 항목들입니다.
@@ -1070,13 +1070,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="body">
           <p class="step">좌우 분할 화면을 연다(탭 우클릭 → 분할, 또는 탭을 창 가장자리로 끌기). 두 패널 사이의 구분선을 본다</p>
           <ol class="do"><li>탭 두 개를 연다</li><li>한쪽 탭을 우클릭 → <strong>분할 화면</strong>(또는 탭을 창 오른쪽 가장자리로 끈다)</li><li>두 패널 <strong>사이의 구분선</strong>을 본다. 마우스는 올리지 않는다</li></ol>
-          <p class="verdict ok"><span class="vlabel">합격</span>구분선 위, 드래그 손잡이보다 <strong>위쪽</strong>에 둥근 버튼이 하나 보인다. 마우스를 안 올려도 보인다</p>
+          <p class="verdict ok"><span class="vlabel">합격</span>구분선 위, 드래그 손잡이보다 <strong>위쪽</strong>에 <strong>작은 동그란 점</strong>이 보인다. 마우스를 안 올려도 보인다</p>
           <p class="verdict no"><span class="vlabel">불합격</span><strong>마우스를 올려야만 보인다</strong> → 실패입니다(그게 이 기능의 전부입니다). 아예 없다 → 패치 0027 이 안 들어간 것</p>
-          <p class="exp"><span class="explabel">계약 문구</span>구분선 위, 드래그 손잡이 <strong>위쪽</strong>에 둥근 버튼이 하나 있고, <strong>활성</strong> 패널이 옮겨갈 방향을 가리키는 아이콘이 그려져 있다. 마우스를 올리지 않아도 보인다 — 올려야 보이면 그건 실패다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>구분선 위, 드래그 손잡이 <strong>위쪽</strong>에 <strong>작은 동그란 점</strong>이 하나 있다. 마우스를 올리지 않아도 보인다 — 올려야 보이면 그건 실패다. 화살표가 아니라 점인 이유는, 구분선 너비를 되돌리기 위해 <strong>방향 표시를 포기했기</strong> 때문이다: &#x27;여기서 바꿀 수 있다&#x27;만 말하고 어느 쪽으로 가는지는 말하지 않는다</p>
           <details class="src">
             <summary>원문</summary>
             <p class="step">Open a split view (tab context menu &amp;rarr; split, or drag a tab to the window edge) and look at the divider between the two panes</p>
-            <p class="exp"><span class="explabel">expected</span>A round button sits on the divider, above the drag handle, showing a split-scene icon pointing at the side the **active** pane would move to. It is visible without hovering — that is the whole point of the feature, and a button that appears only on hover has failed it</p>
+            <p class="exp"><span class="explabel">expected</span>**A small round dot** sits on the divider, above the drag handle. It is visible without hovering — that is the whole point of the feature, and a mark that appears only on hover has failed it. It is a dot and not an arrow: it says *there is a swap here*, not which way the swap goes, which is what ADR 0021&#x27;s amendment gave up to get the divider&#x27;s width back</p>
           </details>
           <span class="inv">patch 0027, ADR 0021</span>
         </div>
@@ -1095,13 +1095,13 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="body">
           <p class="step">그 버튼을 누른다</p>
           <ol class="do"><li>두 패널의 내용을 구분할 수 있게 서로 다른 페이지를 띄운다</li><li>어느 쪽이 <strong>활성</strong>인지 기억해둔다(탭 줄에서 진하게 보이는 쪽)</li><li>그 버튼을 누른다</li><li>이어서 구분선을 <strong>더블클릭</strong>해본다</li></ol>
-          <p class="verdict ok"><span class="vlabel">합격</span>두 패널이 자리를 바꾸고, 탭 순서도 같이 바뀌며, 활성 탭은 활성 그대로. 아이콘이 반대를 가리키게 된다. <strong>더블클릭도 똑같이 동작한다</strong></p>
+          <p class="verdict ok"><span class="vlabel">합격</span>두 패널이 자리를 바꾸고, 탭 순서도 같이 바뀌며, 활성 탭은 활성 그대로. <strong>점은 그대로 있는 것이 정상입니다</strong>(방향을 나타내지 않습니다). <strong>더블클릭도 똑같이 동작한다</strong></p>
           <p class="verdict no"><span class="vlabel">불합격</span>내용만 바뀌고 탭 순서는 그대로이거나, 활성 탭이 바뀌거나, 버튼과 더블클릭의 결과가 서로 다르다</p>
-          <p class="exp"><span class="explabel">계약 문구</span>두 패널이 자리를 바꾸고, 탭 순서도 함께 바뀌며, 활성 탭은 활성인 채로 남는다. 아이콘은 반대 방향을 가리키게 된다. 구분선 <strong>더블클릭</strong>도 같은 동작인지 함께 확인한다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>두 패널이 자리를 바꾸고, 탭 순서도 함께 바뀌며, 활성 탭은 활성인 채로 남는다. <strong>점은 변하지 않는다</strong> — 애초에 방향을 나타내지 않는다. 구분선 <strong>더블클릭</strong>도 같은 동작인지 함께 확인한다</p>
           <details class="src">
             <summary>원문</summary>
-            <p class="step">Click that button</p>
-            <p class="exp"><span class="explabel">expected</span>The two panes exchange places, the tab strip order changes with them, and the active tab stays active. The icon then points the other way. This is `MultiContentsView::OnSwap()`, the same swap a double-click on the divider performs — check both and confirm they do the same thing</p>
+            <p class="step">Click the dot</p>
+            <p class="exp"><span class="explabel">expected</span>The two panes exchange places, the tab strip order changes with them, and the active tab stays active. The dot does **not** change — it never indicated direction. This is `MultiContentsView::OnSwap()`, the same swap a double-click on the divider performs; check both and confirm they do the same thing</p>
           </details>
           <span class="inv">ADR 0021 decision</span>
         </div>
@@ -1122,11 +1122,11 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
           <ol class="do"><li>구분선의 <strong>버튼이 아닌 곳</strong>을 잡고 좌우로 끌어본다</li><li>이번엔 <strong>버튼 위</strong>에서 누른 채 끌어본다</li><li>Tab 을 여러 번 눌러 드래그 손잡이에 포커스가 갈 때까지 간 뒤 ← → 키를 눌러본다</li></ol>
           <p class="verdict ok"><span class="vlabel">합격</span>버튼이 아닌 곳으로는 크기가 바뀌고, <strong>버튼 위에서 시작한 누름은 크기를 바꾸지 않으며</strong>, 화살표 키로도 조절된다</p>
           <p class="verdict no"><span class="vlabel">불합격</span>구분선 어디를 잡아도 안 끌리거나(버튼이 드래그를 먹은 것), 반대로 버튼을 눌렀는데 크기가 바뀐다(스왑이 안 될 것)</p>
-          <p class="exp"><span class="explabel">계약 문구</span>두 경로 모두로 크기 조절이 여전히 된다. 버튼이 드래그를 먹으면 안 된다 — <strong>버튼 위</strong>에서 시작한 누름은 크기를 바꾸지 않지만, 구분선의 <strong>다른 곳</strong>은 여전히 바꾼다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>두 경로 모두로 크기 조절이 여전히 된다. 점이 드래그를 먹으면 안 된다 — <strong>점 위</strong>에서 시작한 누름은 크기를 바꾸지 않지만, 구분선의 <strong>다른 곳</strong>은 여전히 바꾼다. <strong>점이 이제 10px 밖에 안 되니</strong> 누르기 어려우시면 그대로 적어주십시오</p>
           <details class="src">
             <summary>원문</summary>
             <p class="step">Drag the divider left and right, then press Tab until the drag handle takes focus and press the arrow keys</p>
-            <p class="exp"><span class="explabel">expected</span>Resizing still works by both routes. The button must not have eaten the drag: a press that starts on the button does not resize, but anywhere else on the divider still does</p>
+            <p class="exp"><span class="explabel">expected</span>Resizing still works by both routes. The dot must not have eaten the drag: a press that starts on the dot does not resize, but anywhere else on the divider still does. **The dot is only 10&amp;nbsp;px across now**, so this is a smaller target to miss and a smaller one to hit — say if it is hard to click</p>
           </details>
           <span class="inv">patch 0027 against upstream `views::ResizeArea`</span>
         </div>
@@ -1145,15 +1145,15 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         <div class="body">
           <p class="step">버튼에 마우스를 올려 툴팁을 읽고, 빌드 #47 분할 화면 스크린샷과 간격을 비교한다</p>
           <ol class="do"><li>버튼에 마우스를 <strong>올린 채</strong> 잠시 기다려 툴팁을 읽는다</li><li>빌드 #47 의 분할 화면 스크린샷을 옆에 띄운다(없으면 이 항목은 눈대중으로)</li><li>두 패널 사이 간격을 비교한다</li></ol>
-          <p class="verdict ok"><span class="vlabel">합격</span>툴팁은 <strong>Reverse views</strong>. 구분선이 이전보다 약 두 배(10px → 20px) 넓고 패널이 그만큼 좁다</p>
+          <p class="verdict ok"><span class="vlabel">합격</span>툴팁은 <strong>Reverse views</strong>. 구분선이 빌드 #58 보다 <strong>좁아져서</strong> 원래 너비(10px)로 돌아왔고, 패널이 그만큼 넓어졌다</p>
           <p class="verdict no"><span class="vlabel">불합격</span>툴팁 문구가 다르거나 안 뜬다. <strong>간격에 대한 판단은 실패가 아니라 의견입니다</strong> — &#x27;컨트롤이 놓인 구분선&#x27;으로 보이는지 &#x27;그냥 벌어진 틈&#x27;으로 보이는지 한 줄 적어주시면 그게 ADR 0021 의 답이 됩니다</p>
-          <p class="exp"><span class="explabel">계약 문구</span>툴팁은 &#x27;Reverse views&#x27; — 메뉴 항목이 쓰던 문자열 그대로이고 새로 만든 문장이 아니다. 구분선이 10px 에서 <strong>20px</strong> 로 넓어졌고 그만큼 패널이 좁아졌다. 이게 &#x27;컨트롤이 놓인 구분선&#x27; 으로 보이는지 그냥 &#x27;벌어진 틈&#x27; 으로 보이는지가 ADR 0021 이 남겨둔 질문이다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>툴팁은 &#x27;Reverse views&#x27; — 메뉴 항목이 쓰던 문자열 그대로다. <strong>구분선이 업스트림 원래 너비인 10px 로 돌아왔고</strong>, 패널 너비도 패치 0027 이전과 같다. 빌드 #58 에서는 20px 이었고 대표님이 &#x27;틈처럼 보인다&#x27;고 하셨다. 이 게이트는 이제 질문이 아니라 <strong>그 답을 확인</strong>한다</p>
           <details class="src">
             <summary>원문</summary>
-            <p class="step">Hover the button, then compare the gap between the two panes against a screenshot of build #47</p>
-            <p class="exp"><span class="explabel">expected</span>The tooltip reads &quot;Reverse views&quot; — the menu item&#x27;s own string, not a new one. The divider is 20 px rather than 10, and the panes are correspondingly narrower. Whether that reads as a divider with a control on it or as a gap is the open question ADR 0021 records</p>
+            <p class="step">Hover the dot, then compare the divider against a screenshot of build #58</p>
+            <p class="exp"><span class="explabel">expected</span>The tooltip reads &quot;Reverse views&quot; — the menu item&#x27;s own string, not a new one. **The divider is back to upstream&#x27;s 10&amp;nbsp;px** and the panes are as wide as they were before patch 0027 existed. Build #58&#x27;s was 20, and the owner called that a gap; this gate is now checking the answer rather than asking the question</p>
           </details>
-          <span class="inv">ADR 0021 consequences</span>
+          <span class="inv">ADR 0021 amendment</span>
         </div>
         <div class="controls">
           <div class="states" role="group" aria-label="RV-47 결과">
@@ -1775,7 +1775,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
     var L = [];
     L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
-    L.push("- 빌드: #59, 152.0.7977.42");
+    L.push("- 빌드: #60, 152.0.7977.42");
     L.push("- 작성: " + new Date().toLocaleString());
     var n = {pass:0, fail:0, na:0};
     live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });
