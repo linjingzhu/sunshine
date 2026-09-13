@@ -177,6 +177,32 @@ the owner's.
 
 ### What does run on a hosted runner
 
+**One workflow, since 2026-09-13.** There were two;
+`architecture-guard-hosted.yml` was removed on the owner's instruction. It had
+not been allocated a runner since **2026-09-08** — every push produced a job
+that finished in two seconds with no runner assigned, no step recorded and no
+log to download, and a red check that meant nothing. The cause is an
+account-level Actions condition this repository cannot influence, which is the
+same thing that put CI on the workstation in the first place.
+
+**Removing it cost no coverage.** The self-hosted guard runs all twenty-nine of
+its checks and one it did not (`validate_commands.py`), which is checked by
+`tests/test_windows_build_contract.py`.
+
+**One thing did go, and it is worth naming rather than discovering later.**
+`scripts/compile_check_installer.py` cross-compiles the installer front-ends
+with `x86_64-w64-mingw32-g++`, and the hosted guard was the only place that
+could install it — the build machine has MSVC and no mingw, so the self-hosted
+guard reports `NOT CHECKED` there by design. So that check now runs only where a
+developer runs it. It had not in fact run in CI since it was written, because the
+hosted guard was already dead by then.
+
+**And the surviving hosted workflow is failing the same way.**
+`patch-apply-hosted.yml` is subject to the identical account condition, so the
+one question no offline guard can answer is currently going unanswered on every
+push. It is kept rather than removed because the check is real and the failure
+is not its fault; it will start working again the moment the account does.
+
 `.github/workflows/patch-apply-hosted.yml` clones `src` alone at the pinned
 revision -- one revision deep, no DEPS, no submodules -- and applies the whole
 stack to it. Every upstream file the stack touches is under `chrome/` or
