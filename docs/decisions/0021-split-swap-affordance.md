@@ -63,6 +63,41 @@ Three things it deliberately does not do:
    rejected, a `.grd` upstream's XML parser could not read — and a feature that
    introduces no resource cannot fail that way.
 
+## Amendment, 2026-09-13: the open question got its answer
+
+This ADR left one thing open and RV-47 was written to ask it: whether a
+20-pixel splitter reads as *a divider with a control on it* or as *a gap*. The
+owner looked at a running build and said gap.
+
+**So the splitter goes back to upstream's width and the affordance becomes a
+dot.** `kSunshineSwapButtonSize` is 10, which is not a round number chosen for
+looks — it is exactly `kHandleResizeAxisSize + kHandleResizeAxisPadding`, the
+width upstream already reserves for the drag handle. The dot therefore never
+becomes the widest child, `MultiContentsView::GetViewSizes()` subtracts what it
+always subtracted, and **the panes give up nothing**.
+
+**The icon had to go for the width to.** A 16-pixel split-scene arrow needs a
+20-pixel button; at 10 it would have been mush. The mark is now drawn the way
+`MultiContentsResizeHandle` draws itself — `views::CreateRoundedRectBackground`
+with the same `kColorSidePanelHoverResizeAreaHandle` token and a radius of half
+the side, which is a circle. Nothing is painted by hand.
+
+**And the direction went with it, which is the part worth reading twice.** The
+arrow pointed at the side the active pane would travel to, and keeping it
+correct is the only reason this patch ever touched
+`chrome/browser/ui/views/frame/multi_contents_view.cc` — two hunks calling
+`UpdateSunshineSwapButton()` from the two places `active_index_` moves. **A dot
+has no direction, so the function, both call sites and the whole file section
+are gone.** The stack owns one fewer upstream file: 33 becomes 32.
+
+What is lost: the affordance no longer says *which way* the swap will go. It
+says *there is a swap here*, and the tooltip names it. That is a real
+reduction, it was the owner's call, and RV-47 is rewritten to check the new
+answer rather than to keep asking the old question.
+
+The tooltip is unchanged and was never missing — `IDS_SPLIT_TAB_REVERSE_VIEWS`,
+the menu item's own string, since the first version.
+
 ## Consequences
 
 ### The splitter is twenty pixels wide, not ten
