@@ -43,7 +43,7 @@ OUT = ROOT / "gate-sheet.html"
 # stamp older than the newest build docs/RUNTIME_VERIFICATION.md talks about.
 # The sha is added once the build exists; before that the number alone is all
 # that is known, and claiming more would be the defect this comment describes.
-BUILD = "#58"
+BUILD = "#59"
 # Named for the revision, not "pinned": `scripts/verify_no_interposition.py`
 # reads a field called `PINNED` as a tab-pinned flag, and it is right to --
 # the word means two unrelated things in this project and this one is the
@@ -78,6 +78,9 @@ BLOCK_TITLES = {
            "패치 0029 로 처음 생긴 상태입니다. RV-35·RV-36 은 여기서 처음 실행 가능해졌습니다."),
     "G": ("모듈 셸", ""),
     "H": ("문서 표면", ""),
+    "Z": ("제거 실행기",
+          "**이 블록은 맨 마지막에 하십시오. RV-62·RV-63 은 Sunshine 을 실제로 제거합니다.** "
+          "RV-64 만 아무 때나 할 수 있어서 블록 안에서는 그게 먼저입니다."),
     "A0": ("셋업 창이 뜨는가",
            "빌드 #55 와 #56 이 연달아 창이 안 뜨는 셋업을 냈습니다. 여기서 실패하면 아래 전부가 "
            "실행 불가이니, 추측하지 마시고 종료 코드를 먼저 읽어주십시오."),
@@ -279,6 +282,12 @@ KOREAN = {
   "**새 탭 페이지**가 열린다 — 워드마크와 검색창이 있는 Sunshine 자체 화면. 빈 페이지도 아니고 다른 URL 도 아니다. ADR 0025 는 홈 URL 을 **일부러 정하지 않았고** `kHomePageIsNewTabPage` 를 업스트림의 `true` 그대로 두었다. 그 판단이 맞았는지 말해주는 게 이 게이트다"),
 "RV-61": ("설정 → 모양 → **홈 버튼 표시** 를 껐다 켠다",
   "버튼이 사라졌다가 돌아온다. **움직인 것은 기본값뿐**이고, 이 한 줄이 그 주장을 확인해준다 — 사용자가 되돌릴 수 없는 기본값이었다면 그건 ADR 0025 가 기록한 것과 다른, 더 나쁜 결정이다"),
+"RV-62": ("**내 계정**으로 설치된 상태에서 `sunshine-uninstall.exe` 를 더블클릭한다",
+  "업스트림 자체 확인 창이 뜬다 — `chrome.exe` 가 그리는, 데이터 삭제 선택지가 함께 있는 그 창. **Sunshine 자체 창이 먼저 뜨지 않는다**; 그게 UN-1 이고 창이 둘 보이면 그것이 실패다. UAC 도 뜨지 않는다: 내 계정 설치의 명령은 `HKEY_CURRENT_USER` 에서 읽은 것이고 UN-3 이 그걸 권한 상승하는 것을 금지한다. 아무것도 안 뜨면 추측하지 말고 종료 코드를 읽는다 — 빌드 #55·#56 의 교훈이다"),
+"RV-63": ("**모든 사용자**로 설치된 상태에서 더블클릭한다",
+  "UAC 가 **먼저** 뜨고, 그다음 업스트림 창이 뜬다. 실행기가 권한을 올리는 유일한 경우이며, 올려서 실행하는 명령은 `HKEY_LOCAL_MACHINE` 에서 온 것이다. UAC 를 한 번 거절해본다: 아무것도 제거되지 않고, 오류로도 보고되지 않아야 한다"),
+"RV-64": ("Sunshine 이 설치돼 **있지 않은** 기계에서 실행한다",
+  "'설치돼 있지 않은 것 같다'고 말한다. 크래시도 아니고, 침묵도 아니고, 오류가 아닌 상태를 오류 창으로 알리지도 않는다"),
 }
 
 
@@ -773,6 +782,24 @@ RETEST_HOWTO = {
   "다시 켭니다. 툴바를 봅니다"],
   "끄면 버튼이 사라지고 켜면 돌아온다",
   "토글이 아예 없거나, 눌러도 버튼이 그대로다. 둘 다 결함입니다 — 기본값만 바꿨지 사용자 스위치를 없앤 게 아닙니다"),
+# --- Block Z: the uninstall launcher --------------------------------------
+"RV-64": (["`sunshine-uninstall.exe` 를 **Sunshine 이 안 깔린 기계**에서 실행합니다",
+  "그런 기계가 없으시면, 이 항목은 NOT RUN 으로 두시고 RV-62 로 가셔도 됩니다"],
+  "'Sunshine 이 설치돼 있지 않은 것 같다'는 안내 창이 뜬다",
+  "아무 일도 안 일어나거나, 빨간 오류 창이 뜬다"),
+
+"RV-62": (["**여기서부터 Sunshine 이 지워집니다. 다른 확인은 다 끝내고 하십시오.**",
+  "`sunshine-uninstall.exe` 를 더블클릭합니다",
+  "뜨는 창이 **몇 개**인지 세어주십시오"],
+  "확인 창이 **하나만** 뜬다 (데이터 삭제 체크박스가 있는 Chromium 자체 창). UAC 는 뜨지 않는다",
+  "**창이 두 개 뜬다**(Sunshine 창 다음에 확인 창) → UN-1 위반입니다. **UAC 가 뜬다** → 내 계정 설치인데 권한을 올린 것이고, UN-3 위반이라 중요합니다. **아무것도 안 뜬다** → PowerShell 에서 `(Start-Process .\\sunshine-uninstall.exe -PassThru -Wait).ExitCode` 로 숫자를 읽어주십시오"),
+
+"RV-63": (["**모든 사용자**로 설치하신 경우에만 해당합니다",
+  "`sunshine-uninstall.exe` 를 더블클릭합니다",
+  "UAC 가 뜨면 **한 번은 거절**해봅니다. 그 뒤 Sunshine 이 그대로 있는지 확인합니다",
+  "다시 실행해서 이번엔 승인합니다"],
+  "UAC 가 먼저 뜨고 그다음 확인 창이 뜬다. 거절했을 때는 아무것도 지워지지 않고 오류 창도 안 뜬다",
+  "UAC 가 아예 안 뜨거나, 거절했는데 뭔가 지워졌거나, 거절이 오류로 표시된다"),
 }
 
 

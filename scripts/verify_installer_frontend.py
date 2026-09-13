@@ -45,6 +45,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "installer/sunshine_setup.cpp"
 RESOURCE = "installer/sunshine_setup.rc"
 MANIFEST = "installer/sunshine_setup.manifest"
+UNINSTALL_SOURCE = "installer/sunshine_uninstall.cpp"
+UNINSTALL_RESOURCE = "installer/sunshine_uninstall.rc"
+UNINSTALL_MANIFEST = "installer/sunshine_uninstall.manifest"
 BUILD = "scripts/build_installer_frontend.ps1"
 CONTRACT = "docs/INSTALLER_UI_CONTRACT.md"
 
@@ -103,6 +106,148 @@ def _read(root: Path, relative: str, failures: list[str]) -> str:
     return path.read_text(encoding="utf-8")
 
 
+# The only two registry values UN-2 permits the launcher to read.
+UNINSTALL_VALUES = ("UninstallString", "DisplayVersion")
+
+# Writing anything, in any of the spellings that would do it.
+REGISTRY_MUTATION = re.compile(r"Reg(?:SetValue|DeleteValue|DeleteKey|CreateKey)")
+
+
+def check_uninstall_launcher(source: str, resource: str, manifest: str,
+                             build: str) -> list[str]:
+    """UN-1 through UN-5, from the source rather than from a review.
+
+    The rule worth the most here is UN-3, and it is checked structurally: the
+    `runas` verb must be chosen by a conditional on the same flag that records
+    which hive the command came from. A source that hands `runas` to
+    ShellExecuteEx unconditionally is refused whatever its comments say, because
+    that program is a privilege escalation and its comments would be wrong.
+    """
+
+    failures: list[str] = []
+
+    # -- UN-1: no dialog of its own ------------------------------------------
+    if re.search(r"^\s*IDD_\w+\s+DIALOGEX", resource, re.M):
+        failures.append(
+            f"{UNINSTALL_RESOURCE}: declares a dialog. UN-1 is that the "
+            "launcher asks nothing -- setup.exe --uninstall already draws a "
+            "confirmation through chrome.exe, and a second one in front of it "
+            "asks the same question worse")
+    for switch in ("delete-profile", "force-uninstall"):
+        if switch in source:
+            failures.append(
+                f"{UNINSTALL_SOURCE}: names --{switch}. UN-1 leaves that "
+                "choice to the dialog the browser already draws, at the moment "
+                "the person is deciding")
+
+    # -- UN-2: two reads, no writes ------------------------------------------
+    mutations = REGISTRY_MUTATION.findall(source)
+    if mutations:
+        failures.append(
+            f"{UNINSTALL_SOURCE}: writes the registry ({sorted(set(mutations))}); "
+            "UN-2 permits reads only")
+    read = set(re.findall(r'L"(UninstallString|DisplayVersion|DisplayName|InstallLocation)"',
+                          source))
+    for value in sorted(read - set(UNINSTALL_VALUES)):
+        failures.append(
+            f"{UNINSTALL_SOURCE}: reads registry value {value!r}, which UN-2 "
+            "does not permit")
+    if "UninstallString" not in read:
+        failures.append(
+            f"{UNINSTALL_SOURCE}: never reads UninstallString, so it cannot be "
+            "launching what Windows registered; UN-2")
+
+    # -- UN-3: the hive decides the verb -------------------------------------
+    #
+    # The check is deliberately shaped as "runas appears only inside a
+    # conditional on a flag", not "the file mentions HKEY_LOCAL_MACHINE
+    # somewhere". The second would pass on a program that elevates everything
+    # and happens to name the constant in a comment.
+    runas = re.search(r'lpVerb\s*=\s*([^;]+);', source)
+    if not runas:
+        failures.append(
+            f"{UNINSTALL_SOURCE}: does not set lpVerb, so this check cannot "
+            "tell whether it elevates; UN-3")
+    elif "runas" in runas.group(1):
+        chooser = re.match(r"\s*(\w[\w.\->]*)\s*\?\s*L?\"runas\"", runas.group(1))
+        if not chooser:
+            failures.append(
+                f"{UNINSTALL_SOURCE}: hands `runas` to ShellExecuteEx without a "
+                "conditional. UN-3: the per-user command comes out of "
+                "HKEY_CURRENT_USER, which the unprivileged user can write, so "
+                "elevating it unconditionally is a local privilege escalation")
+        else:
+            flag = chooser.group(1)
+            # That flag has to be the one set from the hive, and set nowhere
+            # else -- a flag assigned `true` from somewhere other than the
+            # HKLM branch would defeat the conditional it guards.
+            member = flag.rsplit(".", 1)[-1].rsplit(">", 1)[-1]
+            assignments = re.findall(rf"\b{re.escape(member)}\s*=\s*([^;,)]+)", source)
+            if not assignments:
+                failures.append(
+                    f"{UNINSTALL_SOURCE}: {flag} decides elevation but is never "
+                    "assigned; UN-3")
+            for value in assignments:
+                if value.strip() in ("true", "TRUE"):
+                    failures.append(
+                        f"{UNINSTALL_SOURCE}: {flag} is set to a bare `true`, so "
+                        "elevation does not depend on the hive the command came "
+                        "from; UN-3")
+    if "HKEY_LOCAL_MACHINE" not in source or "HKEY_CURRENT_USER" not in source:
+        failures.append(
+            f"{UNINSTALL_SOURCE}: does not distinguish the two hives at all; "
+            "UN-3 is the difference between them")
+
+    # -- UN-3, second half: asInvoker in the manifest -------------------------
+    levels = re.findall(r'requestedExecutionLevel\s+level="([^"]+)"', manifest)
+    if levels != ["asInvoker"]:
+        failures.append(
+            f"{UNINSTALL_MANIFEST}: requests {levels or 'no execution level'}; "
+            "UN-3 requires exactly one, asInvoker -- a launcher that always "
+            "elevates would elevate the per-user command too")
+
+    # -- UN-5, and IU-17 applied to the second binary -------------------------
+    if not re.search(r"sunshine-uninstall\.exe", build):
+        failures.append(
+            f"{BUILD}: does not produce sunshine-uninstall.exe, so the contract "
+            "describes a binary nobody builds")
+    if not re.search(r"cl\.exe[^\n]*(`\n[^\n]*)*sunshine_uninstall\.cpp"
+                     r"[^\n]*(`\n[^\n]*)*", build):
+        failures.append(f"{BUILD}: does not compile {UNINSTALL_SOURCE}")
+    uninstall_line = _compile_line(build, "sunshine_uninstall.cpp")
+    if uninstall_line and "/MT" not in uninstall_line:
+        failures.append(
+            f"{BUILD}: the uninstall launcher is not compiled with /MT. IU-17 "
+            "is about the machine a binary runs on, and an uninstaller runs on "
+            "machines that never had a compiler")
+    if "does not appear to be installed" not in source:
+        failures.append(
+            f"{UNINSTALL_SOURCE}: says nothing when there is no installation; "
+            "UN-5 asks it to say so rather than exit silently")
+
+    return failures
+
+
+def _compile_line(build: str, names: str) -> str:
+    """The one backtick-continued cl.exe invocation that compiles `names`.
+
+    Reading the whole script would match the prose explaining a flag rather
+    than the flag, which is how two earlier versions of this file's own tests
+    failed. This reads one command.
+    """
+
+    for chunk in build.split("& cl.exe")[1:]:
+        lines: list[str] = []
+        for line in chunk.splitlines():
+            lines.append(line)
+            if not line.rstrip().endswith("`"):
+                break
+        command = "\n".join(lines)
+        if names in command:
+            return command
+    return ""
+
+
 def _function_body(code: str, name: str) -> str | None:
     """The braced body of the first definition of `name`, or None.
 
@@ -148,13 +293,26 @@ def check(root: Path = ROOT) -> list[str]:
     # Build #55's installer did exactly that. The flag is one token and the
     # failure it prevents is silent, which is the whole argument for checking
     # it here rather than trusting whoever next edits the command line.
-    if not re.search(r"cl\.exe[^\n]*(`\n[^\n]*)*\s/MT\b", build):
+    # One named invocation, not "somewhere in this script".
+    #
+    # **The first version asked whether any cl.exe line carried /MT**, and that
+    # held only while there was one such line. Adding the uninstall launcher's
+    # compile gave the script a second, and the setup front-end could then have
+    # lost the flag with this check still passing -- the exact regression that
+    # shipped build #55, reintroduced by a change that had nothing to do with
+    # it. `test_the_guard_refuses_the_line_that_shipped_build_55` caught it in
+    # the same minute, which is why that test injects the defect rather than
+    # asserting a pass.
+    setup_line = _compile_line(build, "sunshine_setup.cpp")
+    if not setup_line:
+        failures.append(f"{BUILD}: no cl.exe invocation compiles {SOURCE}")
+    elif "/MT" not in setup_line:
         failures.append(
             f"{BUILD}: the front-end is not compiled with /MT, so it links the "
             "dynamic CRT and does nothing on a machine without the Visual C++ "
             "redistributable -- silently, because the loader fails before "
             "wWinMain (IU-17)")
-    if re.search(r"cl\.exe[^\n]*(`\n[^\n]*)*\s/MD\b", build):
+    if setup_line and "/MD" in setup_line:
         failures.append(
             f"{BUILD}: the front-end is compiled with /MD, which is the dynamic "
             "CRT (IU-17)")
@@ -452,6 +610,20 @@ def check(root: Path = ROOT) -> list[str]:
                         f"{SOURCE}: {flag} is not a `bool ... = false` member of "
                         "DialogState; a guard that does not outlive the call it "
                         "guards guards nothing (IU-18)")
+
+    # -- UN-1..UN-5: the uninstall launcher ----------------------------------
+    #
+    # This binary cannot be compiled or run here either, and unlike the setup
+    # front-end it is small enough that the temptation is to trust it by
+    # reading. UN-3 is the reason not to: its failure mode is a local privilege
+    # escalation, so it is checked rather than reviewed.
+    uninstall = _read(root, UNINSTALL_SOURCE, failures)
+    uninstall_rc = _read(root, UNINSTALL_RESOURCE, failures)
+    uninstall_manifest = _read(root, UNINSTALL_MANIFEST, failures)
+    if uninstall and uninstall_rc and uninstall_manifest:
+        failures.extend(check_uninstall_launcher(
+            code_only(uninstall), code_only(uninstall_rc), uninstall_manifest,
+            build))
 
     # -- IU-1: zero upstream Chromium files ----------------------------------
     for patch in sorted((root / "downstream/patches").glob("*.patch")):

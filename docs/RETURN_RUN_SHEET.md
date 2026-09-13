@@ -47,6 +47,7 @@ Blocks run top to bottom. Within a block the order does not matter.
 | Block | Gates | Needs | Rough |
 | --- | --- | --- | --- |
 | **A0 — the setup window** | RV-54 first, then RV-55 | `sunshine-setup.exe`, and PowerShell open beside it in case nothing appears | 5 min |
+| **Z — the uninstall launcher** | RV-64 first, then RV-62, RV-63 | `sunshine-uninstall.exe`. **Run this block last:** RV-62 and RV-63 remove Sunshine | 10 min |
 | **A — the files, before anything is launched** | RV-11, RV-26, RV-29, RV-30, RV-28 | The installer, Explorer, `regedit` | 15 min |
 | **B — the security posture, first launch** | RV-1, RV-2, RV-3, RV-4 | The browser open | 10 min |
 | **C — is it Sunshine** | RV-10, RV-27, RV-12 | Launched, and pinned to the taskbar once | 10 min |
@@ -68,6 +69,13 @@ the component updater rather than compiled in, so a first play can fail while
 the download is still in flight. Running `chrome://components` first means that
 when RV-56 does fail, its cause is already on the sheet — a version, a
 `0.0.0.0`, or no row at all — instead of being guessed at afterwards.
+
+**Block Z is last, and the table's order is not its own order here.** It sits
+beside A0 because both are about the installer binaries rather than the
+browser, but **RV-62 and RV-63 uninstall Sunshine**, so running them before
+anything else ends the session. RV-64 — the machine with nothing installed — is
+the one that can be run at any time, which is why it goes first inside the
+block.
 
 **Why A0 exists and comes before A.** Every gate in A is about a machine that
 has been installed onto, and the way it gets installed is `sunshine-setup.exe`.

@@ -160,6 +160,9 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-59 | On a **fresh profile**, look at the toolbar between reload and the address bar | A house-shaped home button is there. On an existing profile it may not be, and that is not a failure: the pref is syncable, so a profile that has ever written a value keeps its own — the same trap as RV-48. Check the profile before reporting this one | patch 0030, ADR 0025 |
 | RV-60 | Press it | The **New Tab page** opens — Sunshine's own, with the wordmark and search field. Not a blank page, and not a URL from anywhere else. ADR 0025 deliberately did not choose a home URL; it left `kHomePageIsNewTabPage` at upstream's `true`, and this is the gate that says whether that reading was right | `prefs::kHomePageIsNewTabPage`, ADR 0025 |
 | RV-61 | Settings &rarr; Appearance &rarr; **Show home button**, toggle it off and on | The button goes and comes back. **Only the default moved**, and this is the line of checking that claim is worth: a default the user cannot reverse would be a different and worse decision than the one ADR 0025 records | ADR 0025 consequences |
+| RV-62 | With Sunshine installed **per-user**, double-click `sunshine-uninstall.exe` | Upstream's own confirmation dialog appears — the one `chrome.exe` draws, with the delete-my-data choice on it. **No dialog of Sunshine's own comes first**; that is UN-1 and seeing two would be the failure. No UAC prompt either: a per-user command is read from `HKEY_CURRENT_USER` and UN-3 forbids elevating it. If nothing at all appears, read the exit code before guessing — the lesson of builds #55 and #56 | UN-1, UN-3, ADR 0026 |
+| RV-63 | With Sunshine installed **per-machine**, double-click it | A UAC prompt appears **first**, then upstream's dialog. This is the only case where the launcher elevates, and it elevates a command that came from `HKEY_LOCAL_MACHINE`. Refuse the prompt once: nothing should be removed and nothing should be reported as an error | UN-3, UN-4 |
+| RV-64 | Run it on a machine where Sunshine is **not** installed | It says Sunshine does not appear to be installed. Not a crash, not silence, and not an error dialog for a state that is not an error | UN-5 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -275,7 +278,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-61, RVV-1..RVV-5
+gate       RV-1..RV-64, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

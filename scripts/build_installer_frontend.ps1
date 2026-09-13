@@ -2,7 +2,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
-# Builds sunshine-setup.exe: the dialog, with mini_installer.exe inside it.
+# Builds the two front-end binaries:
+#
+#   sunshine-setup.exe      the dialog, with mini_installer.exe inside it
+#   sunshine-uninstall.exe  a launcher that finds Windows' own UninstallString
+#                           and runs it, asking nothing of its own
 #
 # Its own compiler invocation, on purpose. ADR-scale reasoning in
 # docs/INSTALLER_UI_REVIEW.md D5: a GN target would put this in Chromium's build
@@ -121,6 +125,26 @@ inline constexpr wchar_t kEngineSha256[] = L"$hash";
             user32.lib gdi32.lib shell32.lib ole32.lib advapi32.lib bcrypt.lib `
             comctl32.lib windowscodecs.lib uuid.lib uxtheme.lib
         if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
+
+        # The uninstall launcher. Built here rather than in a script of its own
+        # because it shares this one's toolchain discovery, its staging
+        # directory and its icon, and a second copy of vswhere plumbing is a
+        # second thing to keep in step.
+        #
+        # It embeds no engine and carries no dialog, so it links a fraction of
+        # what the setup front-end does. /MT for the same reason and it is the
+        # same reason as IU-17: an uninstaller is run on machines that never had
+        # a compiler, and a loader failure there shows the user nothing at all.
+        & rc.exe /nologo /fo sunshine_uninstall.res sunshine_uninstall.rc
+        if ($LASTEXITCODE -ne 0) { throw "rc.exe failed for the uninstall launcher with $LASTEXITCODE" }
+
+        & cl.exe /nologo /std:c++20 /W4 /permissive- /EHsc /O2 /GL /MT /guard:cf /Qspectre `
+            /DUNICODE /D_UNICODE `
+            /Fe:sunshine-uninstall.exe sunshine_uninstall.cpp sunshine_uninstall.res `
+            /link /SUBSYSTEM:WINDOWS /LTCG /GUARD:CF /MANIFESTUAC:NO `
+            /MANIFEST:EMBED /MANIFESTINPUT:sunshine_uninstall.manifest `
+            user32.lib shell32.lib advapi32.lib
+        if ($LASTEXITCODE -ne 0) { throw "cl.exe failed for the uninstall launcher with $LASTEXITCODE" }
     }
     finally {
         Pop-Location
@@ -132,6 +156,13 @@ inline constexpr wchar_t kEngineSha256[] = L"$hash";
     $megabytes = [math]::Round((Get-Item $destination).Length / 1MB, 1)
     Write-Host "Installer front-end ($megabytes MB): $destination"
     Write-Host "Engine SHA-256: $hash"
+
+    $uninstaller = Join-Path $Staging "sunshine-uninstall.exe"
+    if (-not (Test-Path $uninstaller)) { throw "the uninstall launcher was not produced" }
+    $uninstallDestination = Join-Path $OutputDirectory "sunshine-uninstall.exe"
+    Copy-Item $uninstaller $uninstallDestination -Force
+    $uninstallKilobytes = [math]::Round((Get-Item $uninstallDestination).Length / 1KB, 1)
+    Write-Host "Uninstall launcher ($uninstallKilobytes KB): $uninstallDestination"
 }
 finally {
     Remove-Item $Staging -Recurse -Force -ErrorAction SilentlyContinue

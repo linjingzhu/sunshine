@@ -211,9 +211,17 @@ what they asked for.
 
 ## 6. What this is not
 
-- **Not an uninstaller.** `setup.exe` registers uninstallation, as it does
-  today. Programs and Features points at upstream's own code and nothing here
-  changes that.
+- **Not an uninstaller — and `sunshine-uninstall.exe` is not one either.**
+  `setup.exe` registers uninstallation, as it does today: it writes
+  `DisplayName`, `UninstallString` and `InstallLocation` into
+  `Software\Microsoft\Windows\CurrentVersion\Uninstall\Sunshine`, and
+  Settings → Apps runs that string. That worked before this section was
+  amended and it works now.
+
+  **What did not exist was a file a person could double-click**, and that is
+  the whole of what was added. `sunshine-uninstall.exe` reads the string
+  Windows already has and runs it. It removes nothing itself, and §8 records
+  why it asks nothing either.
 - **Not an updater.** Updates are the browser's business.
 - **Not a place to configure the browser.** The one preference file it writes is
   about installation. Anything about how Sunshine behaves belongs in the
@@ -245,6 +253,11 @@ person.
 | IU-16 | The only state the front-end reads about the machine before the user has agreed to anything is whether Sunshine is installed and at what version, and whether the user has chosen a dark theme. **Exactly two reads, both named here, and nothing is written.** | O |
 | IU-17 | The front-end links the **static** C runtime, so it starts on a machine that has never had a compiler on it. `cl.exe` defaults to `/MD`; a binary built that way needs `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll` and `MSVCP140.dll`, which Visual Studio puts on every machine this is built on and no machine it is used on. The loader then fails **before `wWinMain`**, so not one of this program's error dialogs runs and the user sees nothing at all — which is what build #55's installer did. An installer is the one program that cannot ask for a redistributable. | B |
 | IU-18 | **No handler in the dialog writes a control whose write notifies that same handler**, unless it holds a flag in `DialogState` across the nested call. An edit control raises `EN_CHANGE` when its text is set, and it does not distinguish a person typing from `SetDlgItemTextW`; `RefreshLocation` handles `EN_CHANGE` and writes `IDC_LOCATION_EDIT`, so it called itself without bound. `WM_INITDIALOG` seeds the dialog per-user, which is the branch that writes the box — so this was reached on **every** launch, inside `DialogBoxParamW`, before any window was shown. Build #56's installer died of `STATUS_STACK_OVERFLOW` (`0xC00000FD`) and looked, to the person who ran it, exactly like build #55's: a double-click that did nothing. | B |
+| UN-1 | **The uninstall launcher asks nothing and removes nothing.** It reads `UninstallString` and runs it. `setup.exe --uninstall` launches `chrome.exe --uninstall` to draw the confirmation — which is also where the delete-my-profile choice lives and where a running browser is detected — so a dialog here would be a second confirmation in front of that one, asking the same question worse. Its `.rc` declares no dialog at all. | O |
+| UN-2 | It **reads two registry values and writes none**: `UninstallString` and `DisplayVersion`, under the key IU-16 already names, in the 32-bit view. It does not enumerate installed software and does not look for anything but Sunshine. | O |
+| UN-3 | **A command read from `HKEY_CURRENT_USER` is never run elevated.** That hive is writable by the unprivileged user, so a launcher that elevated what it found there would be a local privilege escalation with an icon. `runas` is used only for the per-machine installation, whose command came from `HKEY_LOCAL_MACHINE` — a key an unprivileged user cannot write. The manifest requests `asInvoker`, as IU-7 does and for a related reason. | O |
+| UN-4 | The exit code is **upstream's**, passed through untouched, exactly as §5 requires of the setup front-end. The launcher's own codes sit at `0xB1`–`0xB4`, above `installer::InstallStatus` and clear of the setup front-end's `0xA1`–`0xA6`. | B |
+| UN-5 | On a machine with no Sunshine installed it **says so and exits**, rather than failing silently or reporting an error for a state that is not one. | B |
 
 **Two silent failures, two different causes, one symptom.** IU-17 and IU-18
 were both written after a build that did nothing when double-clicked, and the
@@ -315,6 +328,51 @@ prompt, or a "you already have the latest version" refusal. `mini_installer`
 decides what to do with an existing installation; the dialog only reports what
 it found, and if the read fails the dialog says Install and proceeds, because a
 missing fact is not a reason to block an installation.
+
+## 9b. The uninstall launcher, and why it is nine tenths absence
+
+The owner asked for an uninstall file. The first thing worth saying is that
+uninstalling already worked: `setup.exe` has been registering itself with
+Windows since the first install, and Settings → Apps has been able to remove
+Sunshine the whole time. **Nothing was broken; something was merely not
+reachable by double-clicking.**
+
+So the binary is a *locator and launcher*, and almost every design decision in
+it is a decision not to do something.
+
+**It draws no dialog.** Reading upstream's `uninstall.cc` settles this rather
+than taste: `IsChromeActiveOrUserCancelled()` launches `chrome.exe --uninstall`
+and waits for it, and the exit codes it reads back are
+`UNINSTALL_CHROME_ALIVE`, `UNINSTALL_USER_CANCEL` and
+`UNINSTALL_DELETE_PROFILE`. That is a confirmation dialog, a running-browser
+check and a profile-deletion choice, all of them upstream's and all of them
+already correct. A dialog of ours would sit in front of that one and ask a
+worse version of the same question. §1's argument against a second installer is
+the same argument.
+
+**It does not offer `--delete-profile`.** Not because the switch is hard to
+append, but because the browser's own dialog offers it at the moment the person
+is actually deciding, with the wording upstream has already translated into
+every language it ships.
+
+**It does not parse the command line into an argument vector.**
+`CommandLineToArgvW` would hand back arguments that must then be re-quoted to
+be run, which is a lossy round trip through the exact syntax that must not
+change. The string upstream wrote is split once, at the program name, and the
+remainder is passed on as it was found.
+
+**UN-3 is the part that would be a vulnerability if it were wrong.** The
+per-user registration lives in `HKEY_CURRENT_USER`, which the unprivileged user
+owns. A program that read a command line from there and ran it under `runas`
+would be a documented local privilege escalation shipped as a convenience. The
+hive therefore decides the verb, and the guard refuses a source where it does
+not.
+
+**What it costs.** One more binary in the download folder. The alternative —
+a Start menu shortcut created at install time — needs a patch to upstream's
+`install_worker.cc`, which is an upstream file the stack would then own
+exclusively, for a shortcut. It is recorded as the road not taken rather than
+as an oversight.
 
 ## 10. NOT VERIFIED
 

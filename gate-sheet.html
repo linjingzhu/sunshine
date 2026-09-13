@@ -197,7 +197,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 
 <div class="wrap">
   <header class="mast">
-    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #58</p>
+    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #59</p>
     <h1>다시 볼 열일곱 가지</h1>
     <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
     제 설명이 부실해서 손대지 못하신 항목들입니다.
@@ -311,6 +311,93 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         </div>
         <div class="controls">
           <div class="states" role="group" aria-label="RV-55 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
+    <section class="block" id="block-Z">
+      <header class="bhead">
+        <span class="letter">Z</span>
+        <div class="bmeta">
+          <h2>제거 실행기</h2>
+          <p class="needs"><span class="nlabel">준비</span>sunshine-uninstall.exe. **Run this block last:** RV-62 and RV-63 remove Sunshine <span class="dot">·</span> <span class="mins">10 min</span></p>
+        </div>
+        <span class="bcount" data-block="Z">0/3</span>
+      </header>
+      <p class="blocknote">**이 블록은 맨 마지막에 하십시오. RV-62·RV-63 은 Sunshine 을 실제로 제거합니다.** RV-64 만 아무 때나 할 수 있어서 블록 안에서는 그게 먼저입니다.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-64">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-64</span></div>
+        <div class="body">
+          <p class="step">Sunshine 이 설치돼 <strong>있지 않은</strong> 기계에서 실행한다</p>
+          <ol class="do"><li><code>sunshine-uninstall.exe</code> 를 <strong>Sunshine 이 안 깔린 기계</strong>에서 실행합니다</li><li>그런 기계가 없으시면, 이 항목은 NOT RUN 으로 두시고 RV-62 로 가셔도 됩니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>&#x27;Sunshine 이 설치돼 있지 않은 것 같다&#x27;는 안내 창이 뜬다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>아무 일도 안 일어나거나, 빨간 오류 창이 뜬다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>&#x27;설치돼 있지 않은 것 같다&#x27;고 말한다. 크래시도 아니고, 침묵도 아니고, 오류가 아닌 상태를 오류 창으로 알리지도 않는다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Run it on a machine where Sunshine is **not** installed</p>
+            <p class="exp"><span class="explabel">expected</span>It says Sunshine does not appear to be installed. Not a crash, not silence, and not an error dialog for a state that is not an error</p>
+          </details>
+          <span class="inv">UN-5</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-64 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-62">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-62</span></div>
+        <div class="body">
+          <p class="step"><strong>내 계정</strong>으로 설치된 상태에서 <code>sunshine-uninstall.exe</code> 를 더블클릭한다</p>
+          <ol class="do"><li><strong>여기서부터 Sunshine 이 지워집니다. 다른 확인은 다 끝내고 하십시오.</strong></li><li><code>sunshine-uninstall.exe</code> 를 더블클릭합니다</li><li>뜨는 창이 <strong>몇 개</strong>인지 세어주십시오</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>확인 창이 <strong>하나만</strong> 뜬다 (데이터 삭제 체크박스가 있는 Chromium 자체 창). UAC 는 뜨지 않는다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><strong>창이 두 개 뜬다</strong>(Sunshine 창 다음에 확인 창) → UN-1 위반입니다. <strong>UAC 가 뜬다</strong> → 내 계정 설치인데 권한을 올린 것이고, UN-3 위반이라 중요합니다. <strong>아무것도 안 뜬다</strong> → PowerShell 에서 <code>(Start-Process .\sunshine-uninstall.exe -PassThru -Wait).ExitCode</code> 로 숫자를 읽어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>업스트림 자체 확인 창이 뜬다 — <code>chrome.exe</code> 가 그리는, 데이터 삭제 선택지가 함께 있는 그 창. <strong>Sunshine 자체 창이 먼저 뜨지 않는다</strong>; 그게 UN-1 이고 창이 둘 보이면 그것이 실패다. UAC 도 뜨지 않는다: 내 계정 설치의 명령은 <code>HKEY_CURRENT_USER</code> 에서 읽은 것이고 UN-3 이 그걸 권한 상승하는 것을 금지한다. 아무것도 안 뜨면 추측하지 말고 종료 코드를 읽는다 — 빌드 #55·#56 의 교훈이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With Sunshine installed **per-user**, double-click `sunshine-uninstall.exe`</p>
+            <p class="exp"><span class="explabel">expected</span>Upstream&#x27;s own confirmation dialog appears — the one `chrome.exe` draws, with the delete-my-data choice on it. **No dialog of Sunshine&#x27;s own comes first**; that is UN-1 and seeing two would be the failure. No UAC prompt either: a per-user command is read from `HKEY_CURRENT_USER` and UN-3 forbids elevating it. If nothing at all appears, read the exit code before guessing — the lesson of builds #55 and #56</p>
+          </details>
+          <span class="inv">UN-1, UN-3, ADR 0026</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-62 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-63">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-63</span></div>
+        <div class="body">
+          <p class="step"><strong>모든 사용자</strong>로 설치된 상태에서 더블클릭한다</p>
+          <ol class="do"><li><strong>모든 사용자</strong>로 설치하신 경우에만 해당합니다</li><li><code>sunshine-uninstall.exe</code> 를 더블클릭합니다</li><li>UAC 가 뜨면 <strong>한 번은 거절</strong>해봅니다. 그 뒤 Sunshine 이 그대로 있는지 확인합니다</li><li>다시 실행해서 이번엔 승인합니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>UAC 가 먼저 뜨고 그다음 확인 창이 뜬다. 거절했을 때는 아무것도 지워지지 않고 오류 창도 안 뜬다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>UAC 가 아예 안 뜨거나, 거절했는데 뭔가 지워졌거나, 거절이 오류로 표시된다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>UAC 가 <strong>먼저</strong> 뜨고, 그다음 업스트림 창이 뜬다. 실행기가 권한을 올리는 유일한 경우이며, 올려서 실행하는 명령은 <code>HKEY_LOCAL_MACHINE</code> 에서 온 것이다. UAC 를 한 번 거절해본다: 아무것도 제거되지 않고, 오류로도 보고되지 않아야 한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With Sunshine installed **per-machine**, double-click it</p>
+            <p class="exp"><span class="explabel">expected</span>A UAC prompt appears **first**, then upstream&#x27;s dialog. This is the only case where the launcher elevates, and it elevates a command that came from `HKEY_LOCAL_MACHINE`. Refuse the prompt once: nothing should be removed and nothing should be reported as an error</p>
+          </details>
+          <span class="inv">UN-3, UN-4</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-63 결과">
             <button type="button" class="st st-pass" data-state="pass">PASS</button>
             <button type="button" class="st st-fail" data-state="fail">FAIL</button>
             <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
@@ -1588,7 +1675,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
     var L = [];
     L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
-    L.push("- 빌드: #58, 152.0.7977.42");
+    L.push("- 빌드: #59, 152.0.7977.42");
     L.push("- 작성: " + new Date().toLocaleString());
     var n = {pass:0, fail:0, na:0};
     live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });
