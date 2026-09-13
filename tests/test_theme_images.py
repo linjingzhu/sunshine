@@ -94,19 +94,37 @@ class RenderTests(unittest.TestCase):
                 self.assertEqual("PNG", image.format)
                 self.assertEqual((24, 24), image.size)
 
-    def test_the_transparent_margin_is_cropped_away(self):
-        # A bookmark bar button sizes itself to the image it is given, so
-        # shipping the source's margin would draw the folder at a fraction of
-        # the slot and align it with nothing beside it.
+    def test_the_source_margin_is_discarded_and_COVERAGE_put_back(self):
+        """Both halves, and the fixture is what tells them apart.
+
+        The source is 120 pixels of drawing adrift in a 200-pixel canvas, so
+        it fills 60% of its own canvas. A renderer that skipped the crop and
+        merely scaled the whole canvas would leave ink across 0.60 * COVERAGE
+        of the box -- 48% at COVERAGE 0.8 -- while one that crops first leaves
+        exactly COVERAGE. Asserting the width therefore proves the crop
+        happened as well as the inset, which a bounds-touch assertion did not.
+        """
+
+        size = 48
         with tempfile.TemporaryDirectory() as directory:
-            data = renderer.render(self.source(directory), 48)
+            data = renderer.render(self.source(directory), size)
             with Image.open(io.BytesIO(data)) as image:
                 bounds = image.convert("RGBA").getchannel("A").getbbox()
-        # The drawing is wider than it is tall, so it touches left and right.
-        self.assertEqual(0, bounds[0])
-        self.assertEqual(48, bounds[2])
-        self.assertGreater(bounds[1], 0)
-        self.assertLess(bounds[3], 48)
+
+        width = bounds[2] - bounds[0]
+        self.assertAlmostEqual(size * renderer.COVERAGE, width, delta=1)
+        # Centred: the margin is the same on both sides, to a pixel of rounding.
+        self.assertAlmostEqual(bounds[0], size - bounds[2], delta=1)
+        self.assertAlmostEqual(bounds[1], size - bounds[3], delta=1)
+        # And it is a margin, not a crop to the edge -- which is the whole
+        # point of the change and what the previous version of this test
+        # asserted the opposite of.
+        self.assertGreater(bounds[0], 0)
+        self.assertLess(bounds[2], size)
+
+    def test_coverage_is_a_fraction_that_leaves_a_margin(self):
+        self.assertGreater(renderer.COVERAGE, 0)
+        self.assertLess(renderer.COVERAGE, 1)
 
     def test_an_entirely_transparent_source_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:

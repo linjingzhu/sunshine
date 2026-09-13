@@ -23,14 +23,23 @@ output is committed, so no build and no guard needs Pillow:
     python scripts/render_theme_images.py            # rewrite the images
     python scripts/render_theme_images.py --check    # fail if they are stale
 
-**Why the source is cropped.** The owner's folder is drawn on a square canvas
-with the drawing inset inside it, and the transparent margin is part of no
-icon: a bookmark bar button sizes itself to the image it is given, so shipping
-the margin would draw the folder at two thirds of the slot and align it with
-nothing beside it. The crop is to the alpha bounding box, and the drawing is
-then centred in a square box at its own aspect ratio, which for this artwork
-means it touches the left and right edges and leaves the difference above and
-below.
+**Why the source is cropped, and then inset again.** The owner's folder is
+drawn on a square canvas with the drawing somewhere inside it, and that
+margin is arbitrary -- it is whatever the export happened to leave, and a
+bookmark bar button sizes itself to the image it is given, so shipping it
+would draw the folder at whatever fraction of the slot the export chose. So
+the crop to the alpha bounding box comes first, and it exists to throw the
+unknown margin away.
+
+`COVERAGE` then puts a *known* one back. The first version shipped the cropped
+drawing at full width, which is what `BASE_DIP` means, and on the bar it read
+as oversized: every other glyph beside it -- Chromium's own icons and the
+favicons of ordinary bookmarks -- is drawn with padding inside its box, so an
+icon that touches its edges is the one that looks wrong even though it is the
+one at nominal size. The inset is in this file rather than in the patch
+because it is a property of the drawing, not of the button: changing
+`BASE_DIP` would move every button on the bar, and changing `COVERAGE` moves
+nothing but the ink.
 """
 
 from __future__ import annotations
@@ -50,6 +59,15 @@ OVERLAY = "downstream/assets/chrome/app/theme"
 # and the bookmark bar asks for no size, so it is the size the bar draws today.
 # Any other value moves every button on the bar.
 BASE_DIP = 24
+
+# How much of that box the drawing is allowed to fill, as a fraction of the
+# long edge. The rest is transparent margin, centred.
+#
+# 0.80 is the owner's call, made against the bar they were looking at. It is
+# not derived from anything upstream, and it is a constant rather than a
+# literal so that the next adjustment is one number in one place and the
+# regenerated images follow from it.
+COVERAGE = 0.80
 
 SCALES = (100, 200, 300)
 
@@ -82,7 +100,7 @@ def render(source: Path, size: int) -> bytes:
     drawing = art.crop(bounds)
 
     width, height = drawing.size
-    scale = min(size / width, size / height)
+    scale = min(size / width, size / height) * COVERAGE
     fitted = drawing.resize((max(1, round(width * scale)), max(1, round(height * scale))),
                             Image.LANCZOS)
     box = Image.new("RGBA", (size, size), (0, 0, 0, 0))

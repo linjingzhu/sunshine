@@ -117,8 +117,20 @@ asks for no size. Any other value moves every button on the bar.
 
 The source is cropped to its alpha bounding box first. A bookmark bar button
 sizes itself to the image it is given, so shipping the source's transparent
-margin would draw the folder at two thirds of the slot and align it with
-nothing beside it.
+margin would draw the folder at whatever fraction of the slot the export
+happened to leave.
+
+**`COVERAGE` then puts a known margin back, and the first version did not
+have it.** The cropped drawing was rendered at the full 24 dip, which is the
+nominal size and is also what made it look wrong: every glyph beside it on the
+bar — Chromium's own icons and ordinary bookmarks' favicons — is drawn with
+padding inside its box, so the icon at nominal size was the one that read as
+oversized. The owner set it at **0.80** against the bar they were looking at;
+it is not derived from anything upstream and this document does not pretend
+otherwise. It lives next to `BASE_DIP` rather than in the patch because the two
+mean different things: `BASE_DIP` is the slot and moving it moves every button
+on the bar, while `COVERAGE` is the ink inside the slot and moves nothing
+else.
 
 ### 4. The hunks live in patch 0008, which is not where they belong
 
