@@ -157,6 +157,9 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-56 | With network, open a Netflix title and press play. If it fails, wait two minutes, reload, and try once more | **It plays.** This is the gate ADR 0024 exists for and the only one that can answer it: `enable_widevine=true` compiles the key system, but the CDM itself arrives at run time from Google's component updater, and whether that service serves one to an unbranded browser with no API key is not decidable from source. The retry is not optional — the fetch is not synchronous with the first playback attempt, so a first failure and a later success is a **PASS**, and recording FAIL without the retry answers a different question | ADR 0024 §6, `enable_widevine_cdm_component` |
 | RV-57 | Open `chrome://components` and find **Widevine Content Decryption Module** | The row exists. Its version is what separates the two ways RV-56 can fail: a real version means the CDM downloaded and something else is wrong; `0.0.0.0` means registered but never fetched, which is the component updater failing rather than the build; **no row at all** means `ENABLE_WIDEVINE_CDM_COMPONENT` is off and the build did not carry the flag. Press **Check for update** on the row before concluding | `registration.cc`, ADR 0024 §1 |
 | RV-58 | Open `chrome://settings/content/protectedContent` | The page exists and protected content is allowed. Netflix's own error text tells the user to come here, so a gate run that skips it cannot rule out the one thing the site actually named — and whether the surface survives Sunshine's patches has never been checked | ADR 0024 §6 |
+| RV-59 | On a **fresh profile**, look at the toolbar between reload and the address bar | A house-shaped home button is there. On an existing profile it may not be, and that is not a failure: the pref is syncable, so a profile that has ever written a value keeps its own — the same trap as RV-48. Check the profile before reporting this one | patch 0030, ADR 0025 |
+| RV-60 | Press it | The **New Tab page** opens — Sunshine's own, with the wordmark and search field. Not a blank page, and not a URL from anywhere else. ADR 0025 deliberately did not choose a home URL; it left `kHomePageIsNewTabPage` at upstream's `true`, and this is the gate that says whether that reading was right | `prefs::kHomePageIsNewTabPage`, ADR 0025 |
+| RV-61 | Settings &rarr; Appearance &rarr; **Show home button**, toggle it off and on | The button goes and comes back. **Only the default moved**, and this is the line of checking that claim is worth: a default the user cannot reverse would be a different and worse decision than the one ADR 0025 records | ADR 0025 consequences |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -272,7 +275,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-58, RVV-1..RVV-5
+gate       RV-1..RV-61, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text
