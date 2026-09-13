@@ -197,7 +197,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
 
 <div class="wrap">
   <header class="mast">
-    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #60</p>
+    <p class="eyebrow">Sunshine OS · 152.0.7977.42 · 빌드 #62</p>
     <h1>다시 볼 열일곱 가지</h1>
     <p class="sub"><strong>통과한 26개는 지웠습니다.</strong> 남은 것은 실패했거나, 화면을 못 찾으셨거나,
     제 설명이 부실해서 손대지 못하신 항목들입니다.
@@ -1071,12 +1071,12 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
           <p class="step">좌우 분할 화면을 연다(탭 우클릭 → 분할, 또는 탭을 창 가장자리로 끌기). 두 패널 사이의 구분선을 본다</p>
           <ol class="do"><li>탭 두 개를 연다</li><li>한쪽 탭을 우클릭 → <strong>분할 화면</strong>(또는 탭을 창 오른쪽 가장자리로 끈다)</li><li>두 패널 <strong>사이의 구분선</strong>을 본다. 마우스는 올리지 않는다</li></ol>
           <p class="verdict ok"><span class="vlabel">합격</span>구분선 위, 드래그 손잡이보다 <strong>위쪽</strong>에 <strong>작은 동그란 점</strong>이 보인다. 마우스를 안 올려도 보인다</p>
-          <p class="verdict no"><span class="vlabel">불합격</span><strong>마우스를 올려야만 보인다</strong> → 실패입니다(그게 이 기능의 전부입니다). 아예 없다 → 패치 0027 이 안 들어간 것</p>
-          <p class="exp"><span class="explabel">계약 문구</span>구분선 위, 드래그 손잡이 <strong>위쪽</strong>에 <strong>작은 동그란 점</strong>이 하나 있다. 마우스를 올리지 않아도 보인다 — 올려야 보이면 그건 실패다. 화살표가 아니라 점인 이유는, 구분선 너비를 되돌리기 위해 <strong>방향 표시를 포기했기</strong> 때문이다: &#x27;여기서 바꿀 수 있다&#x27;만 말하고 어느 쪽으로 가는지는 말하지 않는다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span><strong>마우스를 올려야만 보인다</strong> → 실패입니다. <strong>아무것도 안 보인다</strong> → 빌드 #61 이 그랬습니다. 그 자리를 눌러보시면 패널은 바뀌는데 점은 안 보이는 상태였습니다. 눌러서 되더라도 <strong>안 보이면 실패</strong>로 적어주십시오</p>
+          <p class="exp"><span class="explabel">계약 문구</span>구분선 위, 드래그 손잡이 <strong>위쪽</strong>에 <strong>작은 동그란 점</strong>이 하나 있고, 마우스를 올리지 않아도 보인다. 화살표가 아니라 점인 이유는 구분선 너비를 되돌리려고 <strong>방향 표시를 포기했기</strong> 때문이다. <strong>빌드 #61 은 가장 놓치기 쉬운 방식으로 실패했다</strong> — 점이 안 보이는데 그 자리를 누르면 패널이 바뀌었다. 이벤트는 뷰 좌표로 가고 그리기는 레이어로 가기 때문이다. 그러니 <strong>눌러서 되는 것은 증거가 아니다</strong>: 누르기 전에 눈에 보이는가가 이 게이트다</p>
           <details class="src">
             <summary>원문</summary>
             <p class="step">Open a split view (tab context menu &amp;rarr; split, or drag a tab to the window edge) and look at the divider between the two panes</p>
-            <p class="exp"><span class="explabel">expected</span>**A small round dot** sits on the divider, above the drag handle. It is visible without hovering — that is the whole point of the feature, and a mark that appears only on hover has failed it. It is a dot and not an arrow: it says *there is a swap here*, not which way the swap goes, which is what ADR 0021&#x27;s amendment gave up to get the divider&#x27;s width back</p>
+            <p class="exp"><span class="explabel">expected</span>**A small round dot** sits on the divider, above the drag handle, visible without hovering. It is a dot and not an arrow: it says *there is a swap here*, not which way. **Build #61 failed this in the way that is easiest to miss** — the dot was invisible and clicking where it should be still swapped the panes, because event targeting uses view bounds while drawing uses layers. So pressing the spot is not evidence: the gate is whether you can *see* it before you press</p>
           </details>
           <span class="inv">patch 0027, ADR 0021</span>
         </div>
@@ -1775,7 +1775,7 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
     var L = [];
     L.push("# Sunshine 재테스트 결과 (17개)");
     L.push("");
-    L.push("- 빌드: #60, 152.0.7977.42");
+    L.push("- 빌드: #62, 152.0.7977.42");
     L.push("- 작성: " + new Date().toLocaleString());
     var n = {pass:0, fail:0, na:0};
     live.forEach(function(g){ var r=(state[g.dataset.gate]||{}).r; if(r) n[r]++; });

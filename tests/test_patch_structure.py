@@ -174,3 +174,77 @@ class PatchStructureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SplitSwapDotPaintsTests(unittest.TestCase):
+    """A view added to the resize area must own a layer, or it is invisible.
+
+    **This is a defect that shipped.** Build #61's swap dot took clicks and
+    swapped the panes while drawing nothing at all. `MultiContentsResizeArea`
+    sits between two layer-backed contents containers, so a child that paints
+    into its parent's layer ends up beneath them — and event targeting goes by
+    view bounds rather than by layers, which is why it *worked* and was
+    invisible at the same time.
+
+    `MultiContentsResizeHandle`, the one view in that upstream file known to
+    render, calls `SetPaintToLayer(ui::LAYER_TEXTURED)` and
+    `SetFillsBoundsOpaquely(false)` before setting its background. The first
+    version of this patch copied only the background.
+
+    Nothing in this project compiles Chromium, so a compiler would not have
+    caught it and did not: build #61 compiled cleanly and shipped a control
+    nobody could see. Reading the patch is the only check available before a
+    person looks at a running browser, which makes it worth having.
+    """
+
+    def setUp(self) -> None:
+        self.patch = (PATCH_DIR / "0027-sunshine-split-swap-button.patch").read_text(
+            encoding="utf-8")
+        # Added lines only: upstream's own handle does all of this too, and
+        # matching its lines would make this test pass on a patch that removed
+        # every one of ours.
+        self.added = "\n".join(
+            line[1:] for line in self.patch.splitlines()
+            if line.startswith("+") and not line.startswith("+++"))
+
+    def test_the_dot_is_created_at_all(self) -> None:
+        self.assertIn("sunshine_swap_button_ = AddChildView", self.added)
+
+    def test_the_dot_paints_to_its_own_layer(self) -> None:
+        self.assertIn("sunshine_swap_button_->SetPaintToLayer(ui::LAYER_TEXTURED);",
+                      self.added)
+
+    def test_that_layer_does_not_claim_to_fill_its_bounds(self) -> None:
+        """A circle does not fill a square, and saying it does corrupts what is
+        drawn behind it."""
+
+        self.assertIn("sunshine_swap_button_->layer()->SetFillsBoundsOpaquely(false);",
+                      self.added)
+
+    def test_the_layer_is_established_before_the_background(self) -> None:
+        """Order is not cosmetic: the background paints into whatever layer the
+        view has when it paints, so the layer has to exist first."""
+
+        layer = self.added.index("sunshine_swap_button_->SetPaintToLayer")
+        background = self.added.index("sunshine_swap_button_->SetBackground")
+        self.assertLess(layer, background)
+
+    def test_the_dot_keeps_upstreams_divider_width(self) -> None:
+        """The whole point of the dot: ten is exactly what upstream already
+        reserves for the drag handle, so the splitter does not widen and the
+        panes give up nothing."""
+
+        self.assertIn("static constexpr int kSunshineSwapButtonSize = 10;", self.added)
+
+    def test_the_dot_is_round(self) -> None:
+        self.assertIn("kSunshineSwapButtonSize / 2", self.added)
+
+    def test_the_tooltip_names_the_action_with_upstreams_own_string(self) -> None:
+        self.assertIn("IDS_SPLIT_TAB_REVERSE_VIEWS", self.added)
+
+    def test_the_patch_no_longer_touches_multi_contents_view(self) -> None:
+        """A dot has no direction, so the calls that kept an arrow pointing the
+        right way are gone — and with them the only reason this patch ever
+        edited that file."""
+
+        self.assertNotIn("multi_contents_view.cc", self.patch)
