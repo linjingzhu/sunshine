@@ -153,6 +153,18 @@ jobs:
       - name: Compile-check repository Python tools
         run: python scripts/compile_check.py
 
+      # Exit 2 is "the cross-compiler is not installed", which is the expected
+      # answer on this machine -- it has MSVC, and the real compile of these
+      # files happens in the build workflow. Exit 1 is a source that does not
+      # parse and is a failure. The two are told apart explicitly rather than
+      # by `|| true`, which would swallow both.
+      - name: Syntax-check the installer front-ends
+        shell: pwsh
+        run: |
+          python scripts/compile_check_installer.py
+          if ($LASTEXITCODE -eq 1) { throw "the installer front-ends did not compile" }
+          if ($LASTEXITCODE -eq 2) { Write-Host "NOT CHECKED here; the build workflow compiles these with MSVC." }
+
       - name: Run architecture guard regression tests
         run: python -m unittest discover -s tests -v
 

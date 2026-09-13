@@ -163,6 +163,10 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-62 | With Sunshine installed **per-user**, double-click `sunshine-uninstall.exe` | Upstream's own confirmation dialog appears — the one `chrome.exe` draws, with the delete-my-data choice on it. **No dialog of Sunshine's own comes first**; that is UN-1 and seeing two would be the failure. No UAC prompt either: a per-user command is read from `HKEY_CURRENT_USER` and UN-3 forbids elevating it. If nothing at all appears, read the exit code before guessing — the lesson of builds #55 and #56 | UN-1, UN-3, ADR 0026 |
 | RV-63 | With Sunshine installed **per-machine**, double-click it | A UAC prompt appears **first**, then upstream's dialog. This is the only case where the launcher elevates, and it elevates a command that came from `HKEY_LOCAL_MACHINE`. Refuse the prompt once: nothing should be removed and nothing should be reported as an error | UN-3, UN-4 |
 | RV-64 | Run it on a machine where Sunshine is **not** installed | It says Sunshine does not appear to be installed. Not a crash, not silence, and not an error dialog for a state that is not an error | UN-5 |
+| RV-65 | Open `sunshine-setup.exe` in light mode, then switch Windows to dark and open it again | It looks like a Windows dialog in both, because it **is** one: IU-19 removed the hand-mixed palette and the `SetWindowTheme` calls that stripped six checkboxes so the palette would apply. Nothing here is Sunshine's to get wrong any more, which is the point — but nobody has looked | IU-19, ADR 0027 |
+| RV-66 | Press Install and watch the window | **The window stays open**, a progress bar animates, and text says not to close it. Before this the dialog closed and the desktop was empty for the whole install. The bar is a marquee and never fills: nothing tells the program how far along it is, and IU-21 forbids inventing a number. A bar that sits still is the thread failing, not the design | IU-20, IU-21 |
+| RV-67 | Wait for it to finish | A page says what happened and **prints the installer's result code beside it**. Check the two against `installer::InstallStatus`: 0, 1, 2 and 30 are installed; 3, 4, 5, 6 are nothing-changed; anything else is a failure. The sentence is a reading of the number and this gate is where the reading gets checked | IU-22 |
+| RV-68 | Choose **All users**, press Install, and refuse the UAC prompt | The window returns to its first page with the choices as they were. Not an error dialog, not a per-user install instead, and not a closed window. IU-12's rule through a path that did not exist before ADR 0027 | IU-12, IU-20 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -278,7 +282,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-64, RVV-1..RVV-5
+gate       RV-1..RV-68, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

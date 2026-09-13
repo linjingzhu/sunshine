@@ -46,7 +46,7 @@ Blocks run top to bottom. Within a block the order does not matter.
 
 | Block | Gates | Needs | Rough |
 | --- | --- | --- | --- |
-| **A0 — the setup window** | RV-54 first, then RV-55 | `sunshine-setup.exe`, and PowerShell open beside it in case nothing appears | 5 min |
+| **A0 — the setup window** | RV-54 first, then RV-55, RV-65, RV-66, RV-67, RV-68 | `sunshine-setup.exe`, and PowerShell open beside it in case nothing appears. RV-65 needs Windows switched between light and dark | 15 min |
 | **Z — the uninstall launcher** | RV-64 first, then RV-62, RV-63 | `sunshine-uninstall.exe`. **Run this block last:** RV-62 and RV-63 remove Sunshine | 10 min |
 | **A — the files, before anything is launched** | RV-11, RV-26, RV-29, RV-30, RV-28 | The installer, Explorer, `regedit` | 15 min |
 | **B — the security posture, first launch** | RV-1, RV-2, RV-3, RV-4 | The browser open | 10 min |

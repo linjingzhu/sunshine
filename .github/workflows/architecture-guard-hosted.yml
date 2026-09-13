@@ -151,6 +151,15 @@ jobs:
       - name: Compile-check repository tools
         run: python3 scripts/compile_check.py
 
+      # The only C++ in this repository, and until now nothing outside the
+      # Windows build machine could tell whether it parsed. Three builds have
+      # been spent on defects a compiler would have named in a second.
+      - name: Syntax-check the installer front-ends
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mingw-w64
+          python3 scripts/compile_check_installer.py
+
       - name: Run architecture guard regression tests
         run: python3 -m unittest discover -s tests -v
 

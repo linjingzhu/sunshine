@@ -247,12 +247,17 @@ person.
 | IU-10 | The engine's hash is verified against the build-time value before it is executed. | B |
 | IU-11 | A failed install leaves nothing extracted. | B |
 | IU-12 | A declined elevation prompt returns to the dialog and never installs per-user instead. | B |
-| IU-13 | The dialog draws with themed common controls and strips no control's theme. It owner-draws only the banner image. It is legible from 100% to 300% scaling. | U |
+| IU-13 | The dialog draws with themed common controls and **strips no control's theme**. It owner-draws nothing at all. It is legible from 100% to 300% scaling. **The second clause used to carry an exception for the banner, and the dialog broke the first clause to serve it** — six checkboxes had `SetWindowTheme(c, L"", L"")` applied so a hand-mixed colour would take. IU-19 removed the reason, so the exception and the violation went together. | U |
 | IU-14 | Every control is reachable and operable from the keyboard alone, with a visible focus indicator, and every control has an accessible name. | U |
 | IU-15 | Every path that reaches the engine passes through the dialog, or through an elevation the dialog started: two call sites, one window. The elevated continuation verifies that it holds an elevated token rather than believing the command line. **The boundary is stated rather than overclaimed:** a caller that is already administrator can drive the continuation, and no check inside this program prevents that — such a caller does not need this program. | O |
-| IU-16 | The only state the front-end reads about the machine before the user has agreed to anything is whether Sunshine is installed and at what version, and whether the user has chosen a dark theme. **Exactly two reads, both named here, and nothing is written.** | O |
+| IU-16 | The only state the front-end reads about the machine before the user has agreed to anything is whether Sunshine is installed and at what version. **Exactly one read, and nothing is written.** The light/dark preference was the second, and IU-19 removed the reason to read it: Windows draws the dialog now. | O |
 | IU-17 | The front-end links the **static** C runtime, so it starts on a machine that has never had a compiler on it. `cl.exe` defaults to `/MD`; a binary built that way needs `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll` and `MSVCP140.dll`, which Visual Studio puts on every machine this is built on and no machine it is used on. The loader then fails **before `wWinMain`**, so not one of this program's error dialogs runs and the user sees nothing at all — which is what build #55's installer did. An installer is the one program that cannot ask for a redistributable. | B |
 | IU-18 | **No handler in the dialog writes a control whose write notifies that same handler**, unless it holds a flag in `DialogState` across the nested call. An edit control raises `EN_CHANGE` when its text is set, and it does not distinguish a person typing from `SetDlgItemTextW`; `RefreshLocation` handles `EN_CHANGE` and writes `IDC_LOCATION_EDIT`, so it called itself without bound. `WM_INITDIALOG` seeds the dialog per-user, which is the branch that writes the box — so this was reached on **every** launch, inside `DialogBoxParamW`, before any window was shown. Build #56's installer died of `STATUS_STACK_OVERFLOW` (`0xC00000FD`) and looked, to the person who ran it, exactly like build #55's: a double-click that did nothing. | B |
+| IU-19 | **Nothing in the dialog is owner-drawn and no palette is mixed here.** Light and dark come from Windows. There is no `BS_OWNERDRAW`, no `SS_OWNERDRAW`, no `WM_DRAWITEM` handler, no `SetWindowTheme` call and no banner image. This reverses `docs/INSTALLER_UI_REVIEW.md` D6, which chose Sunshine's own look; §9c says who reversed it and what it cost. | O |
+| IU-20 | **One window, three pages: the choices, the progress, and what happened.** Still exactly one `DialogBoxParamW`, so IU-15's question — was the dialog shown — keeps one answer. The pages are control groups shown and hidden, never separate dialogs. The engine runs on a worker thread so the window keeps drawing; the dialog does not close while it runs and the person is not left looking at a bare desktop wondering whether anything is happening. | B |
+| IU-21 | **The progress bar is a marquee and may not be anything else.** `mini_installer.exe` reports no progress to anybody, so a bar that advanced would be drawing a number this program invented. A marquee says "working, duration unknown", which is the true statement. | O |
+| IU-22 | **The completion page names the outcome and prints the engine's code beside it.** The wording is a reading of `installer::InstallStatus`, whose values and comments are in `chrome/installer/util/util_constants.h`; the number is printed so the reading can be checked rather than believed. The process's own exit code is still the engine's, untouched (§5). | B |
+| IU-23 | **There is nothing to cancel once the engine is running**, so the window does not offer it. Escape and the title bar's close button are ignored on the progress page rather than pretending to stop a separate process that owns the work. | B |
 | UN-1 | **The uninstall launcher asks nothing and removes nothing.** It reads `UninstallString` and runs it. `setup.exe --uninstall` launches `chrome.exe --uninstall` to draw the confirmation — which is also where the delete-my-profile choice lives and where a running browser is detected — so a dialog here would be a second confirmation in front of that one, asking the same question worse. Its `.rc` declares no dialog at all. | O |
 | UN-2 | It **reads two registry values and writes none**: `UninstallString` and `DisplayVersion`, under the key IU-16 already names, in the 32-bit view. It does not enumerate installed software and does not look for anything but Sunshine. | O |
 | UN-3 | **A command read from `HKEY_CURRENT_USER` is never run elevated.** That hive is writable by the unprivileged user, so a launcher that elevated what it found there would be a local privilege escalation with an icon. `runas` is used only for the per-machine installation, whose command came from `HKEY_LOCAL_MACHINE` — a key an unprivileged user cannot write. The manifest requests `asInvoker`, as IU-7 does and for a related reason. | O |
@@ -373,6 +378,43 @@ a Start menu shortcut created at install time — needs a patch to upstream's
 `install_worker.cc`, which is an upstream file the stack would then own
 exclusively, for a shortcut. It is recorded as the road not taken rather than
 as an oversight.
+
+## 9c. The system's dialog, and what reversing D6 cost
+
+The owner asked for three things: the system's default dialog, a progress bar
+during the install, and a window at the end saying what happened. The second
+and third did not exist at all — **the dialog closed and the person watched an
+empty desktop for however long `mini_installer.exe` took**, with no way to tell
+a working install from a hung one.
+
+**What the system look removed.** Every item below existed only to support a
+palette this file mixed by hand:
+
+| Gone | What it was |
+| --- | --- |
+| the banner | a placeholder whose aspect ratio was wrong by ~7%, never replaced |
+| `DrawBanner`, `DrawButton`, `WM_DRAWITEM` | ~90 lines of painting |
+| `SetWindowTheme(c, L"", L"")` ×6 | **theme-stripping on real controls** — the thing IU-13 asks a dialog not to do, done to make the palette apply |
+| `CurrentPalette`, `SystemPrefersDark` | a table kept in step with the design system by hand, and a registry read behind it |
+
+So IU-16's "exactly two registry reads" is now one, and IU-13's exception for
+the banner is gone along with the violation it justified. **This is the second
+time a custom appearance turned out to be paying for itself with a rule
+break**, and it is worth writing down rather than filing as cleanup.
+
+**What it costs.** Sunshine's installer looks like every other installer. That
+is a reversal of D6, which chose Sunshine's own look, and ADR 0027 records it as
+one rather than as a refinement.
+
+**Why the engine moved to a thread.** A progress bar that does not animate is
+worse than no progress bar: it looks like a hang. The engine ran synchronously
+on the UI thread, which is fine when the window is already closed and
+impossible when it is not.
+
+**IU-21 is the honest half of the feature.** The bar cannot fill, because
+nothing tells this program how far along the install is. A percentage here
+would be invented, and an invented percentage is the most confident lie an
+installer can tell.
 
 ## 10. NOT VERIFIED
 

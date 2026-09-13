@@ -29,9 +29,8 @@
 #include <commctrl.h>
 #include <shellapi.h>
 #include <shlobj.h>
-#include <uxtheme.h>
-#include <wincodec.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -651,123 +650,171 @@ bool RelaunchElevated(const Choices& choices, DWORD* exit_code, bool* declined) 
 }
 
 // ---------------------------------------------------------------------------
-// The dialog. Real Win32 controls so that keyboard traversal and screen-reader
-// names come from the system (IU-14), owner-drawn so that the palette is
-// Sunshine's (D6). The token mapping lives in one table and nowhere else.
+// The dialog: one window, three pages, and nothing drawn by hand.
+//
+// **IU-19.** This used to owner-draw a banner and three buttons and mix its own
+// palette from the design system's tokens. The owner asked for the system's own
+// dialog, so all of that is gone -- including the `SetWindowTheme(c, L"", L"")`
+// calls that *stripped* the theme from six real checkboxes so a hand-mixed
+// colour would apply to them. Light and dark now come from Windows.
+//
+// **IU-20.** Still one `DialogBoxParamW`, because "was the dialog shown" has to
+// keep having one answer (IU-15). The three pages are control groups shown and
+// hidden inside that one window, not three dialogs.
 // ---------------------------------------------------------------------------
 
-// The banner. Decoded once, from the resource compiled into this binary, and
-// never from a file (IU-6). WIC reads it out of memory, so there is no path
-// anywhere in this program that an image could arrive by.
-HBITMAP DecodeBanner() {
-  HRSRC resource = ::FindResourceW(nullptr, MAKEINTRESOURCEW(IDR_BANNER), RT_RCDATA);
-  HGLOBAL loaded = resource ? ::LoadResource(nullptr, resource) : nullptr;
-  auto* data = loaded ? static_cast<BYTE*>(::LockResource(loaded)) : nullptr;
-  const DWORD size = resource ? ::SizeofResource(nullptr, resource) : 0;
-  if (!data || !size) {
-    return nullptr;
-  }
+enum Page { kPageChoices, kPageProgress, kPageDone };
 
-  IWICImagingFactory* factory = nullptr;
-  if (FAILED(::CoCreateInstance(CLSID_WICImagingFactory, nullptr,
-                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)))) {
-    return nullptr;
-  }
-  IWICStream* stream = nullptr;
-  IWICBitmapDecoder* decoder = nullptr;
-  IWICBitmapFrameDecode* frame = nullptr;
-  IWICFormatConverter* converter = nullptr;
-  HBITMAP bitmap = nullptr;
+// The engine runs on its own thread and posts this back. Without a thread the
+// message loop would be blocked for the whole install and the progress bar
+// would be a still image of a progress bar -- which is worse than no bar,
+// because it looks like a hang.
+constexpr UINT kEngineFinished = WM_APP + 1;
 
-  if (SUCCEEDED(factory->CreateStream(&stream)) &&
-      SUCCEEDED(stream->InitializeFromMemory(data, size)) &&
-      SUCCEEDED(factory->CreateDecoderFromStream(
-          stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder)) &&
-      SUCCEEDED(decoder->GetFrame(0, &frame)) &&
-      SUCCEEDED(factory->CreateFormatConverter(&converter)) &&
-      SUCCEEDED(converter->Initialize(frame, GUID_WICPixelFormat32bppBGR,
-                                      WICBitmapDitherTypeNone, nullptr, 0.0,
-                                      WICBitmapPaletteTypeCustom))) {
-    UINT width = 0;
-    UINT height = 0;
-    if (SUCCEEDED(converter->GetSize(&width, &height)) && width && height) {
-      BITMAPINFO info = {};
-      info.bmiHeader.biSize = sizeof(info.bmiHeader);
-      info.bmiHeader.biWidth = static_cast<LONG>(width);
-      info.bmiHeader.biHeight = -static_cast<LONG>(height);  // top-down
-      info.bmiHeader.biPlanes = 1;
-      info.bmiHeader.biBitCount = 32;
-      info.bmiHeader.biCompression = BI_RGB;
-      void* bits = nullptr;
-      bitmap = ::CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
-      if (bitmap && FAILED(converter->CopyPixels(nullptr, width * 4,
-                                                 width * height * 4,
-                                                 static_cast<BYTE*>(bits)))) {
-        ::DeleteObject(bitmap);
-        bitmap = nullptr;
-      }
-    }
-  }
-
-  if (converter) { converter->Release(); }
-  if (frame) { frame->Release(); }
-  if (decoder) { decoder->Release(); }
-  if (stream) { stream->Release(); }
-  factory->Release();
-  return bitmap;
-}
-
-struct Palette {
-  COLORREF surface;
-  COLORREF text;
-  COLORREF muted;
-  COLORREF accent;
-  COLORREF accent_text;
+struct EngineResult {
+  bool ran = false;
+  bool declined = false;  // IU-12: the elevation prompt was refused.
+  // The prompt was not refused and elevation still did not happen. Kept apart
+  // from `ran` because the two are different failures and section 5 gives them
+  // different exit codes -- collapsing them would tell the reader of a log that
+  // the engine was reached when it was not.
+  bool elevation_failed = false;
+  DWORD exit_code = 0;
 };
-
-bool SystemPrefersDark() {
-  HKEY key = nullptr;
-  if (::RegOpenKeyExW(HKEY_CURRENT_USER,
-                      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\"
-                      L"Personalize",
-                      0, KEY_QUERY_VALUE, &key) != ERROR_SUCCESS) {
-    return false;
-  }
-  DWORD light = 1;
-  DWORD size = sizeof(light);
-  DWORD type = 0;
-  const LSTATUS status =
-      ::RegQueryValueExW(key, L"AppsUseLightTheme", nullptr, &type,
-                         reinterpret_cast<LPBYTE>(&light), &size);
-  ::RegCloseKey(key);
-  return status == ERROR_SUCCESS && type == REG_DWORD && light == 0;
-}
-
-Palette CurrentPalette() {
-  // `docs/DESIGN_SYSTEM_CONTRACT.md`'s tokens, translated once. A Win32 dialog
-  // cannot resolve a CSS custom property, so the mapping is the artefact that
-  // gets reviewed when the design system changes.
-  if (SystemPrefersDark()) {
-    return Palette{RGB(0x1b, 0x1b, 0x1f), RGB(0xf2, 0xf2, 0xf5),
-                   RGB(0x9a, 0x9a, 0xa5), RGB(0xff, 0xc4, 0x3d),
-                   RGB(0x1b, 0x1b, 0x1f)};
-  }
-  return Palette{RGB(0xff, 0xff, 0xff), RGB(0x1b, 0x1b, 0x1f),
-                 RGB(0x5f, 0x5f, 0x6a), RGB(0xff, 0xc4, 0x3d),
-                 RGB(0x1b, 0x1b, 0x1f)};
-}
 
 struct DialogState {
   Choices choices;
   std::wstring installed_version;
   bool accepted = false;
-  Palette palette;
-  HBRUSH surface_brush = nullptr;
-  HBITMAP banner = nullptr;
+  HWND dialog = nullptr;
+  Page page = kPageChoices;
+  // What the engine returned, kept so that EndDialog can pass it out. Section 5
+  // of the contract: this program does not invent an exit code.
+  bool ran = false;
+  bool elevation_failed = false;
+  DWORD exit_code = 0;
   // Whether RefreshLocation is already on the stack. See the comment at the
   // top of that function: without this the dialog never opened at all.
   bool refreshing_location = false;
 };
+
+constexpr int kChoiceControls[] = {
+    IDC_SCOPE_USER,       IDC_SCOPE_MACHINE,    IDC_LOCATION_EDIT,
+    IDC_BROWSE,           IDC_LOCATION_NOTE,    IDC_DESKTOP_SHORTCUT,
+    IDC_TASKBAR_SHORTCUT, IDC_QUICK_LAUNCH_SHORTCUT, IDC_MAKE_DEFAULT,
+    IDC_LAUNCH_WHEN_DONE, IDC_INSTALL,          IDCANCEL};
+constexpr int kProgressControls[] = {IDC_PROGRESS, IDC_STATUS};
+constexpr int kDoneControls[] = {IDC_RESULT, IDC_CLOSE};
+
+void ShowOnly(HWND dialog, const int* controls, size_t count, bool visible) {
+  for (size_t index = 0; index < count; ++index) {
+    HWND control = ::GetDlgItem(dialog, controls[index]);
+    if (control) {
+      ::ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
+    }
+  }
+}
+
+void ShowPage(HWND dialog, DialogState* state, Page page) {
+  state->page = page;
+  ShowOnly(dialog, kChoiceControls, ARRAYSIZE(kChoiceControls), page == kPageChoices);
+  ShowOnly(dialog, kProgressControls, ARRAYSIZE(kProgressControls), page == kPageProgress);
+  ShowOnly(dialog, kDoneControls, ARRAYSIZE(kDoneControls), page == kPageDone);
+
+  // The marquee animates only while it is the page being looked at. A marquee
+  // left running behind a hidden page is a timer nobody sees.
+  ::SendDlgItemMessageW(dialog, IDC_PROGRESS, PBM_SETMARQUEE,
+                        page == kPageProgress ? TRUE : FALSE, 30);
+
+  // IU-14: focus has to land somewhere reachable on every page, or the keyboard
+  // stops working at the moment the page changes.
+  HWND focus = ::GetDlgItem(
+      dialog, page == kPageChoices ? IDC_INSTALL
+              : page == kPageDone  ? IDC_CLOSE
+                                   : IDC_STATUS);
+  if (focus) {
+    ::SendMessageW(dialog, WM_NEXTDLGCTL, reinterpret_cast<WPARAM>(focus), TRUE);
+  }
+}
+
+// What the completion page says, from upstream's own enum rather than from a
+// guess. `chrome/installer/util/util_constants.h` names every value and its
+// comment; these are the ones an *install* can end on.
+//
+// **The exit code this program returns is still the engine's, untouched**
+// (section 5). This is a reading of that number for a sentence on screen, and
+// the number itself is printed beside the sentence so the reading can be
+// checked rather than believed.
+std::wstring DescribeOutcome(const EngineResult& result, bool updating) {
+  if (result.elevation_failed) {
+    return L"Sunshine could not be installed: Windows would not start the "
+           L"installer with administrator rights. Nothing has been changed on "
+           L"this computer.";
+  }
+  if (!result.ran) {
+    return L"Sunshine could not be installed: the installer did not run. "
+           L"Nothing has been changed on this computer.";
+  }
+  switch (result.exit_code) {
+    case 0:  // FIRST_INSTALL_SUCCESS
+    case 1:  // INSTALL_REPAIRED
+    case 2:  // NEW_VERSION_UPDATED
+    case 30:  // IN_USE_UPDATED -- installed, but an old version is still running
+      return updating ? L"Sunshine has been updated."
+                      : L"Sunshine has been installed.";
+    case 3:  // EXISTING_VERSION_LAUNCHED
+      return L"Sunshine was already up to date, so nothing was changed.";
+    case 4:  // HIGHER_VERSION_EXISTS
+      return L"A newer Sunshine is already installed, so nothing was changed.";
+    case 5:  // USER_LEVEL_INSTALL_EXISTS
+      return L"Sunshine is already installed for this user. Remove that copy "
+             L"first, or install for this user instead.";
+    case 6:  // SYSTEM_LEVEL_INSTALL_EXISTS
+      return L"Sunshine is already installed for all users on this computer.";
+    case 14:  // INSUFFICIENT_RIGHTS
+      return L"Installing for all users needs an administrator, and this "
+             L"program was not given one.";
+    case 28:  // INSTALL_DIR_IN_USE
+      return L"The installation folder is in use by another program. Close "
+             L"Sunshine and anything reading that folder, then try again.";
+    default:
+      return L"The installer did not finish successfully. Nothing may have "
+             L"been changed.";
+  }
+}
+
+DWORD WINAPI EngineThread(LPVOID parameter) {
+  auto* state = static_cast<DialogState*>(parameter);
+  // Its own apartment: ShellExecuteExW's runas verb needs one, and the UI
+  // thread's belongs to the UI thread.
+  const HRESULT com = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
+  auto result = std::make_unique<EngineResult>();
+  if (state->choices.system_level) {
+    DWORD code = 0;
+    bool declined = false;
+    if (RelaunchElevated(state->choices, &code, &declined)) {
+      result->ran = true;
+      result->exit_code = code;
+    } else {
+      result->declined = declined;
+      result->elevation_failed = !declined;
+    }
+  } else {
+    const Outcome outcome = RunEngine(state->choices, /*elevated=*/false);
+    result->ran = outcome.ran;
+    result->exit_code = outcome.exit_code;
+  }
+
+  if (SUCCEEDED(com)) {
+    ::CoUninitialize();
+  }
+  // Posted, not sent: this thread must not block on a window procedure it does
+  // not own. Ownership of the result crosses with the message.
+  ::PostMessageW(state->dialog, kEngineFinished, 0,
+                 reinterpret_cast<LPARAM>(result.release()));
+  return 0;
+}
 
 // Reads the root out of the edit box. Empty means "the default", which is what
 // the box shows when nobody has touched it -- so a person who never opens the
@@ -879,71 +926,6 @@ void ReadChoices(HWND dialog, DialogState* state) {
       state->choices.system_level ? RootFromDialog(dialog) : std::wstring();
 }
 
-// The banner and the buttons are owner-drawn because D6 chose Sunshine's own
-// look, and they are still real Win32 controls because IU-14 wants keyboard
-// traversal and accessible names, which the system gives to a real control and
-// not to a rectangle somebody painted.
-void DrawBanner(const DRAWITEMSTRUCT& item, DialogState* state) {
-  if (!state->banner) {
-    ::SetDCBrushColor(item.hDC, state->palette.accent);
-    ::FillRect(item.hDC, &item.rcItem,
-               static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
-    return;
-  }
-  BITMAP measured = {};
-  ::GetObjectW(state->banner, sizeof(measured), &measured);
-  HDC memory = ::CreateCompatibleDC(item.hDC);
-  HGDIOBJ previous = ::SelectObject(memory, state->banner);
-  ::SetStretchBltMode(item.hDC, HALFTONE);
-  ::SetBrushOrgEx(item.hDC, 0, 0, nullptr);
-  ::StretchBlt(item.hDC, item.rcItem.left, item.rcItem.top,
-               item.rcItem.right - item.rcItem.left,
-               item.rcItem.bottom - item.rcItem.top, memory, 0, 0,
-               measured.bmWidth, measured.bmHeight, SRCCOPY);
-  ::SelectObject(memory, previous);
-  ::DeleteDC(memory);
-}
-
-void DrawButton(const DRAWITEMSTRUCT& item, DialogState* state) {
-  const bool primary = item.CtlID == IDC_INSTALL;
-  const bool pressed = (item.itemState & ODS_SELECTED) != 0;
-  const bool disabled = (item.itemState & ODS_DISABLED) != 0;
-
-  COLORREF face = primary ? state->palette.accent : state->palette.surface;
-  if (pressed) {
-    // A press is a shade, not a different colour: the token set has one accent
-    // and inventing a second here would put a colour outside the design system
-    // into the one surface nobody can inspect with devtools.
-    face = RGB(GetRValue(face) * 4 / 5, GetGValue(face) * 4 / 5,
-               GetBValue(face) * 4 / 5);
-  }
-  ::SetDCBrushColor(item.hDC, face);
-  ::FillRect(item.hDC, &item.rcItem,
-             static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
-  if (!primary) {
-    ::SetDCBrushColor(item.hDC, state->palette.muted);
-    ::FrameRect(item.hDC, &item.rcItem,
-                static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
-  }
-
-  wchar_t caption[64] = {};
-  ::GetWindowTextW(item.hwndItem, caption, ARRAYSIZE(caption));
-  ::SetBkMode(item.hDC, TRANSPARENT);
-  ::SetTextColor(item.hDC, disabled ? state->palette.muted
-                                    : (primary ? state->palette.accent_text
-                                               : state->palette.text));
-  RECT text = item.rcItem;
-  ::DrawTextW(item.hDC, caption, -1, &text,
-              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-  // IU-14: focus is visible at every stop.
-  if (item.itemState & ODS_FOCUS) {
-    RECT focus = item.rcItem;
-    ::InflateRect(&focus, -3, -3);
-    ::DrawFocusRect(item.hDC, &focus);
-  }
-}
-
 INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
                             LPARAM lparam) {
   auto* state = reinterpret_cast<DialogState*>(
@@ -952,12 +934,10 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
     case WM_INITDIALOG: {
       state = reinterpret_cast<DialogState*>(lparam);
       ::SetWindowLongPtrW(dialog, GWLP_USERDATA, lparam);
-      state->palette = CurrentPalette();
-      state->surface_brush = ::CreateSolidBrush(state->palette.surface);
-      state->banner = DecodeBanner();
-      // Seeded from the struct rather than from literals, so that when a
-      // declined elevation prompt re-enters this dialog the user finds the
-      // choices they made rather than the defaults (IU-12).
+      state->dialog = dialog;
+
+      // Seeded from the struct rather than from literals, so that a declined
+      // elevation prompt returns to choices the person recognises (IU-12).
       const Choices& seed = state->choices;
       ::CheckDlgButton(dialog, seed.system_level ? IDC_SCOPE_MACHINE : IDC_SCOPE_USER,
                        BST_CHECKED);
@@ -971,15 +951,7 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
                        seed.make_default ? BST_CHECKED : BST_UNCHECKED);
       ::CheckDlgButton(dialog, IDC_LAUNCH_WHEN_DONE,
                        seed.launch_when_done ? BST_CHECKED : BST_UNCHECKED);
-      // The themed BUTTON class draws its own label with the *theme's* text
-      // colour and ignores what WM_CTLCOLORBTN returns, so in dark mode these
-      // six labels rendered near-black on near-black. Stripping the theme is
-      // what makes the palette apply (IU-13).
-      for (int control : {IDC_SCOPE_USER, IDC_SCOPE_MACHINE, IDC_DESKTOP_SHORTCUT,
-                          IDC_TASKBAR_SHORTCUT, IDC_QUICK_LAUNCH_SHORTCUT,
-                          IDC_MAKE_DEFAULT, IDC_LAUNCH_WHEN_DONE}) {
-        ::SetWindowTheme(::GetDlgItem(dialog, control), L"", L"");
-      }
+
       // Section 9: the dialog says when it is updating rather than showing a
       // button labelled Install that silently does something else. A failed
       // read is not a reason to block, so an empty version simply installs.
@@ -993,51 +965,44 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
         ::SetDlgItemTextW(dialog, IDC_HEADLINE, headline.c_str());
         ::SetDlgItemTextW(dialog, IDC_INSTALL, L"Update");
       }
+
       RefreshLocation(dialog, state);
+      ShowPage(dialog, state, kPageChoices);
       return TRUE;
     }
-    case WM_SETTINGCHANGE:
-    case WM_THEMECHANGED: {
-      // Section 4: the dialog follows the system setting, and follows a change
-      // to it while it is open. It read the theme once and never again.
+
+    // The engine has finished, on its own thread, and handed the result over
+    // with this message. Ownership crosses here and is released here.
+    case kEngineFinished: {
       if (!state) {
         break;
       }
-      state->palette = CurrentPalette();
-      if (state->surface_brush) {
-        ::DeleteObject(state->surface_brush);
+      std::unique_ptr<EngineResult> result(
+          reinterpret_cast<EngineResult*>(lparam));
+      if (result->declined) {
+        // IU-12: the prompt was refused. Not an error, not a reason to install
+        // something smaller instead, and not a reason to close the window --
+        // back to the choices, which are still on the controls.
+        ShowPage(dialog, state, kPageChoices);
+        return TRUE;
       }
-      state->surface_brush = ::CreateSolidBrush(state->palette.surface);
-      ::InvalidateRect(dialog, nullptr, TRUE);
+      state->ran = result->ran;
+      state->elevation_failed = result->elevation_failed;
+      state->exit_code = result->exit_code;
+      ::SetDlgItemTextW(dialog, IDC_HEADLINE,
+                        state->installed_version.empty() ? L"Setup is finished"
+                                                         : L"Update is finished");
+      std::wstring said = DescribeOutcome(*result, !state->installed_version.empty());
+      if (result->ran) {
+        // The number, beside the sentence. The sentence is a reading of it and
+        // the reader is entitled to check the reading.
+        said += L"\n\nInstaller result code: " + std::to_wstring(result->exit_code);
+      }
+      ::SetDlgItemTextW(dialog, IDC_RESULT, said.c_str());
+      ShowPage(dialog, state, kPageDone);
       return TRUE;
     }
-    case WM_DRAWITEM: {
-      if (!state) {
-        break;
-      }
-      const auto& item = *reinterpret_cast<DRAWITEMSTRUCT*>(lparam);
-      // On an ODT_MENU item CtlID is 0 and hwndItem is an HMENU, which
-      // DrawButton would hand to GetWindowTextW. Dispatch on the type.
-      if (item.CtlType == ODT_STATIC && item.CtlID == IDC_BANNER) {
-        DrawBanner(item, state);
-      } else if (item.CtlType == ODT_BUTTON) {
-        DrawButton(item, state);
-      } else {
-        break;
-      }
-      return TRUE;
-    }
-    case WM_CTLCOLORDLG:
-    case WM_CTLCOLORSTATIC:
-    case WM_CTLCOLORBTN: {
-      if (!state) {
-        break;
-      }
-      auto context = reinterpret_cast<HDC>(wparam);
-      ::SetBkColor(context, state->palette.surface);
-      ::SetTextColor(context, state->palette.text);
-      return reinterpret_cast<INT_PTR>(state->surface_brush);
-    }
+
     case WM_COMMAND: {
       if (!state) {
         break;
@@ -1060,29 +1025,61 @@ INT_PTR CALLBACK DialogProc(HWND dialog, UINT message, WPARAM wparam,
           }
           break;
         case IDOK:      // Enter, via the dialog manager's default-button path.
-        case IDC_INSTALL:
+        case IDC_INSTALL: {
+          if (state->page != kPageChoices) {
+            return TRUE;  // Enter on a later page must not start a second one.
+          }
           ReadChoices(dialog, state);
           state->accepted = true;
+          ::SetDlgItemTextW(
+              dialog, IDC_HEADLINE,
+              state->installed_version.empty() ? L"Installing Sunshine"
+                                               : L"Updating Sunshine");
+          ::SetDlgItemTextW(
+              dialog, IDC_STATUS,
+              state->choices.system_level
+                  ? L"Windows will ask for an administrator. This can take a "
+                    L"few minutes; please do not close this window."
+                  : L"This can take a few minutes; please do not close this "
+                    L"window.");
+          ShowPage(dialog, state, kPageProgress);
+          // CreateThread rather than a synchronous call: the message loop has
+          // to keep running or the marquee is a picture of a marquee.
+          HANDLE worker = ::CreateThread(nullptr, 0, EngineThread, state, 0, nullptr);
+          if (!worker) {
+            auto* failed = new EngineResult();
+            ::PostMessageW(dialog, kEngineFinished, 0,
+                           reinterpret_cast<LPARAM>(failed));
+          } else {
+            ::CloseHandle(worker);
+          }
+          return TRUE;
+        }
+        case IDC_CLOSE:
           ::EndDialog(dialog, IDOK);
           return TRUE;
         case IDCANCEL:
-          ::EndDialog(dialog, IDCANCEL);
+          // Only page 1 has a Cancel button, but Escape reaches this from any
+          // page. During the install there is nothing to cancel -- the engine
+          // is a separate process that owns the work -- so it is ignored
+          // rather than pretended to.
+          if (state->page == kPageProgress) {
+            return TRUE;
+          }
+          ::EndDialog(dialog, state->page == kPageDone ? IDOK : IDCANCEL);
           return TRUE;
         default:
           break;
       }
       break;
     }
-    case WM_DESTROY:
-      if (state && state->surface_brush) {
-        ::DeleteObject(state->surface_brush);
-        state->surface_brush = nullptr;
-      }
-      if (state && state->banner) {
-        ::DeleteObject(state->banner);
-        state->banner = nullptr;
+
+    case WM_CLOSE:
+      if (state && state->page == kPageProgress) {
+        return TRUE;  // Same reason as Escape, for the title bar's X.
       }
       break;
+
     default:
       break;
   }
@@ -1172,49 +1169,39 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
   // still have to be registered in this activation context. Without this
   // DialogBoxParamW can return -1, which the old code mapped to "the user
   // cancelled" -- a silent, misattributed failure.
-  INITCOMMONCONTROLSEX controls = {sizeof(controls), ICC_STANDARD_CLASSES};
+  // ICC_PROGRESS_CLASS as well as the standard set, and it is load-bearing:
+  // without it `msctls_progress32` is not registered in this activation
+  // context, the dialog's CONTROL entry fails to create, and DialogBoxParamW
+  // returns -1 -- a window that never opens, which is the failure mode two
+  // builds of this program have already shipped for other reasons.
+  INITCOMMONCONTROLSEX controls = {sizeof(controls),
+                                   ICC_STANDARD_CLASSES | ICC_PROGRESS_CLASS};
   ::InitCommonControlsEx(&controls);
 
   DialogState state;
   state.installed_version = InstalledVersion();
 
+  // One call, one window, and the whole flow inside it: the choices, the
+  // progress bar while the engine runs, and what happened. The loop that used
+  // to be here re-entered the dialog after a declined elevation prompt; the
+  // dialog now stays open and goes back to its first page instead, which is
+  // the same behaviour without tearing the window down and rebuilding it.
   int status = 0;
-  for (;;) {
-    state.accepted = false;
-    const INT_PTR result = ::DialogBoxParamW(
-        instance, MAKEINTRESOURCEW(IDD_SETUP), nullptr, DialogProc,
-        reinterpret_cast<LPARAM>(&state));
-    if (result == -1) {
-      ::MessageBoxW(nullptr, L"Sunshine could not open its installer window.",
-                    L"Sunshine", MB_OK | MB_ICONERROR);
-      status = kExitNoWindow;
-      break;
-    }
-    if (result != IDOK || !state.accepted) {
-      status = kExitCancelled;  // Nothing was installed.
-      break;
-    }
-
-    if (!state.choices.system_level) {
-      const Outcome outcome = RunEngine(state.choices, /*elevated=*/false);
-      status = outcome.ran ? static_cast<int>(outcome.exit_code) : kExitEngineNeverRan;
-      break;
-    }
-
-    DWORD exit_code = 0;
-    bool declined = false;
-    if (RelaunchElevated(state.choices, &exit_code, &declined)) {
-      status = static_cast<int>(exit_code);
-      break;
-    }
-    if (declined) {
-      // IU-12: the prompt was refused, which is not an error and not a reason
-      // to install something smaller instead. Back to the dialog, with the
-      // choices intact.
-      continue;
-    }
+  const INT_PTR result = ::DialogBoxParamW(
+      instance, MAKEINTRESOURCEW(IDD_SETUP), nullptr, DialogProc,
+      reinterpret_cast<LPARAM>(&state));
+  if (result == -1) {
+    ::MessageBoxW(nullptr, L"Sunshine could not open its installer window.",
+                  L"Sunshine", MB_OK | MB_ICONERROR);
+    status = kExitNoWindow;
+  } else if (!state.accepted) {
+    status = kExitCancelled;  // Nothing was installed.
+  } else if (state.elevation_failed) {
     status = kExitCouldNotElevate;  // Nothing was installed.
-    break;
+  } else if (!state.ran) {
+    status = kExitEngineNeverRan;
+  } else {
+    status = static_cast<int>(state.exit_code);
   }
 
   if (owns_com) {

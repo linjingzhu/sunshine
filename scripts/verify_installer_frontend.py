@@ -16,7 +16,8 @@ What is checked, and which invariant each claims:
     each would need one (IU-4, IU-5);
   * nothing installs: no registry write, no shortcut, no copy into a program
     directory (IU-2);
-  * no image is opened at run time (IU-6);
+  * no image is opened at run time (IU-6) -- and since IU-19 there is no
+    image at all;
   * the choices cross the elevation boundary as switches from a closed table,
     and the elevated continuation reads no file to learn them (IU-8);
   * the engine is hashed against a generated constant before it is run, and the
@@ -56,7 +57,6 @@ CONTRACT = "docs/INSTALLER_UI_CONTRACT.md"
 # Personalize key says whether to draw light or dark.
 PERMITTED_KEYS = (
     "CurrentVersion\\\\Uninstall\\\\Sunshine",
-    "Themes\\\\\"\n                      L\"Personalize",
 )
 
 # A registry open, however it is spelled.
@@ -428,29 +428,77 @@ def check(root: Path = ROOT) -> list[str]:
                 f"{SOURCE}: uses {symbol}, so an image could come from disk; IU-6"
             )
 
-    # -- IU-6 and IU-14: what is owner-drawn is actually drawn ----------------
+    # -- IU-19: nothing is owner-drawn and no theme is stripped ---------------
     #
-    # This rule exists because the first version of this program declared
-    # BS_OWNERDRAW buttons and an SS_OWNERDRAW banner and handled no
-    # WM_DRAWITEM, which renders them as blank rectangles. Nothing else would
-    # have caught it: it compiles, every other rule passes, and the failure is
-    # visible only to someone running a build nobody in this project can make.
+    # **The rule this replaces was "an owner-drawn control must actually be
+    # drawn".** It existed because the first version declared BS_OWNERDRAW
+    # buttons and an SS_OWNERDRAW banner and handled no WM_DRAWITEM, rendering
+    # them as blank rectangles -- invisible to every other rule, and visible
+    # only to someone running a build.
+    #
+    # The owner then asked for the system's dialog, so the correct rule is no
+    # longer "if you paint, paint properly" but "do not paint". That is a
+    # stronger check and a shorter one, and it forbids by construction the
+    # defect the old rule caught. It also forbids `SetWindowTheme(c, L"", L"")`,
+    # which the old dialog used to strip the theme off six real checkboxes so a
+    # hand-mixed colour would apply -- the thing IU-13 asks a dialog not to do,
+    # done to serve the palette IU-19 removed.
     owner_drawn = re.findall(r"\b(?:BS_OWNERDRAW|SS_OWNERDRAW)\b", resource_code)
-    if owner_drawn and "WM_DRAWITEM" not in source_code:
+    if owner_drawn:
         failures.append(
-            f"{RESOURCE}: declares {len(owner_drawn)} owner-drawn control(s) and "
-            f"{SOURCE} handles no WM_DRAWITEM, so they draw nothing"
-        )
-    if "InitializeFromMemory" not in source_code:
+            f"{RESOURCE}: declares {len(owner_drawn)} owner-drawn control(s). "
+            "IU-19: the dialog is the system's, and a control it paints itself "
+            "is one Windows no longer themes")
+    if "WM_DRAWITEM" in source_code:
         failures.append(
-            f"{SOURCE}: the banner is not decoded from memory, so it may be "
-            "arriving from a file; IU-6"
-        )
-    if "DrawFocusRect" not in source_code:
+            f"{SOURCE}: handles WM_DRAWITEM, so something is being painted by "
+            "hand; IU-19")
+    if "SetWindowTheme" in source_code:
         failures.append(
-            f"{SOURCE}: an owner-drawn control must draw its own focus, and "
-            "nothing here does; IU-14"
-        )
+            f"{SOURCE}: calls SetWindowTheme. Stripping a real control's theme "
+            "is what the old hand-mixed palette needed and what IU-13 forbids; "
+            "IU-19 removed the reason")
+    for symbol in ("CreateSolidBrush", "WM_CTLCOLORDLG", "WM_CTLCOLORBTN"):
+        if symbol in source_code:
+            failures.append(
+                f"{SOURCE}: uses {symbol}, which is how a dialog imposes colours "
+                "the system did not choose; IU-19")
+
+    # -- IU-21: the progress bar cannot claim to know how far along it is -----
+    #
+    # `mini_installer.exe` reports progress to nobody, so a bar that advanced
+    # would be drawing a number this program made up. This is the one rule here
+    # that guards against a *plausible* change rather than a careless one:
+    # replacing a marquee with a percentage looks like an improvement.
+    if "IDC_PROGRESS" not in resource_code:
+        failures.append(
+            f"{RESOURCE}: has no progress bar. IU-20 asks the window to stay "
+            "open while the engine runs, and a window that stays open saying "
+            "nothing is worse than one that closed")
+    elif not re.search(r"IDC_PROGRESS[^\n]*PBS_MARQUEE", resource_code):
+        failures.append(
+            f"{RESOURCE}: the progress bar is not PBS_MARQUEE; IU-21")
+    for invented in ("PBM_SETPOS", "PBM_DELTAPOS", "PBM_STEPIT"):
+        if invented in source_code:
+            failures.append(
+                f"{SOURCE}: uses {invented}, which sets a position. Nothing "
+                "tells this program how far the install has got, so any "
+                "position it sets is invented; IU-21")
+    if "PBM_SETMARQUEE" not in source_code:
+        failures.append(
+            f"{SOURCE}: never starts the marquee, so the bar is a still image "
+            "of a progress bar -- which reads as a hang; IU-21")
+
+    # -- IU-20: one window, and the engine off the UI thread ------------------
+    if "CreateThread" not in source_code:
+        failures.append(
+            f"{SOURCE}: runs the engine on the thread that pumps the dialog's "
+            "messages, so the window freezes for the whole install; IU-20")
+    if "ICC_PROGRESS_CLASS" not in source_code:
+        failures.append(
+            f"{SOURCE}: does not register ICC_PROGRESS_CLASS, so "
+            "msctls_progress32 is not available in this activation context and "
+            "DialogBoxParamW returns -1 -- a window that never opens; IU-20")
 
     # -- IU-8: the switch table is closed, and elevation carries no file ------
     if "kSwitches[]" not in source_code:
@@ -546,17 +594,20 @@ def check(root: Path = ROOT) -> list[str]:
 
     # -- IU-16: exactly two reads, and they are the two named -----------------
     opens = len(REGISTRY_OPEN.findall(source_code))
-    if opens != 2:
+    if opens != 1:
         failures.append(
-            f"{SOURCE}: opens {opens} registry key(s); IU-16 permits exactly two "
-            "-- the uninstall registration and the light/dark preference"
+            f"{SOURCE}: opens {opens} registry key(s); IU-16 permits exactly one "
+            "-- the uninstall registration. The light/dark preference was the "
+            "second and IU-19 removed the reason to read it: Windows draws the "
+            "dialog now"
         )
     if "CurrentVersion\\\\Uninstall\\\\Sunshine" not in source_code:
         failures.append(f"{SOURCE}: does not read the uninstall registration; IU-16")
-    if "AppsUseLightTheme" not in source_code:
+    if "AppsUseLightTheme" in source_code:
         failures.append(
-            f"{SOURCE}: does not read the light/dark preference, which is the "
-            "second read IU-16 permits and the reason it permits one; IU-16"
+            f"{SOURCE}: reads the light/dark preference. IU-19 means the system "
+            "draws this dialog, so the value is not needed and IU-16 is back to "
+            "one read"
         )
 
     # -- IU-18: the notification loop that never opened a window -------------

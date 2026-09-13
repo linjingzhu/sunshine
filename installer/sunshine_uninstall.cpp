@@ -171,7 +171,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
   // from a key an unprivileged user cannot write. The per-user command runs
   // with the token this process already has -- elevating it would let anyone
   // who can write their own HKCU choose what an administrator runs.
-  SHELLEXECUTEINFOW execute = {sizeof(execute)};
+  SHELLEXECUTEINFOW execute = {};
+  execute.cbSize = sizeof(execute);
   execute.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
   execute.lpVerb = installation.machine ? L"runas" : L"open";
   execute.lpFile = program.c_str();
