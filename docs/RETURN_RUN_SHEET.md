@@ -59,9 +59,16 @@ Blocks run top to bottom. Within a block the order does not matter.
 | **F1 — the bookmark bar's leading edge** | RV-48, RV-49 | A fresh profile for RV-48 | 5 min |
 | **F4 — the home button** | RV-59 first, then RV-60, RV-61 | The same fresh profile as F1 | 5 min |
 | **F2 — split view** | **RV-44 first**, then RV-45, RV-46, RV-47 | Two tabs, split side by side; a screenshot of build #47's split for RV-47 | 15 min |
+| **F5 — the splitter widget and the link mode** | RV-69 first, then RV-70, RV-72, RV-73, RV-74, **RV-71 last** | The same split as F2, a page with ordinary links in one pane, and DevTools open for RV-73 | 20 min |
 | **F3 — a module actually mounted** | RV-50 first, then RV-51, RV-52, RV-53, RV-35, RV-36 | `chrome://sunshine-shell`; RV-35 needs `chrome://process-internals` in a second tab | 25 min |
 | **G — the module shell** | RV-31, RV-32, RV-33, RV-34, RV-38 | `chrome://sunshine-shell`; a window narrow enough to hit the clamp | 30 min |
 | **H — the document surface** | RV-13, RV-14, RV-15, RV-16, RV-17, RV-18, RV-19 | `chrome://sunshine-document`, DevTools open for RV-16 | 40 min |
+
+**Why RV-71 runs last inside F5.** Its third button separates the split into
+ordinary tabs, which ends the split and with it the widget every other gate in
+the block needs. RV-74 comes before it because RV-74 *uses* that ending — it
+asks whether the link mode goes quiet when the arrangement does — and it can
+only ask that once, from a split that is still there.
 
 **Why RV-56 runs last inside E1.** It is the gate everyone wants the answer
 to, and it is the one that takes time to fail honestly: the CDM is fetched by

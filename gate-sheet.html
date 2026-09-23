@@ -1165,6 +1165,168 @@ button.act:focus-visible,.st:focus-visible,.note:focus-visible{outline:2px solid
         </div>
       </div></div>
     </section>
+    <section class="block" id="block-F5">
+      <header class="bhead">
+        <span class="letter">F5</span>
+        <div class="bmeta">
+          <h2>분할선 위젯과 링크 모드</h2>
+          <p class="needs"><span class="nlabel">준비</span>The same split as F2, a page with ordinary links in one pane, and DevTools open for RV-73 <span class="dot">·</span> <span class="mins">20 min</span></p>
+        </div>
+        <span class="bcount" data-block="F5">0/6</span>
+      </header>
+      <p class="blocknote">패치 0031·0032 입니다(ADR 0028). **RV-71 을 맨 마지막에** 하십시오 — 세 번째 버튼이 분할을 끝내고, 그러면 이 블록의 나머지가 쓸 위젯도 같이 사라집니다. 링크 모드는 이 저장소에서 한 번도 실행된 적이 없습니다.</p>
+      <div class="gates">
+      <div class="gate" data-gate="RV-69">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-69</span></div>
+        <div class="body">
+          <p class="step">탭 두 개를 좌우 분할로 열고, 포인터를 가운데 분할선 위로 옮긴다</p>
+          <ol class="do"><li>탭 두 개를 연 뒤 하나를 오른쪽으로 분할합니다 (탭 우클릭 → 분할 화면)</li><li>가운데 분할선 위에 포인터를 올립니다</li><li>그 상태에서 포인터를 <strong>위젯 쪽으로</strong> 천천히 옮깁니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>점이 버튼 세 개짜리 작은 위젯으로 바뀌고, 위젯 위로 옮겨도 계속 떠 있다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>위젯이 아예 안 뜨거나, 위젯 쪽으로 손을 뻗는 순간 사라져서 누를 수가 없다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>점이 버튼 세 개짜리 위젯으로 바뀌고, <strong>포인터를 위젯 위로 옮겨도 사라지지 않는다</strong>. 위젯은 분할선보다 넓고 그 위에 떠 있어서, 위젯으로 들어가는 순간 분할선에서는 나간 것이 된다 — ADR 0028 이 250ms 늦춰 숨기는 이유가 이것이고, 손을 뻗는 순간 사라진다면 그 타이머가 동작하지 않는 것이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Open two tabs in a split and move the pointer onto the splitter</p>
+            <p class="exp"><span class="explabel">expected</span>The dot is replaced by a widget with three buttons, and it **stays there when the pointer moves onto it**. The widget is wider than the splitter and sits on top of it, so entering the widget leaves the splitter; ADR 0028 defers the hide by 250 ms for exactly this, and a widget that vanishes as you reach for it is that timer not working</p>
+          </details>
+          <span class="inv">ADR 0028, 0032</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-69 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-70">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-70</span></div>
+        <div class="body">
+          <p class="step">양쪽 화면을 본 다음, 포인터를 치웠다가 다시 올린다</p>
+          <ol class="do"><li>분할선에 포인터를 올리기 <strong>전에</strong> 양쪽 화면의 경계 위치를 눈으로 기억하거나 스크린샷을 찍습니다</li><li>포인터를 올렸다가 치웁니다</li><li>경계가 그대로인지 봅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>위젯이 떠도 양쪽 화면 크기와 경계가 전혀 움직이지 않는다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>위젯이 뜰 때 양쪽 화면이 좁아지거나 경계가 덜컥 움직인다</p>
+          <p class="exp"><span class="explabel">계약 문구</span><strong>화면이 움직이지 않는다.</strong> 위젯은 <code>MultiContentsView</code> 의 자식이라 <code>GetViewSizes()</code> 에 잡히지 않고, 분할선은 업스트림과 같은 10픽셀 그대로다. 위젯이 뜰 때 화면이 덜컥 움직인다면 이 설계가 막으려던 바로 그 실패이고, ADR 0021 개정이 이미 한 번 값을 치른 실패다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Look at the two panes, then move the pointer away and back</p>
+            <p class="exp"><span class="explabel">expected</span>**The panes did not move.** The widget is a child of `MultiContentsView` and never reaches `GetViewSizes()`, so the splitter keeps upstream&#x27;s ten pixels; panes that jump when the widget appears is the one failure this design exists to prevent, and it is the failure ADR 0021&#x27;s amendment already paid for once</p>
+          </details>
+          <span class="inv">ADR 0028, ADR 0021</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-70 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-72">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-72</span></div>
+        <div class="body">
+          <p class="step">왼쪽 화면에서 링크 모드를 켠 다음, 그 화면 안의 평범한 링크를 클릭한다</p>
+          <ol class="do"><li>왼쪽 화면에 링크가 많은 페이지를 엽니다 (예: 뉴스 목록)</li><li>왼쪽 화면을 한 번 클릭해 활성으로 만든 뒤, 위젯의 링크 버튼을 켭니다</li><li>왼쪽 화면에서 아무 기사 링크나 클릭합니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>기사가 <strong>오른쪽 화면</strong>에 열리고 왼쪽 목록은 그대로 남아 있다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>기사가 왼쪽에서 열려 목록이 사라지거나, 새 탭으로 열리거나, 아무 일도 안 일어난다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>링크가 <strong>오른쪽 화면에서 열리고</strong> 왼쪽 화면은 그대로 있다. 패치 0031 전체가 이 한 줄을 위해 있고, 이 저장소에서 그 throttle 이 실행된 적은 한 번도 없다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Switch 링크 on in the left pane, then click an ordinary link in that pane</p>
+            <p class="exp"><span class="explabel">expected</span>The link opens **in the right pane** and the left pane does not move. This is the gate the whole of patch 0031 exists for, and nothing in this repository has ever executed that throttle</p>
+          </details>
+          <span class="inv">ADR 0028, 0031</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-72 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-73">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-73</span></div>
+        <div class="body">
+          <p class="step">링크 모드를 켠 채, 왼쪽 화면 콘솔에서 <code>location.href</code> 에 <code>&#x27;https://example.com&#x27;</code> 을 대입하고, 이어서 같은 페이지 안 앵커로 가는 링크를 클릭한다</p>
+          <ol class="do"><li>링크 모드를 켠 채 왼쪽 화면에서 F12 로 DevTools 를 엽니다</li><li>콘솔에서 <code>location.href</code> 에 <code>&#x27;https://example.com&#x27;</code> 을 대입합니다</li><li>DevTools 를 닫고, 같은 페이지 안의 각주/목차처럼 <strong>페이지 안에서 이동하는</strong> 링크를 클릭합니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>둘 다 <strong>왼쪽 화면 안에서</strong> 처리된다. 오른쪽은 건드려지지 않는다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>둘 중 하나라도 오른쪽 화면으로 건너간다 — 이건 그냥 FAIL 이 아니라 <strong>기능을 내려야 하는</strong> 실패입니다</p>
+          <p class="exp"><span class="explabel">계약 문구</span><strong>둘 다 왼쪽에 남는다.</strong> 스크립트 대입은 <code>PAGE_TRANSITION_LINK</code> 도 아니고 사용자 제스처도 없으며, 페이지 안 앵커는 same-document 다. 둘 중 하나라도 건너간다면 페이지가 사용자가 보고 있지도 않은 쪽 화면에 글을 쓸 수 있다는 뜻이고, 그러면 이 기능은 내려야 한다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With 링크 still on, open the console in the left pane and assign `&#x27;https://example.com&#x27;` to `location.href`, then click a link that jumps to an anchor in the same page</p>
+            <p class="exp"><span class="explabel">expected</span>**Both stay in the left pane.** Scripted assignment is not `PAGE_TRANSITION_LINK` and carries no user gesture; an in-page anchor is same-document. If either crosses to the other pane, a page can write into the half of the split the user is not looking at, and the feature has to come out</p>
+          </details>
+          <span class="inv">ADR 0028, throttle conditions</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-73 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-74">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-74</span></div>
+        <div class="body">
+          <p class="step">링크 모드를 켠 채 분리를 누르거나(또는 반대쪽 탭을 닫고) 링크를 클릭한다</p>
+          <ol class="do"><li>링크 모드를 켠 상태에서 오른쪽 탭을 닫습니다 (또는 위젯의 분리를 누릅니다)</li><li>아까 목록이 있던 화면에서 링크를 다시 클릭합니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>링크가 <strong>클릭한 그 화면에서</strong> 열린다</p>
+          <p class="verdict no"><span class="vlabel">불합격</span>링크가 아까 짝이었던(이제는 관계없는) 탭으로 날아가거나, 클릭이 먹통이 된다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>링크가 <strong>클릭한 자리에서</strong> 열린다. 모드는 약한 포인터를 들고 split id 를 비교하므로, 분할이 끝나면 저절로 무력해지도록 설계돼 있다 — 이제 관계없는 탭으로 링크가 날아간다면 그 설계가 틀린 것이다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">With 링크 on, press 분리 (or close the other tab), then click a link</p>
+            <p class="exp"><span class="explabel">expected</span>The link opens **where it was clicked**. The mode holds a weak pointer and compares split ids, so the arrangement ending is meant to make it inert with nothing to clean up; a link that still flies off to a now-unrelated tab is that reasoning being wrong</p>
+          </details>
+          <span class="inv">`SplitLinkMode::DestinationFor`, ADR 0028</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-74 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div>
+      <div class="gate" data-gate="RV-71">
+        <div class="stripe" aria-hidden="true"></div>
+        <div class="gid"><span class="idtag">RV-71</span></div>
+        <div class="body">
+          <p class="step">위젯의 버튼 세 개를 반전 → 링크 → 분리 순서로 눌러본다</p>
+          <ol class="do"><li>위젯의 <strong>첫 번째</strong> 버튼(반전)을 누릅니다</li><li><strong>두 번째</strong> 버튼(링크)을 눌렀다가 다시 눌러 끕니다</li><li>마지막으로 <strong>세 번째</strong> 버튼(분리)을 누릅니다</li></ol>
+          <p class="verdict ok"><span class="vlabel">합격</span>반전에서 좌우가 바뀌고, 링크는 눌린 모양만 바뀌고, 분리 뒤에도 <strong>탭 두 개가 모두 살아 있다</strong></p>
+          <p class="verdict no"><span class="vlabel">불합격</span>분리가 탭을 닫아버리거나, 링크 버튼이 눌린 티가 전혀 안 나거나, 반전이 아무 일도 안 한다</p>
+          <p class="exp"><span class="explabel">계약 문구</span>반전은 좌우를 바꾸고, 링크는 켜졌다 꺼지는 것 외에 아무 일도 일어나지 않고, 분리는 <strong>두 탭을 모두 살린 채</strong> 분할만 푼다. 분리를 맨 마지막에 하십시오 — 분할이 끝나면서 위젯도 같이 사라집니다</p>
+          <details class="src">
+            <summary>원문</summary>
+            <p class="step">Press the widget&#x27;s three buttons in turn, starting with 반전 and ending with 분리</p>
+            <p class="exp"><span class="explabel">expected</span>반전 swaps the panes, 링크 fills in and empties without anything else happening, 분리 leaves **two ordinary tabs, both still open**. Run 분리 last: it ends the split, and with it the widget</p>
+          </details>
+          <span class="inv">`OnSwap()`, `RemoveSplit`, ADR 0028</span>
+        </div>
+        <div class="controls">
+          <div class="states" role="group" aria-label="RV-71 결과">
+            <button type="button" class="st st-pass" data-state="pass">PASS</button>
+            <button type="button" class="st st-fail" data-state="fail">FAIL</button>
+            <button type="button" class="st st-na"   data-state="na">NOT RUN</button>
+          </div>
+          <textarea class="note" rows="1" placeholder="관찰한 것 — 실패면 무엇이 보였는지"></textarea>
+        </div>
+      </div></div>
+    </section>
     <section class="block" id="block-F3">
       <header class="bhead">
         <span class="letter">F3</span>
