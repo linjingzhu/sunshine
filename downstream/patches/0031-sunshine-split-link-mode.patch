@@ -1,0 +1,438 @@
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index e1d0017..8f1494d 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1061,6 +1061,7 @@ source_set("core") {
+     "//chrome/browser/ui/search_engines",
+     "//chrome/browser/ui/select_file_policy",
+     "//chrome/browser/ui/startup",
++    "//chrome/browser/ui/sunshine:split_link",
+     "//chrome/browser/ui/tab_contents",
+     "//chrome/browser/ui/tabs/tab_group_home:constants",
+     "//chrome/browser/ui/webid",
+diff --git a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+index 8de8133..b4344db 100644
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -38,6 +38,7 @@
+ #include "chrome/browser/ui/login/login_navigation_throttle.h"
+ #include "chrome/browser/ui/passwords/password_manager_navigation_throttle.h"
+ #include "chrome/browser/ui/passwords/well_known_change_password_navigation_throttle.h"
++#include "chrome/browser/ui/sunshine/split_link_navigation_throttle.h"
+ #include "chrome/browser/ui/web_applications/navigation_capturing_redirection_throttle.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
+@@ -301,6 +302,13 @@ void CreateAndAddChromeThrottlesForNavigation(
+ #endif  // BUILDFLAG(IS_ANDROID)
+   }
+ 
++  // Sunshine's split link mode: an ordinary link click in a split's anchor
++  // tab opens on the other side instead. The throttle refuses every
++  // navigation that is not a gesture-driven link in a primary main frame, and
++  // refuses all of them unless the user has switched the mode on from the
++  // splitter widget -- see the comment in `MaybeCreateAndAdd()`.
++  sunshine::SplitLinkNavigationThrottle::MaybeCreateAndAdd(registry);
++
+   DSEPrewarmNavigationThrottle::MaybeCreateAndAdd(registry);
+ 
+ #if BUILDFLAG(IS_ANDROID)
+diff --git a/chrome/browser/ui/sunshine/BUILD.gn b/chrome/browser/ui/sunshine/BUILD.gn
+index 3270d2d..90d2e97 100644
+--- a/chrome/browser/ui/sunshine/BUILD.gn
++++ b/chrome/browser/ui/sunshine/BUILD.gn
+@@ -58,3 +58,35 @@ source_set("sunshine") {
+     "//ui/gfx/geometry",
+   ]
+ }
++
++# Sunshine's split link mode: the per-tab state and the navigation throttle
++# that acts on it.
++#
++# **Its own target, appended rather than folded into the one above.** The two
++# have nothing in common but a directory, and the rule that directory exists
++# to keep -- no dependency on any part of //chrome/browser/ui -- is stated
++# once above and holds for both: deciding that a navigation is a link click,
++# and knowing which tab is the other half of a split, needs
++# `tabs::TabInterface` and nothing over it. The widget that switches the mode
++# on lives in //chrome/browser/ui/views, where the split view already is, and
++# calls in here.
++source_set("split_link") {
++  public = [
++    "split_link_mode.h",
++    "split_link_navigation_throttle.h",
++  ]
++  sources = [
++    "split_link_mode.cc",
++    "split_link_navigation_throttle.cc",
++  ]
++
++  deps = [
++    "//base",
++    "//components/split_tabs",
++    "//components/tabs:public",
++    "//content/public/browser",
++    "//content/public/common",
++    "//ui/base",
++    "//url",
++  ]
++}
+diff --git a/chrome/browser/ui/sunshine/split_link_mode.cc b/chrome/browser/ui/sunshine/split_link_mode.cc
+new file mode 100644
+index 0000000..96e4e2f
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/split_link_mode.cc
+@@ -0,0 +1,86 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/sunshine/split_link_mode.h"
++
++#include <optional>
++
++#include "components/split_tabs/split_tab_id.h"
++#include "components/tabs/public/tab_interface.h"
++#include "content/public/browser/web_contents.h"
++
++namespace sunshine {
++
++SplitLinkMode::SplitLinkMode(content::WebContents* anchor,
++                             content::WebContents* destination)
++    : content::WebContentsUserData<SplitLinkMode>(*anchor),
++      destination_(destination ? destination->GetWeakPtr() : nullptr) {}
++
++SplitLinkMode::~SplitLinkMode() = default;
++
++// static
++void SplitLinkMode::Enable(content::WebContents* anchor,
++                           content::WebContents* destination) {
++  if (!anchor || !destination || anchor == destination) {
++    return;
++  }
++  // Turning it on again with a different destination has to replace the old
++  // one, and `CreateForWebContents()` is a no-op when the data is already
++  // attached. Delete first so the second call is the one that lands.
++  anchor->RemoveUserData(UserDataKey());
++  CreateForWebContents(anchor, destination);
++}
++
++// static
++void SplitLinkMode::Disable(content::WebContents* anchor) {
++  if (anchor) {
++    anchor->RemoveUserData(UserDataKey());
++  }
++}
++
++// static
++bool SplitLinkMode::IsEnabledFor(content::WebContents* anchor) {
++  return DestinationFor(anchor) != nullptr;
++}
++
++// static
++content::WebContents* SplitLinkMode::DestinationFor(
++    content::WebContents* anchor) {
++  SplitLinkMode* const mode = anchor ? FromWebContents(anchor) : nullptr;
++  if (!mode) {
++    return nullptr;
++  }
++  content::WebContents* const destination = mode->destination_.get();
++  if (!destination) {
++    return nullptr;
++  }
++
++  // **The mode belongs to a split, not to a tab, and nothing tells this class
++  // when the split ends.** The user can close the split, drag one half out,
++  // or replace one half with another tab, and afterwards the destination is
++  // an ordinary background tab somewhere -- writing a link into it would be
++  // the surprise this feature is least allowed to be.
++  //
++  // Rather than observe the tab strip from here, which would mean depending
++  // on it, the two tabs are asked whether they still agree on a split id.
++  // They do not agree unless both are in a split and it is the same one, so
++  // every way out of the arrangement answers the same way: no destination.
++  // Stale state is therefore inert, which is why nothing has to clean it up.
++  const tabs::TabInterface* const anchor_tab =
++      tabs::TabInterface::MaybeGetFromContents(anchor);
++  const tabs::TabInterface* const destination_tab =
++      tabs::TabInterface::MaybeGetFromContents(destination);
++  if (!anchor_tab || !destination_tab) {
++    return nullptr;
++  }
++  const std::optional<split_tabs::SplitTabId> split = anchor_tab->GetSplit();
++  if (!split.has_value() || split != destination_tab->GetSplit()) {
++    return nullptr;
++  }
++  return destination;
++}
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(SplitLinkMode);
++
++}  // namespace sunshine
+diff --git a/chrome/browser/ui/sunshine/split_link_mode.h b/chrome/browser/ui/sunshine/split_link_mode.h
+new file mode 100644
+index 0000000..16482ed
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/split_link_mode.h
+@@ -0,0 +1,70 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_SUNSHINE_SPLIT_LINK_MODE_H_
++#define CHROME_BROWSER_UI_SUNSHINE_SPLIT_LINK_MODE_H_
++
++#include "base/memory/weak_ptr.h"
++#include "content/public/browser/web_contents_user_data.h"
++
++namespace content {
++class WebContents;
++}  // namespace content
++
++namespace sunshine {
++
++// "Open the depth page on the other side": the state behind the splitter
++// widget's link button.
++//
++// One tab of a split is the anchor. While the mode is on, a link the anchor's
++// page opens in its own frame is loaded into the other tab of the same split
++// instead, and the anchor stays where it is. It is deliberately asymmetric --
++// the anchor is the list and the other side is what the list opens -- so the
++// state lives on the anchor's WebContents rather than on the split.
++//
++// **This class answers a question; it does not navigate anything.** Deciding
++// that a particular navigation is an ordinary link click, cancelling it and
++// loading the destination is
++// `SplitLinkNavigationThrottle`'s job, and the split between the two is what
++// keeps this target free of //chrome/browser/ui, as the comment at the top of
++// this directory's BUILD.gn requires.
++class SplitLinkMode : public content::WebContentsUserData<SplitLinkMode> {
++ public:
++  SplitLinkMode(const SplitLinkMode&) = delete;
++  SplitLinkMode& operator=(const SplitLinkMode&) = delete;
++  ~SplitLinkMode() override;
++
++  // Turns the mode on for `anchor`, sending its link navigations to
++  // `destination`. Both are expected to be the two tabs of one split; if they
++  // ever stop being that, `DestinationFor()` reports no destination rather
++  // than writing into a tab the user no longer thinks of as the other half.
++  static void Enable(content::WebContents* anchor,
++                     content::WebContents* destination);
++
++  // Turns the mode off for `anchor`. Safe on a tab that never had it on.
++  static void Disable(content::WebContents* anchor);
++
++  static bool IsEnabledFor(content::WebContents* anchor);
++
++  // The tab a link clicked in `anchor` should open in, or nullptr when the
++  // mode is off, the destination is gone, or the two are no longer a split.
++  static content::WebContents* DestinationFor(content::WebContents* anchor);
++
++ private:
++  friend WebContentsUserData;
++
++  SplitLinkMode(content::WebContents* anchor,
++                content::WebContents* destination);
++
++  // Weak on purpose. The destination is another tab, and a tab can be closed
++  // while this one lives on; holding it strongly would keep a closed tab's
++  // contents alive, and holding it raw would dangle.
++  base::WeakPtr<content::WebContents> destination_;
++
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++};
++
++}  // namespace sunshine
++
++#endif  // CHROME_BROWSER_UI_SUNSHINE_SPLIT_LINK_MODE_H_
+diff --git a/chrome/browser/ui/sunshine/split_link_navigation_throttle.cc b/chrome/browser/ui/sunshine/split_link_navigation_throttle.cc
+new file mode 100644
+index 0000000..5d0d56e
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/split_link_navigation_throttle.cc
+@@ -0,0 +1,135 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/sunshine/split_link_navigation_throttle.h"
++
++#include <memory>
++#include <optional>
++
++#include "base/functional/bind.h"
++#include "base/memory/weak_ptr.h"
++#include "base/task/single_thread_task_runner.h"
++#include "chrome/browser/ui/sunshine/split_link_mode.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/navigation_handle.h"
++#include "content/public/browser/navigation_throttle_registry.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/common/referrer.h"
++#include "ui/base/page_transition_types.h"
++#include "url/gurl.h"
++#include "url/origin.h"
++
++namespace sunshine {
++
++namespace {
++
++// Loads `url` into `destination`, if `destination` is still there.
++//
++// Posted rather than called from inside the throttle. A throttle is asked its
++// question in the middle of starting one navigation, and starting a second
++// one -- in a different tab, through a different controller -- from inside
++// that answer is the kind of re-entrancy `GlicNavigationThrottle` also
++// declines to attempt: it posts its own navigation for the same reason.
++void LoadInDestination(base::WeakPtr<content::WebContents> destination,
++                       const GURL& url,
++                       const std::optional<url::Origin>& initiator_origin,
++                       const content::Referrer& referrer) {
++  if (!destination) {
++    return;
++  }
++  // Named for what it is, and the name is what the OS-9 guard recognises: a
++  // navigation Chromium had already started and already classified, being
++  // finished in the other half of the split rather than in the tab that
++  // began it. No string was accepted from anywhere. See the second rule in
++  // `scripts/verify_no_interposition.py` and section 6 of
++  // `docs/OMNIBOX_CONTRACT.md`.
++  content::NavigationController::LoadURLParams throttled_navigation(url);
++  throttled_navigation.initiator_origin = initiator_origin;
++  throttled_navigation.referrer = referrer;
++  throttled_navigation.transition_type = ui::PAGE_TRANSITION_LINK;
++  destination->GetController().LoadURLWithParams(throttled_navigation);
++}
++
++}  // namespace
++
++// static
++void SplitLinkNavigationThrottle::MaybeCreateAndAdd(
++    content::NavigationThrottleRegistry& registry) {
++  content::NavigationHandle& handle = registry.GetNavigationHandle();
++
++  // **Everything below is the security argument, and none of it is optional.**
++  //
++  // The feature moves a navigation from the tab that asked for it into a tab
++  // that did not. Without these conditions a page could assign to its own
++  // location from a timer and write into the other half of the user's split
++  // whenever it liked, from a tab the user is not even looking at. Each line
++  // narrows this to the one thing the owner asked for -- a person clicking a
++  // link, in the page they are looking at, to open a depth page on the other
++  // side:
++  //
++  //   * the primary main frame only, so a subframe or a prerender cannot
++  //     reach across;
++  //   * renderer-initiated only, so the omnibox, a bookmark, a restored
++  //     session and every other browser-initiated navigation stays where the
++  //     browser put it;
++  //   * `PAGE_TRANSITION_LINK` only, which scripted assignment and form
++  //     submission are not;
++  //   * with a user gesture, which a timer does not have;
++  //   * cross-document only, so an in-page anchor stays in the page;
++  //   * http/https only, so nothing else is handed to another tab.
++  if (!handle.IsInPrimaryMainFrame() || handle.IsSameDocument() ||
++      !handle.IsRendererInitiated() || !handle.HasUserGesture() ||
++      !ui::PageTransitionCoreTypeIs(handle.GetPageTransition(),
++                                    ui::PAGE_TRANSITION_LINK) ||
++      !handle.GetURL().SchemeIsHTTPOrHTTPS()) {
++    return;
++  }
++
++  // Cheapest last: the vast majority of navigations in a browser that has the
++  // mode switched off nowhere never get this far.
++  if (!SplitLinkMode::DestinationFor(handle.GetWebContents())) {
++    return;
++  }
++
++  registry.AddThrottle(
++      std::make_unique<SplitLinkNavigationThrottle>(registry));
++}
++
++SplitLinkNavigationThrottle::SplitLinkNavigationThrottle(
++    content::NavigationThrottleRegistry& registry)
++    : content::NavigationThrottle(registry) {}
++
++SplitLinkNavigationThrottle::~SplitLinkNavigationThrottle() = default;
++
++content::NavigationThrottle::ThrottleCheckResult
++SplitLinkNavigationThrottle::WillStartRequest() {
++  content::NavigationHandle* const handle = navigation_handle();
++  // Asked again rather than remembered. The throttle was created when the
++  // navigation began; by the time it is consulted the split may have been
++  // closed or the destination tab may be gone, and in that case the honest
++  // thing is to let the link open where the user clicked it.
++  content::WebContents* const destination =
++      SplitLinkMode::DestinationFor(handle->GetWebContents());
++  if (!destination) {
++    return PROCEED;
++  }
++
++  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&LoadInDestination, destination->GetWeakPtr(),
++                     handle->GetURL(), handle->GetInitiatorOrigin(),
++                     content::Referrer(handle->GetReferrer())));
++
++  // `CANCEL_AND_IGNORE` rather than `CANCEL`: the clicked page is not
++  // failing, it is staying. Cancelling with an error would take the anchor
++  // through a failed navigation for a link that is, from the user's side,
++  // opening perfectly well on the other side of the splitter.
++  return CANCEL_AND_IGNORE;
++}
++
++const char* SplitLinkNavigationThrottle::GetNameForLogging() {
++  return "SplitLinkNavigationThrottle";
++}
++
++}  // namespace sunshine
+diff --git a/chrome/browser/ui/sunshine/split_link_navigation_throttle.h b/chrome/browser/ui/sunshine/split_link_navigation_throttle.h
+new file mode 100644
+index 0000000..4ed1c28
+--- /dev/null
++++ b/chrome/browser/ui/sunshine/split_link_navigation_throttle.h
+@@ -0,0 +1,45 @@
++// Copyright 2026 The Sunshine OS contributors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_SUNSHINE_SPLIT_LINK_NAVIGATION_THROTTLE_H_
++#define CHROME_BROWSER_UI_SUNSHINE_SPLIT_LINK_NAVIGATION_THROTTLE_H_
++
++#include "content/public/browser/navigation_throttle.h"
++
++namespace content {
++class NavigationThrottleRegistry;
++}  // namespace content
++
++namespace sunshine {
++
++// Sends an ordinary link click in a split's anchor tab to the other half.
++//
++// **A throttle, and it has to be.** An `<a href>` followed in the same frame
++// never reaches the `WebContentsDelegate` hook that opens a URL from a tab --
++// that hook sees the navigations asking for a different target, which is why
++// the context menu's "Open link in split view" can be written as a menu item
++// while this cannot. The only place the browser is asked about a same-frame
++// link before it commits is the navigation throttle list.
++//
++// The conditions in `MaybeCreateAndAdd()` are the whole security argument for
++// the feature; see the comment there.
++class SplitLinkNavigationThrottle : public content::NavigationThrottle {
++ public:
++  static void MaybeCreateAndAdd(content::NavigationThrottleRegistry& registry);
++
++  explicit SplitLinkNavigationThrottle(
++      content::NavigationThrottleRegistry& registry);
++  SplitLinkNavigationThrottle(const SplitLinkNavigationThrottle&) = delete;
++  SplitLinkNavigationThrottle& operator=(const SplitLinkNavigationThrottle&) =
++      delete;
++  ~SplitLinkNavigationThrottle() override;
++
++  // content::NavigationThrottle:
++  ThrottleCheckResult WillStartRequest() override;
++  const char* GetNameForLogging() override;
++};
++
++}  // namespace sunshine
++
++#endif  // CHROME_BROWSER_UI_SUNSHINE_SPLIT_LINK_NAVIGATION_THROTTLE_H_

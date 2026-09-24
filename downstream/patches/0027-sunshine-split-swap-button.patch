@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/frame/multi_contents_resize_area.cc b/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
-index 37a68df..78837ad 100644
+index 37a68df..473cfe5 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_resize_area.cc
 @@ -4,6 +4,9 @@
@@ -105,7 +105,34 @@ index 37a68df..78837ad 100644
  void MultiContentsResizeArea::SetLayout(split_tabs::SplitTabLayout layout) {
    Axis old_axis = axis();
    set_axis(layout == split_tabs::SplitTabLayout::kSideBySide ? Axis::kHorizontal
-@@ -170,16 +233,34 @@ void MultiContentsResizeArea::OnLayoutUpdated() {
+@@ -154,15 +217,26 @@ bool MultiContentsResizeArea::OnKeyPressed(const ui::KeyEvent& event) {
+ 
+ void MultiContentsResizeArea::OnMouseMoved(const ui::MouseEvent& event) {
+   resize_handle_->UpdateVisibility();
++  multi_contents_view_->OnSunshineSplitterHoverChanged();
+ }
+ 
+ void MultiContentsResizeArea::OnMouseExited(const ui::MouseEvent& event) {
+   resize_handle_->UpdateVisibility();
++  // Reported rather than acted on. Leaving the splitter is also what happens
++  // when the pointer moves onto the widget, which is wider than the splitter
++  // and sits on top of it; `MultiContentsView` is the only place that can see
++  // both and decide.
++  multi_contents_view_->OnSunshineSplitterHoverChanged();
+ }
+ 
+ void MultiContentsResizeArea::SetVisible(bool visible) {
+   views::View::SetVisible(visible);
+   resize_handle_->UpdateVisibility();
++  multi_contents_view_->OnSunshineSplitterHoverChanged();
++}
++
++void MultiContentsResizeArea::SetSunshineSwapDotVisible(bool visible) {
++  sunshine_swap_button_->SetVisible(visible);
+ }
+ 
+ void MultiContentsResizeArea::OnLayoutUpdated() {
+@@ -170,16 +244,34 @@ void MultiContentsResizeArea::OnLayoutUpdated() {
        axis() == Axis::kHorizontal ? views::LayoutOrientation::kVertical
                                    : views::LayoutOrientation::kHorizontal);
  
@@ -143,7 +170,7 @@ index 37a68df..78837ad 100644
  
  ui::KeyboardCode MultiContentsResizeArea::DecreaseContentsSizeKeyCode() {
 diff --git a/chrome/browser/ui/views/frame/multi_contents_resize_area.h b/chrome/browser/ui/views/frame/multi_contents_resize_area.h
-index 460c40a..7dc0d16 100644
+index 460c40a..e09e78b 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_resize_area.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_resize_area.h
 @@ -21,6 +21,7 @@ enum class SplitTabLayout;
@@ -154,7 +181,7 @@ index 460c40a..7dc0d16 100644
  }
  
  // Keyboard-accessible drag handle icon intended to be drawn on top of a
-@@ -53,7 +54,21 @@ class MultiContentsResizeArea : public views::ResizeArea {
+@@ -53,12 +54,31 @@ class MultiContentsResizeArea : public views::ResizeArea {
    static constexpr int kHandleResizeAxisPadding = 6;
    static constexpr int kHandleResizeAxisSize = 4;
  
@@ -176,7 +203,17 @@ index 460c40a..7dc0d16 100644
  
    explicit MultiContentsResizeArea(MultiContentsView* multi_contents_view);
  
-@@ -77,8 +92,14 @@ class MultiContentsResizeArea : public views::ResizeArea {
+   void SetLayout(split_tabs::SplitTabLayout layout);
+ 
++  // Shows or hides the swap dot. `MultiContentsView` hides it while its
++  // splitter widget is up: the dot is the resting state of that widget, not a
++  // second control, and leaving it up would draw it underneath.
++  void SetSunshineSwapDotVisible(bool visible);
++
+   // views::ResizeArea:
+   void OnGestureEvent(ui::GestureEvent* event) override;
+   void OnMouseReleased(const ui::MouseEvent& event) override;
+@@ -77,8 +97,14 @@ class MultiContentsResizeArea : public views::ResizeArea {
  
    std::pair<int, int> GetAccessibleAlertStringIds();
  

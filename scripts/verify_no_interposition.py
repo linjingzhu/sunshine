@@ -169,35 +169,50 @@ def _python_declarations(text: str) -> list[tuple[str, str]]:
     return found
 
 
-def _patch_declarations(text: str) -> list[tuple[str, str]]:
-    found: list[tuple[str, str]] = []
+def _patch_declarations(text: str) -> list[tuple[str, str, str]]:
+    """(where, field name, the line that declared it).
+
+    The line travels with the name because one rule needs the declared type:
+    PB-5 is about idle cost, and a `base::OneShotTimer` is not that however it
+    is named. Nothing else reads it.
+    """
+
+    found: list[tuple[str, str, str]] = []
     for number, line in enumerate(text.splitlines(), start=1):
         match = KEY.match(line)
         if match:
-            found.append((f"added line {number}", next(g for g in match.groups() if g)))
+            found.append((f"added line {number}",
+                          next(g for g in match.groups() if g), line))
         member = CPP_MEMBER.match(line)
         if member:
-            found.append((f"added line {number}", member.group(1).rstrip("_")))
+            found.append((f"added line {number}", member.group(1).rstrip("_"), line))
         for constant in CPP_CONSTANT.findall(line):
-            found.append((f"added line {number}", constant))
+            found.append((f"added line {number}", constant, line))
     return found
 
 
-def declared_names(root: Path) -> list[tuple[str, str, str]]:
-    """(file label, where, field name) for every field Sunshine declares."""
+def declared_names(root: Path) -> list[tuple[str, str, str, str]]:
+    """(file label, where, field name, declaration) for every Sunshine field.
 
-    found: list[tuple[str, str, str]] = []
+    `declaration` is the source line for a C++ or manifest field and empty for
+    the Python and JSON forms, where the name is already the whole of what was
+    declared.
+    """
+
+    found: list[tuple[str, str, str, str]] = []
     for label, text in sunshine_sources(root):
         if label.endswith("(added lines)"):
-            found.extend((label, where, name) for where, name in _patch_declarations(text))
+            found.extend((label, where, name, declaration)
+                         for where, name, declaration in _patch_declarations(text))
         elif label.endswith(".json"):
             try:
                 payload = json.loads(text)
             except json.JSONDecodeError:
                 continue
-            found.extend((label, where, name) for where, name in _json_keys(payload))
+            found.extend((label, where, name, "") for where, name in _json_keys(payload))
         elif label.endswith(".py"):
-            found.extend((label, where, name) for where, name in _python_declarations(text))
+            found.extend((label, where, name, "")
+                         for where, name in _python_declarations(text))
     return found
 
 
@@ -228,7 +243,7 @@ LIFECYCLE_FIELDS = frozenset(
 )
 
 
-def _lifecycle_field(name: str, segments: tuple[str, ...]) -> str | None:
+def _lifecycle_field(name: str, segments: tuple[str, ...], _declaration: str) -> str | None:
     """TAB_LIFECYCLE_CONTRACT 13.2: no stored per-tab lifecycle state."""
 
     if name in LIFECYCLE_FIELDS:
@@ -239,7 +254,7 @@ def _lifecycle_field(name: str, segments: tuple[str, ...]) -> str | None:
     return None
 
 
-def _pinned_field(_name: str, segments: tuple[str, ...]) -> str | None:
+def _pinned_field(_name: str, segments: tuple[str, ...], _declaration: str) -> str | None:
     """ADVANCED_TABS_CONTRACT AT-1: Sunshine stores no pinned state."""
 
     if {"pin", "pinned", "unpinned", "pinning"} & set(segments):
@@ -247,7 +262,7 @@ def _pinned_field(_name: str, segments: tuple[str, ...]) -> str | None:
     return None
 
 
-def _recently_closed_field(_name: str, segments: tuple[str, ...]) -> str | None:
+def _recently_closed_field(_name: str, segments: tuple[str, ...], _declaration: str) -> str | None:
     """ADVANCED_TABS_CONTRACT AT-9: Sunshine keeps no recently-closed store."""
 
     present = set(segments)
@@ -258,7 +273,7 @@ def _recently_closed_field(_name: str, segments: tuple[str, ...]) -> str | None:
     return None
 
 
-def _duplicate_field(_name: str, segments: tuple[str, ...]) -> str | None:
+def _duplicate_field(_name: str, segments: tuple[str, ...], _declaration: str) -> str | None:
     """ADVANCED_TABS_CONTRACT AT-12: duplicate detection is derived, never stored."""
 
     present = set(segments)
@@ -269,7 +284,7 @@ def _duplicate_field(_name: str, segments: tuple[str, ...]) -> str | None:
     return None
 
 
-def _omnibox_field(_name: str, segments: tuple[str, ...]) -> str | None:
+def _omnibox_field(_name: str, segments: tuple[str, ...], _declaration: str) -> str | None:
     """OMNIBOX_CONTRACT section 12: the state a second parser would need."""
 
     present = set(segments)
@@ -286,9 +301,26 @@ def _omnibox_field(_name: str, segments: tuple[str, ...]) -> str | None:
     return None
 
 
-def _repeating_field(_name: str, segments: tuple[str, ...]) -> str | None:
+# The timer types that fire once and stop. PB-5 is a budget on *idle* cost, and
+# the symbol list below says as much in its own comment: one-shot is
+# legitimate, repeating and idle-triggered are not. The field rule was broader
+# than that -- it fired on any field with `timer` in its name -- and
+# `downstream/patches/0032-sunshine-split-hover-widget.patch` is where the gap
+# showed: a `base::OneShotTimer` that hides the splitter widget once, after the
+# pointer has left both it and the splitter, and is not running otherwise.
+#
+# Narrowed by the declared type rather than by the name, so that renaming a
+# repeating timer cannot buy the allowance and a one-shot timer does not have
+# to be named dishonestly to keep it.
+ONE_SHOT_TIMER_TYPES = ("base::OneShotTimer", "base::DeadlineTimer",
+                        "base::OneShotSelfDeletingTimer")
+
+
+def _repeating_field(_name: str, segments: tuple[str, ...], declaration: str) -> str | None:
     """PERFORMANCE_BUDGET PB-5: Sunshine's legitimate idle cost is zero."""
 
+    if any(one_shot in declaration for one_shot in ONE_SHOT_TIMER_TYPES):
+        return None
     if {"timer", "timers", "interval", "poll", "polling", "heartbeat"} & set(segments):
         return "a repeating timer or poll (PB-5)"
     return None
@@ -352,9 +384,34 @@ NAVIGATION_SYMBOLS = ("LoadURLWithParams", "OpenURLFromTab", "OpenURLParams", "N
 # statement as the navigation.
 CLASSIFIED_NAVIGATION = re.compile(r"GURL\(chrome::kChromeUISunshine[A-Za-z0-9]*URL\)")
 
+# The second navigation OS-9 is not about: finishing one Chromium started.
+#
+# `downstream/patches/0031-sunshine-split-link-mode.patch` opens a link
+# clicked in one half of a split in the other half. A `content::
+# NavigationThrottle` is handed a navigation the browser has already begun and
+# already classified -- the URL is the one the renderer was navigating to, and
+# no text crossed from a surface into the browser at any point. OS-9 forbids
+# *accepting a string and navigating to it*; there is no accepted string here,
+# only a destination changed from one tab to its partner.
+#
+# Two conditions, and both have to hold:
+#
+#   1. the load's argument is named `throttled_navigation`, in the statement
+#      that loads it, so the name states the provenance at the point of use;
+#   2. the same Sunshine-authored text declares a `content::NavigationThrottle`
+#      subclass, so the allowance cannot be taken by a file that is not one.
+#
+# What still fails, and is covered by tests: the same load under any other
+# argument name, the same name in a file that declares no throttle, every
+# other navigation symbol including `OpenURLParams` and `NavigateParams`, and
+# every JavaScript form.
+CLASSIFIED_THROTTLED_NAVIGATION = re.compile(
+    r"LoadURLWithParams\(\s*throttled_navigation\s*\)")
+THROTTLE_DECLARATION = "public content::NavigationThrottle"
+
 
 def _navigation_is_classified(text: str, index: int) -> bool:
-    """Whether the navigation at `index` targets a Sunshine host constant.
+    """Whether the navigation at `index` is one of the two OS-9 allows.
 
     The statement is read from the symbol to the next `;`, so a constant
     appearing elsewhere in the file cannot vouch for an unrelated navigation.
@@ -362,7 +419,10 @@ def _navigation_is_classified(text: str, index: int) -> bool:
 
     end = text.find(";", index)
     statement = text[index:end if end != -1 else len(text)]
-    return bool(CLASSIFIED_NAVIGATION.search(statement))
+    if CLASSIFIED_NAVIGATION.search(statement):
+        return True
+    return (THROTTLE_DECLARATION in text
+            and bool(CLASSIFIED_THROTTLED_NAVIGATION.search(statement)))
 
 # PB-5. `setTimeout` is absent on purpose: one-shot is legitimate and a
 # self-rearming one is not distinguishable from it by any pattern worth
@@ -390,11 +450,11 @@ TLD_LITERAL = re.compile(
 
 
 def check_declared_fields(root: Path, failures: list[str]) -> None:
-    for label, where, name in declared_names(root):
+    for label, where, name, declaration in declared_names(root):
         segments = normalize(name)
         joined = "_".join(segments)
         for rule in FIELD_RULES:
-            verdict = rule(joined, segments)
+            verdict = rule(joined, segments, declaration)
             if verdict:
                 failures.append(f"{label} ({where}): field {name!r} is {verdict}")
 

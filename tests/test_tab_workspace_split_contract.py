@@ -74,26 +74,42 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         self.assertIn("not a completed browser feature", self.text)
 
     # A patch may name a deferred runtime only if it does not implement one.
-    # Each entry is the word, the single patch allowed to carry it, and the
-    # property that makes it an exception rather than a breach -- what its
-    # added lines must contain, and what they must not. The forbidden lists are
-    # the names a real implementation of that runtime could not avoid.
+    # Each entry is the word, the patches allowed to carry it, and the property
+    # that makes them an exception rather than a breach -- what their added
+    # lines must contain, and what they must not. The forbidden lists are the
+    # names a real implementation of that runtime could not avoid.
     #
     # `workspace` has no exception: nothing implements or borders it yet.
     DEFERRED_RUNTIMES = {
-        # docs/decisions/0021-split-swap-affordance.md: an affordance for an
-        # upstream action. Its one route out must stay MultiContentsView::OnSwap().
+        # docs/decisions/0021-split-swap-affordance.md,
+        # docs/decisions/0028-split-hover-widget.md: affordances for upstream
+        # actions.
+        #
+        # **`RemoveSplit` moved from forbidden to allowed, and that is a
+        # decision rather than an accommodation.** It was listed because the
+        # swap affordance was meant to have exactly one route out, and a
+        # second call would have been a second behaviour appearing without
+        # anyone deciding on it. The owner has now asked for two more actions
+        # on a split -- open the other half, and separate the halves into
+        # ordinary tabs -- so the list is what changed, not the rule. What the
+        # rule protects is that Sunshine keeps no split model of its own, and
+        # the forbidden names below are still every part of one: the visual
+        # data, the ratio, the layout, and reversing the tabs behind
+        # `OnSwap()`'s back.
         "split": (
-            "0027-sunshine-split-swap-button.patch",
+            ("0027-sunshine-split-swap-button.patch",
+             "0031-sunshine-split-link-mode.patch",
+             "0032-sunshine-split-hover-widget.patch"),
             ("OnSwap()",),
-            ("ReverseTabsInSplit", "RemoveSplit", "SplitTabVisualData(",
-             "split_ratio", "SetSplitRatio"),
+            ("ReverseTabsInSplit", "SplitTabVisualData(", "split_ratio",
+             "SetSplitRatio", "UpdateSplitRatio", "UpdateSplitLayout",
+             "AddToNewSplit"),
         ),
         # docs/decisions/0022-no-tab-groups-on-the-bookmark-bar.md: a registered
         # default moves from true to false. Touching the tab group model, the
         # saved-tab-group views, or that feature's own prefs would be a runtime.
         "tab-group": (
-            "0028-sunshine-no-tab-groups-on-bookmark-bar.patch",
+            ("0028-sunshine-no-tab-groups-on-bookmark-bar.patch",),
             ("kShowTabGroupsInBookmarkBar",),
             ("SavedTabGroupBar", "SavedTabGroupUtils", "TabGroupModel",
              "TabGroupId", "tab_groups::prefs"),
@@ -115,7 +131,7 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
                     for line in series.splitlines()
                     if word in line.lower() and line.strip()
                 ]
-                self.assertEqual([allowed], named)
+                self.assertEqual(sorted(allowed), named)
 
     def test_each_deferred_runtime_exception_stays_an_exception(self) -> None:
         """A patch allowed to name a deferred runtime may not implement one.
@@ -126,17 +142,32 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         """
 
         for word, (allowed, required, forbidden) in self.DEFERRED_RUNTIMES.items():
-            patch = (ROOT / "downstream" / "patches" / allowed).read_text(encoding="utf-8")
-            added = "\n".join(
-                line[1:] for line in patch.splitlines()
-                if line.startswith("+") and not line.startswith("+++")
-            )
+            texts = {
+                name: (ROOT / "downstream" / "patches" / name).read_text(encoding="utf-8")
+                for name in allowed
+            }
+            added = {
+                name: "\n".join(
+                    line[1:] for line in text.splitlines()
+                    if line.startswith("+") and not line.startswith("+++")
+                )
+                for name, text in texts.items()
+            }
+            # Required across the set, forbidden in each patch. A marker that
+            # says the exception is what it claims to be need only appear once
+            # -- `OnSwap()` is the swap's one route out wherever the swap is
+            # offered from -- while a marker that would make it a runtime is
+            # forbidden wherever it appears.
             for marker in required:
                 with self.subTest(deferred=word, required=marker):
-                    self.assertIn(marker, added)
-            for marker in forbidden:
-                with self.subTest(deferred=word, forbidden=marker):
-                    self.assertNotIn(marker, added)
+                    self.assertTrue(
+                        any(marker in body for body in added.values()),
+                        f"{marker!r} appears in none of {sorted(allowed)}",
+                    )
+            for name, body in added.items():
+                for marker in forbidden:
+                    with self.subTest(deferred=word, patch=name, forbidden=marker):
+                        self.assertNotIn(marker, body)
 
     def test_permanently_excluded_vertical_tabs_are_not_in_stage_roadmap(self) -> None:
         roadmap = (

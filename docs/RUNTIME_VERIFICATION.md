@@ -167,6 +167,12 @@ holds no expectations — this document owns those — and rule 7 of
 | RV-66 | Press Install and watch the window | **The window stays open**, a progress bar animates, and text says not to close it. Before this the dialog closed and the desktop was empty for the whole install. The bar is a marquee and never fills: nothing tells the program how far along it is, and IU-21 forbids inventing a number. A bar that sits still is the thread failing, not the design | IU-20, IU-21 |
 | RV-67 | Wait for it to finish | A page says what happened and **prints the installer's result code beside it**. Check the two against `installer::InstallStatus`: 0, 1, 2 and 30 are installed; 3, 4, 5, 6 are nothing-changed; anything else is a failure. The sentence is a reading of the number and this gate is where the reading gets checked | IU-22 |
 | RV-68 | Choose **All users**, press Install, and refuse the UAC prompt | The window returns to its first page with the choices as they were. Not an error dialog, not a per-user install instead, and not a closed window. IU-12's rule through a path that did not exist before ADR 0027 | IU-12, IU-20 |
+| RV-69 | Open two tabs in a split and move the pointer onto the splitter | The dot is replaced by a widget with three buttons, and it **stays there when the pointer moves onto it**. The widget is wider than the splitter and sits on top of it, so entering the widget leaves the splitter; ADR 0028 defers the hide by 250 ms for exactly this, and a widget that vanishes as you reach for it is that timer not working | ADR 0028, 0032 |
+| RV-70 | Look at the two panes, then move the pointer away and back | **The panes did not move.** The widget is a child of `MultiContentsView` and never reaches `GetViewSizes()`, so the splitter keeps upstream's ten pixels; panes that jump when the widget appears is the one failure this design exists to prevent, and it is the failure ADR 0021's amendment already paid for once | ADR 0028, ADR 0021 |
+| RV-71 | Press the widget's three buttons in turn, starting with 반전 and ending with 분리 | 반전 swaps the panes, 링크 fills in and empties without anything else happening, 분리 leaves **two ordinary tabs, both still open**. Run 분리 last: it ends the split, and with it the widget | `OnSwap()`, `RemoveSplit`, ADR 0028 |
+| RV-72 | Switch 링크 on in the left pane, then click an ordinary link in that pane | The link opens **in the right pane** and the left pane does not move. This is the gate the whole of patch 0031 exists for, and nothing in this repository has ever executed that throttle | ADR 0028, 0031 |
+| RV-73 | With 링크 still on, open the console in the left pane and assign `'https://example.com'` to `location.href`, then click a link that jumps to an anchor in the same page | **Both stay in the left pane.** Scripted assignment is not `PAGE_TRANSITION_LINK` and carries no user gesture; an in-page anchor is same-document. If either crosses to the other pane, a page can write into the half of the split the user is not looking at, and the feature has to come out | ADR 0028, throttle conditions |
+| RV-74 | With 링크 on, press 분리 (or close the other tab), then click a link | The link opens **where it was clicked**. The mode holds a weak pointer and compares split ids, so the arrangement ending is meant to make it inert with nothing to clean up; a link that still flies off to a now-unrelated tab is that reasoning being wrong | `SplitLinkMode::DestinationFor`, ADR 0028 |
 
 RV-6 is not redundant with RV-5. `ffmpeg_branding="Chrome"` changes which FFmpeg
 sources are compiled, and a regression there would remove the codecs the project
@@ -282,7 +288,7 @@ other and from the families the tracer knows.
 Evidence lives with the run, not in prose. For each gate record:
 
 ```text
-gate       RV-1..RV-68, RVV-1..RVV-5
+gate       RV-1..RV-74, RVV-1..RVV-5
 result     PASS | FAIL | NOT RUN
 build      workflow run number and commit sha
 observed   what was actually seen, when it was not simply the expected text

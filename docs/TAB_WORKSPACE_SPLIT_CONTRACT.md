@@ -238,6 +238,25 @@ the "second code path that could drift from the native one" this section
 retired the commands to avoid is still not created. See
 `docs/decisions/0021-split-swap-affordance.md`.
 
+It also remains true after
+`downstream/patches/0032-sunshine-split-hover-widget.patch`, which turns that
+button into a widget of three on hover. Two of the three are the same move:
+반전 is `OnSwap()` again, and 분리 is `TabStripModel::RemoveSplit` — the native
+entry point the retired `close` command mapped onto, called directly, with no
+Sunshine command in front of it. Nothing enters `first_party/commands.json`.
+
+**The third is new behaviour and this section should say so plainly.** 링크 —
+a link clicked in one half of a split opens in the other half — has no upstream
+entry point to be an affordance for. It is the first thing in this contract's
+area that Sunshine *adds* rather than *exposes*, and
+`docs/decisions/0028-split-hover-widget.md` is the record.
+
+It is still not a command, and it still stores no split metadata: the mode is a
+`content::WebContentsUserData` holding a weak pointer to the other tab, it
+keeps no ratio, layout, orientation or pane identity, and it answers "no
+destination" as soon as `tabs::TabInterface::GetSplit()` stops agreeing across
+the two tabs. §3's persisted metadata is untouched and invariant 12 holds.
+
 ## 5. UX contract
 
 - **Entry points:** tab context menu for groups/move/split; workspace switcher

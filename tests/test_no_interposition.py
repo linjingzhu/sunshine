@@ -234,9 +234,59 @@ class NoInterpositionTests(unittest.TestCase):
         ))
         self.assertRejected("navigates from an unclassified string")
 
-    def test_the_shipped_button_patch_is_the_only_navigation_in_the_stack(self) -> None:
-        """The exemption has exactly one user today. If a second appears, this
-        fails and someone has to look at it rather than inherit the allowance."""
+    # --- OS-9, second exemption: finishing a navigation Chromium started -----
+
+    def test_a_throttled_navigation_is_accepted(self) -> None:
+        """The second exemption. A `NavigationThrottle` is handed a navigation
+        the browser already began and already classified; the URL was never a
+        string anybody accepted."""
+
+        self.write_patch(added=(
+            "class Probe : public content::NavigationThrottle {",
+            "  destination->GetController()"
+            ".LoadURLWithParams(throttled_navigation);",
+        ))
+        self.assertAccepted()
+
+    def test_a_throttled_load_under_another_name_is_still_rejected(self) -> None:
+        """The name is the whole of what states the provenance, so a load of
+        anything else is a load of something this rule cannot vouch for."""
+
+        self.write_patch(added=(
+            "class Probe : public content::NavigationThrottle {",
+            "  destination->GetController().LoadURLWithParams(params);",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_the_throttled_name_outside_a_throttle_is_still_rejected(self) -> None:
+        """A file that is not a throttle never receives a navigation in
+        flight, so the name would be describing something that did not
+        happen."""
+
+        self.write_patch(added=(
+            "  destination->GetController()"
+            ".LoadURLWithParams(throttled_navigation);",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_another_navigation_symbol_in_a_throttle_is_still_rejected(self) -> None:
+        """Being a throttle is a condition, not a licence: the allowance is for
+        the one load, not for everything the file does."""
+
+        self.write_patch(added=(
+            "class Probe : public content::NavigationThrottle {",
+            "  content::OpenURLParams params(GURL(target), content::Referrer());",
+        ))
+        self.assertRejected("navigates from an unclassified string")
+
+    def test_the_two_exemptions_have_exactly_two_users(self) -> None:
+        """Each exemption is meant to have the one user it was written for. If
+        a third patch navigates, this fails and someone has to look at it
+        rather than inherit an allowance.
+
+        0008 opens `chrome://sunshine-modules` from the bookmark bar; 0031
+        finishes a link click in the other half of a split. Both are recorded
+        in section 6 of `docs/OMNIBOX_CONTRACT.md`."""
 
         navigating = [
             path.name
@@ -246,7 +296,11 @@ class NoInterpositionTests(unittest.TestCase):
                 for symbol in checker.NAVIGATION_SYMBOLS
             )
         ]
-        self.assertEqual(["0008-sunshine-module-home-button.patch"], navigating)
+        self.assertEqual(
+            ["0008-sunshine-module-home-button.patch",
+             "0031-sunshine-split-link-mode.patch"],
+            navigating,
+        )
 
     # --- TAB_LIFECYCLE_CONTRACT 13.2: no stored lifecycle flag ---------------
 
@@ -356,6 +410,29 @@ class NoInterpositionTests(unittest.TestCase):
 
     def test_a_stored_poll_interval_is_rejected(self) -> None:
         self.write_patch(added=('  "poll_interval_ms": 5000,',))
+        self.assertRejected("PB-5")
+
+    def test_a_one_shot_timer_field_is_accepted(self) -> None:
+        """PB-5 is a budget on idle cost. A timer that fires once and stops is
+        not idle cost, which the symbol list already says -- the field rule
+        used to disagree with it, and 0032's hide timer is where that showed.
+        """
+
+        self.write_patch(added=("  base::OneShotTimer hide_timer_;",))
+        self.assertAccepted()
+
+    def test_a_repeating_timer_field_is_still_rejected_however_named(self) -> None:
+        """The allowance is bought by the declared type, so a repeating timer
+        cannot buy it by being called something else."""
+
+        self.write_patch(added=("  base::RepeatingTimer hide_timer_;",))
+        self.assertRejected("PB-5")
+
+    def test_a_timer_field_of_no_stated_type_is_still_rejected(self) -> None:
+        """No declared one-shot type, no allowance: a field this guard cannot
+        read the type of is the case the name rule exists for."""
+
+        self.write_patch(added=("  Timer poll_timer_;",))
         self.assertRejected("PB-5")
 
     def test_a_timer_in_a_patch_context_line_is_not_a_violation(self) -> None:

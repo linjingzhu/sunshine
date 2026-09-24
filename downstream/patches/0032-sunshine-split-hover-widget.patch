@@ -1,0 +1,537 @@
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
+index 5b3e4c8..c47689e 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -6,9 +6,16 @@
+ 
+ #include <algorithm>
+ #include <cstdlib>
++#include <memory>
++#include <optional>
++#include <utility>
+ 
+ #include "base/check_deref.h"
++#include "base/functional/bind.h"
++#include "base/i18n/rtl.h"
+ #include "base/notreached.h"
++#include "base/time/time.h"
++#include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -16,6 +23,8 @@
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/read_anything/read_anything_immersive_overlay_view.h"
+ #include "chrome/browser/ui/sad_tab_helper.h"
++#include "chrome/browser/ui/sunshine/split_link_mode.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/view_ids.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/contents_container_view.h"
+@@ -34,16 +43,30 @@
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
++#include "chrome/grit/generated_resources.h"
+ #include "components/prefs/pref_service.h"
++#include "components/split_tabs/split_tab_id.h"
+ #include "components/split_tabs/split_tab_visual_data.h"
++#include "components/vector_icons/vector_icons.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/url_constants.h"
++#include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/base/models/image_model.h"
+ #include "ui/base/ozone_buildflags.h"
++#include "ui/base/ui_base_features.h"
+ #include "ui/compositor/layer.h"
++#include "ui/compositor/layer_type.h"
+ #include "ui/gfx/geometry/outsets.h"
+ #include "ui/gfx/geometry/rect.h"
+ #include "ui/gfx/geometry/rounded_corners_f.h"
++#include "ui/gfx/geometry/vector2d.h"
++#include "ui/views/accessibility/view_accessibility.h"
++#include "ui/views/background.h"
++#include "ui/views/border.h"
++#include "ui/views/controls/button/image_button.h"
++#include "ui/views/controls/highlight_path_generator.h"
++#include "ui/views/layout/flex_layout.h"
+ #include "ui/views/layout/flex_layout_types.h"
+ #include "ui/views/layout/layout_types.h"
+ #include "ui/views/layout/proposed_layout.h"
+@@ -55,8 +78,209 @@ constexpr int kSnapDistance = 15;
+ constexpr float kSplitViewContentCornerRadius = 6;
+ constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
+     kSplitViewContentCornerRadius};
++
++// Sunshine's splitter widget.
++constexpr int kSunshineHoverWidgetButtonSize = 24;
++constexpr int kSunshineHoverWidgetIconSize = 16;
++constexpr int kSunshineHoverWidgetPadding = 4;
++constexpr int kSunshineHoverWidgetSpacing = 2;
++constexpr int kSunshineHoverWidgetCornerRadius = 8;
++
++// How long the widget survives the pointer being on neither it nor the
++// splitter. The gap between the two is a few pixels wide and a pointer
++// crosses it in one move, so this only has to outlast the report that the
++// first one was left; it is not a grace period for wandering away.
++constexpr base::TimeDelta kSunshineHoverWidgetHideDelay =
++    base::Milliseconds(250);
++
++std::unique_ptr<views::ImageButton> MakeSunshineHoverWidgetButton(
++    views::Button::PressedCallback callback) {
++  auto button = std::make_unique<views::ImageButton>(std::move(callback));
++  button->SetPreferredSize(gfx::Size(kSunshineHoverWidgetButtonSize,
++                                     kSunshineHoverWidgetButtonSize));
++  button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
++  button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
++  views::InstallCircleHighlightPathGenerator(button.get());
++  return button;
++}
++}
++
++// Sunshine's splitter widget: the three things a split can be asked for,
++// shown while the pointer is on the splitter or on the widget itself.
++//
++// **A child of MultiContentsView rather than of the resize area, and that is
++// load-bearing.** `MultiContentsView::GetViewSizes()` reads the splitter's
++// thickness from `resize_area_->GetPreferredSize()`, so anything laid out
++// inside the resize area that is wider than the drag handle widens the
++// splitter and the panes give up the difference -- the defect the swap dot
++// was rewritten to avoid. This floats over the panes instead, positioned in
++// `CalculateProposedLayout()` from its own preferred size, and the splitter
++// never hears about it.
++class SunshineSplitHoverWidget : public views::View {
++  METADATA_HEADER(SunshineSplitHoverWidget, views::View)
++
++ public:
++  SunshineSplitHoverWidget(base::RepeatingClosure on_hover_changed,
++                           views::Button::PressedCallback on_reverse,
++                           views::Button::PressedCallback on_link,
++                           views::Button::PressedCallback on_separate);
++  SunshineSplitHoverWidget(const SunshineSplitHoverWidget&) = delete;
++  SunshineSplitHoverWidget& operator=(const SunshineSplitHoverWidget&) = delete;
++  ~SunshineSplitHoverWidget() override;
++
++  // Rebuilds the icons, the tooltips and the link button's on/off look for
++  // the split as it is now.
++  void UpdateForSplit(split_tabs::SplitTabLayout layout,
++                      int active_index,
++                      bool link_mode_enabled);
++
++  // views::View:
++  void OnMouseEntered(const ui::MouseEvent& event) override;
++  void OnMouseExited(const ui::MouseEvent& event) override;
++
++ private:
++  base::RepeatingClosure on_hover_changed_;
++
++  raw_ptr<views::ImageButton> reverse_button_ = nullptr;
++  raw_ptr<views::ImageButton> link_button_ = nullptr;
++  raw_ptr<views::ImageButton> separate_button_ = nullptr;
++  raw_ptr<views::FlexLayout> layout_manager_ = nullptr;
++};
++
++SunshineSplitHoverWidget::SunshineSplitHoverWidget(
++    base::RepeatingClosure on_hover_changed,
++    views::Button::PressedCallback on_reverse,
++    views::Button::PressedCallback on_link,
++    views::Button::PressedCallback on_separate)
++    : on_hover_changed_(std::move(on_hover_changed)) {
++  // **Its own layer, or it takes clicks and draws nothing.** The panes on
++  // either side are layer-backed, so a sibling that paints into the parent's
++  // layer is composited underneath them while still being hit-tested by its
++  // own bounds. That is exactly how the swap dot shipped invisible and
++  // clickable in build #61, and the fix was these two lines.
++  SetPaintToLayer(ui::LAYER_TEXTURED);
++  layer()->SetFillsBoundsOpaquely(false);
++  SetBackground(views::CreateRoundedRectBackground(
++      kColorToolbar, kSunshineHoverWidgetCornerRadius));
++  SetBorder(views::CreateRoundedRectBorder(1, kSunshineHoverWidgetCornerRadius,
++                                           kColorToolbarContentAreaSeparator));
++  SetVisible(false);
++
++  layout_manager_ = SetLayoutManager(std::make_unique<views::FlexLayout>());
++  layout_manager_->SetMainAxisAlignment(views::LayoutAlignment::kCenter)
++      .SetCrossAxisAlignment(views::LayoutAlignment::kCenter)
++      .SetInteriorMargin(gfx::Insets(kSunshineHoverWidgetPadding))
++      .SetDefault(views::kMarginsKey,
++                  gfx::Insets(kSunshineHoverWidgetSpacing));
++
++  reverse_button_ =
++      AddChildView(MakeSunshineHoverWidgetButton(std::move(on_reverse)));
++  link_button_ =
++      AddChildView(MakeSunshineHoverWidgetButton(std::move(on_link)));
++  separate_button_ =
++      AddChildView(MakeSunshineHoverWidgetButton(std::move(on_separate)));
++}
++
++SunshineSplitHoverWidget::~SunshineSplitHoverWidget() = default;
++
++void SunshineSplitHoverWidget::UpdateForSplit(split_tabs::SplitTabLayout layout,
++                                              int active_index,
++                                              bool link_mode_enabled) {
++  const bool side_by_side = layout == split_tabs::SplitTabLayout::kSideBySide;
++  // Along the splitter rather than across it. The widget is wider than the
++  // splitter either way; stacking the buttons the long way keeps the stretch
++  // of splitter that cannot be grabbed as short as it can be.
++  layout_manager_->SetOrientation(side_by_side
++                                      ? views::LayoutOrientation::kVertical
++                                      : views::LayoutOrientation::kHorizontal);
++
++  // Which way "the other side" points is decided the way
++  // `SplitTabMenuModel::GetReversePositionIcon()` and
++  // `GetOpenLinkInSplitStringAndIcon()` decide it for the two menus that
++  // already offer these actions, including the right-to-left case: the pane
++  // holding the active tab is the one being pointed away from. Two controls
++  // for one action must not disagree about its direction.
++  const gfx::VectorIcon* direction_icon = nullptr;
++  int link_string_id = IDS_CONTENT_CONTEXT_OPENLINKSPLITVIEW;
++  if (side_by_side) {
++    const bool active_on_left = (active_index == 0) != base::i18n::IsRTL();
++    direction_icon = active_on_left ? &(features::IsRoundedIconsEnabled()
++                                            ? kSplitSceneRightIcon
++                                            : kSplitSceneRightOldIcon)
++                                    : &(features::IsRoundedIconsEnabled()
++                                            ? kSplitSceneLeftIcon
++                                            : kSplitSceneLeftOldIcon);
++    link_string_id = active_on_left ? IDS_CONTENT_CONTEXT_OPENLINKRIGHTVIEW
++                                    : IDS_CONTENT_CONTEXT_OPENLINKLEFTVIEW;
++  } else {
++    const bool active_on_top = active_index == 0;
++    direction_icon = active_on_top ? &(features::IsRoundedIconsEnabled()
++                                           ? kSplitSceneDownIcon
++                                           : kSplitSceneDownOldIcon)
++                                   : &(features::IsRoundedIconsEnabled()
++                                           ? kSplitSceneUpIcon
++                                           : kSplitSceneUpOldIcon);
++    link_string_id = active_on_top ? IDS_CONTENT_CONTEXT_OPENLINKBOTTOMVIEW
++                                   : IDS_CONTENT_CONTEXT_OPENLINKTOPVIEW;
++  }
++
++  const std::u16string reverse_label =
++      l10n_util::GetStringUTF16(IDS_SPLIT_TAB_REVERSE_VIEWS);
++  reverse_button_->SetImageModel(
++      views::Button::STATE_NORMAL,
++      ui::ImageModel::FromVectorIcon(*direction_icon, kColorToolbarButtonIcon,
++                                     kSunshineHoverWidgetIconSize));
++  reverse_button_->SetTooltipText(reverse_label);
++  reverse_button_->GetViewAccessibility().SetName(reverse_label);
++
++  // **On is drawn, not described.** The tooltip names the action in both
++  // states, because upstream has a string for "open link in the right view"
++  // and none for stopping, and Sunshine's own strings file is the command
++  // registry's and may not carry a label that names no command. A filled
++  // button is what says the mode is on, and it says it without being hovered
++  // -- which matters for a control that only exists while hovered.
++  const std::u16string link_label = l10n_util::GetStringUTF16(link_string_id);
++  link_button_->SetImageModel(
++      views::Button::STATE_NORMAL,
++      ui::ImageModel::FromVectorIcon(
++          features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
++                                            : vector_icons::kLinkOldIcon,
++          link_mode_enabled ? kColorToolbar : kColorToolbarButtonIcon,
++          kSunshineHoverWidgetIconSize));
++  if (link_mode_enabled) {
++    link_button_->SetBackground(views::CreateRoundedRectBackground(
++        kColorSidePanelHoverResizeAreaHandle,
++        kSunshineHoverWidgetButtonSize / 2));
++  } else {
++    link_button_->SetBackground(nullptr);
++  }
++  link_button_->SetTooltipText(link_label);
++  link_button_->GetViewAccessibility().SetName(link_label);
++
++  const std::u16string separate_label =
++      l10n_util::GetStringUTF16(IDS_SPLIT_TAB_SEPARATE_VIEWS);
++  separate_button_->SetImageModel(
++      views::Button::STATE_NORMAL,
++      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
++                                         ? kOpenInFullIcon
++                                         : kOpenInFullOldIcon,
++                                     kColorToolbarButtonIcon,
++                                     kSunshineHoverWidgetIconSize));
++  separate_button_->SetTooltipText(separate_label);
++  separate_button_->GetViewAccessibility().SetName(separate_label);
++}
++
++void SunshineSplitHoverWidget::OnMouseEntered(const ui::MouseEvent& event) {
++  on_hover_changed_.Run();
++}
++
++void SunshineSplitHoverWidget::OnMouseExited(const ui::MouseEvent& event) {
++  on_hover_changed_.Run();
+ }
+ 
++BEGIN_METADATA(SunshineSplitHoverWidget)
++END_METADATA
++
+ void MultiContentsView::ContentsSeparators::Reset() {
+   top_separator = nullptr;
+   leading_separator = nullptr;
+@@ -136,6 +360,21 @@ MultiContentsView::MultiContentsView(
+   lens_overlay_view->SetLayoutManager(std::make_unique<views::FillLayout>());
+   lens_overlay_view_ = AddChildView(std::move(lens_overlay_view));
+ 
++  // Sunshine's splitter widget, added last so that it is the last child and
++  // therefore the topmost layer. It starts hidden and is shown by
++  // `OnSunshineSplitterHoverChanged()`.
++  sunshine_hover_widget_ =
++      AddChildView(std::make_unique<SunshineSplitHoverWidget>(
++          base::BindRepeating(
++              &MultiContentsView::OnSunshineSplitterHoverChanged,
++              base::Unretained(this)),
++          base::BindRepeating(&MultiContentsView::SunshineReverseViews,
++                              base::Unretained(this)),
++          base::BindRepeating(&MultiContentsView::SunshineToggleLinkMode,
++                              base::Unretained(this)),
++          base::BindRepeating(&MultiContentsView::SunshineSeparateViews,
++                              base::Unretained(this))));
++
+   for (auto& contents_container_view : contents_container_views_) {
+     auto& view_map = container_focusable_map_[contents_container_view];
+ 
+@@ -192,6 +431,7 @@ MultiContentsView::~MultiContentsView() {
+   }
+   drop_target_view_ = nullptr;
+   lens_overlay_view_ = nullptr;
++  sunshine_hover_widget_ = nullptr;
+   resize_area_ = nullptr;
+   contents_separators_.Reset();
+   background_view_ = nullptr;
+@@ -306,6 +546,12 @@ void MultiContentsView::CloseSplitView() {
+   contents_container_views_[1]->contents_view()->SetWebContents(nullptr);
+   contents_container_views_[1]->SetVisible(false);
+   resize_area_->SetVisible(false);
++  // Said here rather than left to the hover report `SetVisible()` above
++  // produces: that report does hide the widget, but only because this
++  // function happens to hide the second pane first. A control that stays on
++  // screen after its split is gone is not worth a dependency on the order of
++  // two lines in an upstream function.
++  SetSunshineHoverWidgetVisible(false);
+   UpdateContentsBorderAndOverlay();
+ 
+   if (auto* active_contents = GetActiveContentsView()->web_contents()) {
+@@ -553,6 +799,25 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+                                      lens_overlay_view_->GetVisible(),
+                                      gfx::Rect(width, height));
+ 
++  // Sunshine's splitter widget floats over the panes, centred on the
++  // splitter. **Its size comes from itself, not from `sizes.resize`**, which
++  // is the whole reason it can be wider than the splitter without widening
++  // it: `GetViewSizes()` above asked the resize area, and the resize area
++  // does not contain this.
++  gfx::Rect hover_widget_rect;
++  const bool show_hover_widget =
++      IsInSplitView() && sunshine_hover_widget_->GetVisible();
++  if (show_hover_widget) {
++    const gfx::Size widget_size = sunshine_hover_widget_->GetPreferredSize();
++    hover_widget_rect = gfx::Rect(
++        resize_rect.CenterPoint() -
++            gfx::Vector2d(widget_size.width() / 2, widget_size.height() / 2),
++        widget_size);
++    hover_widget_rect.AdjustToFit(available_space);
++  }
++  layouts.child_layouts.emplace_back(sunshine_hover_widget_.get(),
++                                     show_hover_widget, hover_widget_rect);
++
+   layouts.host_size = gfx::Size(width, height);
+   return layouts;
+ }
+@@ -853,6 +1118,114 @@ void MultiContentsView::SetSplitViewInsets(const gfx::Insets& insets) {
+   InvalidateLayout(/*avoid_propagate_during_layout=*/true);
+ }
+ 
++void MultiContentsView::OnSunshineSplitterHoverChanged() {
++  // The resize area reports hover from the `SetVisible(false)` this view's
++  // own constructor makes on it, which runs before the widget exists.
++  if (!sunshine_hover_widget_) {
++    return;
++  }
++  if (!IsInSplitView()) {
++    SetSunshineHoverWidgetVisible(false);
++    return;
++  }
++  if (resize_area_->IsMouseHovered() ||
++      sunshine_hover_widget_->IsMouseHovered()) {
++    sunshine_hover_widget_hide_timer_.Stop();
++    SetSunshineHoverWidgetVisible(true);
++    return;
++  }
++  // **Deferred, and it has to be.** The widget is wider than the splitter, so
++  // moving the pointer from the splitter onto the widget leaves the splitter
++  // and is reported here before the widget is entered. Hiding on that report
++  // would make the widget unreachable -- it would vanish as the user reached
++  // for it. Both report, and the answer is only acted on once neither is
++  // under the pointer.
++  sunshine_hover_widget_hide_timer_.Start(
++      FROM_HERE, kSunshineHoverWidgetHideDelay,
++      base::BindOnce(&MultiContentsView::OnSunshineHoverWidgetHideTimer,
++                     base::Unretained(this)));
++}
++
++void MultiContentsView::OnSunshineHoverWidgetHideTimer() {
++  if (resize_area_->IsMouseHovered() ||
++      sunshine_hover_widget_->IsMouseHovered()) {
++    return;
++  }
++  SetSunshineHoverWidgetVisible(false);
++}
++
++void MultiContentsView::SetSunshineHoverWidgetVisible(bool visible) {
++  if (sunshine_hover_widget_->GetVisible() == visible) {
++    return;
++  }
++  if (visible) {
++    UpdateSunshineHoverWidget();
++  }
++  // `View::SetVisible()` invalidates this view's layout, which is what puts
++  // the widget on the splitter; nothing here needs to ask for that again.
++  sunshine_hover_widget_->SetVisible(visible);
++  // The dot and the widget are one control in two states: a mark that says
++  // there is something here, and the something. Leaving the dot up would draw
++  // it underneath the widget.
++  resize_area_->SetSunshineSwapDotVisible(!visible);
++}
++
++void MultiContentsView::UpdateSunshineHoverWidget() {
++  sunshine_hover_widget_->UpdateForSplit(GetSplitLayout(), active_index_,
++                                         SunshineLinkModeEnabled());
++}
++
++bool MultiContentsView::SunshineLinkModeEnabled() const {
++  content::WebContents* const anchor = GetActiveContentsView()->web_contents();
++  return anchor && sunshine::SplitLinkMode::IsEnabledFor(anchor);
++}
++
++void MultiContentsView::SunshineReverseViews() {
++  // `OnSwap()` CHECKs that a split is open. The widget only exists inside
++  // one, but a button pressed a frame after the split closed is not worth
++  // arguing with an upstream CHECK about.
++  if (IsInSplitView()) {
++    OnSwap();
++  }
++}
++
++void MultiContentsView::SunshineToggleLinkMode() {
++  if (!IsInSplitView()) {
++    return;
++  }
++  content::WebContents* const anchor = GetActiveContentsView()->web_contents();
++  content::WebContents* const destination =
++      GetInactiveContentsView()->web_contents();
++  if (!anchor || !destination) {
++    return;
++  }
++  if (sunshine::SplitLinkMode::IsEnabledFor(anchor)) {
++    sunshine::SplitLinkMode::Disable(anchor);
++  } else {
++    // **One anchor per split.** Both halves pointing at each other would send
++    // a link clicked on either side to the other, so the first click on a
++    // depth page would turn the depth page into the list. The mode is
++    // asymmetric because the arrangement it serves is: one side is what you
++    // are working through, the other is what it opens.
++    sunshine::SplitLinkMode::Disable(destination);
++    sunshine::SplitLinkMode::Enable(anchor, destination);
++  }
++  UpdateSunshineHoverWidget();
++}
++
++void MultiContentsView::SunshineSeparateViews() {
++  TabStripModel* const tab_strip_model =
++      browser_view_->browser()->tab_strip_model();
++  const std::optional<split_tabs::SplitTabId> split_id =
++      tab_strip_model->GetSplitForTab(tab_strip_model->active_index());
++  if (split_id.has_value()) {
++    // The same call the split menu's "Separate views" makes. Two ways in, one
++    // behaviour -- and the tabs survive, which is what "개별 탭으로 분리"
++    // asked for and what closing a pane would not have done.
++    tab_strip_model->RemoveSplit(split_id.value());
++  }
++}
++
+ int MultiContentsView::GetResizeAxisComponent(const gfx::Size& size) const {
+   return (visual_data_.split_layout() ==
+           split_tabs::SplitTabLayout::kSideBySide)
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
+index 15f5784..6544963 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.h
++++ b/chrome/browser/ui/views/frame/multi_contents_view.h
+@@ -12,6 +12,7 @@
+ #include "base/functional/callback_forward.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/timer/timer.h"
+ #include "chrome/browser/ui/tabs/split_tab_highlight_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/contents_container_view.h"
+@@ -32,6 +33,7 @@ class MultiContentsResizeArea;
+ class MultiContentsViewDelegate;
+ class MultiContentsViewDropTargetController;
+ class MultiContentsViewMiniToolbar;
++class SunshineSplitHoverWidget;
+ 
+ namespace content {
+ class WebContents;
+@@ -135,6 +137,16 @@ class MultiContentsView
+   // If in a split view, swaps the positions of the two active tabs.
+   void OnSwap();
+ 
++  // Sunshine: the splitter widget appears or disappears with the pointer.
++  //
++  // Reported by `MultiContentsResizeArea` when the pointer enters or leaves
++  // the splitter, and by the widget itself when it enters or leaves the
++  // widget. **Both have to report.** The widget is wider than the splitter,
++  // so moving the pointer from one onto the other leaves the first, and a
++  // control that vanished as you reached for it would be worse than no
++  // control at all.
++  void OnSunshineSplitterHoverChanged();
++
+   // If non-null, specifies an increase in target size so that web contents
+   // maintain their maximum extents during browser animations to prevent
+   // issues with reflow on some platforms.
+@@ -283,6 +295,26 @@ class MultiContentsView
+   // Helper function that gets the component of |size| along the resize axis.
+   int GetResizeAxisComponent(const gfx::Size& size) const;
+ 
++  // Shows or hides the splitter widget, and hides or shows the swap dot with
++  // it -- they are one control in two states.
++  void SetSunshineHoverWidgetVisible(bool visible);
++
++  // Hides the widget unless the pointer came back to it or to the splitter.
++  void OnSunshineHoverWidgetHideTimer();
++
++  // Rebuilds the widget's icons, tooltips and link toggle for the split as it
++  // is now.
++  void UpdateSunshineHoverWidget();
++
++  bool SunshineLinkModeEnabled() const;
++
++  // The widget's three buttons. Each is the same call an existing entry point
++  // already makes, so there is one behaviour per action in the product and
++  // this widget is a way of reaching it.
++  void SunshineReverseViews();
++  void SunshineToggleLinkMode();
++  void SunshineSeparateViews();
++
+   raw_ptr<BrowserView> browser_view_;
+   std::unique_ptr<MultiContentsViewDelegate> delegate_;
+ 
+@@ -305,6 +337,17 @@ class MultiContentsView
+   // each other.
+   raw_ptr<MultiContentsResizeArea> resize_area_ = nullptr;
+ 
++  // Sunshine's splitter widget. A child of this view rather than of the
++  // resize area, because `GetViewSizes()` sets the splitter's thickness from
++  // the resize area's preferred size: anything laid out inside the splitter
++  // that is wider than the drag handle widens the splitter and takes the
++  // difference out of the panes. This floats over them instead.
++  raw_ptr<SunshineSplitHoverWidget> sunshine_hover_widget_ = nullptr;
++
++  // Runs when neither the splitter nor the widget is under the pointer, so
++  // that crossing the gap between them does not hide the widget.
++  base::OneShotTimer sunshine_hover_widget_hide_timer_;
++
+   // The views that are shown for entering split view. E.g., this is shown when
+   // the user drags a link to the edge of the contents view.
+   raw_ptr<MultiContentsDropTargetView> drop_target_view_ = nullptr;

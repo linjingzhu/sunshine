@@ -361,6 +361,25 @@ The cheap form of this budget is a source-level assertion that no Sunshine-owned
 repeating timer or idle task exists. It is stricter than a CPU measurement, it
 does not need a baseline, and it can be written before a native build exists.
 
+**A timer that fires once is not idle cost, and the cheap form used to say it
+was.** Its symbol list has always allowed the one-shot spellings — its own
+comment explains that `setTimeout` is absent on purpose because one-shot is
+legitimate — while its *field* rule rejected any field whose name contained
+`timer`. The two disagreed, and
+`downstream/patches/0032-sunshine-split-hover-widget.patch` is where that
+showed: a `base::OneShotTimer` that hides the splitter widget once, 250 ms
+after the pointer has left both the widget and the splitter, and is not running
+at any other moment (ADR 0028).
+
+The field rule is now narrowed by the **declared type** rather than by the
+name, so a `base::RepeatingTimer` cannot buy the allowance by being renamed and
+a one-shot timer does not have to be named dishonestly to keep it.
+**PB-5 itself is unchanged**, and this is not an amendment in the sense PB-5a
+and PB-5b are: nothing new is permitted to repeat. `tests/test_no_interposition.py`
+pins both halves — the one-shot field passes, a repeating timer under the same
+field name still fails, and a timer field whose type the guard cannot read
+still fails.
+
 #### PB-5a — The one thing that may animate, and why it is not an exception
 
 **Amended by the owner** to permit an animated New Tab background. The

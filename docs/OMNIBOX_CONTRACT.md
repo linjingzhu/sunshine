@@ -327,9 +327,44 @@ stating plainly: the check was broader than the rule it enforces, and the
 first real navigation in the repository is what exposed the gap.
 
 `tests/test_no_interposition.py` pins each rejected shape, and one further
-test asserts that patch 0008 is still the only patch in the stack that
-navigates at all — so a second user of the allowance fails a test rather than
-inheriting it silently.
+test asserts that only the patches recorded here navigate at all — so a new
+user of an allowance fails a test rather than inheriting it silently.
+
+### The second exemption: finishing a navigation Chromium started
+
+`downstream/patches/0031-sunshine-split-link-mode.patch` is the second, and it
+arrived for the same reason as the first. The owner asked that a link clicked
+in one half of a split open in the other half (ADR 0028). An `<a href>`
+followed in the same frame never reaches the delegate hook that opens a URL
+from a tab, so the only place the browser can be asked about it is the
+navigation throttle list — and every way of writing the destination load trips
+a symbol on the list.
+
+A `content::NavigationThrottle` is handed a navigation the browser has
+**already begun and already classified**. The URL is the one the renderer was
+navigating to; nothing accepted a string from a surface, and nothing skipped
+the classification path typed text takes, because no text was typed. The load
+changes which tab finishes a navigation, not what the navigation is.
+
+So the check gains a second rule, as narrow as the first. Two conditions, and
+both must hold:
+
+1. the load's argument is named `throttled_navigation` **in the statement that
+   loads it**, so the provenance is stated at the point of use;
+2. the same Sunshine-authored text declares a `content::NavigationThrottle`
+   subclass, so a file that never receives a navigation in flight cannot take
+   the allowance.
+
+**The invariant above is unchanged.** What still fails, and is covered by
+tests: the same load under any other argument name, that name in a file that
+declares no throttle, and every other navigation symbol — `OpenURLParams`,
+`NavigateParams` and the JavaScript forms — even inside a throttle. Being a
+throttle is a condition, not a licence.
+
+The conditions the throttle itself imposes before it will act are not part of
+OS-9 and are not enforced here; they are in ADR 0028 §"The conditions on that
+throttle are the security argument" and in the code's own comment, and RV-71 to
+RV-74 are the runtime checks for them.
 
 ## 7. Valid URL and plausible search term
 

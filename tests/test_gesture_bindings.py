@@ -129,8 +129,14 @@ class ReachTests(GuardTestCase):
         self.assertFailsWith("GESTURE invariant 5")
 
     def test_a_dependency_on_browser_ui_is_rejected(self) -> None:
-        self.rewrite('    "//components/prefs",',
-                     '    "//chrome/browser/ui",\n    "//components/prefs",')
+        # Replaced in place rather than inserted, for the reason
+        # `test_the_recogniser_may_not_navigate` above states: the fixture is
+        # a diff, and a line added to a created file shifts every line after
+        # it, so any later patch with a hunk past that point stops applying
+        # and the guard raises instead of failing. This fixture did insert,
+        # and 0031 -- the first patch to touch the end of that file -- is what
+        # found it.
+        self.rewrite('    "//components/prefs",', '    "//chrome/browser/ui",')
         self.assertFailsWith("A target that can see")
 
 
