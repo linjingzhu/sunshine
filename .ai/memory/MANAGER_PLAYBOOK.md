@@ -1,8 +1,8 @@
 ---
 doc_id: ai-manager-playbook
-version: 1.0.0
+version: 1.1.0
 canonical_path: .ai/memory/MANAGER_PLAYBOOK.md
-updated: 2026-08-13
+updated: 2026-09-03
 ---
 
 # Portable Manager Playbook
@@ -13,43 +13,28 @@ Keep entries short.
 
 ## Promotion rule
 
-A lesson may be:
-- `candidate` — observed but not broadly validated;
-- `verified` — repeatedly useful in comparable contexts without quality regression.
+A lesson here is one of two things, and never a third:
+
+- `candidate` — observed, not yet broadly validated. It lives here.
+- `verified` — repeatedly useful in comparable contexts without quality
+  regression. **It is written into the policy set and removed from here.**
+
+That second half is the whole point of the file. A verified lesson that stays
+here becomes a second copy of a rule that already exists in `.ai/`, and the two
+copies drift. When you promote, move it — do not leave a summary behind.
 
 Do not promote a one-project observation into a universal rule.
 
-## Seed lessons
+## Current lessons
 
-### MP-001 — Conflict prevention beats conflict resolution
-status: verified  
-scope: general
+None. The three seed lessons this file shipped with — conflict prevention beats
+conflict resolution, reuse context rather than stale sessions, detect defects
+early — were all promoted: they are `.ai/EXECUTION.md` § *Conflict prevention*
+and § *Session strategy*, `.ai/CORE.md` § *Token discipline*, and the compile
+and build ladder. Keeping them here as well was the duplication this rule now
+forbids.
 
-Strategy:
-- establish exclusive write ownership before parallel work;
-- serialize shared hotspots/interfaces;
-- integrate hotspot changes early.
-
-Reason:
-Late conflict resolution creates rework, context reload, and merge risk.
-
-### MP-002 — Reuse context, not stale sessions
-status: verified  
-scope: general
-
-Strategy:
-- reuse Workers for cohesive work within a run;
-- end Worker contexts at run/domain boundaries;
-- carry compact facts forward instead of raw reasoning history.
-
-### MP-003 — Detect defects early
-status: verified  
-scope: general
-
-Strategy:
-- compile/build incrementally;
-- measure late compile/build/visual discoveries as process failures;
-- move verification earlier when the same defect class repeats.
+An empty file is the honest state. Add a candidate when a run produces one.
 
 ## Candidate lesson template
 
@@ -73,4 +58,4 @@ Confidence:
 - low / medium / high
 ```
 
-When moving this playbook to a new project, preserve only reusable lessons. Project-specific paths and workarounds belong in `.ai/memory/PROJECT_LESSONS.md`.
+When moving this playbook to a new project, preserve only reusable lessons. Project-specific paths and workarounds belong in `PROJECT_LESSONS.md`.

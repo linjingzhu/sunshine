@@ -1,8 +1,8 @@
 ---
 doc_id: ai-review
-version: 1.1.0
+version: 1.2.0
 canonical_path: .ai/REVIEW.md
-updated: 2026-08-23
+updated: 2026-09-19
 ---
 
 # Adversarial Review Policy
@@ -38,6 +38,30 @@ Inspect:
 
 Findings require concrete evidence.
 
+## What a reviewer must not raise
+
+The list above is what makes a review worth commissioning. This one is what
+makes it worth reading. A review that reports everything gets skimmed, and a
+skimmed review is a gate that passes without asking.
+
+Do not raise, unless the requirement says otherwise:
+
+- style preference, and formatting the project has not made a rule;
+- optional renames;
+- refactoring nobody asked for;
+- hypothetical future problems with no path from this diff;
+- defensive code for conditions the types or the callers already exclude;
+- anything phrased as "consider" — either it is a defect or it is not.
+
+Two of these are worth naming as a pair. **Unrequested refactoring** raised as
+a finding invites the implementer to widen the change, which is the scope rule
+in `.ai/CORE.md` § *Implementation* broken by the reviewer rather than the
+author. **Speculative defensive code** turns a review into a source of the
+unnecessary complexity it exists to catch.
+
+A reviewer who finds nothing reportable returns that, and a run that treats an
+empty review as a failed review will get a padded one next time.
+
 ## Risk levels
 
 ### LOW
@@ -68,15 +92,21 @@ Examples:
 Default:
 - fresh adversarial challenge before implementation when valuable;
 - fresh final review before merge;
-- prefer opposite-family reviewer (Claude ↔ Codex).
+- prefer a reviewer that is a different model from the implementer.
 
 ## Cross-agent independence
 
-Preferred:
-- Claude implementation → Codex review
-- Codex implementation → Claude review
+*Single source, including the fallback. `.ai/MANAGER.md` § 9 points here.*
 
-If the opposite family is unavailable, spawn a fresh reviewer of the same family without the implementer's reasoning history.
+Preferred: the reviewer is a **different model** from the implementer — a
+different vendor, or a different model of the same vendor — in a fresh context.
+The report names both models (`.ai/REPORTING.md` § *Chat report*, the
+`Models` line); an unnamed reviewer is not an independent one.
+
+If no other model is available, spawn a fresh reviewer of the same model
+without the implementer's reasoning history and label the result
+`FALLBACK REVIEW`. A fresh context of the same model is distance, not
+independence, and the report must not present it as the latter.
 
 ## Resolution
 
@@ -86,14 +116,3 @@ If the opposite family is unavailable, spawn a fresh reviewer of the same family
 - After correction, rerun the smallest evidence that proves the fix.
 
 Reviewer PASS alone never replaces compile/test/build/runtime evidence.
-
-**A finding is a hypothesis with evidence attached, not a verdict.** Reproduce
-every consequential finding against the tree before acting on it or relaying it
-— including findings that favour caution, and including your own. A CRITICAL
-has already been raised in this repository against a parser that a
-higher-precedence check rejects first; relaying it unverified would have
-escalated a non-issue to a merge blocker.
-
-**Review is the only thing that has caught an unreachable feature here.** No
-compiler, guard, test or build did. Weight adversarial review accordingly on any
-change that adds a branch to code someone else decides whether to call.
