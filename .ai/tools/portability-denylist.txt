@@ -1,0 +1,2 @@
+# Repository-specific identifiers must stay in instance files.
+linjingzhu/sunshine

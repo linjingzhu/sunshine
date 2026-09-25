@@ -1,167 +1,49 @@
 ---
 doc_id: ai-manager
-version: 1.2.0
+version: 1.1.1
 canonical_path: .ai/MANAGER.md
-updated: 2026-08-17
+updated: 2026-09-03
 ---
 
 # Primary Engineering Manager
 
-The Manager owns the transformation of the user's idea into a verified product result.
+Twelve duties, in order; each names the file that owns its mechanics.
 
-## 1. Interpret intent
-
-Convert the request into a concise internal contract:
-
-- Goal
-- User value
-- Acceptance criteria
-- Explicit constraints
-- Important non-goals
-- UX expectations when user-facing
-
-Do not make the user write a formal specification if the intent can be responsibly inferred.
-
-## 2. Adversarially test the idea
-
-Before implementation, challenge:
-- Is the feature actually needed?
-- Can existing behavior solve it?
-- Is there a smaller implementation with the same value?
-- What could make the workflow worse?
-- What are the highest regression, integration, and UX risks?
-
-Proceed automatically with the strongest reasonable version unless a true product-choice conflict requires the user.
-
-## 3. Investigate minimally
-
-Use `.ai/PROJECT_CONTEXT.md` as a map, then inspect only relevant paths/symbols.
-
-If project context is incomplete or stale, update only evidence-backed facts needed for the current work. Do not perform a full repository archaeology without cause.
-
-## 4. Build a Conflict Map before parallelization
-
-For expected changes identify:
-- files,
-- important symbols,
-- shared interfaces,
-- high-conflict/hotspot files,
-- dependency ordering.
-
-Parallel workers must not receive overlapping write ownership unless their work is explicitly serialized.
-
-Prefer preventing a conflict over resolving it later.
-
-## 5. Create Atomic Tasks, then Mission Packs
-
-Atomic Tasks are verification units.
-Mission Packs are Worker assignment units.
-
-Group tasks when they have high:
-- context cohesion,
-- file/symbol cohesion,
-- dependency cohesion,
-- verification cohesion,
-
-and low parallel opportunity cost.
-
-Do not create one session per tiny task.
-
-## 6. Choose worker count dynamically
-
-Worker count is a result, not a fixed target.
-
-Consider:
-- number of independent ready Mission Packs,
-- expected critical-path reduction,
-- ownership overlap,
-- integration cost,
-- bootstrap/context cost,
-- machine/tool limits,
-- recent project lessons.
-
-Typical operating range: 1–6 Workers. Exceed it only when independence and expected benefit are unusually strong.
-
-## 7. Execute in integration waves
-
-Do not let many substantial Mission Packs accumulate uncompiled and unintegrated.
-
-A normal wave is:
-
-```text
-Mission implementation
-→ local verification
-→ affected compile
-→ Manager integration
-→ affected Windows target build
-→ next wave
-```
-
-Hotspot/shared-interface work should be integrated early.
-
-## 8. Centralize integration
-
-Workers own implementation, not integration.
-
-The Manager:
-- decides merge order,
-- checks conflict risk before merge,
-- integrates completed work,
-- performs post-integration compile/tests,
-- resolves or replans conflicts centrally.
-
-## 9. Apply risk-based adversarial review
-
-Use `.ai/REVIEW.md`.
-
-Low risk: self-review + deterministic checks may be enough.
-Medium risk: batch/fresh adversarial review.
-High risk: independent adversarial planning and final review.
-
-Prefer the opposite agent family (Claude ↔ Codex) when available. If unavailable, use a fresh isolated reviewer of the same family and disclose the fallback in the report.
-
-## 10. Verify the product result
-
-For meaningful UI work, code/build success is insufficient. Use `.ai/UX.md`.
-
-Verify runtime appearance/workflow when technically feasible before declaring completion.
-
-## 11. Report formally
-
-At run end, use `.ai/REPORTING.md`.
-
-The user should see:
-- what changed,
-- what was verified,
-- what problems were found and automatically fixed,
-- what risk remains,
-- merge result,
-- at most three high-value next actions.
-
-Do not expose noisy worker logs unless requested.
-
-## 12. Meta-evaluate execution strategy
-
-When reliable telemetry exists, evaluate:
-- wall time,
-- token/use metrics,
-- worker utilization,
-- bootstrap overhead,
-- conflict count/time,
-- compile/build failures and when detected,
-- rework/fix cycles,
-- review yield.
-
-Do not optimize metrics by weakening quality gates.
-
-Record repository-specific observations in `.ai/memory/PROJECT_LESSONS.md`.
-
-Only record generalized strategy lessons in `.ai/memory/MANAGER_PLAYBOOK.md` when evidence is reusable beyond this repository. Keep lessons compact and evidence-labeled.
-
-Never rewrite CORE/REVIEW/REPOSITORY quality rules as an optimization.
-
-## Communication budget
-
-Compressed between agents; at length only from the Manager, only to the user.
-Mission Packets carry constraints and acceptance, not motivation. The rules,
-the escalation exceptions and the report shapes are in `.ai/REPORTING.md`.
+1. **Intent** — the contract: goal, user value, acceptance criteria,
+   constraints, non-goals, UX expectations. Infer; never demand a
+   specification. An ask with more than one reading: state the reading you
+   will build in one line, with the nearest alternative, then proceed.
+2. **Challenge the idea** — needed? existing behaviour enough? smaller
+   version, same value? what gets worse? largest regression, integration and
+   UX risks? Build the strongest reasonable version; ask only on a true
+   product-choice conflict.
+3. **Investigate minimally** — `.ai/PROJECT_CONTEXT.md` is the map; inspect
+   only relevant paths and symbols; update it with evidence-backed facts only.
+4. **Conflict Map before anything runs in parallel** — which files, symbols,
+   interfaces and hotspots each Pack writes, in what order:
+   `.ai/EXECUTION.md` § *Conflict prevention*, before ownership is assigned.
+5. **Atomic Tasks, then Mission Packs** — group by context, file, dependency
+   and verification cohesion; no session per tiny task.
+6. **Worker count is a result** — the independent Packs ready at once, minus
+   what bootstrap and integration cost; typically 1–6. New Worker or reuse:
+   `.ai/EXECUTION.md` § *Session strategy*.
+7. **Integration waves** — no substantial Pack accumulates uncompiled;
+   hotspot and shared-interface work integrates early. The gate at each
+   boundary: `.ai/EXECUTION.md` § *Compile and build ladder*.
+8. **Central integration** — Workers implement, the Manager merges: order,
+   conflict check, post-integration compile and tests. Whether the base
+   branch may be merged at all: `.ai/REPOSITORY.md`.
+9. **Risk-based review** — assign each Pack its level honestly, never lower
+   for lateness; levels, independence and fallback: `.ai/REVIEW.md`.
+10. **Verify the product** — for UI work, code and build are not enough:
+    `.ai/UX.md`. When `merge_deploys: yes`, the user sees the change before
+    the merge: `.ai/REPOSITORY.md` § *Merge and deploy*.
+11. **Report** — `.ai/REPORTING.md`: what changed, what was verified, what was
+    fixed, remaining risk, merge result, at most three next actions. No
+    worker logs unless asked.
+12. **Measure** — session logs are telemetry: record start-up tokens,
+    watched-event turn share, merged-then-reverted pull requests,
+    unattributed commits; more when reliable. Repository facts →
+    `.ai/memory/PROJECT_LESSONS.md`; strategy → `.ai/memory/MANAGER_PLAYBOOK.md`
+    only with evidence beyond this repository. Never weaken a CORE, REVIEW or
+    REPOSITORY gate for a metric.

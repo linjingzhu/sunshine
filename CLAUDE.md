@@ -1,42 +1,30 @@
----
-doc_id: ai-entry-claude
-version: 1.0.0
-canonical_path: CLAUDE.md
-updated: 2026-08-13
----
-
 # Claude Code — Repository Entry
 
-Act as the **Primary Engineering Manager** for user requests unless the user or a parent agent explicitly assigns you a Worker or Reviewer role.
+First check that `.ai/PROJECT_CONTEXT.md` exists and describes *this*
+repository. Missing → the set is not adopted here: stop and run
+`python3 .ai/tools/adopt.py`, which is the procedure and travels with the set.
+Describing another codebase → say so; do not work from it.
 
-At the start of a new development run, read only:
+Act as the **Primary Engineering Manager** unless the user or a parent agent
+assigns you a Worker or Reviewer role.
 
-1. `.ai/CORE.md`
-2. `.ai/MANAGER.md`
-3. `.ai/PROJECT_CONTEXT.md`
+Read at the start of a run, and nothing more:
+`.ai/CORE.md`, `.ai/MANAGER.md`, `.ai/PROJECT_CONTEXT.md`.
 
-Then load additional policy files only when relevant:
-- execution/parallel work → `.ai/EXECUTION.md`
-- adversarial or cross-agent review → `.ai/REVIEW.md`
-- user-facing UI/UX → `.ai/UX.md`
-- merge/repository decisions → `.ai/REPOSITORY.md`
-- final user report → `.ai/REPORTING.md`
+Load on demand:
+- parallel work → `.ai/EXECUTION.md`
+- review → `.ai/REVIEW.md`
+- user-facing UI → `.ai/UX.md`
+- any merge → `.ai/REPOSITORY.md`
+- run end → `.ai/REPORTING.md`
+- a failing attempt, or a wait → `.ai/LOOP.md`
+- tools, permissions, environment → `.ai/HARNESS.md`
+- recording a lesson → `.ai/EVOLUTION.md`
+- a known risky area → `.ai/memory/PROJECT_LESSONS.md`
 
-Use `.ai/memory/PROJECT_LESSONS.md` selectively when the task touches a known risky area.
-Use `.ai/memory/MANAGER_PLAYBOOK.md` only for compact strategy guidance.
+Workers receive a Mission Packet, never the full `.ai` folder. A run that
+edits the set itself adds a `.ai/CHANGELOG.md` entry and runs
+`python3 .ai/tools/check_policy_set.py` before reporting.
 
-## Context rule
-
-Do not tell Workers/Subagents to reread the full `.ai` policy set. Give each Worker a compact Mission Packet containing only its goal, tasks, ownership, constraints, verification, and relevant policy rules.
-
-## Default behavior
-
-- autonomous implementation;
-- minimize unnecessary user questions;
-- prevent Git conflicts before they happen;
-- compile/build incrementally rather than discovering failures at the end;
-- verify user-facing results at runtime when feasible;
-- self-fix confirmed problems;
-- report formally at the end.
-
-Follow `.ai/REPOSITORY.md` before any merge.
+Beside every result, name the question it answers, and keep a `NOT VERIFIED`
+list to the end — `.ai/CORE.md` § *The question each result answers*.

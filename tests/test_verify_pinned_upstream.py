@@ -283,11 +283,11 @@ class PinnedUpstreamTests(unittest.TestCase):
 
         self.assertIn("googlesource", checker.SOURCES)
         self.assertIn("github", checker.SOURCES)
-        workflow = (
-            REPOSITORY_ROOT / ".github/workflows/architecture-guard-self-hosted.yml"
-        ).read_text(encoding="utf-8")
-        self.assertIn("python scripts/verify_pinned_upstream.py", workflow)
-        self.assertNotIn("--source github", workflow)
+        with mock.patch.object(sys, "argv", ["verify_pinned_upstream.py"]), \
+             mock.patch.object(checker, "verify", return_value=(True, [])) as verify, \
+             mock.patch("builtins.print"):
+            self.assertEqual(0, checker.main())
+        verify.assert_called_once_with("googlesource")
 
     def test_the_pinned_version_is_read_without_the_ref_prefix(self) -> None:
         self.assertEqual("152.0.7977.42", checker.pinned_version(REPOSITORY_ROOT))

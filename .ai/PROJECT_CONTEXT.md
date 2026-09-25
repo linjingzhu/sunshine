@@ -1,11 +1,27 @@
 ---
 doc_id: ai-project-context
-version: 1.0.0
+version: 1.0.1
 canonical_path: .ai/PROJECT_CONTEXT.md
-updated: 2026-08-16
+updated: 2026-09-25
 ---
 
 # Sunshine OS Project Context
+
+## Facts the checks read
+
+```text
+repository_mode: protected
+base_branch: stable
+merge_deploys: yes
+runtime_gate: python3 scripts/verify_installed_build.py
+test_command: python3 -m unittest discover -s tests -v
+lint_command: python3 scripts/verify_architecture.py
+build_command: pwsh -NoProfile -File scripts/build_chromium_windows.ps1
+generated: gate-sheet.html via python3 scripts/build_gate_sheet.py; resource assets have generators under scripts/; inspect source-specific generation before editing
+external_scripts: none
+public_ids: linjingzhu/sunshine
+owner_ledger: .ai/reports/OWNER_ACTIONS.md
+```
 
 ## Authoritative product constraints
 
@@ -48,3 +64,15 @@ updated: 2026-08-16
 The previously evaluated feature list is capped at items 1–19. Items 20 and
 later are not backlog candidates and must not be reintroduced through roadmap,
 dashboard, or speculative implementation work.
+
+## Platform and verification constraints
+
+Windows is the default build and verification platform. Do not perform a macOS build unless explicitly requested. The existing product, architecture and runtime constraints above remain authoritative.
+
+## Automation state after policy adoption (2026-09-25)
+
+The owner requested the latest shared rules and removal/disablement of every GitHub Actions workflow across the repositories. This dated decision supersedes earlier instructions in this context that require Actions CI, Actions deployment, or workflow-driven automatic merges. Existing product constraints, local verification commands, history and owner records remain in force. Future unrelated changes use `repository_mode: protected`; this batch has explicit merge authorization.
+
+All tracked files under .github/workflows are removed. Actions CI, releases, deployment and other workflow-based jobs no longer execute. Local checks remain available. `merge_deploys` stays conservative where external hosting has not been independently verified; a successful merge is not deployment evidence. Do not recreate or re-enable workflows without a new owner instruction.
+
+The `merge_deploys: yes` value is a conservative assumption because non-Actions hosting connections were not inspected. For newly filled facts, `none` means no relevant mechanism was established from the inspected repository files, not an audit of external services.
