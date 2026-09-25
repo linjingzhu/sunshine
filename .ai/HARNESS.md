@@ -96,6 +96,19 @@ and by nothing else. The *This mode never starts itself* section in each
 platform's `auto-dev` skill holds that rule, because the file that carries the
 capability is the only place it cannot be separated from.
 
+## Dispatcher and Codex model routing
+
+Every request enters through the low-cost Dispatcher before implementation.
+The Dispatcher classifies intent, repository, risk, required tools, cost
+exposure and whether the request needs a Manager, Worker, explorer or reviewer.
+It does not edit files, choose product scope, approve paid automation, or merge.
+When classification is uncertain, route upward to the Primary Manager.
+
+The Dispatcher uses `gpt-5.6-luna` with low reasoning effort by default. If that
+model is unavailable, use the lowest available GPT-5.x model and record the
+substitution. It returns the route, model, risk, required verification and any
+missing information before work starts.
+
 ## Codex capabilities and model routing
 
 Codex enters through `AGENTS.md`, discovers the skill at
@@ -115,9 +128,14 @@ local routing convention, not a claim that the models are interchangeable:
 
 | Claude tier / role | Codex choice |
 | --- | --- |
+| Dispatcher / request classification | `gpt-5.6-luna`, low reasoning |
 | Haiku / bounded exploration | `gpt-6-luna`, high reasoning |
 | Sonnet / ordinary implementation | `gpt-6-sol`, medium reasoning |
 | Opus / demanding analysis or review | `gpt-6-astra`, high reasoning |
+
+GPT-5.x remains available for cost-sensitive execution: use `gpt-5.6-sol` for
+ordinary implementation when GPT-6 is unavailable or cost is the deciding
+constraint, and `gpt-5.6-luna` for bounded classification or exploration.
 
 Preserve a user's explicit model choice for the main run. The explorer selects
 Luna in its TOML file. For `adversarial-reviewer`, choose Astra unless the
@@ -145,6 +163,13 @@ Format and availability references (checked 2026-09-25):
 [building skills](https://learn.chatgpt.com/docs/build-skills).
 
 ## Tools a Mission Packet may assume
+
+## Cost-bearing automation
+
+Hosted automation is an external capability with a billing surface. Before a
+run enables or invokes it, identify the provider, billing unit, expected upper
+bound, owner approval, and expiry in the owner ledger. If any is unknown, do
+not invoke it; use local verification or a read-only inspection instead.
 
 A Mission Packet names the tools its Worker needs, alongside the ownership and
 verification it already carries (`.ai/EXECUTION.md` § *Mission Packet
