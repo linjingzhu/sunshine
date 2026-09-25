@@ -40,9 +40,30 @@ for wording, examples and ordering that change nothing about what is required.
 
 ---
 
-## 3.0.0 — 2026-09-25
+## 3.2.0 — 2026-09-25
 
-- Applied the shared release to this repository, preserving local product context and memories. Removed all tracked Actions workflows at the owner’s request; local structural checks remain available.
+Add a low-cost Dispatcher before the Primary Manager.
+
+- Route every request through a read-only `gpt-5.6-luna` Dispatcher first.
+- Classify intent, repository, risk, tools, verification and cost exposure
+  before selecting Manager, Worker, explorer or reviewer execution.
+- Keep GPT-5.6 models available for cost-sensitive implementation and fallback.
+
+---
+
+## 3.1.0 — 2026-09-25
+
+Make cost-bearing hosted automation opt-in and bounded.
+
+- Prohibit paid or uncertain-cost GitHub Actions by default.
+- Require explicit owner approval, provider and workflow scope, a maximum cost,
+  and an expiry or review date in the owner ledger before enabling it.
+- Require cost-bearing automation to fail closed when its budget or expiry is
+  not verifiable; local checks remain the default.
+
+---
+
+## 3.0.0 — 2026-09-25
 
 Remove the bundled GitHub Actions automation while retaining local verification.
 This is a breaking adoption CLI change: existing callers must remove
