@@ -30,22 +30,27 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         self.assertNotIn('"pinned_tab_ids"', self.text)
         self.assertNotIn('"last_active_tab_id"', self.text)
 
-    def test_ci_checks_tab_and_window_extra_data_separately(self) -> None:
+    def test_both_structs_extra_data_is_checked_separately(self) -> None:
         """Both structs carry workspace state, so both must be checked.
 
         The assertion moved out of the workflow and into
         scripts/verify_pinned_upstream.py, which searches each struct body
         rather than the whole file.
+
+        **This test used to also assert that a workflow ran that script, and
+        it cannot any more.** The owner disabled GitHub Actions and every
+        workflow file was removed on 2026-09-25
+        (`.ai/reports/2026-09-25-rules-and-actions-result.md`), so there is no
+        CI for a check to be wired into. What is lost is real and is recorded
+        here rather than dropped quietly: the separation below is now verified
+        only when someone runs `.ai/PROJECT_CONTEXT.md` § *Facts the checks
+        read*'s `test_command`. The invariant is unchanged; the assurance that
+        it runs unattended is gone.
         """
 
         checker = (ROOT / "scripts" / "verify_pinned_upstream.py").read_text(encoding="utf-8")
         self.assertIn("struct SESSIONS_EXPORT SessionTab {", checker)
         self.assertIn("struct SESSIONS_EXPORT SessionWindow {", checker)
-
-        workflow = (
-            ROOT / ".github" / "workflows" / "architecture-guard-self-hosted.yml"
-        ).read_text(encoding="utf-8")
-        self.assertIn("scripts/verify_pinned_upstream.py", workflow)
 
     def test_data_loss_and_identity_boundaries_are_explicit(self) -> None:
         for marker in (
