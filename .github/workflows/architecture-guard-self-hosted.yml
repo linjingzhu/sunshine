@@ -1,0 +1,172 @@
+name: Architecture Guard (self-hosted)
+
+# Sunshine's only CI. It runs on the machine that already hosts the build
+# runner, which costs nothing: self-hosted runners do not consume GitHub's
+# included minutes. The hosted guard it replaces could not be allocated a
+# runner for an entire day -- an account allowance condition the repository
+# cannot fix from inside -- so depending on one was depending on someone
+# else's billing state.
+#
+# workflow_dispatch ONLY, and that is a security requirement, not a
+# convenience. The runner is a physical machine, so a fork-reachable trigger
+# here would execute a stranger's code on it.
+# `tests/test_windows_build_contract.py` enforces the rule for every workflow
+# that names a self-hosted runner.
+#
+# No `uses:` anywhere, also deliberately. Every action is downloaded from
+# codeload.github.com during `Set up job`, and this account is rate-limited
+# there: build runs 13 and 14 both died with HTTP 429 after three retries,
+# before a single step of ours executed. git and python are already required on
+# this machine for the Chromium build, so `actions/checkout` and
+# `actions/setup-python` bought nothing and could cost the whole job.
+#
+# Run it when the build runner is idle: the machine is single-purpose, so a
+# guard queued during a Chromium compile waits behind hours of work.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-guard-self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-guard:
+    name: Reject Electron and validate Python tooling
+    runs-on: [self-hosted, Windows, X64, sunshine-chromium]
+    timeout-minutes: 20
+
+    steps:
+      # The one step that cannot be Python, because the repository holding the
+      # Python is what it fetches. The token reaches git through the remote URL
+      # rather than `.git/config`, so it is not left on disk afterwards.
+      - name: Check out Sunshine source only
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Test-Path ".git")) { git init -q . }
+          git fetch --no-tags --depth=1 "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git" $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+          git checkout -q --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw "git checkout failed" }
+          git clean -qffd
+
+      # Every step below invokes Python directly. Relying on a bash that
+      # happens to be on a Windows workstation's PATH would fail for a reason
+      # unrelated to what is being checked.
+      - name: Reject excluded wrapper runtimes
+        run: python scripts/verify_architecture.py
+
+      - name: Validate exclusive patch ownership
+        run: python scripts/patch_manifest.py
+
+      # Before anything reads what the patches mean: a malformed hunk header
+      # fails at `git apply` time on the build runner, hours into a queue.
+      - name: Verify patch stack integrity
+        run: python scripts/verify_patch_integrity.py
+
+      # The overlay carries what a diff cannot, so neither guard above sees it.
+      - name: Validate the binary asset overlay
+        run: python scripts/verify_asset_overlay.py
+
+      - name: Validate first-party module registry
+        run: python scripts/validate_first_party_modules.py
+
+      - name: Validate command registry
+        run: python scripts/validate_commands.py
+
+      - name: Validate policy document metadata and references
+        run: python scripts/validate_doc_metadata.py
+
+      - name: Verify the build cannot acquire an account identity
+        run: python scripts/verify_account_freedom.py
+
+      - name: Verify Chromium's sandbox and site isolation are intact
+        run: python scripts/verify_chromium_security_invariants.py
+
+      - name: Verify Sunshine interposes on nothing Chromium owns
+        run: python scripts/verify_no_interposition.py
+
+      - name: Verify first-party surfaces do not collide or duplicate
+        run: python scripts/verify_first_party_surfaces.py
+
+      - name: Verify Sunshine-authored CSS against the design system
+        run: python scripts/verify_design_tokens.py
+
+      - name: Verify Sunshine-authored web assets execute and load nothing remote
+        run: python scripts/verify_web_asset_security.py
+
+      - name: Verify the open-decisions index agrees with its sources
+        run: python scripts/verify_decision_index.py
+
+      - name: Verify the module home is served the registry first_party/ declares
+        run: python scripts/verify_module_registry_sync.py
+
+      - name: Verify the product rename is only the product rename
+        run: python scripts/verify_branding_substitution.py
+
+      - name: Verify the module shell matches its geometry contract
+        run: python scripts/verify_shell_geometry.py
+
+      - name: Check the installer front-end against its contract
+        run: python scripts/verify_installer_frontend.py
+
+      - name: Check the mouse gesture bindings against their contract
+        run: python scripts/verify_gesture_bindings.py
+
+      - name: Check the New Tab background rule against its contract
+        run: python scripts/verify_newtab_background.py
+
+      - name: Verify the module mount port matches its contract
+        run: python scripts/verify_module_mount.py
+
+      - name: Verify every reference in the patch stack resolves
+        run: python scripts/verify_patch_references.py
+
+      - name: Verify stated counts still match the repository
+        run: python scripts/verify_stated_counts.py
+
+      - name: Verify the acceptance index's own claims resolve
+        run: python scripts/verify_acceptance_claims.py
+
+      - name: Verify runtime-verification evidence
+        run: python scripts/verify_verification_evidence.py
+
+      - name: Rebuild the Korean gate sheet and check it is not stale
+        # The generator is not a guard, so nothing ran it, so nothing noticed
+        # when it stopped generating: fifteen gates went untranslated and it
+        # refused to produce a sheet at all for three releases while the owner
+        # went on opening the committed one. Running it here makes both
+        # failures loud -- a gate with no Korean, and a committed sheet that
+        # nobody regenerated.
+        run: |
+          python scripts/build_gate_sheet.py
+          git diff --exit-code -- gate-sheet.html
+
+      - name: Trace contract invariant coverage
+        run: python scripts/trace_invariants.py
+
+      - name: Compile-check repository Python tools
+        run: python scripts/compile_check.py
+
+      # Exit 2 is "the cross-compiler is not installed", which is the expected
+      # answer on this machine -- it has MSVC, and the real compile of these
+      # files happens in the build workflow. Exit 1 is a source that does not
+      # parse and is a failure. The two are told apart explicitly rather than
+      # by `|| true`, which would swallow both.
+      - name: Syntax-check the installer front-ends
+        shell: pwsh
+        run: |
+          python scripts/compile_check_installer.py
+          if ($LASTEXITCODE -eq 1) { throw "the installer front-ends did not compile" }
+          if ($LASTEXITCODE -eq 2) { Write-Host "NOT CHECKED here; the build workflow compiles these with MSVC." }
+
+      - name: Run architecture guard regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify the pinned revision still supports the patch stack
+        run: python scripts/verify_pinned_upstream.py
