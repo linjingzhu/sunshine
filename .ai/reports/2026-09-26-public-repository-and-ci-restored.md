@@ -52,6 +52,22 @@ the word appearing in a comment) and fails on any of the four fork-reachable
 events. Verified now: the two self-hosted workflows are detected as such, the
 two hosted ones are not, and none carries a fork-reachable trigger.
 
+## A defect found while restoring, and the guard gap behind it
+
+Both guards still ran `scripts/validate_doc_metadata.py`, retired the previous
+day. **The first CI run after Actions came back would have gone red for a
+reason having nothing to do with whatever triggered it.** Replaced in both with
+`.ai/tools/check_policy_set.py`, the checker that supersedes it.
+
+The gap behind it is the more useful finding.
+`test_some_workflow_runs_every_check_the_repository_has` walks the scripts on
+disk and asks whether a workflow runs each; **nothing asked the reverse**, so a
+workflow naming a deleted script passed every test here and failed only in CI.
+`test_every_script_a_workflow_runs_exists` closes it, and
+`test_the_deleted_checker_would_still_be_caught` replays the exact step that
+shipped, so the new check is proven against the defect rather than against a
+clean tree.
+
 ## Verification
 
 - Compile: NOT RUN — nothing here compiles Chromium.
@@ -73,10 +89,12 @@ two hosted ones are not, and none carries a fork-reachable trigger.
 
 - **The split hover widget and link mode have still never been compiled**
   (patches 0027, 0031, 0032). RV-69 to RV-74 unrun. OA-4.
-- `scripts/compile_check_installer.py` still has no automated home: it needs
-  mingw, which the build machine does not have, so only a hosted runner can
-  install it. It has never run in CI. Wiring it into the restored hosted guard
-  is worth doing and is not done here.
+- **`scripts/compile_check_installer.py` — this report first said it still had
+  no automated home, and that was wrong.** The restored hosted guard already
+  installs `mingw-w64` and runs it; the step was written before the guard died
+  and came back with it. It has still never *executed* in CI, because the guard
+  was already dead when that step was added, so the first green run is also its
+  first run.
 - The repository is public, so the patch stack, the contracts and every report
   are now readable by anyone. No secret is in the tree —
   `SUNSHINE_ACCOUNT_CLIENT_ID` arrives from the pipeline and

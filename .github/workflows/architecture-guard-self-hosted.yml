@@ -79,8 +79,13 @@ jobs:
       - name: Validate command registry
         run: python scripts/validate_commands.py
 
-      - name: Validate policy document metadata and references
-        run: python scripts/validate_doc_metadata.py
+      # `validate_doc_metadata.py` until 2026-09-25, which no longer exists:
+      # the repository ended up with two policy-document checkers after
+      # adopting a portable policy set, and the owner kept the adopted one.
+      # This step is what would have failed on the first run after the
+      # workflows came back, for a reason having nothing to do with the code.
+      - name: Check the policy set's structure, references and context
+        run: python .ai/tools/check_policy_set.py
 
       - name: Verify the build cannot acquire an account identity
         run: python scripts/verify_account_freedom.py

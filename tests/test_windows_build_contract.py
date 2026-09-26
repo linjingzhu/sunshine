@@ -20,6 +20,17 @@ FORK_REACHABLE_EVENTS = (
 )
 
 
+# Every repository script a workflow step can name. Both roots, because the
+# checks live in two places since the policy set arrived with its own tool.
+SCRIPT_REFERENCE = re.compile(r"(?:scripts|\.ai/tools)/[a-z_0-9]+\.py")
+
+
+def scripts_named_by(text: str) -> list[str]:
+    """Repository scripts a workflow's text names, deduplicated and sorted."""
+
+    return sorted(set(SCRIPT_REFERENCE.findall(text)))
+
+
 def runs_self_hosted(text: str) -> bool:
     """Whether a workflow actually runs on the physical machine.
 
@@ -338,6 +349,55 @@ class SelfHostedGuardTests(unittest.TestCase):
                 self.assertIn(name, commands, f"{name} is never run by the guard")
 
         self.assertIn("unittest discover -s tests", commands)
+
+    def test_every_script_a_workflow_runs_exists(self) -> None:
+        """The mirror image of the rule above, and the one that was missing.
+
+        `test_some_workflow_runs_every_check_the_repository_has` walks the
+        scripts on disk and asks whether a workflow runs each. It says nothing
+        about the other direction, so a workflow invoking a script that has
+        been **deleted** passes every test here and fails in CI on the step
+        after it is noticed.
+
+        That is not hypothetical. `scripts/validate_doc_metadata.py` was
+        retired on 2026-09-25; both guards still named it when they were
+        restored on 2026-09-26, and the first run after Actions came back would
+        have gone red for a reason having nothing to do with the change that
+        triggered it.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")):
+            text = workflow.read_text(encoding="utf-8")
+            for match in scripts_named_by(text):
+                with self.subTest(workflow=workflow.name, script=match):
+                    self.assertTrue(
+                        (ROOT / match).is_file(),
+                        f"{workflow.name} runs {match}, which does not exist",
+                    )
+
+    def test_the_deleted_checker_would_still_be_caught(self) -> None:
+        """The check above against the defect it was written for.
+
+        A guard proven only by passing on a clean tree is a guard nobody knows
+        works. This replays the exact step both guards carried on 2026-09-26 --
+        and the shape it was replaced with, which must pass.
+        """
+
+        shipped = "      - run: python3 scripts/validate_doc_metadata.py\n"
+        self.assertEqual(["scripts/validate_doc_metadata.py"], scripts_named_by(shipped))
+        self.assertFalse((ROOT / "scripts/validate_doc_metadata.py").is_file())
+
+        replacement = "      - run: python3 .ai/tools/check_policy_set.py\n"
+        self.assertEqual([".ai/tools/check_policy_set.py"], scripts_named_by(replacement))
+        self.assertTrue((ROOT / ".ai/tools/check_policy_set.py").is_file())
+
+        # A path in prose is still a path. The rule is about what the file
+        # names, not about where on the line it appears, because a step that
+        # was commented out is not a step that was removed.
+        self.assertEqual(
+            ["scripts/verify_architecture.py"],
+            scripts_named_by("# formerly scripts/verify_architecture.py"),
+        )
 
     def test_every_check_step_invokes_python_directly(self) -> None:
         """The runner is a Windows workstation. A check that needs a bash which
