@@ -68,6 +68,32 @@ workflow naming a deleted script passed every test here and failed only in CI.
 shipped, so the new check is proven against the defect rather than against a
 clean tree.
 
+## Symbol sweep of the uncompiled C++, run while CI sat queued
+
+`docs/WINDOWS_CHROMIUM_BUILD.md` § *Before starting a build, read the pinned
+tree and run the toolchain* asks for this and
+records that it found three real defects in one 40-line function before build
+#31. Run against the pinned headers for every Chromium API patches 0031 and
+0032 use. **Zero defects this time**, which is worth recording precisely
+because a clean result is the one nobody writes down:
+
+| Checked at the pin | Result |
+| --- | --- |
+| `ImageModel::FromVectorIcon(const gfx::VectorIcon&, ui::ColorVariant, int, …)` | matches |
+| `ImageButton::SetImageModel(ButtonState, const ui::ImageModel&)`, `SetImage{Horizontal,Vertical}Alignment`, `ALIGN_CENTER`/`ALIGN_MIDDLE` | match |
+| `View::SetPreferredSize(std::optional<gfx::Size>)`, `IsMouseHovered() const`, `SetTooltipText`, `SetPaintToLayer`, `SetBackground`, `SetBorder` | match |
+| `FlexLayout::{SetOrientation,SetMainAxisAlignment,SetCrossAxisAlignment,SetInteriorMargin,SetDefault}` | match; `SetDefault(kMarginsKey, {…})` is upstream's own documented example |
+| `InstallCircleHighlightPathGenerator(View*)` | matches |
+| `gfx::Rect::{AdjustToFit,CenterPoint}` | match |
+| `ViewAccessibility::SetName(std::u16string)` | matches |
+| `NavigationThrottle(NavigationThrottleRegistry&)`, `CANCEL_AND_IGNORE`, `WillStartRequest()`, `GetNameForLogging()` (pure virtual, `const char*`), `navigation_handle()` | match |
+| `features::IsRoundedIconsEnabled()` | exists |
+| `raw_ptr<SunshineSplitHoverWidget>` on a forward declaration | the same pattern `multi_contents_view.h` already uses for `MultiContentsResizeArea` |
+
+**This is not a compile.** It rules out the class of failure where a named API
+does not exist at this revision; it says nothing about types that do not line
+up, an overload chosen wrongly, or anything the linker decides.
+
 ## Verification
 
 - Compile: NOT RUN — nothing here compiles Chromium.
