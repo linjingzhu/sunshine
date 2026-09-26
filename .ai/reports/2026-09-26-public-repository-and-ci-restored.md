@@ -102,12 +102,24 @@ up, an overload chosen wrongly, or anything the linker decides.
   `.ai/tools/check_policy_set.py` (7/7).
 - Patch stack: all 32 patches apply to pinned `152.0.7977.42`
   (`verify_pinned_upstream.py --source github`).
-- **CI itself: MEASURED, AND IT DOES NOT RUN.** The push carrying this
-  (`920e5a7`) produced no workflow run, and `list_workflows` returns zero. The
-  newest run in the repository is still 2026-09-24. **Making the repository
-  public does not re-enable Actions** — the 2026-09-25 setting persists through
-  the visibility change, so the restored workflow files currently do nothing.
-  That is OA-2 and only the owner can clear it.
+- **CI itself: MEASURED TWICE, AND THE FIRST READING WAS WRONG.**
+  - *First reading:* the push carrying this (`920e5a7`) produced no run and
+    `list_workflows` returned zero, and this report concluded Actions was still
+    disabled. **That conclusion was wrong**, and the mistake was reasoning from
+    two absences without asking the API a direct question.
+  - *Second reading:* a `workflow_dispatch` through the API returns
+    `204 Workflow run has been queued`, which a disabled repository refuses.
+    **Actions is enabled** (OA-2, done). `list_workflows` returns zero because
+    it reads the *default branch*, and `stable` does not carry the workflows
+    yet — this branch does. The push that produced nothing did so because
+    `patch-apply-hosted.yml` has a `paths:` filter that the commit did not
+    match, and because the guard's push landed in the minutes before the
+    setting was changed.
+  - *What is actually wrong:* both dispatched runs sat `queued` for **50
+    minutes with zero jobs created**. They are not waiting for a runner; they
+    are never expanded into jobs at all. That is OA-5, it is account-level, and
+    the container's proxy blocks both `githubstatus.com` and the
+    Actions-permissions endpoint, so it cannot be diagnosed further from here.
 - Target Build / Runtime / Visual: NOT RUN.
 - Cross-Agent Review: NOT AVAILABLE — one agent family.
 
