@@ -60,9 +60,12 @@ two hosted ones are not, and none carries a fork-reachable trigger.
   `.ai/tools/check_policy_set.py` (7/7).
 - Patch stack: all 32 patches apply to pinned `152.0.7977.42`
   (`verify_pinned_upstream.py --source github`).
-- **CI itself: NOT VERIFIED.** Whether Actions is enabled for the repository is
-  not readable from here; the push carrying this either produces runs or does
-  not. OA-2.
+- **CI itself: MEASURED, AND IT DOES NOT RUN.** The push carrying this
+  (`920e5a7`) produced no workflow run, and `list_workflows` returns zero. The
+  newest run in the repository is still 2026-09-24. **Making the repository
+  public does not re-enable Actions** — the 2026-09-25 setting persists through
+  the visibility change, so the restored workflow files currently do nothing.
+  That is OA-2 and only the owner can clear it.
 - Target Build / Runtime / Visual: NOT RUN.
 - Cross-Agent Review: NOT AVAILABLE — one agent family.
 
@@ -80,7 +83,13 @@ two hosted ones are not, and none carries a fork-reachable trigger.
   `scripts/verify_account_freedom.py` refuses a literal — but the change is
   worth stating rather than assuming.
 - Restoring four workflows re-creates four ways to spend the owner's machine
-  and GitHub's runners. Only the two hosted ones start by themselves.
+  and GitHub's runners. Only the two hosted ones start by themselves — and none
+  of them starts at all until OA-2 is cleared.
+- **The title of this report is half wrong and is left as written.** The CI is
+  restored in the tree and is not running; the measurement above says so. It is
+  not renamed because a report that quietly matches its own findings after the
+  fact is worth less than one that shows where its author was ahead of the
+  evidence.
 
 ## Owner actions
 
@@ -88,7 +97,9 @@ two hosted ones are not, and none carries a fork-reachable trigger.
 
 ## Recommended next actions
 
-1. Confirm OA-2 from the Actions tab after this push: two runs should appear.
+1. **Clear OA-2 first, because nothing else here works until it is.** Settings →
+   Actions → General → *Allow all actions and reusable workflows* → Save. Any
+   push after that should produce two runs; this one produced none.
 2. Start the self-hosted runner (OA-3), then dispatch **Native Chromium Windows
    Build**. That is the answer to "러너 실행" and it is meaningful again.
 3. Run gate block F5 (OA-4).
