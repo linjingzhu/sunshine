@@ -4,14 +4,28 @@
 
 This pipeline builds the actual Chromium downstream. It does not use Electron, CEF, Qt WebEngine, Tauri, or an OS WebView.
 
-## Required runner
+## Required machine, and the runner on it
 
-Register a dedicated GitHub Actions self-hosted runner with all labels:
+**Two days changed this section twice, so it says where it stands.** Every
+workflow was deleted and Actions disabled on 2026-09-25
+(`.ai/reports/2026-09-25-rules-and-actions-result.md`); the repository went
+**public** on 2026-09-26 and the workflows were restored, because the one
+reason they had died — an account-level runner allowance on a private
+repository — does not apply to a public one. Both ways of starting a build now
+work, and § *Running a build* gives each.
 
-- `self-hosted`
-- `Windows`
-- `X64`
-- `sunshine-chromium`
+For the workflow path, register a dedicated self-hosted runner with all four
+labels — `self-hosted`, `Windows`, `X64`, `sunshine-chromium` — from the
+repository's Settings → Actions → Runners.
+
+**A self-hosted runner on a public repository is the one arrangement GitHub
+tells you not to make**, because a fork can open a pull request that runs its
+own code on your machine. What makes it safe here is that both self-hosted
+workflows are `workflow_dispatch:` and nothing else, so only someone with write
+access can start them. That is not a convention — `tests/test_windows_build_contract.py`
+fails if any workflow that runs on the physical machine becomes reachable from
+`pull_request`, `pull_request_target`, `issue_comment` or `workflow_call`, and
+the check reads `runs-on:` rather than the word appearing in a comment.
 
 The machine must have:
 
@@ -24,16 +38,20 @@ The machine must have:
 - Chromium `depot_tools` on `PATH`;
 - long paths enabled.
 
-GitHub-hosted Windows images ship `pwsh` preinstalled, so this requirement is invisible until the pipeline first runs on a real machine. Without it the job fails in about a minute with `pwsh: command not found`.
+GitHub-hosted Windows images ship `pwsh` preinstalled, which is why this requirement stayed invisible until the pipeline first ran on a real machine. Without it the build stops in about a minute, and the script says so by name rather than failing obscurely.
 
-Set the repository Actions variable `SUNSHINE_CHROMIUM_WORKSPACE` to the persistent workspace, for example `F:\sunshine-chromium`. Do not place this checkout in an ephemeral runner directory.
+Two machine environment variables, both persistent (`setx`, or System
+Properties → Environment Variables), not just set in one shell:
 
-The runner also needs `DEPOT_TOOLS_WIN_TOOLCHAIN=0` in the machine environment. Without it `gclient sync` tries to fetch a Google-internal toolchain and fails.
+| Variable | Value | Why |
+| --- | --- | --- |
+| `SUNSHINE_CHROMIUM_WORKSPACE` | the persistent workspace, e.g. `F:\sunshine-chromium` | The script refuses to run without it. A Chromium checkout is ~100 GB and must not live anywhere that gets cleaned up. |
+| `DEPOT_TOOLS_WIN_TOOLCHAIN` | `0` | Without it `gclient sync` tries to fetch a Google-internal toolchain and fails. |
 
-## Before dispatching a build, read the pinned tree and run the toolchain
+## Before starting a build, read the pinned tree and run the toolchain
 
 A build is six hours on the machine the owner also works on, so the question
-worth asking before every dispatch is *what would waste it*. Three kinds of
+worth asking before every build is *what would waste it*. Three kinds of
 failure can be found in about twenty minutes, off the build machine entirely,
 and the first time this was done it found three real ones.
 
@@ -171,39 +189,49 @@ rows are out by more than an order of magnitude, and the third is a limit the
 job cannot ask to have raised.
 
 A hosted compile therefore needs a machine this project rents rather than one
-GitHub provides -- a cloud VM registered as a self-hosted runner, which is the
-same workflow file with a different label. That is a cost decision and it is
-the owner's.
+GitHub provides. That remains a cost decision and it is the owner's.
 
-### What does run on a hosted runner
+### What runs on a hosted runner, and the two weeks it did not
 
-**One workflow, since 2026-09-13.** There were two;
-`architecture-guard-hosted.yml` was removed on the owner's instruction. It had
-not been allocated a runner since **2026-09-08** — every push produced a job
-that finished in two seconds with no runner assigned, no step recorded and no
-log to download, and a red check that meant nothing. The cause is an
-account-level Actions condition this repository cannot influence, which is the
-same thing that put CI on the workstation in the first place.
+Two workflows, both `ubuntu-latest`, both triggered by `push`:
+`architecture-guard-hosted.yml` runs the test command and every guard, and
+`patch-apply-hosted.yml` applies the stack to a real Chromium checkout. They
+are the only automatic CI here — the self-hosted pair is dispatch-only, so
+nothing else watches a push.
 
-**Removing it cost no coverage.** The self-hosted guard runs all twenty-nine of
-its checks and one it did not (`validate_commands.py`), which is checked by
-`tests/test_windows_build_contract.py`.
+**They were dead for two and a half weeks and the reason is worth keeping.**
+From **2026-09-08** every push produced a job that finished in two to four
+seconds with no runner assigned, no step recorded and no log to download, and a
+red check that meant nothing: an account-level allowance on a private
+repository, which this project could not influence from inside.
+`architecture-guard-hosted.yml` was removed for it on 2026-09-13 and the rest
+went with Actions itself on 2026-09-25. **The repository became public on
+2026-09-26, hosted runners stopped being metered, and all of them came back.**
 
-**One thing did go, and it is worth naming rather than discovering later.**
-`scripts/compile_check_installer.py` cross-compiles the installer front-ends
-with `x86_64-w64-mingw32-g++`, and the hosted guard was the only place that
-could install it — the build machine has MSVC and no mingw, so the self-hosted
-guard reports `NOT CHECKED` there by design. So that check now runs only where a
-developer runs it. It had not in fact run in CI since it was written, because the
-hosted guard was already dead by then.
+What that fortnight cost, now that it is over:
 
-**And the surviving hosted workflow is failing the same way.**
-`patch-apply-hosted.yml` is subject to the identical account condition, so the
-one question no offline guard can answer is currently going unanswered on every
-push. It is kept rather than removed because the check is real and the failure
-is not its fault; it will start working again the moment the account does.
+- **`stable` was red for a full day** (2026-09-25) and nothing said so, because
+  the only thing that could have said so had been deleted. That is the failure
+  `tests/test_windows_build_contract.py` § `test_every_push_is_watched_by_something_hosted`
+  now exists to prevent.
+- **`scripts/compile_check_installer.py` still has no automated home.** It
+  cross-compiles the installer front-ends with `x86_64-w64-mingw32-g++`; the
+  build machine has MSVC and no mingw, so the self-hosted guard reports
+  `NOT CHECKED` there by design and only a hosted runner can install it. It has
+  never once run in CI — the hosted guard was already dead when it was written
+  — and wiring it into the restored hosted guard is worth doing and is not done
+  here.
 
-`.github/workflows/patch-apply-hosted.yml` clones `src` alone at the pinned
+`patch-apply-hosted.yml` answers the one question no offline guard can: whether
+the stack applies to the real upstream tree. **It also has a cheaper answer
+that does not need a runner at all**, found while it was dead: `python3
+scripts/verify_pinned_upstream.py --source github` fetches each upstream file
+the stack touches from the mirror and applies the whole series, in about a
+minute, from any development session. Run that before a build rather than
+waiting on a push; the
+  workflow's last successful run before the outage was 2026-09-06.
+
+What it does: it clones `src` alone at the pinned
 revision -- one revision deep, no DEPS, no submodules -- and applies the whole
 stack to it. Every upstream file the stack touches is under `chrome/` or
 `tools/`, so the dependency tree a compile would need is never fetched.
@@ -227,7 +255,10 @@ against files the stack itself creates, and `verify_pinned_upstream.py` asks
 whether cited upstream files exist -- but none of them reads an upstream file's
 *contents*, because those are not in this repository. Until this job existed,
 the first thing that ever read a patch against the real tree was `git apply` on
-the build machine, and build #18 died there twenty minutes in.
+the build machine, and build #18 died there twenty minutes in. That is the
+failure both this workflow and `verify_pinned_upstream.py --source github` now
+stand in front of -- the workflow on every push, the command whenever someone
+chooses to ask.
 
 **It is not a build and does not stand in for one.** A stack that applies can
 still fail on eslint, on `gn`, or in the compiler. What it removes is the class
@@ -246,7 +277,7 @@ git's answer as well as its own.
 
 ## Authenticate to googlesource before the first sync
 
-Syncing Chromium clones well over a hundred dependency repositories. Anonymous requests share one server-side quota pool, and a multi-core runner exhausts it:
+Syncing Chromium clones well over a hundred dependency repositories. Anonymous requests share one server-side quota pool, and a multi-core machine exhausts it:
 
 ```
 remote: RESOURCE_EXHAUSTED  subject: "shared/shared_anonymous"
@@ -254,9 +285,9 @@ remote: "Short term server-time rate limit exceeded"
 fatal: The requested URL returned error: 429
 ```
 
-Sign in once at <https://chromium.googlesource.com/new-password> and run the credential snippet it generates. This moves the runner out of the shared anonymous pool and is the reliable fix.
+Sign in once at <https://chromium.googlesource.com/new-password> and run the credential snippet it generates. This moves the machine out of the shared anonymous pool and is the reliable fix.
 
-The bootstrap also bounds concurrency with `--jobs`, defaulting to 8 rather than gclient's one-job-per-core. Lower it further if an unauthenticated runner still hits 429.
+The bootstrap also bounds concurrency with `--jobs`, defaulting to 8 rather than gclient's one-job-per-core. Lower it further if an unauthenticated machine still hits 429.
 
 An interrupted sync resumes: everything already fetched stays in the workspace. Delete `_bad_scm` between attempts if it accumulates; gclient moves conflicting directories there when a clone fails partway.
 
@@ -275,7 +306,7 @@ gclient does not fetch those profiles unless asked, so the bootstrap sets `check
 
 ## Workspace ownership
 
-The Chromium workspace belongs to the build, not to a person. The pipeline runs `bootstrap_chromium.py --reset`, which discards modifications to tracked upstream files so a changed patch stack does not stop the next build for manual cleanup.
+The Chromium workspace belongs to the build, not to a person. The build script runs `bootstrap_chromium.py --reset`, which discards modifications to tracked upstream files so a changed patch stack does not stop the next build for manual cleanup.
 
 `--reset` never touches untracked files, so `out/Sunshine` survives and the incremental build is preserved. Running the bootstrap without `--reset` keeps the protective default and refuses to discard anything.
 
@@ -283,78 +314,14 @@ Do not use this workspace for manual Chromium edits you want to keep.
 
 ## Sharing the machine
 
-`autoninja` schedules roughly core count plus two jobs, which leaves a workstation unusable for the length of a build. The workflow takes an optional **Parallel compile jobs** input, forwarded as `SUNSHINE_NINJA_JOBS`, that caps it.
+`autoninja` schedules roughly core count plus two jobs, which leaves a workstation unusable for the length of a build. `scripts/build_chromium_windows.ps1` takes `-NinjaJobs <n>`, also readable from `SUNSHINE_NINJA_JOBS`, that caps it.
 
-Leave it blank on a dedicated runner. On a machine that is also in daily use, keep two to four threads free — on a 12-core runner, `8` keeps the desktop responsive and costs roughly half again the compile time. Running the runner process at below-normal priority helps further.
+Leave it unset on a dedicated build machine. On a machine that is also in daily use, keep two to four threads free — on 12 cores, `8` keeps the desktop responsive and costs roughly half again the compile time. Starting the build at below-normal priority helps further.
 
-## When a job sits in `queued`
+## The machine must not sleep during a build
 
-A run that shows `queued` with no `Set up job` line has not reached a machine.
-Nothing is wrong with the workflow: GitHub has no runner to give it. The usual
-cause is that the machine slept — the runner is a process, and a sleeping
-Windows box runs no processes.
-
-This happened for seven hours on 2026-08-18, with run `32049595199` waiting the
-whole time, so it is written down rather than rediscovered.
-
-**A queued run is not kept forever, and this section used to imply it was.**
-GitHub cancels a workflow run that has sat in `queued` for **24 hours**. Run
-`33401443955` — build #48 — was queued at 14:14:09Z on 2026-08-31 and its
-`updated_at` moved for the first time at 14:14:12Z the next day, three seconds
-past the day mark, with conclusion `cancelled`. Nobody cancelled it.
-
-That matters because the advice everywhere else here is *wait, do not
-re-dispatch* — which is right, and `docs/RUNTIME_VERIFICATION.md` records run
-#17 waiting 13 h 34 m and then succeeding. **The waiting advice holds only
-inside the 24-hour window.** Past it the run is gone and a new dispatch is the
-only option, so a build queued against a runner that will not be woken before
-tomorrow is a build that has to be dispatched again anyway.
-
-**Diagnose first.** In an elevated PowerShell:
-
-```powershell
-Get-Service "actions.runner.*" | Select-Object Name, Status
-Get-Process Runner.Listener -ErrorAction SilentlyContinue
-```
-
-- A service listed and `Running`, or a `Runner.Listener` process: the runner is
-  alive and the problem is elsewhere — check the queued run's labels against the
-  runner's.
-- A service listed and `Stopped`: `Start-Service <name>`.
-- Neither: the runner was running interactively in a window that has since
-  closed. Start it from its own directory, `C:\actions-runner`, with `.\run.cmd`.
-
-**Then fix the cause rather than the symptom.** An interactive runner dies with
-its window and with every sign-out. Installing it as a service survives both,
-and is a change to the machine — take it deliberately.
-
-**This section named `svc.cmd install` and `svc.cmd start` until 2026-09-01,
-and neither exists on the runner machine.** Both returned
-`CommandNotFoundException` from `C:\actions-runner`. `svc.sh` is the runner's
-Linux and macOS service script; the Windows package has no `svc.cmd` to match
-it, and the instruction was written from the wrong platform's documentation.
-
-**What is verified is `run.cmd`**, which is what the paragraph above already
-says and what brings the runner back now. For the service, look before typing:
-
-```powershell
-cd C:\actions-runner
-Get-ChildItem -Filter *.cmd | Select-Object Name
-.\config.cmd --help
-```
-
-On the Windows runner a service is installed by `config.cmd` when the runner is
-configured, not by a separate script afterwards, so an interactively-configured
-runner is re-configured rather than upgraded in place — which needs a
-registration token from the repository's Actions settings and is a decision
-about the machine rather than a command to paste. **The exact invocation is
-deliberately not written here**, because the last time this document guessed at
-one it sent someone to a command that does not exist, and `config.cmd --help`
-on the machine is a better source than this file.
-
-**A service still does not survive sleep.** Nothing in the runner keeps a
-machine awake, so a build queued overnight needs the machine configured not to
-sleep on mains power:
+**Nothing keeps it awake.** A build holds no power request of its own, so on an
+idle desktop a six-hour compile is interrupted by the desktop. On mains power:
 
 ```powershell
 powercfg /change standby-timeout-ac 0
@@ -362,25 +329,146 @@ powercfg /change hibernate-timeout-ac 0
 powercfg /requests
 ```
 
-The last command shows what is currently holding the machine awake, which is
-worth reading before and after: a build holds nothing, so without these settings
-a six-hour compile on an idle desktop will be interrupted by the desktop.
+The last command shows what is currently holding the machine awake, and is
+worth reading before and after.
 
-**Confirm.** The repository's Actions settings list the runner as `Idle` when it
-is connected, and a queued run starts within about thirty seconds of that. Do
-not treat the service starting as confirmation — confirm from the queued run
-moving.
+It holds for both ways of starting a build: a hand-started compile is exactly
+as vulnerable to the desktop sleeping as a dispatched one.
 
-## Workflow
+### When a dispatched run sits in `queued`
 
-Run **Native Chromium Windows Build** manually after a downstream patch PR is merged:
+A run showing `queued` with no `Set up job` line has not reached a machine.
+Nothing is wrong with the workflow — there is no runner to give it, and the
+usual cause is that the machine slept, because a runner is a process and a
+sleeping Windows box runs none.
 
-1. validate the runner and disk;
+**A queued run is not kept forever, but 24 hours is not a deadline you can set
+a watch by.** This paragraph said GitHub cancels a run that has sat in `queued`
+for 24 hours, and both halves of that are now measured:
+
+| Observation | Queued for | Outcome |
+| --- | --- | --- |
+| Build #48, run `33401443955`, queued 14:14:09Z | 24 h 0 m 3 s | `cancelled`, with nobody cancelling it |
+| Runs `36232595361` and `36232575600`, dispatched 2026-09-26 09:22Z | **26.1 h and counting** | still `queued`, zero jobs, `updated_at` never off creation |
+
+The second was watched deliberately across the mark, at 24 h 05 m and again at
+26 h 06 m. So the cancellation is real but its timing is not a guarantee in
+either direction, and a plan that plays chicken with the deadline — *it will be
+cancelled by morning anyway, so re-dispatch now* — is reasoning from a number
+this repository has now seen broken.
+
+The standing advice is unchanged and does not depend on the number: **wait, do
+not re-dispatch.** Run #17 waited 13 h 34 m and then succeeded. Re-dispatching
+buys nothing when the queue is the problem, because the new run joins the same
+queue — which is exactly what the two runs above are demonstrating.
+
+Diagnose before fixing, in an elevated PowerShell:
+
+```powershell
+Get-Service "actions.runner.*" | Select-Object Name, Status
+Get-Process Runner.Listener -ErrorAction SilentlyContinue
+```
+
+- Listed and `Running`, or a `Runner.Listener` process: the runner is alive;
+  check the queued run's labels against the runner's.
+- Listed and `Stopped`: `Start-Service <name>`.
+- Neither: it was running interactively in a window that has closed. Start it
+  from its own directory, `C:\actions-runner`, with `.\run.cmd`.
+
+**An interactive runner dies with its window and with every sign-out.**
+Installing it as a service survives both and is a change to the machine, so
+take it deliberately. On Windows the service is installed by `config.cmd` when
+the runner is configured, not by a separate script afterwards — **this document
+once said `svc.cmd install`, which does not exist on Windows at all** (`svc.sh`
+is the Linux and macOS script) and sent someone to a `CommandNotFoundException`.
+The exact invocation is deliberately not written here; `config.cmd --help` on
+the machine is a better source than this file.
+
+**Confirm from the run, not from the service.** Settings → Actions → Runners
+lists the runner as `Idle` when it is connected, and a queued run starts within
+about thirty seconds of that.
+
+## Running a build
+
+**Two ways, and they run the same thing.** The workflow only ever called the
+script, so the difference is who starts it and where the log goes.
+
+### Dispatch the workflow — the default
+
+Actions → **Native Chromium Windows Build** → Run workflow. It needs the
+self-hosted runner connected (§ *Required machine, and the runner on it*), and
+it is the default because the log is kept, the run has a number other documents
+can cite, and the installer is reported by path rather than by whoever was
+watching the shell.
+
+Optional input **Parallel compile jobs** → forwarded as `SUNSHINE_NINJA_JOBS`.
+Leave it blank on a dedicated machine; set `8` on a 12-core machine that is
+also in daily use.
+
+### Run the script directly — when the runner is not up
+
+One command, in **PowerShell 7**, from the repository checkout:
+
+```powershell
+pwsh -NoProfile -File scripts/build_chromium_windows.ps1
+```
+
+That is `build_command` in `.ai/PROJECT_CONTEXT.md` § *Facts the checks read*.
+It needs no runner, no Actions and no network beyond what the sync itself
+needs, which makes it the path that still works when everything else is
+broken — the state this repository was in for a day.
+
+Either way the script does the same six things in the same order:
+
+1. validate PowerShell, Windows, the workspace variable and the free disk;
 2. fetch/sync pinned Chromium;
 3. apply the ordered Sunshine patch stack;
 4. generate an optimized non-component Release build;
 5. build `chrome` and `mini_installer`;
-6. upload the unsigned installer and JSON size report for 14 days.
+6. write the unsigned installer and the JSON size report under `artifacts/`.
+
+**What the direct run does not give you**, and why the workflow is the default:
+
+- **Nothing records that the build happened.** `docs/RUNTIME_VERIFICATION.md`
+  § 4 asks for "workflow run number and commit sha" beside every gate result.
+  A hand-started build has no run number, so **cite the commit sha** and treat
+  `scripts/build_gate_sheet.py`'s `BUILD` stamp as a number kept by hand.
+- **The log lives in your shell.** Close the window and the compiler
+  diagnostic goes with it.
+
+Neither path uploads the installer, and that is on purpose rather than a gap:
+the runner *is* the owner's machine, so `artifacts/` is already where the
+installer needs to be. Sending it to GitHub storage and pulling it back to the
+machine that produced it is a round trip with no delivery, and
+`tests/test_windows_build_contract.py` holds that rule.
+
+Script parameters, both also readable from the environment:
+
+| Parameter | When |
+| --- | --- |
+| `-NinjaJobs <n>` | The machine is also being worked on. `autoninja` otherwise schedules roughly core count plus two and leaves nothing for interactive use. |
+| `-Workspace <path>` | Overrides `SUNSHINE_CHROMIUM_WORKSPACE` for one run. |
+
+`SUNSHINE_ACCOUNT_CLIENT_ID` is read from the environment on purpose and never
+passed on the command line, where Windows shows it to every process that can
+enumerate them. Empty is the normal case.
+
+### If it fails, read these in this order
+
+1. **Before the compile starts** — the script's own `throw`. It names the
+   requirement (PowerShell version, Windows, workspace, free disk) rather than
+   failing obscurely, so the message is the answer.
+2. **During `git apply`** — the patch stack does not fit the pinned tree. Do not
+   debug this on the build machine: `python3 scripts/verify_pinned_upstream.py
+   --source github` answers the same question in about a minute from anywhere,
+   and § *Why the build is not on a GitHub-hosted runner* explains why that is
+   now the only thing asking it.
+3. **In `gn gen`** — a `BUILD.gn` edit in the stack. `gn` failures name the file
+   and line.
+4. **In the compiler** — the first real compile of the change. **This is the
+   failure mode with no offline substitute**: nothing in this repository
+   compiles Chromium, and every guard here reads the patch rather than the
+   result.
 
 ## Security and distribution
 

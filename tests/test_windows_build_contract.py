@@ -1,16 +1,143 @@
 """Static contract tests for the resource-intensive Windows Chromium build."""
 
 from pathlib import Path
+import re
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_DIR = ROOT / ".github/workflows"
+WORKFLOW = WORKFLOW_DIR / "native-chromium-windows.yml"
 SCRIPT = ROOT / "scripts/build_chromium_windows.ps1"
 
+# Events a fork pull request can raise. A self-hosted runner reachable from one
+# of these would execute a stranger's code on the machine hosting the runner.
+FORK_REACHABLE_EVENTS = (
+    "pull_request:",
+    "pull_request_target:",
+    "issue_comment:",
+    "workflow_call:",
+)
+
+
+# Every repository script a workflow step can name. Both roots, because the
+# checks live in two places since the policy set arrived with its own tool.
+SCRIPT_REFERENCE = re.compile(r"(?:scripts|\.ai/tools)/[a-z_0-9]+\.py")
+
+
+def scripts_named_by(text: str) -> list[str]:
+    """Repository scripts a workflow's text names, deduplicated and sorted."""
+
+    return sorted(set(SCRIPT_REFERENCE.findall(text)))
+
+
+def runs_self_hosted(text: str) -> bool:
+    """Whether a workflow actually runs on the physical machine.
+
+    Read from `runs-on:` rather than from the word appearing anywhere. A hosted
+    workflow that merely *mentions* the self-hosted one -- to say what it does
+    not replace -- was being held to the physical machine's rules, which meant a
+    sentence in a comment silently decided which rules applied to a file. The
+    rule is about where the job runs.
+
+    Comments are stripped first, so `# ... self-hosted ...` cannot make a
+    workflow look like one either way.
+    """
+
+    for line in text.splitlines():
+        stripped = line.split("#", 1)[0]
+        if "runs-on:" in stripped and "self-hosted" in stripped:
+            return True
+    return False
+
+
 class WindowsBuildContractTests(unittest.TestCase):
-    def test_no_actions_workflows_are_present(self) -> None:
-        self.assertEqual([], [path for path in WORKFLOW_DIR.rglob("*") if path.is_file()])
+    def test_workflow_requires_dedicated_self_hosted_runner(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("runs-on: [self-hosted, Windows, X64, sunshine-chromium]", text)
+        self.assertNotIn("windows-latest", text)
+        # Source acquisition shares this budget with the build, so it must stay
+        # well above the compile time alone.
+        self.assertIn("timeout-minutes: 1440", text)
+
+    def test_workflow_is_explicitly_dispatched(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", text)
+        self.assertNotIn("pull_request:", text)
+        self.assertNotIn("push:", text)
+
+    def test_no_self_hosted_workflow_is_reachable_from_a_fork(self) -> None:
+        """The runner is a physical machine, so this holds for every workflow.
+
+        `test_workflow_is_explicitly_dispatched` pins the one workflow that
+        exists today; this pins the rule for any workflow added later.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
+            text = workflow.read_text(encoding="utf-8")
+            if not runs_self_hosted(text):
+                continue
+            for event in FORK_REACHABLE_EVENTS:
+                with self.subTest(workflow=workflow.name, event=event):
+                    self.assertNotIn(
+                        event,
+                        text,
+                        f"{workflow.name} exposes a self-hosted runner to {event}",
+                    )
+
+    def test_self_hosted_is_decided_by_where_the_job_runs(self) -> None:
+        """The predicate that selects which workflows the rule above binds."""
+
+        self.assertTrue(
+            runs_self_hosted("jobs:\n  x:\n    runs-on: [self-hosted, Windows, X64]\n")
+        )
+        self.assertTrue(runs_self_hosted("    runs-on: self-hosted\n"))
+        self.assertFalse(
+            runs_self_hosted("# same checks as the self-hosted guard\n    runs-on: ubuntu-latest\n")
+        )
+        self.assertFalse(runs_self_hosted("    runs-on: ubuntu-latest  # not self-hosted\n"))
+
+    def test_the_repositorys_workflows_split_the_way_they_claim(self) -> None:
+        """Reads the real files, so a workflow that changed runners without
+        changing its rules fails here."""
+
+        by_name = {
+            path.name: runs_self_hosted(path.read_text(encoding="utf-8"))
+            for path in sorted(WORKFLOW_DIR.glob("*.yml"))
+        }
+        self.assertTrue(by_name["native-chromium-windows.yml"])
+        self.assertTrue(by_name["architecture-guard-self-hosted.yml"])
+        self.assertFalse(by_name["patch-apply-hosted.yml"])
+        # `architecture-guard-hosted.yml` is back, and this line used to assert
+        # it was gone. It was removed on 2026-09-13 for one reason -- it had not
+        # been allocated a runner since 2026-09-08, and every push produced a
+        # red check that meant nothing -- and every workflow went with it on
+        # 2026-09-25 when the owner disabled Actions. **The repository became
+        # public on 2026-09-26, which voids that reason**: hosted runners are
+        # free on a public repository, so the guard that runs on every push
+        # runs again. It is the only automatic CI here; the self-hosted pair is
+        # dispatch-only by the rule above, so nothing else watches a push.
+        self.assertFalse(by_name["architecture-guard-hosted.yml"])
+
+    def test_every_push_is_watched_by_something_hosted(self) -> None:
+        """The property the hosted guard exists for, asserted rather than
+        assumed.
+
+        A repository whose only CI must be dispatched by hand has no CI for
+        anyone who forgets. `stable` was red for a full day on 2026-09-25 and
+        nothing said so. The rule is therefore not "the hosted guard exists"
+        but "some workflow that a push triggers runs the test command on a
+        runner this project does not have to start".
+        """
+
+        watching = []
+        for path in sorted(WORKFLOW_DIR.glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            if runs_self_hosted(text):
+                continue
+            if "\n  push:\n" in text and "unittest discover -s tests" in text:
+                watching.append(path.name)
+        self.assertNotEqual([], watching, "no hosted workflow runs the tests on push")
 
     def test_build_uses_native_chromium_targets(self) -> None:
         text = SCRIPT.read_text(encoding="utf-8")
@@ -48,6 +175,8 @@ class WindowsBuildContractTests(unittest.TestCase):
         the pipeline first ran on a real machine and failed in a minute with
         `pwsh: command not found`.
         """
+
+        self.assertIn("shell: pwsh", WORKFLOW.read_text(encoding="utf-8"))
 
         script = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("$PSVersionTable.PSVersion.Major -lt 7", script)
@@ -95,14 +224,17 @@ class WindowsBuildContractTests(unittest.TestCase):
         self.assertIn("SUNSHINE_NINJA_JOBS", script)
         self.assertIn('$ninjaArguments += @("-j", $NinjaJobs)', script)
 
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("ninja_jobs:", workflow)
+        self.assertIn("SUNSHINE_NINJA_JOBS: ${{ inputs.ninja_jobs }}", workflow)
 
 
 class RunnerEncodingTests(unittest.TestCase):
     """Every file a tool reads is read as UTF-8, explicitly.
 
     `Path.read_text()` with no encoding uses the process's locale encoding.
-    On the Korean Windows build workstation,
-    that is `cp949`, not UTF-8, and the difference is not
+    On the Korean Windows workstation that runs the build and the self-hosted
+    guard, that is `cp949`, not UTF-8, and the difference is not
     academic: build run `32250667556` died on
     `UnicodeDecodeError: 'cp949' codec can't decode byte 0xe2`, which was an em
     dash inside a comment in `0007-sunshine-modules-webui.patch`.
@@ -147,6 +279,180 @@ class RunnerEncodingTests(unittest.TestCase):
                         line,
                         f"{script.name}:{index} writes a file in the locale encoding",
                     )
+
+
+class SelfHostedGuardTests(unittest.TestCase):
+    """The self-hosted guard is not a fallback any more -- it is the only CI.
+
+    It replaced a hosted guard that could not be allocated a runner for a full
+    day, which made the repository's verification depend on an account
+    allowance it cannot influence. The rules below are what keep a guard that
+    now stands alone from quietly checking less than the repository contains.
+
+    Parsed with the standard library on purpose: a YAML dependency here would
+    make the guard's own tests need a package the guard does not install.
+    """
+
+    GUARD = WORKFLOW_DIR / "architecture-guard-self-hosted.yml"
+
+    RUN_STEP = re.compile(r"^\s+run: (.+)$", re.MULTILINE)
+    USES_STEP = re.compile(r"^\s+uses: (.+)$", re.MULTILINE)
+
+    # Scripts that are checks. `bootstrap_chromium.py` and `workspace_model.py`
+    # are not -- one is build tooling, the other is a model the checks read.
+    GUARD_PREFIXES = ("verify_", "validate_")
+    GUARD_NAMES = ("patch_manifest.py", "trace_invariants.py", "compile_check.py")
+
+    def _commands(self, path: Path) -> list[str]:
+        """Single-line `run:` values. A `run: |` block yields "|", not a command."""
+
+        found = [line.strip() for line in self.RUN_STEP.findall(path.read_text(encoding="utf-8"))]
+        return [command for command in found if command != "|"]
+
+    def test_no_workflow_downloads_a_third_party_action(self) -> None:
+        """`uses:` is fetched from codeload.github.com during `Set up job`.
+
+        This account is rate-limited there. Build runs 13 and 14 both failed
+        with HTTP 429 after three retries, before any step of ours executed --
+        so an action is not a convenience the job can degrade without, it is a
+        remote dependency that can kill the job outright. git and python are
+        already required on this machine by the Chromium build itself.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
+            with self.subTest(workflow=workflow.name):
+                self.assertEqual(
+                    [],
+                    self.USES_STEP.findall(workflow.read_text(encoding="utf-8")),
+                    f"{workflow.name} depends on an action download",
+                )
+
+    def test_some_workflow_runs_every_check_the_repository_has(self) -> None:
+        """A guard script that no workflow invokes is a check nobody runs.
+
+        Enumerated from disk rather than listed here, so adding
+        `scripts/verify_something.py` without wiring it in fails immediately
+        instead of passing silently for as long as nobody notices.
+
+        Both workflows count. `verify_installed_build.py` reads the build
+        output, so it belongs to the build job rather than the guard job --
+        running it where no browser exists would report NOT AVAILABLE for
+        everything it is for.
+        """
+
+        commands = " ".join(self._commands(self.GUARD) + self._commands(WORKFLOW))
+        for script in sorted((ROOT / "scripts").glob("*.py")):
+            name = script.name
+            if not (name.startswith(self.GUARD_PREFIXES) or name in self.GUARD_NAMES):
+                continue
+            with self.subTest(script=name):
+                self.assertIn(name, commands, f"{name} is never run by the guard")
+
+        self.assertIn("unittest discover -s tests", commands)
+
+    def test_every_script_a_workflow_runs_exists(self) -> None:
+        """The mirror image of the rule above, and the one that was missing.
+
+        `test_some_workflow_runs_every_check_the_repository_has` walks the
+        scripts on disk and asks whether a workflow runs each. It says nothing
+        about the other direction, so a workflow invoking a script that has
+        been **deleted** passes every test here and fails in CI on the step
+        after it is noticed.
+
+        That is not hypothetical. `scripts/validate_doc_metadata.py` was
+        retired on 2026-09-25; both guards still named it when they were
+        restored on 2026-09-26, and the first run after Actions came back would
+        have gone red for a reason having nothing to do with the change that
+        triggered it.
+        """
+
+        for workflow in sorted(WORKFLOW_DIR.glob("*.yml")):
+            text = workflow.read_text(encoding="utf-8")
+            for match in scripts_named_by(text):
+                with self.subTest(workflow=workflow.name, script=match):
+                    self.assertTrue(
+                        (ROOT / match).is_file(),
+                        f"{workflow.name} runs {match}, which does not exist",
+                    )
+
+    def test_the_deleted_checker_would_still_be_caught(self) -> None:
+        """The check above against the defect it was written for.
+
+        A guard proven only by passing on a clean tree is a guard nobody knows
+        works. This replays the exact step both guards carried on 2026-09-26 --
+        and the shape it was replaced with, which must pass.
+        """
+
+        shipped = "      - run: python3 scripts/validate_doc_metadata.py\n"
+        self.assertEqual(["scripts/validate_doc_metadata.py"], scripts_named_by(shipped))
+        self.assertFalse((ROOT / "scripts/validate_doc_metadata.py").is_file())
+
+        replacement = "      - run: python3 .ai/tools/check_policy_set.py\n"
+        self.assertEqual([".ai/tools/check_policy_set.py"], scripts_named_by(replacement))
+        self.assertTrue((ROOT / ".ai/tools/check_policy_set.py").is_file())
+
+        # A path in prose is still a path. The rule is about what the file
+        # names, not about where on the line it appears, because a step that
+        # was commented out is not a step that was removed.
+        self.assertEqual(
+            ["scripts/verify_architecture.py"],
+            scripts_named_by("# formerly scripts/verify_architecture.py"),
+        )
+
+    def test_every_check_step_invokes_python_directly(self) -> None:
+        """The runner is a Windows workstation. A check that needs a bash which
+        happens to be on its PATH fails for a reason unrelated to what it is
+        checking. The checkout step is the one exception and is a `run: |`
+        block, so it is not among the single-line commands.
+        """
+
+        for command in self._commands(self.GUARD):
+            self.assertTrue(command.startswith("python"), command)
+
+    def test_the_guard_is_dispatch_only(self) -> None:
+        """Asserted separately from the fork rule because this is the single
+        property that makes running a guard on a physical machine safe."""
+
+        text = self.GUARD.read_text(encoding="utf-8")
+        self.assertIn("on:\n  workflow_dispatch:\n", text)
+        for event in ("pull_request", "push:", "schedule:"):
+            with self.subTest(event=event):
+                self.assertNotIn(f"  {event}", text)
+
+    def test_the_checkout_step_leaves_no_credential_on_disk(self) -> None:
+        """The runner is a physical machine that outlives the job.
+
+        The token travels in the fetch URL, which lives only in that process's
+        arguments. `git remote add` or an `extraheader` config would write it
+        into `.git/config`, where it would remain after the job ended.
+        """
+
+        for workflow in (self.GUARD, WORKFLOW):
+            with self.subTest(workflow=workflow.name):
+                text = workflow.read_text(encoding="utf-8")
+                self.assertIn("git fetch", text)
+                self.assertNotIn("git remote add", text)
+                self.assertNotIn("extraheader", text)
+                self.assertNotIn("git config", text)
+
+
+class InstallerDeliveryTests(unittest.TestCase):
+    """The runner is the owner's own machine, so the installer is already where
+    it needs to be when the build ends. Uploading it to GitHub storage and
+    downloading it back to the machine that produced it is cost with no
+    delivery.
+
+    The original reason said "which a private repository is billed for". The
+    repository went public on 2026-09-26 and storage stopped being billed, so
+    that half is no longer true -- and the rule is unchanged, because the round
+    trip was pointless before it was expensive.
+    """
+
+    def test_the_build_reports_the_installer_instead_of_uploading_it(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("upload-artifact", text)
+        self.assertIn("sunshine-installer-windows-x64.exe", text)
+        self.assertIn("size-report.json", text)
 
 
 if __name__ == "__main__":

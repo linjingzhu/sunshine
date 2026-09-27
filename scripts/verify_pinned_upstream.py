@@ -126,6 +126,12 @@ TOKENS: tuple[tuple[str, str, str, str], ...] = (
 OWN_PREFIXES = frozenset({
     ".ai", ".git", ".github", "config", "docs", "downstream", "first_party",
     "installer", "scripts", "tests",
+    # The agent capability directories the portable policy set ships: skills and
+    # subagent definitions for Claude and Codex. Ours, and named after tools
+    # rather than after this project, which is exactly why they have to be
+    # listed -- a citation of `.claude/skills/auto-dev/SKILL.md` probed upstream
+    # would 404 and be reported as a contract citing a file Chromium deleted.
+    ".agents", ".claude", ".codex",
     # Ours, but present only after a build, so absent from a fresh clone and
     # from this list until the first CI run on the build machine failed for
     # exactly that reason. `artifacts/` holds the installer and size report the

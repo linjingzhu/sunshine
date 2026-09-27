@@ -311,6 +311,39 @@ Confidence: high.
 
 ## Verification Lessons
 
+### 2026-09-25 — Adopting an external policy set can drop policy this repository wrote, and only this repository's guards notice
+Area: `.ai/` policy set, adoption of ai-dev-rule 3.0.0 (PRs #61-#63).
+Evidence: the adoption report
+`.ai/reports/2026-09-25-rules-and-actions-result.md` states
+"repository-specific guidance retained". Measured against `7fe7878`,
+`.ai/REPORTING.md` went from 219 lines to 98 and four repository-authored
+statements stopped existing anywhere in the tree -- `MUST use stable canonical
+paths`, `do not announce version bumps`, `history is the source of truth`,
+`MUST NOT reduce engineering rigor` -- together with the three escalation
+exceptions (a user decision, a critical risk, a scope change) and the
+silent-execution operating mode that cited them. The version field stayed
+`1.1.0` across that change. `.ai/tools/check_policy_set.py`, which shipped with
+the set, passed all seven of its checks on the result; the repository's own
+`tests/test_doc_metadata.py` is what failed, naming each missing statement.
+Impact: `stable` was red for a day, and the loss would otherwise have been
+invisible -- a shrinking document reads as a tidier one. An external set's own
+checker cannot notice what an adopting repository had and no longer has,
+because the thing that is gone was never in the set.
+Recommended future behavior: before adopting or re-syncing the set, diff the
+outgoing documents against the incoming ones for *statements*, not files, and
+list what the adoption drops. If the answer is "nothing", the diff proves it in
+one command; if it is not nothing, each dropped statement is a decision.
+**This lesson is prose rather than a check, and that is a deliberate loss.**
+The check that expressed it was `tests/test_doc_metadata.py`, and the owner
+chose on 2026-09-25 to retire it rather than keep two policy-document checkers
+with incompatible reference conventions
+(`.ai/reports/2026-09-25-policy-checker-retirement.md`). `.ai/EVOLUTION.md`
+§ *Prefer a check to a sentence* says a lesson that can only be grepped for is
+not yet a rule; this one could be a check and no longer is, so it is weaker
+than it was, and the next adoption is where that will show.
+Confidence: high, for the measurement. The judgement that prose is enough is
+the owner's, not a measurement.
+
 ### 2026-08-21 — A green build proves the code compiles and nothing else
 Area: New Tab background, patches 0020-0021.
 Evidence: build #40 was green on a feature that could not serve a single byte.

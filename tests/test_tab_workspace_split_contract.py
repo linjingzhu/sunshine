@@ -36,16 +36,26 @@ class TabWorkspaceSplitContractTests(unittest.TestCase):
         The assertion moved out of the workflow and into
         scripts/verify_pinned_upstream.py, which searches each struct body
         rather than the whole file.
+
+        **The second half of this test was removed on 2026-09-25 and is back.**
+        It asserts that a workflow actually runs that script, and for one day
+        it could not: the owner disabled Actions and every workflow file was
+        deleted, so there was no CI to be wired into. The repository went
+        public on 2026-09-26, hosted runners stopped costing anything, and the
+        workflows were restored. A check nobody runs is not a check, which is
+        why this half is worth having rather than assuming.
         """
 
         checker = (ROOT / "scripts" / "verify_pinned_upstream.py").read_text(encoding="utf-8")
         self.assertIn("struct SESSIONS_EXPORT SessionTab {", checker)
         self.assertIn("struct SESSIONS_EXPORT SessionWindow {", checker)
 
-        workflow = (
-            ROOT / ".github" / "workflows" / "architecture-guard-self-hosted.yml"
-        ).read_text(encoding="utf-8")
-        self.assertIn("scripts/verify_pinned_upstream.py", workflow)
+        wired = [
+            path.name
+            for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+            if "scripts/verify_pinned_upstream.py" in path.read_text(encoding="utf-8")
+        ]
+        self.assertNotEqual([], wired, "no workflow runs verify_pinned_upstream.py")
 
     def test_data_loss_and_identity_boundaries_are_explicit(self) -> None:
         for marker in (
