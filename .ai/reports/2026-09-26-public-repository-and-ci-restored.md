@@ -183,3 +183,31 @@ the workflows are on `stable`, it returns.
 2. Start the self-hosted runner (OA-3), then dispatch **Native Chromium Windows
    Build**. That is the answer to "러너 실행" and it is meaningful again.
 3. Run gate block F5 (OA-4).
+
+## Addendum, 2026-09-27 — after the merge
+
+PR #64 merged as `d25dd65`. `stable` now carries all four workflow files, and
+`GET /actions/workflows` returns `total_count: 4`, every one `state=active`,
+including `Native Chromium Windows Build`, which was not in the registry before.
+The empty-registry explanation is therefore spent: **the merge commit itself
+produced no workflow run**, watched for roughly two minutes, although
+`architecture-guard-hosted.yml` carries an unfiltered `push:` and `stable` is
+the default branch.
+
+One further observation, recorded as an observation and not as a cause. The
+last hosted runs that did start — `Patch Stack Apply (hosted)` #62 on
+2026-09-23 and #63 on 2026-09-24 — each reached a job on `ubuntu-latest` and
+completed `failure` three seconds later. Their logs are past GitHub's retention
+and return `404`, so what those three seconds contained cannot now be read. It
+is noted because it is the last state of the hosted path before it stopped
+scheduling entirely, and because the next hosted run that does start should be
+compared against it.
+
+No replacement cause is named here. Three have been named in this repository
+and all three were wrong: that Actions was disabled, that the account was
+restricted, and that the registry was empty. What can be said is bounded and is
+said: every explanation that lives in the tree is now excluded, and the
+self-hosted path does not depend on GitHub's hosted pool, so **OA-4 is
+reachable without OA-3 and without hosted CI** —
+`docs/WINDOWS_CHROMIUM_BUILD.md` § *Running a build* is the path that needs
+neither.
