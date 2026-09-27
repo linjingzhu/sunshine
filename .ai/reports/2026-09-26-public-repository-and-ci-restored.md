@@ -123,6 +123,30 @@ up, an overload chosen wrongly, or anything the linker decides.
 - Target Build / Runtime / Visual: NOT RUN.
 - Cross-Agent Review: NOT AVAILABLE — one agent family.
 
+## Correction, 2026-09-27: the blocker was in the tree, not the account
+
+This report concluded that accepted-but-never-scheduled runs meant an
+account-level Actions restriction, and `OA-5` asked the owner to check Billing.
+**That was wrong, and the evidence to know better was already in this report.**
+
+`stable` carries no `.github/workflows/` at all — the workflows are only on the
+PR branch. GitHub builds its workflow registry from the default branch, so the
+registry is empty (`GET /actions/workflows` → `total_count: 0`), the two
+dispatched runs sat 26+ hours with zero jobs, and four pushes after Actions was
+enabled produced no run even though `architecture-guard-hosted.yml` carries an
+unfiltered `push:`.
+
+**The reasoning error, stated so it is reusable:** "runs are created but never
+scheduled" does not distinguish an account restriction from an empty workflow
+registry. One question separates them — *is the file on the default branch?* —
+and it was never asked. This report had already noted twice that
+`list_workflows` reads the default branch and returns zero here; the
+observation was written down and its consequence was not followed.
+
+OA-5 is withdrawn and OA-6 (merge PR #64) replaces it. The account-level
+explanation is not disproven, only displaced: if runs still do not appear once
+the workflows are on `stable`, it returns.
+
 ## Remaining risks
 
 - **The split hover widget and link mode have still never been compiled**
