@@ -342,12 +342,25 @@ Nothing is wrong with the workflow — there is no runner to give it, and the
 usual cause is that the machine slept, because a runner is a process and a
 sleeping Windows box runs none.
 
-**A queued run is not kept forever.** GitHub cancels one that has sat in
-`queued` for **24 hours**: build #48, run `33401443955`, was queued at
-14:14:09Z and its `updated_at` first moved at 14:14:12Z the next day, three
-seconds past the day mark, conclusion `cancelled`, with nobody cancelling it.
-So the standing advice — *wait, do not re-dispatch*, which is right, and run
-#17 waited 13 h 34 m and then succeeded — **holds only inside that window**.
+**A queued run is not kept forever, but 24 hours is not a deadline you can set
+a watch by.** This paragraph said GitHub cancels a run that has sat in `queued`
+for 24 hours, and both halves of that are now measured:
+
+| Observation | Queued for | Outcome |
+| --- | --- | --- |
+| Build #48, run `33401443955`, queued 14:14:09Z | 24 h 0 m 3 s | `cancelled`, with nobody cancelling it |
+| Runs `36232595361` and `36232575600`, dispatched 2026-09-26 09:22Z | **26.1 h and counting** | still `queued`, zero jobs, `updated_at` never off creation |
+
+The second was watched deliberately across the mark, at 24 h 05 m and again at
+26 h 06 m. So the cancellation is real but its timing is not a guarantee in
+either direction, and a plan that plays chicken with the deadline — *it will be
+cancelled by morning anyway, so re-dispatch now* — is reasoning from a number
+this repository has now seen broken.
+
+The standing advice is unchanged and does not depend on the number: **wait, do
+not re-dispatch.** Run #17 waited 13 h 34 m and then succeeded. Re-dispatching
+buys nothing when the queue is the problem, because the new run joins the same
+queue — which is exactly what the two runs above are demonstrating.
 
 Diagnose before fixing, in an elevated PowerShell:
 
