@@ -292,7 +292,7 @@
       "owner": "sunshine.security",
       "availability": "A browser window is open.",
       "implementation": null,
-      "predicate": null,
+      "predicate": "scripts.security_center_model:can_open_security_center",
       "selection": "none",
       "unavailable_reasons": [
         "no_browser_window"
@@ -401,8 +401,8 @@
       "summary": "Create an empty workspace in the active profile with a New Tab.",
       "owner": "sunshine.workspace",
       "availability": "A profile is active.",
-      "implementation": null,
-      "predicate": null,
+      "implementation": "scripts.workspace_model:create_workspace",
+      "predicate": "scripts.workspace_model:can_create_workspace",
       "selection": "none",
       "unavailable_reasons": [
         "no_active_profile"
@@ -418,8 +418,8 @@
       "summary": "Project the selected workspace and restore its last active tab.",
       "owner": "sunshine.workspace",
       "availability": "The selected workspace exists in the window's profile.",
-      "implementation": null,
-      "predicate": null,
+      "implementation": "scripts.workspace_model:switch_workspace",
+      "predicate": "scripts.workspace_model:can_switch_workspace",
       "selection": {
         "kind": "workspace",
         "enumerated_by": "sunshine.workspace"

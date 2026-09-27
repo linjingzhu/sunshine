@@ -196,6 +196,34 @@ every tab in that split. `chrome/browser/ui/tabs/split_tab_util.h` provides
 `GetIndexOfLastActiveTab` for the case where the split's last active member
 matters.
 
+**Two of these six had no implementation until 2026-09-27, and the table above
+did not say so.** `workspace.create` and `workspace.switch` carried
+`implementation: null` and `predicate: null` in `first_party/commands.json`
+while `0025-sunshine-command-titles.patch` shipped their palette labels ("New
+workspace", "Switch workspace") and `sunshine-workspace` listed both as targets
+— a row a user can be shown and Sunshine cannot run. `workspace.close` and
+`workspace.tab.move` had both fields filled the whole time, which is what made
+the gap easy to miss: the module looked implemented because two thirds of the
+visible surface was.
+
+Both now resolve, in the same compile-free layer as their two siblings:
+`create_workspace` / `can_create_workspace` and `switch_workspace` /
+`can_switch_workspace` in `scripts/workspace_model.py`. `switch_workspace` is an
+assembly rather than new behaviour — `record_active_tab` and
+`resolve_switch_target` already existed and nothing put them on either side of
+one transition, so leaving a workspace and arriving at one could be performed
+separately and a caller that did only the second would silently lose the user's
+place. The clause above is what the assembly enforces: the record names one tab.
+
+`scripts/validate_commands.py` now rejects a Sunshine-owned command that
+declares no predicate, and one that declares no implementation unless it is
+named in `NO_SUNSHINE_SIDE_EFFECT`. It previously enforced only the opposite
+direction — that a Chromium-owned command carries no Sunshine code — so a null
+on the Sunshine side short-circuited every rule and passed. **None of this is
+native wiring.** No patch in the stack implements workspaces; the runtime order
+in `.ai/PROJECT_CONTEXT.md` still has workspace metadata and switching ahead of
+split view, and split view is the part that has been built.
+
 ### 4.2 Split commands, retired
 
 Sunshine registered three split commands. They are gone, together with

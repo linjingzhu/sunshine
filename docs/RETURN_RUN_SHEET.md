@@ -122,14 +122,22 @@ A that cannot be forced.
 | RV-26, RV-29 or RV-30 | Finish block A, then stop. These are installer identity, they are ADR 0015's whole subject, and a failure means the installer has to be rebuilt before the rest is worth running. |
 | Anything else | Record it and carry on. One surface failing says nothing about the next. |
 
-## 4. Two gates that cannot be run, and why
+## 4. One gate that cannot be run, and why
 
 Stated here so they are not discovered at the end of a long evening.
 
 | Gate | Why not |
 | --- | --- |
-| RV-35 | **No module declares a mount.** `scripts/verify_module_mount.py` reports `0 module(s) declare a mount`, so there is no frame to open E on and none to destroy. |
-| RV-36 | The same cause. Switching between two mounted modules needs two mounted modules. |
+| RV-36 | **Only one module declares a mount.** `scripts/verify_module_mount.py` reports `1 module(s) declare a mount` -- `sunshine-dev-os`, through patch 0029 -- and switching between two mounted modules needs two. |
+
+**RV-35 is no longer blocked, and this section said it was.** It read `0
+module(s) declare a mount` for both gates; `sunshine-dev-os` has declared
+`chrome-untrusted://sunshine-dev-os-app/` since patch 0029 landed, so there has
+been a frame to open E on and destroy for as long as that patch has been in the
+stack. The count in the table was copied from a run of the checker that predated
+the patch and was never re-taken, which is the failure mode this whole file
+exists to prevent: a run sheet that tells the owner to skip a gate they could
+have run is worse than one that omits the gate.
 
 **RV-20 used to be a third, and is now simply runnable.** Patch 0017 implements
 the gesture recogniser and **build #37 (run `32437521316`, commit `8c5f64b`)
@@ -139,11 +147,11 @@ patches 0018 and 0019 is in the same binary, but it has no gate yet: the page
 only reports whether this build has an OAuth client, and this one does not.
 
 RV-35 and RV-36 are the mount lifecycle, which is the part of the shell the
-whole module seam exists for. They are blocked on there being something to
-mount — which is the first installed module, or a first-party surface module
-that declares one. **That is the strongest argument available for doing the
-install work next**: it is not only a feature, it is what makes two shipped
-invariants checkable at all.
+whole module seam exists for. RV-36 is still blocked on a *second* thing to
+mount — the first installed module, or another first-party surface module that
+declares one. **That remains the strongest argument available for doing the
+install work next**: it is not only a feature, it is what makes a shipped
+invariant checkable at all.
 
 RV-31 to RV-34 and RV-38 are *not* blocked by this. The shell draws an explicit
 empty state for a module that declares no mount, and the states, the clamp, the
