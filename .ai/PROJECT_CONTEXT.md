@@ -1,8 +1,8 @@
 ---
 doc_id: ai-project-context
-version: 1.0.1
+version: 1.1.0
 canonical_path: .ai/PROJECT_CONTEXT.md
-updated: 2026-09-25
+updated: 2026-09-27
 ---
 
 # Sunshine OS Project Context
@@ -76,3 +76,21 @@ The owner requested the latest shared rules and removal/disablement of every Git
 All tracked files under .github/workflows are removed. Actions CI, releases, deployment and other workflow-based jobs no longer execute. Local checks remain available. `merge_deploys` stays conservative where external hosting has not been independently verified; a successful merge is not deployment evidence. Do not recreate or re-enable workflows without a new owner instruction.
 
 The `merge_deploys: yes` value is a conservative assumption because non-Actions hosting connections were not inspected. For newly filled facts, `none` means no relevant mechanism was established from the inspected repository files, not an audit of external services.
+
+## Automation state after the owner reversed it (2026-09-26)
+
+**The section above is superseded on its central fact and is kept so the
+reversal is legible.** The owner made the repository public, re-enabled GitHub
+Actions, and restored four workflows to `.github/workflows`; `stable` carries
+all four and `GET /actions/workflows` reports them `active`. "All tracked files
+under .github/workflows are removed" is therefore no longer true, and the
+instruction not to recreate workflows without a new owner instruction has had
+one.
+
+What has *not* changed is the evidence position, and it is the part that
+matters here. No workflow run has been produced for any push since the restore,
+and a dispatched run is created without a job ever being materialised, so no
+workflow has executed. `merge_deploys` stays conservative for exactly the
+reason the section above gives: a successful merge is not deployment evidence,
+and now it is not even build evidence. Local checks remain the only checks that
+have run. `.ai/reports/OWNER_ACTIONS.md` holds the current state.

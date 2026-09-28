@@ -1,19 +1,31 @@
 """Failure-policy tests for the compile-free workspace state model."""
 
 from copy import deepcopy
+from pathlib import Path
+import sys
 import unittest
 
-from scripts import workspace_model
+# Same latent dependency this suite has elsewhere: `from scripts import ...`
+# resolves only when the repository root is on the path, which in a full run it
+# was because another test module had put it there.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts import workspace_model  # noqa: E402
 from scripts.workspace_model import (
     DEFAULT_WORKSPACE_ID,
     NativeTab,
     UnknownSchemaError,
+    WindowWorkspaceState,
     WorkspaceModelError,
+    can_create_workspace,
+    can_switch_workspace,
     close_workspace_atomic,
+    create_workspace,
     default_catalog,
     move_tabs_atomic,
     parse_catalog,
     recover_membership,
+    switch_workspace,
 )
 
 
@@ -276,3 +288,179 @@ class WindowWorkspaceStateTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 with self.assertRaises(workspace_model.WorkspaceModelError):
                     workspace_model.parse_window_state(payload)
+
+
+class CreateWorkspaceTests(unittest.TestCase):
+    """`workspace.create` -- declared, labelled in the palette, never written."""
+
+    def test_a_created_workspace_survives_a_round_trip_through_the_parser(self) -> None:
+        """The only check that matters: is what create produces loadable?
+
+        `parse_catalog` is stricter than the dataclass -- unique orders, a
+        canonical UUIDv4, an allowed colour, a normalized name -- so a create
+        that satisfied the type and not the parser would write a catalog that
+        fails to load on the next start.
+        """
+
+        catalog = create_workspace(default_catalog(), "  Deep   Work  ", "green")
+        payload = {
+            "schema_version": catalog.schema_version,
+            "workspaces": [
+                {"id": w.id, "name": w.name, "color": w.color, "order": w.order}
+                for w in catalog.workspaces
+            ],
+        }
+        reloaded = parse_catalog(payload)
+        self.assertEqual(catalog.workspaces, reloaded.workspaces)
+        self.assertEqual("Deep Work", catalog.workspaces[1].name)
+
+    def test_order_is_one_past_the_highest_in_use_not_the_count(self) -> None:
+        """A sparse catalog is legal, and `len()` would collide with it.
+
+        `parse_catalog` requires unique orders. A catalog holding orders 0 and 7
+        has two workspaces, so `len()` as the next order would repeat the 0.
+        """
+
+        sparse = parse_catalog(
+            {
+                "schema_version": 1,
+                "workspaces": [
+                    {"id": WorkspaceSwitchTests.ONE, "name": "First", "color": "blue", "order": 0},
+                    {"id": WorkspaceSwitchTests.TWO, "name": "Second", "color": "red", "order": 7},
+                ],
+            }
+        )
+        created = create_workspace(sparse, "Third", "cyan")
+        self.assertEqual(8, created.workspaces[-1].order)
+        self.assertEqual(3, len({w.order for w in created.workspaces}))
+
+    def test_a_rejected_name_or_colour_raises_the_token_the_registry_declares(self) -> None:
+        catalog = default_catalog()
+        for name in ("", "   ", "x" * 65, 7, None):
+            with self.subTest(name=name):
+                with self.assertRaises(WorkspaceModelError) as raised:
+                    create_workspace(catalog, name, "green")
+                self.assertEqual("name_rejected", str(raised.exception))
+        with self.assertRaises(WorkspaceModelError) as raised:
+            create_workspace(catalog, "Fine", "magenta")
+        self.assertEqual("colour_unsupported", str(raised.exception))
+
+    def test_creating_does_not_mutate_the_catalog_it_was_given(self) -> None:
+        catalog = default_catalog()
+        before = catalog.workspaces
+        create_workspace(catalog, "Another", "pink")
+        self.assertEqual(before, catalog.workspaces)
+
+    def test_a_supplied_id_is_validated_and_cannot_collide(self) -> None:
+        catalog = default_catalog()
+        with self.assertRaises(WorkspaceModelError):
+            create_workspace(catalog, "Bad id", "blue", workspace_id="not-a-uuid")
+        with self.assertRaises(WorkspaceModelError):
+            create_workspace(catalog, "Taken", "blue", workspace_id=DEFAULT_WORKSPACE_ID)
+
+    def test_generated_ids_are_distinct(self) -> None:
+        catalog = create_workspace(create_workspace(default_catalog(), "A", "red"), "B", "cyan")
+        self.assertEqual(3, len({w.id for w in catalog.workspaces}))
+
+    def test_availability_is_the_profile_and_nothing_else(self) -> None:
+        self.assertIsNone(can_create_workspace(profile_active=True))
+        self.assertEqual("no_active_profile", can_create_workspace(profile_active=False))
+
+
+class WorkspaceSwitchTests(unittest.TestCase):
+    """`workspace.switch` -- every ingredient present, never assembled."""
+
+    ONE = "11111111-1111-4111-8111-111111111111"
+    TWO = "22222222-2222-4222-8222-222222222222"
+    TAB_IN_ONE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    TAB_IN_TWO = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+    def catalog(self):
+        return parse_catalog(
+            {
+                "schema_version": 1,
+                "workspaces": [
+                    {"id": self.ONE, "name": "One", "color": "blue", "order": 0},
+                    {"id": self.TWO, "name": "Two", "color": "red", "order": 1},
+                ],
+            }
+        )
+
+    def tabs(self):
+        return (
+            NativeTab("r1", self.TAB_IN_ONE, self.ONE),
+            NativeTab("r2", self.TAB_IN_TWO, self.TWO),
+        )
+
+    def state(self, active=None, last=None):
+        return WindowWorkspaceState(1, active or self.ONE, last or {})
+
+    def test_leaving_and_arriving_are_one_transition(self) -> None:
+        """The reason this operation exists rather than two calls.
+
+        A caller that switched without recording where it left would lose the
+        user's place silently, and nothing in the module made the pairing
+        visible. Switching away and back must land on the same tab.
+        """
+
+        catalog, tabs = self.catalog(), self.tabs()
+        away, target = switch_workspace(
+            self.state(), catalog, self.TWO, tabs, leaving_tab_uuid=self.TAB_IN_ONE)
+        self.assertEqual(self.TWO, away.active_workspace_id)
+
+        back, returned = switch_workspace(
+            away, catalog, self.ONE, tabs, leaving_tab_uuid=self.TAB_IN_TWO)
+        self.assertEqual(self.ONE, back.active_workspace_id)
+        self.assertEqual(self.TAB_IN_ONE, returned)
+        self.assertEqual(self.TAB_IN_TWO, back.last_active_tab[self.TWO])
+        self.assertIsNone(target, 'the first visit to Two had nothing to restore')
+
+    def test_a_first_visit_defers_to_chromium(self) -> None:
+        """None is an answer. Sunshine must not override a restored active tab."""
+
+        _, target = switch_workspace(self.state(), self.catalog(), self.TWO, self.tabs())
+        self.assertIsNone(target)
+
+    def test_a_remembered_tab_that_moved_workspace_is_not_activated(self) -> None:
+        """Membership is re-checked at switch time, not trusted from the record.
+
+        The UUID still matches, so a record consulted without re-checking
+        membership would project a tab the target workspace does not contain.
+        """
+
+        state = self.state(active=self.TWO, last={self.ONE: self.TAB_IN_ONE})
+        moved = (NativeTab("r1", self.TAB_IN_ONE, self.TWO), self.tabs()[1])
+        _, target = switch_workspace(state, self.catalog(), self.ONE, moved)
+        self.assertIsNone(target)
+
+    def test_switching_to_a_workspace_that_does_not_exist_is_an_error(self) -> None:
+        """Not an unavailable reason: the module enumerates its own candidates,
+        so an unknown target is a stale selection rather than a greyed row."""
+
+        with self.assertRaises(WorkspaceModelError) as raised:
+            switch_workspace(self.state(), self.catalog(), self.TWO[:-1] + "9", self.tabs())
+        self.assertEqual("workspace_missing", str(raised.exception))
+
+    def test_switching_to_the_workspace_already_showing_is_not_an_error(self) -> None:
+        state = self.state(last={self.ONE: self.TAB_IN_ONE})
+        arrived, target = switch_workspace(state, self.catalog(), self.ONE, self.tabs())
+        self.assertEqual(self.ONE, arrived.active_workspace_id)
+        self.assertEqual(self.TAB_IN_ONE, target)
+
+    def test_the_record_is_window_local(self) -> None:
+        """Two windows on the same profile must not overwrite each other."""
+
+        catalog, tabs = self.catalog(), self.tabs()
+        first, _ = switch_workspace(
+            self.state(), catalog, self.TWO, tabs, leaving_tab_uuid=self.TAB_IN_ONE)
+        second, _ = switch_workspace(self.state(), catalog, self.TWO, tabs)
+        self.assertIn(self.ONE, first.last_active_tab)
+        self.assertNotIn(self.ONE, second.last_active_tab)
+
+    def test_availability_needs_a_profile_and_somewhere_else_to_go(self) -> None:
+        self.assertEqual(
+            "no_active_profile", can_switch_workspace(self.catalog(), profile_active=False))
+        self.assertEqual(
+            "no_other_workspace", can_switch_workspace(default_catalog(), profile_active=True))
+        self.assertIsNone(can_switch_workspace(self.catalog(), profile_active=True))
+

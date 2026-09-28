@@ -183,3 +183,76 @@ the workflows are on `stable`, it returns.
 2. Start the self-hosted runner (OA-3), then dispatch **Native Chromium Windows
    Build**. That is the answer to "러너 실행" and it is meaningful again.
 3. Run gate block F5 (OA-4).
+
+## Addendum, 2026-09-27 — after the merge
+
+PR #64 merged as `d25dd65`. `stable` now carries all four workflow files, and
+`GET /actions/workflows` returns `total_count: 4`, every one `state=active`,
+including `Native Chromium Windows Build`, which was not in the registry before.
+The empty-registry explanation is therefore spent: **the merge commit itself
+produced no workflow run**, watched for roughly two minutes, although
+`architecture-guard-hosted.yml` carries an unfiltered `push:` and `stable` is
+the default branch.
+
+One further observation, recorded as an observation and not as a cause. The
+last hosted runs that did start — `Patch Stack Apply (hosted)` #62 on
+2026-09-23 and #63 on 2026-09-24 — each reached a job on `ubuntu-latest` and
+completed `failure` three seconds later. Their logs are past GitHub's retention
+and return `404`, so what those three seconds contained cannot now be read. It
+is noted because it is the last state of the hosted path before it stopped
+scheduling entirely, and because the next hosted run that does start should be
+compared against it.
+
+No replacement cause is named here. Three have been named in this repository
+and all three were wrong: that Actions was disabled, that the account was
+restricted, and that the registry was empty. What can be said is bounded and is
+said: every explanation that lives in the tree is now excluded, and the
+self-hosted path does not depend on GitHub's hosted pool, so **OA-4 is
+reachable without OA-3 and without hosted CI** —
+`docs/WINDOWS_CHROMIUM_BUILD.md` § *Running a build* is the path that needs
+neither.
+
+## Addendum, 2026-09-27 23:15Z — GitHub says the runs were never queued
+
+Four causes had been named in this repository and the first three were wrong.
+The fourth was never named, on purpose, because the evidence did not reach it.
+It does now, and it did not come from reasoning about absences — **it came from
+GitHub refusing an ordinary request and saying why.**
+
+Cancelling a stuck run returns:
+
+```text
+409 Cannot cancel a workflow run that has not been queued yet
+```
+
+The run object reads `status: queued`. GitHub says it has not been queued. Both
+statements are GitHub's.
+
+The refusal reproduces across every variable available here:
+
+| Varied | Runs | Result |
+| --- | --- | --- |
+| Age | `36232595361` (28 h), `36358075412` (seconds) | identical 409 |
+| Ref | working branch, `stable` (the default branch) | identical 409 |
+| Workflow | `architecture-guard-hosted`, `patch-apply-hosted`, `native-chromium-windows` | identical 409 |
+| Runner kind | `ubuntu-latest` (hosted), `self-hosted` | identical 409 |
+
+This is why every earlier measurement looked the way it did. `0 jobs` was not a
+job waiting for a runner, because a job waiting for a runner exists and is
+listed; there was no job because the run never reached the point where one is
+created. Registering the self-hosted runner (OA-3) would not have moved any of
+these, and the dispatch that created run #64 on the default branch seconds
+before this was written is in the same state as the one from the previous day.
+
+**What this does not establish.** It does not name a cause. It locates the
+condition on GitHub's side of the boundary and shows that nothing reachable from
+this repository — visibility, the Actions permission, the workflow registry, the
+branch, the runner labels — changes it. That is a smaller claim than a diagnosis
+and it is the one the evidence supports. OA-7 is the row for it, and a support
+ticket is the only lever left; the three wrong diagnoses in this file are the
+reason for not writing a fourth here.
+
+**What is unaffected.** The build does not need any of this.
+`docs/WINDOWS_CHROMIUM_BUILD.md` § *Running a build* runs on the owner's machine
+and touches neither GitHub's queue nor a runner.
+

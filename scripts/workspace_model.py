@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from typing import Iterable, Mapping
-from uuid import UUID
+from uuid import UUID, uuid4
 
 
 WORKSPACE_SCHEMA_VERSION = 1
@@ -222,6 +222,53 @@ def close_workspace_atomic(
     )
 
 
+def create_workspace(
+    catalog: Catalog,
+    name: object,
+    color: object,
+    *,
+    workspace_id: str | None = None,
+) -> Catalog:
+    """Add an empty workspace to the profile catalog.
+
+    The new workspace holds no tabs. Chromium opens the New Tab the command's
+    summary promises; the catalog has nothing to say about it, because tabs are
+    Chromium's and membership is recorded on the tab rather than listed here.
+
+    Ordering is append-only: the new workspace takes one past the highest order
+    in use, never `len(workspaces)`, because `parse_catalog` requires orders to
+    be unique and a catalog whose orders are sparse would otherwise collide.
+
+    `workspace_id` exists for callers that have already minted a durable UUID
+    (native wiring generates one before it can call in) and for tests. It is
+    validated like any other, so a caller cannot smuggle in a non-canonical id.
+
+    Raises `WorkspaceModelError` carrying the reason token `first_party/
+    commands.json` declares for `workspace.create`, so the surface has
+    something to show. The two older operations in this module raise prose for
+    the same field; they are left alone here rather than rewritten in a change
+    about something else.
+    """
+
+    try:
+        normalized = _normalized_name(name)
+    except WorkspaceModelError as error:
+        raise WorkspaceModelError("name_rejected") from error
+    if color not in ALLOWED_COLORS:
+        raise WorkspaceModelError("colour_unsupported")
+
+    if workspace_id is None:
+        new_id = str(uuid4())
+    else:
+        new_id = canonical_uuid(workspace_id, "workspace ID")
+        if new_id in catalog.by_id():
+            raise WorkspaceModelError("workspace IDs must be unique")
+
+    next_order = max((workspace.order for workspace in catalog.workspaces), default=-1) + 1
+    created = Workspace(new_id, normalized, str(color), next_order)
+    return Catalog(catalog.schema_version, catalog.workspaces + (created,))
+
+
 # --- Availability predicates -------------------------------------------------
 #
 # Side-effect free answers to "may this command be offered?", returning None when
@@ -246,6 +293,35 @@ def can_move_tabs(catalog: Catalog, destination_workspace_id: str) -> str | None
 
     if destination_workspace_id not in catalog.by_id():
         return "no_destination_workspace"
+    return None
+
+
+def can_create_workspace(*, profile_active: bool) -> str | None:
+    """Creating needs only somewhere to create it.
+
+    The catalog is deliberately not consulted. There is no ceiling on how many
+    workspaces a profile may hold, and `workspace.create` declares exactly one
+    unavailable reason, so a predicate that could return a second would be
+    returning a token no surface has a string for.
+    """
+
+    return None if profile_active else "no_active_profile"
+
+
+def can_switch_workspace(catalog: Catalog, *, profile_active: bool) -> str | None:
+    """Switching needs a profile and somewhere other than here to go.
+
+    The target is not checked. `workspace.switch` enumerates its candidates
+    through `sunshine.workspace`, so a target that does not exist is a stale
+    selection -- an error the operation raises -- and not a reason the command
+    should have been greyed out. It declares `workspace_missing` under `errors`
+    and not under `unavailable_reasons`, and this returns only the latter.
+    """
+
+    if not profile_active:
+        return "no_active_profile"
+    if len(catalog.workspaces) < 2:
+        return "no_other_workspace"
     return None
 
 
@@ -362,3 +438,46 @@ def persistable_window_state(
         "active_workspace_id": state.active_workspace_id,
         "last_active_tab": dict(sorted(state.last_active_tab.items())),
     }
+
+
+def switch_workspace(
+    state: WindowWorkspaceState,
+    catalog: Catalog,
+    workspace_id: str,
+    tabs: Iterable[NativeTab],
+    *,
+    leaving_tab_uuid: str | None = None,
+) -> tuple[WindowWorkspaceState, str | None]:
+    """Project `workspace_id` in this window and say which tab to activate.
+
+    This is the assembly the module was missing. `record_active_tab` and
+    `resolve_switch_target` were both here; nothing put them on either side of
+    a single transition, so every caller would have had to remember that
+    leaving a workspace and arriving at one are the same event -- and a caller
+    that forgot the first half would silently lose the user's place.
+
+    `leaving_tab_uuid` is where the user was in the *current* workspace, and it
+    is a tab, never a split: §4.1 of `docs/TAB_WORKSPACE_SPLIT_CONTRACT.md`
+    requires the record to name one tab, because activating a tab that belongs
+    to a split foregrounds both panes natively and a split recorded as a split
+    would be Sunshine keeping state Chromium already keeps.
+
+    The returned tab UUID may be None, which is an answer rather than a
+    failure: Chromium's own restored active tab is correct on a first visit or
+    after the remembered tab is gone. Switching to the workspace already
+    showing is not an error -- it returns the same resolution -- because the
+    predicate, not the operation, is what greys the command out.
+    """
+
+    if workspace_id not in catalog.by_id():
+        raise WorkspaceModelError("workspace_missing")
+
+    departed = state
+    if leaving_tab_uuid is not None:
+        departed = record_active_tab(state, state.active_workspace_id, leaving_tab_uuid)
+
+    projected = tuple(tabs)
+    arrived = WindowWorkspaceState(
+        departed.schema_version, workspace_id, departed.last_active_tab
+    )
+    return arrived, resolve_switch_target(arrived, workspace_id, projected)

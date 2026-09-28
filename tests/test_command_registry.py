@@ -6,11 +6,18 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "validate_commands.py"
+
+# The predicate tests below import the owning modules by bare name, the way the
+# rest of this suite does. Without this line they resolved only because some
+# other test file had already inserted the path into the same process, so this
+# file passed in a full run and failed on its own.
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def load_validator():
@@ -67,15 +74,25 @@ class CommandRegistryTests(unittest.TestCase):
         calls each predicate with inputs chosen to make it refuse.
         """
 
+        import security_center_model as security
         import workspace_model as workspace
 
         empty = workspace.default_catalog()
         only = empty.workspaces[0].id
         absent = "00000000-0000-4000-8000-000000000000"
 
+        # Every Sunshine-owned predicate, not a sample of them. The table held
+        # two of four while `workspace.create` and `workspace.switch` had no
+        # predicate to call, so it was complete and looked partial; now that
+        # they do, a missing row would be a predicate whose tokens nothing
+        # checks against the registry.
         refusals = {
             "workspace.close": workspace.can_close_workspace(empty, only),
             "workspace.tab.move": workspace.can_move_tabs(empty, absent),
+            "workspace.create": workspace.can_create_workspace(profile_active=False),
+            "workspace.switch": workspace.can_switch_workspace(empty, profile_active=True),
+            "security_center.open": security.can_open_security_center(
+                browser_window_open=False),
         }
 
         for command_id, reason in refusals.items():
@@ -88,10 +105,20 @@ class CommandRegistryTests(unittest.TestCase):
         """None means available. A predicate that never says yes disables a
         command permanently, which no test of its refusals would catch."""
 
+        import security_center_model as security
         import workspace_model as workspace
 
         catalog = workspace.default_catalog()
         self.assertIsNone(workspace.can_move_tabs(catalog, catalog.workspaces[0].id))
+        self.assertIsNone(workspace.can_create_workspace(profile_active=True))
+        self.assertIsNone(security.can_open_security_center(browser_window_open=True))
+
+        # `workspace.switch` needs somewhere other than here to go, so the
+        # default catalog of one is the refusal case above. Two workspaces is
+        # the yes, and it has to be asserted separately or the only thing
+        # proven about this predicate is that it refuses.
+        second = workspace.create_workspace(catalog, "Second", "green")
+        self.assertIsNone(workspace.can_switch_workspace(second, profile_active=True))
 
     def test_chromium_owned_commands_carry_no_sunshine_code(self) -> None:
         """No Sunshine *code*. Declarations are a different thing.
@@ -189,10 +216,62 @@ class CommandRegistryTests(unittest.TestCase):
         predicate are not a promise nothing can keep -- they are the twenty
         Chromium-owned commands, whose evaluation lives where this repository
         has no Python to point at.
+
+        **The fixture used to be `workspace.tab.move`, and that was the bug in
+        this test.** The reason above is about Chromium-owned commands, and it
+        was demonstrated with a Sunshine-owned one -- so what the test actually
+        licensed was a Sunshine command with no predicate, which is the state
+        `workspace.create` and `workspace.switch` shipped in. A rule proven
+        against a case outside its own stated scope protects that case instead.
         """
 
         payload = self._payload()
-        self._command(payload, "workspace.tab.move").update(predicate=None)
+        self._command(payload, "browser.reload").update(predicate=None)
+        self._accepts(payload)
+
+    def test_a_sunshine_owned_command_without_a_predicate_is_rejected(self) -> None:
+        """The mirror of the rule above, which nothing asked for.
+
+        Sunshine declared the reasons, so Sunshine has to be able to return
+        them. A null predicate short-circuited the resolve loop before any rule
+        ran, so the command resolved nothing and passed everything.
+        """
+
+        for command_id in ("workspace.create", "workspace.switch", "workspace.close"):
+            with self.subTest(command=command_id):
+                self._rejects(
+                    lambda p, c=command_id: self._command(p, c).update(predicate=None))
+
+    def test_a_sunshine_owned_command_without_an_implementation_is_rejected(self) -> None:
+        """The exact shape `workspace.create` and `workspace.switch` shipped in.
+
+        Both carried `implementation: null` while
+        `0025-sunshine-command-titles.patch` shipped their palette labels and
+        `sunshine-workspace` listed them as targets -- a row a user can be shown
+        and Sunshine cannot run.
+        """
+
+        for command_id in ("workspace.create", "workspace.switch", "workspace.tab.move"):
+            with self.subTest(command=command_id):
+                self._rejects(
+                    lambda p, c=command_id: self._command(p, c).update(implementation=None))
+
+    def test_only_the_named_navigation_command_may_omit_an_implementation(self) -> None:
+        """The exemption is a list of ids, and it is checked as one.
+
+        `security_center.open` opens a Sunshine WebUI surface and commits no
+        Sunshine state, so it has nothing to point `implementation` at. That is
+        a property of that command, not of a shape another command could claim
+        by resembling it -- so the test asserts both halves: the exempt id is
+        accepted without an implementation, and re-pointing the exemption at a
+        command that does change state does not make it acceptable.
+        """
+
+        self.assertEqual(
+            frozenset({"security_center.open"}), self.validator.NO_SUNSHINE_SIDE_EFFECT)
+
+        payload = self._payload()
+        self._command(payload, "security_center.open").update(implementation=None)
         self._accepts(payload)
 
     def test_a_command_with_no_declared_reason_is_rejected(self) -> None:

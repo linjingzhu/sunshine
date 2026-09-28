@@ -60,6 +60,25 @@ CALLABLE_REF = re.compile(r"^scripts\.[a-z_]+:[a-z_]+$")
 DOC_TOKEN = re.compile(r"`([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)`")
 CHROMIUM_OWNER = "chromium"
 
+# A Sunshine-owned command always owns its availability, so `predicate` is
+# required without exception: Sunshine declared the reasons, so Sunshine has to
+# be able to return them.
+#
+# `implementation` is different. It names the callable that performs the
+# Sunshine-side part of the command, and a command that opens one of Sunshine's
+# own WebUI surfaces has no Sunshine-side part -- Chromium navigates, and there
+# is no metadata to commit or roll back. Such a command is exempt, by id, here,
+# and only here. The exemption is deliberately a list of ids rather than a
+# property of the entry: a flag in `first_party/commands.json` could be set by
+# whoever was adding a command, which is the same silence this rule exists to
+# end.
+#
+# Nothing about a command's shape may earn a place in this set. In particular a
+# command that changes Sunshine state and merely has not been written yet is
+# not navigation-only -- that is the defect, not an exemption from it.
+NO_SUNSHINE_SIDE_EFFECT = frozenset({"security_center.open"})
+
+
 
 class CommandRegistryError(ValueError):
     pass
@@ -186,6 +205,27 @@ def validate_command(command: object, surfaces: list[str], modules: set[str]) ->
         if owner == CHROMIUM_OWNER:
             raise CommandRegistryError(
                 f"{command_id}: a Chromium-owned command cannot carry a Sunshine {role}"
+            )
+
+    # The rule above was only ever enforced in one direction: a Chromium-owned
+    # command may not carry a Sunshine implementation. Nothing asked the mirror
+    # question, and `None` short-circuits the loop before any check runs -- so a
+    # Sunshine-owned command with `implementation: null` resolved nothing,
+    # skipped every rule, and passed. `workspace.create` and `workspace.switch`
+    # sat that way while their palette labels shipped in
+    # 0025-sunshine-command-titles.patch and `sunshine-workspace` listed both as
+    # targets, which is a command a user can be shown and Sunshine cannot run.
+    #
+    # Chromium-owned commands stay exempt: Chromium performs them and decides
+    # their availability, which is what `owner` records.
+    if owner != CHROMIUM_OWNER:
+        if command["predicate"] is None:
+            raise CommandRegistryError(
+                f"{command_id}: a {owner}-owned command must declare a predicate"
+            )
+        if command["implementation"] is None and command_id not in NO_SUNSHINE_SIDE_EFFECT:
+            raise CommandRegistryError(
+                f"{command_id}: a {owner}-owned command must declare an implementation"
             )
 
     # §2.4: a command declares what kind of object it is dispatched against, and
