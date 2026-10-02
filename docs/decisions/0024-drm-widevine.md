@@ -1,8 +1,8 @@
 ---
 doc_id: adr-0024-drm-widevine
-version: 1.0.0
+version: 1.1.0
 canonical_path: docs/decisions/0024-drm-widevine.md
-updated: 2026-09-13
+updated: 2026-10-02
 ---
 
 # ADR 0024: Widevine, under the same personal-use premise — and a licence that is not the same
@@ -149,8 +149,54 @@ same reason, more so.
   Decryption Module*, and its version reading `0.0.0.0` means registered but not
   yet downloaded — which is a different result from absent and RV-57 separates
   them.
-- **Whether `chrome://settings/content/protectedContent` exists and is on.** The
-  Netflix message names it. Sunshine has not been checked for it.
+- ~~**Whether `chrome://settings/content/protectedContent` exists and is on.**~~
+  **Settled from source on 2026-10-02 — see §7.** It is allowed by default and
+  no Sunshine patch touches it, so it cannot be the cause. Checking it is
+  still worth one look as RV-58, but it is no longer a candidate.
 - **Any interaction with the sandbox.** The CDM runs in its own utility process.
   `docs/SECURITY_INVARIANTS.md`'s guarantees are about the renderer, and whether
   a CDM process changes anything they claim has not been examined.
+
+## 7. Addendum, 2026-10-02 — four candidates removed from source
+
+The owner reported a Netflix playback error again. Before asking them for
+anything, four of the possible causes were checked against the pinned revision
+and **all four are ruled out**. They are written down because each is what a
+search would suggest first, and re-deriving them costs a session each time.
+
+| Candidate | Verdict | Evidence at `152.0.7977.42` |
+| --- | --- | --- |
+| The build argument was never applied | **Ruled out** | `scripts/build_chromium_windows.ps1` carries `enable_widevine=true`, and build #62's commit `663db5d` already contained it |
+| Codecs are missing | **Ruled out** | the same file carries `proprietary_codecs=true` and `ffmpeg_branding="Chrome"` |
+| Registration is gated on branding or an API key | **Ruled out** | `chrome/browser/component_updater/registration.cc` calls `RegisterWidevineCdmComponent(cus)` under `BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)` and nothing else; the function body in `widevine_cdm_component_installer.cc` is three lines — construct the policy, `Register` — with no early return, no brand check and no key |
+| The update endpoint is brand-gated | **Ruled out** | `components/component_updater/component_updater_url_constants.cc` hard-codes `https://update.googleapis.com/service/update2/json`, overridable only by `--component-updater=url-source=`. No branding appears in the file |
+
+**And the setting the error message named is allowed by default.**
+`components/content_settings/core/browser/content_settings_registry.cc`
+registers `ContentSettingsType::PROTECTED_MEDIA_IDENTIFIER` with a default of
+`CONTENT_SETTING_ALLOW` and lists `PLATFORM_WINDOWS` among its platforms. §Context
+said "the message names a setting, and the setting is not the problem" as a
+reading; this is that reading checked. Separately, **no patch in the stack of 32
+touches Chromium's settings WebUI, media stack, CDM or component updater** — so
+the page is upstream's, unmodified.
+
+### What is left, and the one check that separates it
+
+Everything remaining is downstream of the build, which is where §6 always said
+the answer would be. **RV-57 is the whole diagnosis and it takes one page load.**
+`chrome://components`, row *Widevine Content Decryption Module*:
+
+| What the row shows | What it means | Next |
+| --- | --- | --- |
+| **No row at all** | the running build does not carry `ENABLE_WIDEVINE_CDM_COMPONENT` | The installed binary predates the flag. The last successful build is **#62, 2026-09-13**; the error in §Context was first seen on **#57**. Install a #62-or-later artifact, or build |
+| Version **`0.0.0.0`** | registered, never fetched — the component updater is failing, not the build | Press *Check for update* on the row. If it stays `0.0.0.0`, this is precisely the empirical question §6 named: whether Google's service serves a CDM to an unbranded browser |
+| A real version | the CDM is present and the fault is elsewhere — output protection, or Netflix's own side | Record the error code and read it against the CDM version |
+
+Then RV-56, **with its retry**: the component fetch is not synchronous with the
+first playback attempt, so a first failure followed by a later success is a PASS
+and recording FAIL without waiting answers a different question.
+
+**The error code matters and is not recorded here**, because this addendum was
+written without it. `M7701-1003` is the code §Context saw and it points at the
+protected-content setting, which the table above removes. A different code points
+somewhere else, so the code is the first thing to capture on the next attempt.
