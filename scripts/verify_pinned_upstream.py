@@ -209,6 +209,29 @@ THROTTLED_STATUS = frozenset({429, 503})
 THROTTLED_RETRIES = 6
 THROTTLED_BACKOFF_SECONDS = 10
 
+# An environment whose egress policy blocks the authoritative host gets a
+# tunnel error, exhausts the budget, and is told only that the host could not be
+# reached -- while `--source github` sits in this file's own docstring and would
+# have answered. That happened: the patch stack went several days reported as
+# "not re-confirmed against the pin" in run after run, with the flag available
+# the whole time. The checker knew the way out and did not say so at the one
+# moment a reader was looking.
+#
+# The hint is keyed on the host in the failing URL rather than on the `--source`
+# argument, because every caller of `_open` passes a URL and none of them can
+# forget to. It also means the advice disappears exactly when it is already
+# spent: a mirror that is itself unreachable must not suggest the mirror.
+AUTHORITATIVE_HOST = "chromium.googlesource.com"
+MIRROR_HINT = (
+    " -- if this environment blocks that host, `--source github` reads the same "
+    "revision from the GitHub mirror (a convenience, not a second source of "
+    "truth; CI runs the default)"
+)
+
+
+def _target_url(request: urllib.request.Request | str) -> str:
+    return request if isinstance(request, str) else request.full_url
+
 
 def _open(request: urllib.request.Request | str, path: str, version: str):
     """Open a URL, retrying the answers that mean "not now" rather than "no".
@@ -246,7 +269,10 @@ def _open(request: urllib.request.Request | str, path: str, version: str):
         attempt += 1
         if attempt < budget:
             time.sleep(min(wait, 60))
-    raise UpstreamCheckError(f"could not reach {path} at {version} after {attempt} attempts: {last}")
+    hint = MIRROR_HINT if AUTHORITATIVE_HOST in _target_url(request) else ""
+    raise UpstreamCheckError(
+        f"could not reach {path} at {version} after {attempt} attempts: {last}{hint}"
+    )
 
 
 def fetch(source: str, version: str, path: str) -> str:

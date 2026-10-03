@@ -334,6 +334,65 @@ class ThrottlingIsNotAbsenceTests(unittest.TestCase):
             self.assertFalse(checker.exists("github", "152.0.7977.42", "base/gone.h"))
         self.assertEqual(1, urlopen.call_count, "a 404 must not be retried")
 
+    def test_an_unreachable_authoritative_host_names_the_mirror(self) -> None:
+        """The message a blocked environment actually reads.
+
+        `--source github` is documented in the module docstring and nowhere a
+        failing run would look. A tunnel rejection exhausted the budget and said
+        only that the host was unreachable, so the patch stack was reported
+        "not re-confirmed against the pin" for several days with the flag
+        available the whole time.
+        """
+
+        blocked = urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=blocked
+        ):
+            with self.assertRaises(checker.UpstreamCheckError) as raised:
+                checker.fetch("googlesource", "152.0.7977.42", "base/check.h")
+        message = str(raised.exception)
+        self.assertIn("--source github", message)
+        self.assertIn("Tunnel connection failed", message,
+                      "the original cause must survive the hint")
+
+    def test_an_unreachable_mirror_does_not_suggest_the_mirror(self) -> None:
+        """Advice that is already spent is worse than none.
+
+        This is why the hint is keyed on the host in the failing URL and not on
+        whether the run is the default one.
+        """
+
+        blocked = urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=blocked
+        ):
+            with self.assertRaises(checker.UpstreamCheckError) as raised:
+                checker.fetch("github", "152.0.7977.42", "base/check.h")
+        self.assertNotIn("--source github", str(raised.exception))
+
+    def test_a_missing_path_is_not_given_the_hint(self) -> None:
+        """A 404 is "no", not "not now", and needs no second host to confirm it."""
+
+        with mock.patch.object(checker.time, "sleep"), mock.patch.object(
+            checker.urllib.request, "urlopen", side_effect=self._error(404)
+        ):
+            with self.assertRaises(checker.UpstreamCheckError) as raised:
+                checker.fetch("googlesource", "152.0.7977.42", "base/gone.h")
+        self.assertNotIn("--source github", str(raised.exception))
+
+    def test_both_url_shapes_reach_the_host_check(self) -> None:
+        """`_open` is called with a bare string and with a Request.
+
+        The existence probe builds a Request; `fetch` passes a string. A hint
+        that only understood one of them would be absent from half the failures.
+        """
+
+        self.assertEqual(
+            "https://example.invalid/x", checker._target_url("https://example.invalid/x"))
+        self.assertEqual(
+            "https://example.invalid/y",
+            checker._target_url(checker.urllib.request.Request("https://example.invalid/y")))
+
     def test_a_probe_that_recovers_on_retry_succeeds(self) -> None:
         response = mock.MagicMock()
         response.status = 200

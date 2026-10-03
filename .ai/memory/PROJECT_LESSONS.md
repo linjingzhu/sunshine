@@ -311,6 +311,29 @@ Confidence: high.
 
 ## Verification Lessons
 
+### 2026-10-02 — Both upstream guards take `--source github`, and the blocked host hid it
+Area: `scripts/verify_pinned_upstream.py`, `scripts/verify_design_tokens.py`.
+Evidence: both carry a `--source` argument; `github` reads the same pinned tag
+from `raw.githubusercontent.com/chromium/chromium/<version>/...`, which returns
+200 in environments whose egress policy rejects `chromium.googlesource.com:443`
+(the cloud container's does -- `connect_rejected` in the agent proxy's own
+failure list). Run with it, both guards pass: all 32 patches apply to
+`152.0.7977.42`, and S1-S13 pass over the Sunshine-authored CSS.
+Impact: this was not discovered for several days. Every report in that window
+carried "the patch stack applying to the pin is not re-confirmed" in NOT
+VERIFIED, and an ADR was researched against the mirror by hand while the
+checkers that do it properly sat unused. The flag was in the module docstring
+and the failure message said only that the host was unreachable.
+Recommended future behavior: when a guard that reads upstream fails on egress,
+read its `--help` before reporting the gate as unrunnable. The error now names
+the flag (keyed on the failing URL's host, so a blocked mirror does not suggest
+the mirror), and `tests/test_verify_pinned_upstream.py` holds that behaviour --
+but the general rule is the lesson: **a tool that cannot reach something is not
+the same as a check that cannot run**, and this repository's guards tend to have
+the escape hatch already.
+Confidence: high -- both guards were run to completion green against the mirror.
+
+
 ### 2026-09-25 — Adopting an external policy set can drop policy this repository wrote, and only this repository's guards notice
 Area: `.ai/` policy set, adoption of ai-dev-rule 3.0.0 (PRs #61-#63).
 Evidence: the adoption report
