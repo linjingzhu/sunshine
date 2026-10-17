@@ -1,8 +1,8 @@
 ---
 doc_id: ai-project-context
-version: 1.1.1
+version: 1.2.0
 canonical_path: .ai/PROJECT_CONTEXT.md
-updated: 2026-09-03
+updated: 2026-10-10
 ---
 
 # <Project> Context
@@ -82,3 +82,16 @@ commands → the compile and build ladder and every report; `generated` →
 > returning through a roadmap or a speculative implementation.
 
 - …
+
+## Local rules
+
+> A rule this repository needs and the set does not have. The set's own files
+> here are a subscribed copy, recorded in `.ai/set.lock` and replaced on every
+> upgrade, so a rule written into one of them is lost at the next release and
+> fails the set's check until then. Write it here instead, as a short list.
+> Where one of these contradicts the set, it wins in this repository; say which
+> rule it replaces, so the conflict can be taken to the set's home. A rule
+> every repository would want belongs in the set — propose it there. `none` if
+> there are none.
+
+- none

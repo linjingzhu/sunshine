@@ -23,7 +23,9 @@ Exit status is 0 when every check passes and 1 otherwise.
 
 from __future__ import annotations
 
+import hashlib
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -39,6 +41,11 @@ INSTANCE_PATHS = {
     # A roadmap names the features of one product, so it is an instance file
     # like the two above, not a policy document. The auto-dev skill writes it.
     ".ai/ROADMAP.md",
+    # What this repository subscribed to, written by `adopt.py`. It records
+    # one delivery, so it belongs to the repository that received it.
+    ".ai/set.lock",
+    # The set's home only: the repositories a release is sent to.
+    ".ai/SUBSCRIBERS.md",
 }
 INSTANCE_DIRS = (".ai/reports/",)
 
@@ -65,9 +72,16 @@ class Report:
 
     def __init__(self) -> None:
         self.entries: list[tuple[str, str, list[str]]] = []
+        self.skipped: list[tuple[str, str, str]] = []
 
     def add(self, name: str, question: str, failures: list[str]) -> None:
         self.entries.append((name, question, failures))
+
+    def skip(self, name: str, question: str, reason: str) -> None:
+        """A check that could not ask its question here. It prints with the
+        reason and never as a pass: a pass for a question nobody asked is the
+        failure `.ai/CORE.md` names."""
+        self.skipped.append((name, question, reason))
 
     @property
     def failed(self) -> bool:
@@ -80,6 +94,10 @@ class Report:
             print(f"        asks: {question}")
             for line in failures:
                 print(f"        - {line}")
+        for name, question, reason in self.skipped:
+            print(f"[SKIP] {name}")
+            print(f"        asks: {question}")
+            print(f"        not asked: {reason}")
         print()
         if self.failed:
             n = sum(len(f) for _, _, f in self.entries)
@@ -88,6 +106,8 @@ class Report:
             print("in the docstring of each check.")
         else:
             print("All structural checks passed.")
+        if self.skipped:
+            print(f"{len(self.skipped)} check(s) not asked here — each is named above with why.")
 
 
 def repo_files(pattern: str) -> list[Path]:
@@ -222,17 +242,49 @@ def check_front_matter(report: Report) -> None:
 # Question: does every `file.md` and every `file.md` § *Section* reference
 # point at something that exists?
 #
+# Run reports under `.ai/reports/` are not read. A report records what was true
+# when it was written; a file it named may since have moved or gone, and the
+# only way to make that pointer resolve would be to rewrite the record. Until
+# 3.4.2 they were excused by accident, through a guess beside the report that
+# landed inside the instance folder; they are now excluded on purpose.
+#
 # NOT VERIFIED: whether the pointed-at section actually says what the pointer
 # claims. A resolving reference can still be a wrong one.
 # --------------------------------------------------------------------------
 # Project capabilities the set ships and that travel, but that an adopting
 # repository may not have: it can delete one, or never have taken it. Referring
 # to one is therefore like referring to an instance file — resolved where the
-# set lives, tolerated as absent where it does not. This is the same set-home
-# distinction as SET_HOME_FILES, reached from the other direction.
+# set lives, tolerated where it does not. This is the same set-home distinction
+# as SET_HOME_FILES, reached from the other direction.
+#
+# In a subscriber the lock says which capabilities were delivered, so the
+# tolerance is exact there: a reference into a capability folder is excused
+# only when it names a capability the repository removed — one the lock
+# records as removed, or lists as delivered and is now gone — or one the lock
+# records as kept, because the repository holds its own in that place.
+# Anything else that does not resolve is a broken pointer, as at the set's
+# home.
+#
+# Without a lock, a repository adopted before 4.0.0, nothing tells a removed
+# capability from one that never existed, and every reference into a
+# capability folder is still excused. That blind spot closes at its next
+# upgrade, which writes the lock. A pointer written *inside* a capability is
+# checked either way; see `resolve()`.
 TRAVELLING_DIRS = (
     ".claude/agents/", ".claude/skills/", ".codex/agents/", ".agents/skills/",
 )
+
+
+def removed_capability(path: str) -> bool:
+    """Whether `path` names a capability the set ships and this repository does
+    not hold as the set's: one it removed, or one in a place it keeps its own.
+    Either is its choice, and leaves the set's pointers to it dangling. True
+    for every path where no lock says what was delivered."""
+    lock = ROOT / LOCK
+    if not lock.is_file():
+        return True
+    _, entries, marks, _ = read_lock(lock.read_text(encoding="utf-8"))
+    return path in marks or (path in entries and not (ROOT / path).exists())
 
 
 def resolve(ref: str, source: Path) -> tuple[Path | None, bool]:
@@ -242,10 +294,26 @@ def resolve(ref: str, source: Path) -> tuple[Path | None, bool]:
     `PROJECT_LESSONS.md` from inside `.ai/memory/`. Try the repository root, the
     referring document's own directory, and `.ai/`, in that order.
 
+    The second is tried only for a reference written relative to its document:
+    a bare name, or one starting `./` or `../`. A reference that names its own
+    directory, like `.ai/CORE.md`, means that directory. Guessing it relative to
+    the referring file invents a path inside that file's own folder — and inside
+    a capability folder, which an adopter may lack, the invented path is
+    tolerated, hiding every dangling pointer the capability contains.
+
+    For the same reason, a guess beside a document that itself lives in a
+    capability folder is never excused as an absent capability: the folder is
+    evidently there, so a missing neighbour is a broken pointer.
+
     Returns the resolved path (or None) and whether the reference names one of
     the per-project instance files, which do not exist in the set as shipped.
     """
-    for candidate in (ROOT / ref, source.parent / ref, AI / ref):
+    in_capability = rel(source).startswith(TRAVELLING_DIRS)
+    candidates = [(ROOT / ref, False)]
+    if "/" not in ref or ref.startswith(("./", "../")):
+        candidates.append((source.parent / ref, in_capability))
+    candidates.append((AI / ref, False))
+    for candidate, beside_capability in candidates:
         try:
             as_rel = candidate.resolve().relative_to(ROOT).as_posix()
         except ValueError:
@@ -259,7 +327,8 @@ def resolve(ref: str, source: Path) -> tuple[Path | None, bool]:
             return candidate, False
         if is_instance(as_rel):
             return None, True
-        if as_rel.startswith(TRAVELLING_DIRS) and not at_set_home():
+        if (as_rel.startswith(TRAVELLING_DIRS) and not at_set_home()
+                and not beside_capability and removed_capability(as_rel)):
             return None, True
     return None, False
 
@@ -271,6 +340,8 @@ def check_references(report: Report) -> None:
 
     for path in docs:
         name = rel(path)
+        if name.startswith(INSTANCE_DIRS):
+            continue  # a record, not a pointer that must stay current
         text = path.read_text(encoding="utf-8")
 
         for match in PATH_REF.finditer(text):
@@ -693,6 +764,369 @@ def check_capability_definitions(report: Report) -> None:
     )
 
 
+# --------------------------------------------------------------------------
+# Check 8 — document versions
+#
+# Question: has every policy document whose text changed since the previous
+# release been bumped, and bumped exactly once?
+#
+# `.ai/CHANGELOG.md` § Document versioning is the rule: one bump per release,
+# sized by policy impact. The previous release is the oldest commit, walking
+# first parents back from HEAD, in which its entry stood at the top of the
+# changelog, with merges read as `previous_release_commit()` describes. Every
+# commit of the
+# release being made, before its entry was written or after, is compared with
+# that one state, so a committed change is caught exactly as one still in the
+# working tree is. `previous_release_commit()` is the detail.
+#
+# The changelog is compared without its release entries. They grow every
+# release; its version describes its rules, not its record.
+#
+# Asked only at the set's home. An adopter cannot fix the set's history, and
+# its commits are not the set's releases.
+#
+# NOT VERIFIED: whether the level matches the change's policy impact, which is
+# a judgement, and anything before the previous release. A change committed
+# without a release entry is counted in the next release that records one.
+# --------------------------------------------------------------------------
+VERSIONS_QUESTION = (
+    "has every policy document whose text changed since the previous release "
+    "been bumped, exactly once?"
+)
+
+
+def release_versions(text: str) -> list[str]:
+    """Release versions in the order the changelog lists them, newest first."""
+    versions = []
+    for match in LEVEL_2.finditer(strip_code_fences(text)):
+        title = match.group(1).strip()
+        if title.lower() in NON_RELEASE_HEADINGS:
+            continue
+        parsed = RELEASE_TITLE.match(title)
+        if parsed and SEMVER.match(parsed.group(1)):
+            versions.append(parsed.group(1))
+    return versions
+
+
+def semver(version: str) -> tuple[int, int, int]:
+    major, minor, patch = (int(n) for n in version.split("."))
+    return major, minor, patch
+
+
+def one_bump_from(version: str) -> set[tuple[int, int, int]]:
+    major, minor, patch = semver(version)
+    return {(major + 1, 0, 0), (major, minor + 1, 0), (major, minor, patch + 1)}
+
+
+def comparable_text(name: str, text: str) -> str:
+    """What a document's version describes: its body without front matter,
+    and for the changelog, without its release entries."""
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end != -1:
+            text = text[end + 5 :]
+    if name != ".ai/CHANGELOG.md":
+        return text
+    kept, in_entry, fenced = [], False, False
+    for line in text.splitlines(keepends=True):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        if not fenced and line.startswith("## "):
+            parsed = RELEASE_TITLE.match(line[3:].strip())
+            in_entry = bool(parsed and SEMVER.match(parsed.group(1)))
+        if not in_entry:
+            kept.append(line)
+    return "".join(kept)
+
+
+def git(*args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), *args],
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+    except OSError:
+        return None
+    return result.stdout if result.returncode == 0 else None
+
+
+def previous_release_commit() -> tuple[str | None, str]:
+    """The commit holding the previous release and that release's version, or
+    None and the reason there is nothing to compare with.
+
+    Walk first parents back from HEAD over the commits that changed the
+    changelog, and take the oldest commit of the run that has the previous
+    release on top: every commit of a release, before its entry or after,
+    is then held to one bump.
+
+    A merge complicates that, because the run can reach a release through a
+    merge from another side. When the merge's `.ai/` equals that side's, the two
+    readings agree and the merge is taken. When they differ, the merge is
+    either the release landing on the base branch, so the merge is the
+    release, or a branch already at work taking the release in, so the merge
+    also holds that work and the release is the other side. Only the base
+    branch tells them apart. It is read from `origin/HEAD`, and without it
+    the check says it cannot tell rather than guess. A release on top on
+    more than one side of a merge is reported the same way.
+    """
+    top = git("rev-parse", "--show-toplevel")
+    if top is None or Path(top.strip()).resolve() != ROOT.resolve():
+        return None, "this tree is not a git repository of its own, so it holds no previous release"
+    if (git("rev-parse", "--is-shallow-repository") or "").strip() == "true":
+        return None, "a shallow clone may have cut the previous release off; fetch the full history"
+
+    path = AI / "CHANGELOG.md"
+    versions = release_versions(path.read_text(encoding="utf-8")) if path.exists() else []
+    if len(versions) < 2:
+        return None, "the changelog records fewer than two releases"
+    previous = versions[1]
+
+    tops: dict[str, str | None] = {}
+
+    def on_top(commit: str) -> str | None:
+        if commit not in tops:
+            shown = git("show", f"{commit}:.ai/CHANGELOG.md")
+            found = release_versions(shown) if shown is not None else []
+            tops[commit] = found[0] if found else None
+        return tops[commit]
+
+    base_ref = (git("rev-parse", "--verify", "-q", "refs/remotes/origin/HEAD") or "").strip()
+    base_line = set((git("rev-list", "--first-parent", base_ref) or "").split()) if base_ref else set()
+
+    class Undecidable(Exception):
+        pass
+
+    def walk(start: str) -> str | None:
+        found = None
+        log = git("log", "--first-parent", "--format=%H", start, "--", ".ai/CHANGELOG.md") or ""
+        for commit in log.split():
+            top_here = on_top(commit)
+            first, *others = (git("show", "-s", "--format=%P", commit) or "").split() or [""]
+            first_has_it = bool(first) and on_top(first) == previous
+            merged_in = [parent for parent in others if on_top(parent) == previous]
+            if len(merged_in) > 1 or (merged_in and first_has_it and top_here != previous):
+                raise Undecidable(f"release {previous} stands on top on more than one side of merge {commit[:7]}")
+            if top_here is not None and top_here != previous and semver(top_here) > semver(previous):
+                if found is not None:
+                    break
+                if merged_in:
+                    return walk(merged_in[0])
+                continue
+            if top_here != previous:
+                break
+            if merged_in and not first_has_it:
+                side = merged_in[0]
+                if git("diff", "--quiet", side, commit, "--", ".ai") is not None or commit in base_line:
+                    return commit
+                if base_ref and first and git("merge-base", "--is-ancestor", base_ref, first) is not None:
+                    raise Undecidable(
+                        f"merge {commit[:7]} brought release {previous} in on a line `origin/HEAD` has "
+                        "not reached yet; fetch, or push the base branch, so that it can tell"
+                    )
+                if not base_ref:
+                    raise Undecidable(
+                        f"merge {commit[:7]} brought release {previous} in and changed `.ai/` beyond it; "
+                        "whether it is the release or a branch taking it in depends on the base branch, "
+                        "which `origin/HEAD` would name (git remote set-head origin --auto)"
+                    )
+                return walk(side)
+            found = commit
+        return found
+
+    try:
+        base = walk("HEAD")
+    except Undecidable as reason:
+        return None, str(reason)
+    if base is None:
+        return None, f"release {previous} never stood at the top of the changelog in this history"
+    return base, previous
+
+
+def check_document_versions(report: Report) -> None:
+    if not at_set_home():
+        report.skip(
+            "document versions", VERSIONS_QUESTION,
+            "asked only where the set lives; an adopter cannot fix the set's history",
+        )
+        return
+    base, previous = previous_release_commit()
+    if base is None:
+        report.skip("document versions", VERSIONS_QUESTION, previous)
+        return
+
+    failures: list[str] = []
+    changed = 0
+    for path in repo_files(".ai/**/*.md"):
+        name = rel(path)
+        if is_instance(name):
+            continue
+        before = git("show", f"{base}:{name}")
+        if before is None:
+            continue  # new since the previous release: any version is its first
+        now = path.read_text(encoding="utf-8")
+        if comparable_text(name, before) == comparable_text(name, now):
+            continue
+        changed += 1
+        old = (parse_front_matter(before) or {}).get("version", "")
+        new = (parse_front_matter(now) or {}).get("version", "")
+        if not (SEMVER.match(old) and SEMVER.match(new)):
+            continue  # a malformed version is check 1's to report
+        if semver(new) == semver(old):
+            failures.append(f"{name}: text changed since {previous}, version still {new}")
+        elif semver(new) < semver(old):
+            failures.append(f"{name}: version went backwards since {previous}, {old} → {new}")
+        elif semver(new) not in one_bump_from(old):
+            failures.append(
+                f"{name}: {old} → {new} since {previous} is more than one bump — "
+                "a release bumps a document once, at the level its largest change earns"
+            )
+
+    report.add(
+        "document versions",
+        f"has each of the {changed} policy documents whose text changed since "
+        f"release {previous} been bumped, exactly once?",
+        failures,
+    )
+
+
+# --------------------------------------------------------------------------
+# Check 9 — subscribed copy
+#
+# Question: does every file the subscription lock names still hold what the
+# set delivered?
+#
+# An adopting repository does not own the set's files; it subscribes to them.
+# `adopt.py` writes `.ai/set.lock`, a digest of each file it delivered, and the
+# next upgrade replaces them all. An edit made here is therefore lost on the
+# next release, and until then it is a rule that exists in one repository
+# while claiming to be the set's. The place for a rule only this repository
+# needs is its project context, `.ai/PROJECT_CONTEXT.template.md` § *Local rules*.
+#
+# A capability the repository removed is not a failure: removing one is the
+# adopter's choice (`.ai/HARNESS.md` § *Where harness configuration belongs*).
+# A removed policy document is, because the documents point at each other.
+#
+# Asked only where a lock exists. The set's home is what others subscribe to,
+# and a repository adopted before 4.0.0 has no lock until its next upgrade.
+#
+# NOT VERIFIED: files the lock does not name. A document added to `.ai/` here
+# is not reported, and a capability the adopter already had is its own.
+# --------------------------------------------------------------------------
+LOCK = ".ai/set.lock"
+LOCK_HEADER = ("source", "version", "commit")
+LOCK_ENTRY = re.compile(r"^([0-9a-f]{64})  (\S.*)$")
+SUBSCRIPTION_QUESTION = (
+    "does every file the subscription lock names still hold what the set delivered?"
+)
+
+
+def digest(data: bytes) -> str:
+    """The content a file holds wherever it is checked out. Line endings are
+    normalised first, so a Windows checkout of an untouched file is not an
+    edit."""
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+
+
+LOCK_MARKS = ("removed", "kept")
+
+
+def read_lock(text: str) -> tuple[dict[str, str], dict[str, str], dict[str, str], list[str]]:
+    """Returns the header fields, the digest of each delivered path, the
+    capabilities the set ships but did not deliver here, and the lines that
+    are none of these.
+
+    The third maps a path to why it was not delivered: `removed` when the
+    repository took out a capability it had been given, `kept` when it holds
+    its own in that place. Both outlive the upgrade that first saw them."""
+    header: dict[str, str] = {}
+    entries: dict[str, str] = {}
+    marks: dict[str, str] = {}
+    problems: list[str] = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        entry = LOCK_ENTRY.match(line)
+        field = KEY_LINE.match(line)
+        if entry or (field and field.group(1) in LOCK_MARKS):
+            name = entry.group(2) if entry else field.group(2).strip()
+            if name in entries or name in marks:
+                problems.append(f"line {number} lists `{name}` a second time")
+            elif entry:
+                entries[name] = entry.group(1)
+            else:
+                marks[name] = field.group(1)
+        elif field and field.group(1) in LOCK_HEADER:
+            header[field.group(1)] = field.group(2).strip()
+        else:
+            problems.append(
+                f"line {number} is neither a header field, `<sha256>  <path>`, "
+                f"`removed: <path>` nor `kept: <path>`: {line}"
+            )
+    return header, entries, marks, problems
+
+
+def removable(name: str) -> bool:
+    """A capability, which an adopter may remove; not a policy document."""
+    return not (name == "CLAUDE.md" or name.startswith(".ai/"))
+
+
+def check_subscription(report: Report) -> None:
+    if at_set_home():
+        report.skip(
+            "subscribed copy", SUBSCRIPTION_QUESTION,
+            "asked only in a repository that subscribes to the set; this is the set itself",
+        )
+        return
+    lock = ROOT / LOCK
+    if not lock.is_file():
+        report.skip(
+            "subscribed copy", SUBSCRIPTION_QUESTION,
+            f"no `{LOCK}`: the set was adopted here before 4.0.0 made adoption a "
+            "subscription. `adopt.py --upgrade`, run from the set's home, writes one",
+        )
+        return
+
+    header, entries, marks, problems = read_lock(lock.read_text(encoding="utf-8"))
+    failures = [f"{LOCK}: {p}" for p in problems]
+    failures += [f"{LOCK}: no `{key}:` line" for key in LOCK_HEADER if not header.get(key)]
+    if not entries:
+        failures.append(f"{LOCK}: names no file")
+
+    removed = 0
+    for name, mark in sorted(marks.items()):
+        if is_instance(name) or ".." in Path(name).parts or Path(name).is_absolute():
+            failures.append(f"{LOCK}: records `{name}` as {mark}, which the set never delivers")
+        elif not removable(name):
+            failures.append(f"{LOCK}: records `{name}` as {mark}, but only a capability may be")
+        elif mark == "removed" and not (ROOT / name).exists():
+            removed += 1
+    for name, want in sorted(entries.items()):
+        path = ROOT / name
+        if is_instance(name) or ".." in Path(name).parts or Path(name).is_absolute():
+            failures.append(f"{LOCK}: names `{name}`, which the set never delivers")
+            continue
+        if not path.is_file():
+            if removable(name):
+                removed += 1
+            else:
+                failures.append(f"{name}: removed here, but the set's documents point at it")
+            continue
+        if digest(path.read_bytes()) != want:
+            failures.append(
+                f"{name}: edited here. The set's files are a subscribed copy, replaced "
+                "on every upgrade — make the change at the set's home, or write the "
+                "rule this repository needs in its project context, under Local rules"
+            )
+
+    kept = f", {removed} removed capabilities excused" if removed else ""
+    report.add(
+        "subscribed copy",
+        f"do the {len(entries)} files {LOCK} names, delivered as set "
+        f"{header.get('version', '?')}, still hold what the set delivered{kept}?",
+        failures,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     global ROOT, AI
     argv = sys.argv[1:] if argv is None else argv
@@ -708,6 +1142,8 @@ def main(argv: list[str] | None = None) -> int:
     check_changelog(report)
     check_capability_definitions(report)
     check_project_context(report)
+    check_document_versions(report)
+    check_subscription(report)
     report.print()
     return 1 if report.failed else 0
 

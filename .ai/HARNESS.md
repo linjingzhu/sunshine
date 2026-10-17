@@ -1,8 +1,8 @@
 ---
 doc_id: ai-harness
-version: 1.3.0
+version: 1.3.1
 canonical_path: .ai/HARNESS.md
-updated: 2026-09-25
+updated: 2026-10-09
 ---
 
 # Operating Harness
@@ -98,7 +98,10 @@ capability is the only place it cannot be separated from.
 
 ## Dispatcher and Codex model routing
 
-Every request enters through the low-cost Dispatcher before implementation.
+In Codex, every request enters through the low-cost Dispatcher before
+implementation. A Claude run has none: there the Primary Engineering Manager
+reads the request through its own duties in `.ai/MANAGER.md` — intent first,
+then the challenge that names its risks.
 The Dispatcher classifies intent, repository, risk, required tools, cost
 exposure and whether the request needs a Manager, Worker, explorer or reviewer.
 It does not edit files, choose product scope, approve paid automation, or merge.
@@ -128,7 +131,7 @@ local routing convention, not a claim that the models are interchangeable:
 
 | Claude tier / role | Codex choice |
 | --- | --- |
-| Dispatcher / request classification | `gpt-5.6-luna`, low reasoning |
+| Codex Dispatcher, no Claude counterpart / request classification | `gpt-5.6-luna`, low reasoning |
 | Haiku / bounded exploration | `gpt-6-luna`, high reasoning |
 | Sonnet / ordinary implementation | `gpt-6-sol`, medium reasoning |
 | Opus / demanding analysis or review | `gpt-6-astra`, high reasoning |

@@ -26,9 +26,13 @@ Load on demand:
 - recording a lesson → `.ai/EVOLUTION.md`
 - a known risky area → `.ai/memory/PROJECT_LESSONS.md`
 
-Workers receive a Mission Packet, never the full `.ai` folder. A run that
-edits the set itself adds a `.ai/CHANGELOG.md` entry and runs
-`python3 .ai/tools/check_policy_set.py` before reporting.
+Workers receive a Mission Packet, never the full `.ai` folder. The set's own
+files are edited only where the set lives (`LESSONS_FROM_PRACTICE.md` is
+present); a run that does so adds a `.ai/CHANGELOG.md` entry and runs
+`python3 .ai/tools/check_policy_set.py` before reporting. In an adopting
+repository they are a subscribed copy, replaced on every upgrade: a rule only
+that repository needs goes in its project context —
+`.ai/PROJECT_CONTEXT.template.md` § *Local rules*.
 
 Beside every result, name the question it answers, and keep a `NOT VERIFIED`
 list to the end — `.ai/CORE.md` § *The question each result answers*.

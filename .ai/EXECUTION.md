@@ -1,8 +1,8 @@
 ---
 doc_id: ai-execution
-version: 1.2.0
+version: 1.3.0
 canonical_path: .ai/EXECUTION.md
-updated: 2026-09-19
+updated: 2026-09-26
 ---
 
 # Execution, Mission Packs, and Sessions
@@ -39,6 +39,31 @@ run's budget producing structure nobody reads. Treating an **L** as **M**
 skips the Conflict Map, and the cost arrives later as a merge.
 
 When the size is not obvious, it is **M**.
+
+### The size was a hypothesis
+
+It was judged before the work began, which is when the least was known. Work
+that outgrows its size is normal; continuing at the old size is the defect.
+
+A Worker whose Pack turns out larger than its packet — a shared interface it
+must change, a subsystem the Conflict Map did not name, an assumption that was
+wrong — **stops and returns to the Manager** rather than widening the change
+alone. It returns four things and nothing else:
+
+```text
+FOUND      what is affected that the packet did not name
+WRONG      the assumption that failed, and how it was found
+RISK       what breaks if this is built at the original size
+NEEDS      the ownership, tool or decision the new size requires
+```
+
+The Manager re-sizes and reassigns; **S → M → L** is an ordinary outcome, not a
+failure of the estimate. A Worker that widens its own ownership instead has
+taken a decision the Conflict Map exists to make
+(§ *Conflict prevention*), and the cost arrives as a merge.
+
+The same applies to the Manager's own work: an **S** that has grown a second
+file and a third question is an **M** that skipped its plan.
 
 ## Resuming interrupted work
 
@@ -77,6 +102,18 @@ section owns only the question of whether a run is starting or continuing.
 ### Manager
 - one primary Manager context per run where practical;
 - ends when the run is complete.
+
+Replace a Manager session at a **task boundary**, never on a clock: a finished
+subtask, a commit, the handover from implementing to reviewing, a context grown
+too large to reason in, or a run whose earlier assumption keeps producing the
+same wrong judgement (`.ai/LOOP.md` § *Signs the loop is not converging*).
+Replacing one mid-implementation costs the reading that produced the current
+state.
+
+The branch and the worktree outlive the session. A replacement continues in the
+same one — it does not create a second (§ *Resuming interrupted work*) — and
+reads the state card `.ai/CORE.md` § *Token discipline* requires before the
+handover.
 
 ### Workers
 Reuse a Worker within the run for strongly related work.
@@ -119,7 +156,13 @@ Rules:
   only; regeneration happens once, at integration, by the listed command.
   Two branches that each regenerate the same file will each delete the
   other's version;
-- Manager owns integration order.
+- Manager owns integration order;
+- **each worktree builds into its own directory.** Two worktrees sharing one
+  build output overwrite each other's artefacts, and the failure looks like a
+  source defect in whichever built second. A compiler cache may be shared —
+  it is keyed by content, which is the difference. An inactive worktree's
+  build directory may be deleted to reclaim space; nothing committed depends
+  on it.
 
 ## Mission Packet template
 
@@ -166,6 +209,12 @@ DONE WHEN
 - ownership respected
 - verification passed
 - no unresolved major self-review finding
+
+RETURN INSTEAD IF
+- the work does not fit this ownership: report FOUND / WRONG / RISK / NEEDS
+  (§ *Sizing the work*) rather than widening it
+- a named tool is unavailable (`.ai/HARNESS.md` § *Tools a Mission Packet may
+  assume*)
 ```
 
 Workers should not be told to read the full `.ai` folder.

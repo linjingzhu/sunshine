@@ -14,6 +14,7 @@ Standard library only:
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
 import subprocess
@@ -36,6 +37,12 @@ def first_denylisted_term(root: Path) -> str:
     raise AssertionError("the denylist declares no term")
 
 
+def delivered_digest(path: Path) -> str:
+    """What a lock records for a file, worked out here rather than borrowed
+    from the checker, so the two cannot agree by sharing a mistake."""
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def run_checker(root: Path) -> tuple[int, str]:
     result = subprocess.run(
         [sys.executable, str(CHECKER), str(root)],
@@ -46,8 +53,40 @@ def run_checker(root: Path) -> tuple[int, str]:
     return result.returncode, result.stdout + result.stderr
 
 
+# Tests skipped in a repository that adopted the set, each with its reason.
+# They run unconditionally at the set's home. Every other test must pass in an
+# adopter too, and a test is listed for one of two reasons only, which its entry
+# names:
+#   - its subject exists only at the set's home;
+#   - it exposes a KNOWN BLIND SPOT of the check in an adopter. Each such entry
+#     names the roadmap item that tracks the blind spot, so that a skip never
+#     stands in for a fix nobody owns.
+# Never to make a suite green. This list is the one place a reviewer has to read.
+NEEDS_THE_SETS_HOME = {
+    "test_the_set_must_keep_shipping_its_agents":
+        "the set must ship its agent definitions; an adopter may remove them",
+    "test_missing_codex_entry_is_reported_at_set_home":
+        "the set must ship AGENTS.md; an adopter need not",
+    "test_missing_codex_capabilities_are_reported_at_set_home":
+        "the set must ship its Codex capabilities; an adopter may remove them",
+    "test_codex_entry_references_are_checked":
+        "KNOWN BLIND SPOT, only in a repository adopted before 4.0.0 — without "
+        "`.ai/set.lock` a reference into a capability folder is not checked, "
+        "because nothing tells a removed capability from one that never "
+        "existed. Its next upgrade writes the lock, and the test then runs",
+}
+AT_SET_HOME = (ROOT / "LESSONS_FROM_PRACTICE.md").exists()
+
+
 class GuardTests(unittest.TestCase):
     def setUp(self) -> None:
+        reason = NEEDS_THE_SETS_HOME.get(self._testMethodName)
+        if reason and reason.startswith("KNOWN BLIND SPOT") and (ROOT / ".ai" / "set.lock").exists():
+            reason = None  # a subscriber's lock closes the blind spot
+        if reason and not AT_SET_HOME:
+            # A blind spot does not need the set's home; it names itself.
+            blind_spot = reason.startswith("KNOWN BLIND SPOT")
+            self.skipTest(reason if blind_spot else f"needs the set's home: {reason}")
         self.tmp = Path(tempfile.mkdtemp(prefix="policy-set-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.copy = self.tmp / "repo"
@@ -105,6 +144,25 @@ class GuardTests(unittest.TestCase):
             lambda t: t.replace("`.ai/EXECUTION.md`", "`.ai/EXECUTION_PLAN.md`", 1),
         )
         self.assert_fails_with("which does not exist")
+
+    def test_a_run_report_may_name_a_file_that_has_since_gone(self) -> None:
+        # Found in two adopters: a report that preserved an old entry file
+        # named documents the repository later removed.
+        reports = self.copy / ".ai" / "reports"
+        reports.mkdir(parents=True, exist_ok=True)
+        (reports / "2026-01-01-run.md").write_text(
+            "# Run report\n\nRead `docs/GONE.md` and `.ai/GONE.md` § *Anything*.\n",
+            encoding="utf-8",
+        )
+        code, out = run_checker(self.copy)
+        self.assertEqual(code, 0, out)
+
+    def test_a_document_still_in_force_may_not(self) -> None:
+        # The exclusion is the reports folder, not every instance file: a
+        # project's lessons are read at every run and must point somewhere.
+        lessons = self.copy / ".ai" / "memory" / "PROJECT_LESSONS.md"
+        lessons.write_text("# Lessons\n\nSee `docs/GONE.md`.\n", encoding="utf-8")
+        self.assert_fails_with("references `docs/GONE.md`")
 
     # -- check 3: one owner per heading ------------------------------------
     def test_rule_reduplicated_into_a_second_file(self) -> None:
@@ -259,10 +317,43 @@ class GuardTests(unittest.TestCase):
         shutil.rmtree(self.copy / ".claude")
         shutil.rmtree(self.copy / ".codex" / "agents")
         shutil.rmtree(self.copy / ".agents" / "skills")
-        (self.copy / "LESSONS_FROM_PRACTICE.md").unlink()
+        (self.copy / "LESSONS_FROM_PRACTICE.md").unlink(missing_ok=True)
         code, out = run_checker(self.copy)
         self.assertEqual(code, 0, out)
         self.assertIn("nothing to check", out)
+
+    def test_a_dangling_capability_reference_fails_in_an_adopted_tree(self) -> None:
+        # A pointer written *inside* a capability is checked in an adopting
+        # repository like anywhere else. The resolver's guess relative to the
+        # referring file lands inside that file's own capability folder; read
+        # as a reference into the folder, it makes every dangling pointer inside
+        # an agent definition or skill pass in an adopter while the identical
+        # edit fails at the set's home. One file per place a capability lives.
+        (self.copy / "LESSONS_FROM_PRACTICE.md").unlink(missing_ok=True)
+        for name in (
+            ".claude/agents/fast-explorer.md",
+            ".claude/skills/auto-dev/SKILL.md",
+            ".codex/agents/fast-explorer.toml",
+            ".agents/skills/auto-dev/SKILL.md",
+            ".agents/skills/auto-dev/agents/openai.yaml",
+        ):
+            # A path naming a directory, and a sibling written bare or `./`.
+            for ref in (".ai/MISSING.md", "MISSING.md", "./MISSING.md"):
+                with self.subTest(capability=name, reference=ref):
+                    path = self.copy / name
+                    original = path.read_text(encoding="utf-8")
+                    path.write_text(original + f"\n# Read `{ref}` first.\n", encoding="utf-8")
+                    try:
+                        code, out = run_checker(self.copy)
+                        self.assertNotEqual(code, 0, f"{name}: `{ref}` passed:\n{out}")
+                        self.assertIn(f"{name}: references `{ref}`, which does not exist", out)
+                    finally:
+                        path.write_text(original, encoding="utf-8")
+
+    def test_every_home_only_test_exists(self) -> None:
+        # A stale name would leave the list claiming an exemption nobody uses.
+        stale = [name for name in NEEDS_THE_SETS_HOME if not hasattr(self, name)]
+        self.assertEqual(stale, [], "listed as needing the set's home, but no such test")
 
     def test_missing_codex_entry_is_reported_at_set_home(self) -> None:
         (self.copy / "AGENTS.md").unlink()
@@ -401,6 +492,458 @@ class GuardTests(unittest.TestCase):
     def test_template_that_lost_a_key(self) -> None:
         self.edit(".ai/PROJECT_CONTEXT.template.md", lambda t: t.replace("generated: ", "generated_files: ", 1))
         self.assert_fails_with("does not declare `generated`")
+
+    # -- check 8: document versions ----------------------------------------
+    # The copy is made a repository whose one commit is the newest release,
+    # then a release entry above it opens the release under test. The check
+    # asks only where the set lives, so in an adopter the copy is made to look
+    # like the set's home: these tests then run there too, rather than skip.
+    def as_the_sets_home(self) -> None:
+        lessons = self.copy / "LESSONS_FROM_PRACTICE.md"
+        if not lessons.exists():
+            lessons.write_text("# Lessons\n", encoding="utf-8")
+    def git(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-c", "user.name=test", "-c", "user.email=test@example.invalid",
+             "-c", "commit.gpgsign=false", "-C", str(self.copy), *args],
+            capture_output=True, text=True, check=True,
+        ).stdout
+
+    def commit(self, message: str) -> None:
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", message)
+
+    def release_then_open_the_next(self) -> None:
+        self.as_the_sets_home()
+        self.git("init", "-q")
+        self.commit("the previous release")
+        self.open_a_release()
+
+    def open_a_release(self, version: str = "99.0.0", day: str = "01") -> None:
+        self.edit(
+            ".ai/CHANGELOG.md",
+            lambda t: re.sub(
+                r"^(## \d+\.\d+\.\d+ — )",
+                f"## {version} — 2099-01-{day}\n\n- the release {version}\n\n---\n\n\\1",
+                t, count=1, flags=re.M,
+            ),
+        )
+
+    def correct_an_old_entry(self) -> None:
+        def correct(text: str) -> str:
+            older = list(re.finditer(r"^## \d+\.\d+\.\d+ — ", text, re.M))[2]
+            bullet = text.index("\n- ", older.end())
+            return text[:bullet] + "\n- (corrected)" + text[bullet + 2 :]
+        self.edit(".ai/CHANGELOG.md", correct)
+
+    def change(self, relative: str = ".ai/UX.md") -> None:
+        self.edit(relative, lambda t: t + "\nA sentence the release under test added.\n")
+
+    def bump(self, relative: str = ".ai/UX.md", level: int = 2) -> None:
+        def raise_version(text: str) -> str:
+            found = re.search(r"^version: (\d+)\.(\d+)\.(\d+)$", text, re.M)
+            parts = [int(n) for n in found.groups()]
+            parts[level] += 1
+            parts[level + 1 :] = [0] * (2 - level)
+            return text.replace(found.group(0), "version: " + ".".join(map(str, parts)), 1)
+        self.edit(relative, raise_version)
+
+    def assert_versions_pass(self) -> None:
+        # Only this check's line: in an adopter made to look like the set's
+        # home, the set-home checks fail on files an adopter never had.
+        _, out = run_checker(self.copy)
+        self.assertIn("[PASS] document versions", out)
+
+    # A branch whose work began before a release, and that merges the base
+    # branch in: the merge holds the branch's work too, so the release is the
+    # side the merge brought in.
+    def branch_off_the_previous_release(self) -> None:
+        self.as_the_sets_home()
+        self.git("init", "-q", "-b", "base")
+        self.commit("the release before")
+        self.git("checkout", "-q", "-b", "work")
+
+    def release_on_the_base_branch(self) -> None:
+        self.git("checkout", "-q", "base")
+        self.open_a_release("99.0.0", "01")
+        self.change(".ai/EXECUTION.md")
+        self.bump(".ai/EXECUTION.md")
+        self.commit("release 99.0.0")
+        self.git("checkout", "-q", "work")
+
+    def merge_the_base_branch(self, changelog: str | None = None) -> None:
+        subprocess.run(
+            ["git", "-c", "user.name=test", "-c", "user.email=test@example.invalid",
+             "-C", str(self.copy), "merge", "-q", "--no-edit", "--no-commit", "base"],
+            capture_output=True, check=False,
+        )
+        if changelog is not None:
+            (self.copy / ".ai" / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
+        self.commit("merge the base branch")
+
+    def name_the_base_branch(self) -> None:
+        # What a clone records as `origin/HEAD`, without a remote to clone from.
+        self.git("update-ref", "refs/remotes/origin/base", "base")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/base")
+
+    def work_begun_before_a_release_then_merged_with_it(self) -> None:
+        self.branch_off_the_previous_release()
+        self.change()
+        self.commit("work, unbumped")
+        self.release_on_the_base_branch()
+        self.merge_the_base_branch()
+        self.open_a_release("100.0.0", "02")
+        self.commit("the entry")
+
+    def test_work_begun_before_a_release_and_merged_with_it_is_still_judged(self) -> None:
+        self.work_begun_before_a_release_then_merged_with_it()
+        self.name_the_base_branch()
+        self.assert_fails_with(".ai/UX.md: text changed since 99.0.0")
+
+    def test_without_the_base_branch_such_a_merge_is_not_guessed(self) -> None:
+        # The same graph as a release that landed on the base branch after an
+        # entry-less change did; only the base branch tells them apart.
+        self.work_begun_before_a_release_then_merged_with_it()
+        _, out = run_checker(self.copy)
+        self.assertIn("[SKIP] document versions", out)
+        self.assertIn("origin/HEAD", out)
+
+    def test_a_change_that_landed_before_a_release_merged_belongs_to_that_release(self) -> None:
+        # An entry-less change reached the base branch while a release was in
+        # review. It shipped with that release, so the next release bumping
+        # the same document once has bumped it once.
+        self.as_the_sets_home()
+        self.git("init", "-q", "-b", "base")
+        self.commit("the release before")
+        self.git("checkout", "-q", "-b", "release")
+        self.change()
+        self.bump()
+        self.open_a_release("99.0.0", "01")
+        self.commit("release 99.0.0")
+        self.git("checkout", "-q", "-b", "hotfix", "base")
+        self.change(".ai/EXECUTION.md")
+        self.bump(".ai/EXECUTION.md")
+        self.commit("an entry-less change")
+        self.git("checkout", "-q", "base")
+        self.git("merge", "-q", "--no-ff", "--no-edit", "hotfix")
+        self.git("merge", "-q", "--no-ff", "--no-edit", "release")
+        self.name_the_base_branch()
+        self.git("checkout", "-q", "-b", "next")
+        self.edit(".ai/EXECUTION.md", lambda t: t + "\nAnother sentence, in the next release.\n")
+        self.bump(".ai/EXECUTION.md")
+        self.open_a_release("100.0.0", "02")
+        self.commit("release 100.0.0")
+        self.assert_versions_pass()
+
+    def test_a_release_merged_in_under_a_newer_entry_is_found(self) -> None:
+        # The shape of a real merge in this set's history: the branch had its
+        # own entry on top when it merged the base branch's release.
+        self.branch_off_the_previous_release()
+        self.change()
+        self.open_a_release("100.0.0", "02")
+        self.commit("work with its entry, unbumped")
+        self.release_on_the_base_branch()
+        released = self.git("show", "base:.ai/CHANGELOG.md")
+        both = re.sub(r"^(## 99\.0\.0 — )",
+                      "## 100.0.0 — 2099-01-02\n\n- the release 100.0.0\n\n---\n\n\\1",
+                      released, count=1, flags=re.M)
+        self.merge_the_base_branch(both)
+        self.assert_fails_with(".ai/UX.md: text changed since 99.0.0")
+
+    def test_a_base_branch_behind_the_release_merge_is_not_trusted(self) -> None:
+        # The release was merged locally and `origin/HEAD` has not seen it yet:
+        # the merge is not on the remote line, yet it is the release.
+        self.test_a_change_that_landed_before_a_release_merged_belongs_to_that_release()
+        self.git("update-ref", "refs/remotes/origin/base", "base~1")
+        _, out = run_checker(self.copy)
+        self.assertIn("[SKIP] document versions", out)
+        self.assertIn("has not reached yet", out)
+
+    def test_an_ordinary_release_merge_needs_no_base_branch(self) -> None:
+        # The merge holds exactly what the release branch did, so both
+        # readings agree and nothing has to be told apart.
+        self.as_the_sets_home()
+        self.git("init", "-q", "-b", "base")
+        self.commit("the release before")
+        self.git("checkout", "-q", "-b", "release")
+        self.change()
+        self.bump()
+        self.open_a_release("99.0.0", "01")
+        self.commit("release 99.0.0")
+        self.git("checkout", "-q", "base")
+        self.git("merge", "-q", "--no-ff", "--no-edit", "release")
+        self.git("checkout", "-q", "-b", "next")
+        self.change(".ai/EXECUTION.md")
+        self.bump(".ai/EXECUTION.md")
+        self.open_a_release("100.0.0", "02")
+        self.commit("release 100.0.0")
+        self.assert_versions_pass()
+
+    def test_a_change_after_a_merged_in_release_still_counts_toward_the_next(self) -> None:
+        # The base branch took an entry-less change after its release; a branch
+        # with its own entry on top then merged it in. That change belongs to
+        # the next release, so the release is where it first stood, not the tip.
+        self.branch_off_the_previous_release()
+        self.open_a_release("100.0.0", "02")
+        self.commit("work with its entry")
+        self.release_on_the_base_branch()
+        self.git("checkout", "-q", "base")
+        self.change(".ai/REVIEW.md")
+        self.commit("an entry-less change after the release, unbumped")
+        self.git("checkout", "-q", "work")
+        released = self.git("show", "base:.ai/CHANGELOG.md")
+        both = re.sub(r"^(## 99\.0\.0 — )",
+                      "## 100.0.0 — 2099-01-02\n\n- the release 100.0.0\n\n---\n\n\\1",
+                      released, count=1, flags=re.M)
+        self.merge_the_base_branch(both)
+        self.assert_fails_with(".ai/REVIEW.md: text changed since 99.0.0")
+
+    def test_a_release_on_both_sides_of_a_merge_is_not_guessed(self) -> None:
+        self.branch_off_the_previous_release()
+        self.change()
+        self.open_a_release("99.0.0", "01")
+        self.commit("work that numbered itself 99.0.0")
+        self.release_on_the_base_branch()
+        released = self.git("show", "base:.ai/CHANGELOG.md")
+        renumbered = re.sub(r"^(## 99\.0\.0 — )",
+                            "## 100.0.0 — 2099-01-02\n\n- the release 100.0.0\n\n---\n\n\\1",
+                            released, count=1, flags=re.M)
+        self.merge_the_base_branch(renumbered)
+        _, out = run_checker(self.copy)
+        self.assertIn("[SKIP] document versions", out)
+        self.assertIn("more than one side of merge", out)
+
+    def test_a_front_matter_edit_alone_is_not_a_change(self) -> None:
+        self.release_then_open_the_next()
+        self.edit(".ai/UX.md", lambda t: re.sub(r"^updated: .*$", "updated: 2099-01-01", t, count=1, flags=re.M))
+        self.assert_versions_pass()
+
+    def test_a_change_without_a_bump_fails(self) -> None:
+        self.release_then_open_the_next()
+        self.change()
+        self.assert_fails_with(".ai/UX.md: text changed since")
+
+    def test_a_committed_change_without_a_bump_fails(self) -> None:
+        self.release_then_open_the_next()
+        self.change()
+        self.commit("the release under test")
+        self.assert_fails_with(".ai/UX.md: text changed since")
+
+    def test_one_bump_covers_every_commit_of_a_release(self) -> None:
+        # Changed and bumped before the entry was written, changed again after
+        # it was committed: one release, one bump. The work before the entry
+        # also touches the changelog, so the previous release is the older of
+        # two commits with it on top, and the check must take the older.
+        self.as_the_sets_home()
+        self.git("init", "-q")
+        self.commit("the previous release")
+        self.change()
+        self.bump()
+        self.correct_an_old_entry()
+        self.commit("work before the entry")
+        self.open_a_release()
+        self.commit("the entry")
+        self.edit(".ai/UX.md", lambda t: t + "\nA second sentence, after the entry.\n")
+        self.commit("work after the entry")
+        self.assert_versions_pass()
+
+    def test_a_second_bump_in_one_release_fails(self) -> None:
+        self.release_then_open_the_next()
+        self.change()
+        self.bump()
+        self.bump()
+        self.assert_fails_with("is more than one bump")
+
+    def test_a_version_that_went_backwards_fails(self) -> None:
+        self.release_then_open_the_next()
+        self.change()
+        self.edit(".ai/UX.md", lambda t: re.sub(r"^version: .*$", "version: 0.0.1", t, count=1, flags=re.M))
+        self.assert_fails_with("version went backwards")
+
+    def test_a_release_entry_alone_does_not_bump_the_changelog(self) -> None:
+        # Its version describes its rules. A new entry, and a correction to an
+        # old one, change its record.
+        self.release_then_open_the_next()
+        self.edit(".ai/CHANGELOG.md", lambda t: t.replace("- the release under test", "- the release under test, corrected"))
+        self.correct_an_old_entry()
+        self.assert_versions_pass()
+
+    def test_a_changelog_rule_change_without_a_bump_fails(self) -> None:
+        self.release_then_open_the_next()
+        self.edit(".ai/CHANGELOG.md", lambda t: t.replace("## Set version\n", "## Set version\n\nA rule added.\n", 1))
+        self.assert_fails_with(".ai/CHANGELOG.md: text changed since")
+
+    def test_an_instance_file_is_not_judged(self) -> None:
+        roadmap = self.copy / ".ai" / "ROADMAP.md"
+        roadmap.write_text("---\ndoc_id: ai-roadmap\nversion: 1.0.0\ncanonical_path: .ai/ROADMAP.md\n"
+                           "updated: 2026-10-09\n---\n\n# Roadmap\n", encoding="utf-8")
+        self.release_then_open_the_next()
+        self.change(".ai/ROADMAP.md")
+        self.assert_versions_pass()
+
+    def test_without_history_nothing_is_compared_and_nothing_passes(self) -> None:
+        self.as_the_sets_home()
+        _, out = run_checker(self.copy)
+        self.assertIn("[SKIP] document versions", out)
+        self.assertIn("not a git repository of its own", out)
+        self.assertNotIn("[PASS] document versions", out)
+
+    def test_a_shallow_clone_says_it_cannot_see_the_release(self) -> None:
+        self.release_then_open_the_next()
+        self.commit("the release under test")
+        clone = self.tmp / "shallow"
+        subprocess.run(["git", "clone", "-q", "--depth", "1", self.copy.as_uri(), str(clone)],
+                       capture_output=True, check=True)
+        code, out = run_checker(clone)
+        self.assertIn("[SKIP] document versions", out)
+        self.assertIn("shallow clone", out)
+
+    def test_an_adopter_is_not_asked_about_the_sets_history(self) -> None:
+        self.release_then_open_the_next()
+        self.change()
+        (self.copy / "LESSONS_FROM_PRACTICE.md").unlink(missing_ok=True)
+        code, out = run_checker(self.copy)
+        self.assertIn("[SKIP] document versions", out)
+        self.assertIn("asked only where the set lives", out)
+        self.assertNotIn(".ai/UX.md: text changed since", out)
+
+    # -- check 9: subscribed copy ------------------------------------------
+    SUBSCRIBED = (".ai/CORE.md", ".ai/REVIEW.md", "CLAUDE.md", ".claude/agents/fast-explorer.md")
+
+    def subscribe(self, names=SUBSCRIBED, header="source: owner/set\nversion: 9.9.9\ncommit: abc\n") -> Path:
+        """Make the copy an adopter whose lock records `names` as delivered."""
+        (self.copy / "LESSONS_FROM_PRACTICE.md").unlink(missing_ok=True)
+        self.write_context(self.FILLED_CONTEXT)
+        lines = [f"{delivered_digest(self.copy / n)}  {n}" for n in names]
+        lock = self.copy / ".ai" / "set.lock"
+        lock.write_text("# delivered\n" + header + "\n" + "\n".join(lines) + "\n", encoding="utf-8")
+        return lock
+
+    def test_an_untouched_subscription_passes(self) -> None:
+        self.subscribe()
+        code, out = run_checker(self.copy)
+        self.assertEqual(code, 0, out)
+        self.assertIn("[PASS] subscribed copy", out)
+        self.assertIn("do the 4 files .ai/set.lock names, delivered as set 9.9.9", out)
+
+    def test_a_subscribed_document_edited_here_fails(self) -> None:
+        self.subscribe()
+        self.edit(".ai/REVIEW.md", lambda t: t + "\nA rule only this repository has.\n")
+        self.assert_fails_with(".ai/REVIEW.md: edited here")
+
+    def test_a_subscribed_entry_file_edited_here_fails(self) -> None:
+        self.subscribe()
+        self.edit("CLAUDE.md", lambda t: t.replace("Primary Engineering Manager", "Lead", 1))
+        self.assert_fails_with("CLAUDE.md: edited here")
+
+    def test_a_subscribed_document_removed_here_fails(self) -> None:
+        self.subscribe()
+        (self.copy / ".ai" / "REVIEW.md").unlink()
+        self.assert_fails_with(".ai/REVIEW.md: removed here")
+
+    def test_a_removed_capability_is_the_repositorys_choice(self) -> None:
+        self.subscribe()
+        (self.copy / ".claude" / "agents" / "fast-explorer.md").unlink()
+        code, out = run_checker(self.copy)
+        self.assertIn("[PASS] subscribed copy", out)
+        self.assertIn("1 removed capabilities excused", out)
+
+    def test_a_windows_checkout_is_not_an_edit(self) -> None:
+        self.subscribe()
+        path = self.copy / ".ai" / "REVIEW.md"
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+        code, out = run_checker(self.copy)
+        self.assertIn("[PASS] subscribed copy", out)
+
+    def test_a_lock_without_its_header_fails(self) -> None:
+        self.subscribe(header="source: owner/set\nversion: 9.9.9\n")
+        self.assert_fails_with("no `commit:` line")
+
+    def test_a_lock_line_that_is_not_an_entry_fails(self) -> None:
+        lock = self.subscribe()
+        lock.write_text(lock.read_text(encoding="utf-8") + "deadbeef .ai/UX.md\n", encoding="utf-8")
+        self.assert_fails_with("is neither a header field")
+
+    def test_a_path_listed_twice_fails(self) -> None:
+        lock = self.subscribe()
+        lock.write_text(lock.read_text(encoding="utf-8") + "0" * 64 + "  .ai/CORE.md\n", encoding="utf-8")
+        self.assert_fails_with("lists `.ai/CORE.md` a second time")
+
+    def test_a_recorded_removal_is_excused(self) -> None:
+        lock = self.subscribe()
+        (self.copy / "AGENTS.md").unlink(missing_ok=True)
+        lock.write_text(lock.read_text(encoding="utf-8") + "removed: AGENTS.md\n", encoding="utf-8")
+        code, out = run_checker(self.copy)
+        self.assertIn("[PASS] subscribed copy", out)
+        self.assertIn("1 removed capabilities excused", out)
+
+    def test_a_removal_outside_the_tree_fails(self) -> None:
+        lock = self.subscribe()
+        lock.write_text(lock.read_text(encoding="utf-8") + "removed: ../elsewhere.md\n", encoding="utf-8")
+        self.assert_fails_with("records `../elsewhere.md` as removed, which the set never delivers")
+
+    def test_a_policy_document_cannot_be_recorded_as_removed(self) -> None:
+        lock = self.subscribe()
+        lock.write_text(lock.read_text(encoding="utf-8") + "removed: .ai/UX.md\n", encoding="utf-8")
+        self.assert_fails_with("records `.ai/UX.md` as removed, but only a capability may be")
+
+    def test_a_lock_naming_an_instance_file_fails(self) -> None:
+        self.subscribe(names=(".ai/CORE.md", ".ai/PROJECT_CONTEXT.md"))
+        self.assert_fails_with("names `.ai/PROJECT_CONTEXT.md`, which the set never delivers")
+
+    def test_a_lock_naming_a_path_outside_the_tree_fails(self) -> None:
+        lock = self.subscribe()
+        lock.write_text(lock.read_text(encoding="utf-8") + "0" * 64 + "  ../elsewhere.md\n", encoding="utf-8")
+        self.assert_fails_with("names `../elsewhere.md`")
+
+    # -- check 2 in a subscriber: references into capability folders -------
+    def test_in_a_subscriber_a_pointer_to_no_capability_fails(self) -> None:
+        self.subscribe()
+        self.edit("AGENTS.md", lambda t: t + "\nRead `.codex/agents/missing.toml`.\n")
+        self.assert_fails_with("references `.codex/agents/missing.toml`, which does not exist")
+
+    def test_in_a_subscriber_a_removed_capability_is_excused(self) -> None:
+        # Delivered, as the lock records, then taken out: the set's own
+        # documents still point at it, and that is the repository's choice.
+        self.subscribe()
+        (self.copy / ".claude" / "agents" / "fast-explorer.md").unlink()
+        code, out = run_checker(self.copy)
+        self.assertEqual(code, 0, out)
+        self.assertIn("[PASS] cross-references", out)
+
+    def excused_by_mark(self, mark: str, name: str) -> None:
+        lock = self.subscribe()
+        lock.write_text(lock.read_text(encoding="utf-8") + f"{mark}: {name}\n", encoding="utf-8")
+        (self.copy / name).unlink()
+        code, out = run_checker(self.copy)
+        self.assertEqual(code, 0, out)
+
+    def test_in_a_subscriber_a_recorded_removal_is_excused(self) -> None:
+        self.excused_by_mark("removed", ".claude/agents/adversarial-reviewer.md")
+
+    def test_in_a_subscriber_a_capability_kept_as_its_own_is_excused(self) -> None:
+        # The repository had its own skill there, so the set withheld this file.
+        self.excused_by_mark("kept", ".agents/skills/auto-dev/agents/openai.yaml")
+
+    def test_in_a_subscriber_an_unrecorded_missing_capability_fails(self) -> None:
+        # Never delivered and never recorded: the set points at nothing.
+        self.subscribe()
+        (self.copy / ".claude" / "agents" / "adversarial-reviewer.md").unlink()
+        self.assert_fails_with("references `.claude/agents/adversarial-reviewer.md`, which does not exist")
+
+    def test_without_a_lock_the_question_is_not_asked(self) -> None:
+        self.subscribe()
+        (self.copy / ".ai" / "set.lock").unlink()
+        code, out = run_checker(self.copy)
+        self.assertIn("[SKIP] subscribed copy", out)
+        self.assertIn("before 4.0.0 made adoption a subscription", out)
+
+    def test_the_sets_home_subscribes_to_nothing(self) -> None:
+        if not AT_SET_HOME:
+            self.skipTest("an adopter's copy is not the set's home")
+        code, out = run_checker(self.copy)
+        self.assertIn("[SKIP] subscribed copy", out)
+        self.assertIn("this is the set itself", out)
 
     # -- adopting repository -----------------------------------------------
     def test_adopting_repository_without_set_home_files_passes(self) -> None:
