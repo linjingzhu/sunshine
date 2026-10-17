@@ -80,6 +80,7 @@ NEEDS_THE_SETS_HOME = {
     "test_from_template_warns_that_the_readme_is_still_the_sets": TEMPLATE_ONLY,
     "test_from_template_without_a_name_warns_instead_of_silently_keeping_seeds": TEMPLATE_ONLY,
     "test_from_template_removes_only_the_marker": TEMPLATE_ONLY,
+    "test_an_unfinished_template_copy_is_named": TEMPLATE_ONLY,
 }
 AT_SET_HOME = (ROOT / "LESSONS_FROM_PRACTICE.md").exists()
 
@@ -403,7 +404,8 @@ class AdoptTests(unittest.TestCase):
         self.assertIn("THIS REPOSITORY'S ITEM", roadmap.read_text(encoding="utf-8"))
 
     def test_every_home_only_test_exists(self) -> None:
-        stale = [name for name in NEEDS_THE_SETS_HOME if not hasattr(self, name)]
+        stale = [name for name in NEEDS_THE_SETS_HOME
+                 if not any(hasattr(suite, name) for suite in (AdoptTests, PropagateTests))]
         self.assertEqual(stale, [], "listed as needing the set's home, but no such test")
 
     # -- an adopter's own edit to a policy document is named before it goes --
@@ -762,6 +764,9 @@ class PropagateTests(unittest.TestCase):
     """`propagate.py` sends a release to every subscriber the registry names."""
 
     def setUp(self) -> None:
+        reason = NEEDS_THE_SETS_HOME.get(self._testMethodName)
+        if reason and not AT_SET_HOME:
+            self.skipTest(f"needs the set's home: {reason}")
         self.tmp = Path(tempfile.mkdtemp(prefix="propagate-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.source = self.tmp / "set"

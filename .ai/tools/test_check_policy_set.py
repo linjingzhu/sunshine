@@ -396,6 +396,9 @@ class GuardTests(unittest.TestCase):
         self.assert_fails_with("`description` must be a non-empty string")
 
     def test_native_agent_model_is_optional(self) -> None:
+        # The edit is the point here, not a drift from the set: in a subscriber
+        # the lock would rightly report it, so the lock goes from the copy.
+        (self.copy / ".ai" / "set.lock").unlink(missing_ok=True)
         self.edit(
             ".codex/agents/fast-explorer.toml",
             lambda t: re.sub(r'^model = .*\n', '', t, count=1, flags=re.M),

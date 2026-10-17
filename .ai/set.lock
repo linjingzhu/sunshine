@@ -3,12 +3,12 @@
 # change them at the set's home, never here. A rule only this repository
 # needs goes in .ai/PROJECT_CONTEXT.md, under Local rules.
 source: linjingzhu/ai-dev-rule
-version: 4.1.0
-commit: 46d2aef31ca526f8166ede8a10356e8570251978
+version: 4.1.1
+commit: 40eded7c2655ea3818f8670f0c26d96d68717f56
 
 343ca2e5727c4f63b4ac4d03686bd2948da22efedd50a22f5efdec8651f31e6c  .agents/skills/auto-dev/SKILL.md
 a1499d95abd8447558c535fe5554adcc3c9b988a0a39264a6283d430effe1e94  .agents/skills/auto-dev/agents/openai.yaml
-33bc8673fc9d5f2e47a8c6f1545b4012b09d33757abe1948acb3f820718d5c71  .ai/CHANGELOG.md
+50bc1f8eabfb6968a3d600961dec554147eaa9cd37301cb8a651be002d340728  .ai/CHANGELOG.md
 c6e3239ae10c0cba0c07c1249b7191fb15ccb28577959e9f38566dd04cdbd1bb  .ai/CORE.md
 7d1faf0801bac55e2ee8c98921ef4dcf7e78cc8efde3cfa295c74b3bc4485454  .ai/EVOLUTION.md
 20557edb113421ba836690a53c5979b0e39ba27556743ff175ae7cd330af9c09  .ai/EXECUTION.md
@@ -25,8 +25,8 @@ eed40a9f1c7900572bafc4ad6a8e4a7bc585edc9bafed499e64e3febe14b8f1c  .ai/memory/PRO
 1242a0b15acfc84d2c2c4595935a69d7620300a845fd56fc697b0aab05b3e797  .ai/tools/adopt.py
 ee6820063e0a7e6bf12eaf524ac4e8bc7d1a8bf667e5c8f378a9b2eda780d8d3  .ai/tools/check_policy_set.py
 4e8cd956e68afceabbcd78f2b2a768ff61cb43d29cc2212e17c38fc4e93a63db  .ai/tools/propagate.py
-6071481efa842daf86c0017d97c9d998a342bb25049e4c1c2d6b0fcdb1048d38  .ai/tools/test_adopt.py
-edf0a163a062b2b7ad885957aa475322a0afab5641bd093493eb0e8eba58401b  .ai/tools/test_check_policy_set.py
+e399152e565bdc74af2bae8f72372fdc782a06bced083a0999e04418107b0477  .ai/tools/test_adopt.py
+c645d66c31219e77fd32698be06174971e626b088292db736bd3f8cfb47e0847  .ai/tools/test_check_policy_set.py
 9c94a751dda70e85be1c573494fc09f55ccdbd07fad6bdc4065492c75afa56de  .claude/agents/adversarial-reviewer.md
 ea8fa6974888c353ffa7394a00bbb23b148563ebbe5ef0cac65d96dade01309a  .claude/agents/fast-explorer.md
 cdb9cbefe12b3e3562944235d9a20f8413d097854ce8a26b8b0ce169108d652d  .claude/skills/auto-dev/SKILL.md
