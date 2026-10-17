@@ -1,8 +1,8 @@
 ---
 doc_id: ai-evolution
-version: 1.0.0
+version: 1.1.0
 canonical_path: .ai/EVOLUTION.md
-updated: 2026-09-03
+updated: 2026-09-26
 ---
 
 # How the Set Improves Itself
@@ -65,6 +65,55 @@ is a lesson that says which check it is waiting for.
 `.ai/tools/README.md` § *What they do not answer* is where each check's blind
 spot is written down. A check added without its blind spot recorded is a rule
 that will be over-trusted.
+
+## What a run may change on its own
+
+*Single source for which documents a run may edit without being told to.
+`.ai/HARNESS.md` § *Where harness configuration belongs* owns the same question
+for harness files, and says the same thing in its own terms.*
+
+A set that improves itself can also lower its own gates, and a run under
+pressure has every reason to. The defence is that the documents are not all
+equally editable. Three levels, decided by what a change lets *later* runs do:
+
+| Level | What it covers | Who may change it |
+| --- | --- | --- |
+| **Record** | `.ai/memory/PROJECT_LESSONS.md`, `.ai/memory/MANAGER_PLAYBOOK.md`, `.ai/ROADMAP.md`, anything under `.ai/reports/` | a run, on its own, when this file obliges it — with the reason written beside the entry |
+| **Rule** | the policy documents and the checks in `.ai/tools/` | the user asks for it, or approves it. A run may propose, and says what the change would let later runs do that they cannot now |
+| **Direction** | what the product is and is **not** (`.ai/PROJECT_CONTEXT.md`), and the list of things `.ai/CORE.md` § *Autonomy* says to ask about — including this table | never a run, whatever evidence it has |
+
+The distinction is not how large the edit is. Adding one sentence to
+`.ai/REVIEW.md` that turns a MEDIUM into a LOW is a **Rule** change, and
+deleting a stale hotspot from project memory is a **Record** change.
+
+A run that edits at the Rule level because it was asked says so in its report:
+it changed what every later run is allowed to do.
+
+Level three is what keeps a self-improving loop honest. A process that may
+rewrite the conditions under which a person is consulted has removed the person
+without anyone deciding to — which is why
+`.claude/skills/auto-dev/SKILL.md` § *This mode never starts itself* is stated
+there and cannot be waived from here.
+
+## Activity is not a result
+
+A number is evidence for the question it measures and nothing else
+(`.ai/CORE.md` § *The question each result answers*), and these measure effort:
+
+- how many agents a run spawned;
+- how many tool calls it made;
+- how much it investigated;
+- how many tokens it spent;
+- how long its report was.
+
+None of them is an outcome. The measure that is one is **cost per accepted
+change** — what the run spent against what survived review and merged. A
+strategy that halves the agent count and doubles the rework made the number
+that matters worse.
+
+The inverse is equally wrong: fewer agents is not the goal either. Efficiency
+bought with a regression is not efficiency, and `.ai/CORE.md` § *Priority*
+already ranks correctness above cost.
 
 ## Pruning
 
