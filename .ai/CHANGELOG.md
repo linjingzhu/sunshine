@@ -40,6 +40,23 @@ for wording, examples and ordering that change nothing about what is required.
 
 ---
 
+## 4.1.1 — 2026-10-17
+
+Both test suites pass in a subscriber again. Found after 4.1.0 reached all 41
+subscribers: each suite had one test that failed there, though the set's check
+and every subscriber's CI passed, because neither runs the suites.
+
+- `test_an_unfinished_template_copy_is_named` built a template copy from the
+  tree it runs in. In a subscriber that tree has the project's own README, not
+  the set's, so the copy's check failed on a pointer into the set's README. A
+  template copy is a copy of the set's home, so the test is listed as needing
+  it, like the other template tests. `PropagateTests` now reads that list, and
+  the guard against stale entries covers both suites;
+- `test_native_agent_model_is_optional` edits a delivered agent definition and
+  expects the check to pass. In a subscriber the lock rightly reports the edit,
+  so the test removes the lock from its copy first. The edit is what it tests,
+  not drift.
+
 ## 4.1.0 — 2026-10-10
 
 Roadmap item R8, option B, chosen by the user on 2026-10-10. The lock 4.0.0
