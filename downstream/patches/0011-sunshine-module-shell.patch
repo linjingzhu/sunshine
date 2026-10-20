@@ -552,7 +552,7 @@ index 0000000..bb135bb
 +}
 +
 +/** E's six roles, in the order the drawing lists them. */
-+const ROLES = ['inspector', 'preview', 'console', 'docs', 'assistant', 'tasks'];
++const ROLES = geometry.ROLES;
 +
 +/** Per-module keys, exactly the set the contract names. */
 +interface Stored {
@@ -735,7 +735,7 @@ index 0000000..bb135bb
 +      button.type = 'button';
 +      button.role = 'tab';
 +      button.dataset['role'] = role;
-+      button.textContent = role;
++      button.textContent = geometry.roleLabel(role);
 +      button.addEventListener('click', () => {
 +        this.stored.panelRole = role;
 +        this.persist();
@@ -925,7 +925,7 @@ index 0000000..bb135bb
 +        'No modules are registered.';
 +
 +    element('panelEmpty').textContent = `Nothing is mounted in the ${
-+        this.stored.panelRole} role. One container, ${
++        geometry.roleLabel(this.stored.panelRole)} role. One container, ${
 +        geometry.PANEL_ROLES} roles; the shell switches between them and the ` +
 +        'module fills them.';
 +  }
@@ -959,7 +959,7 @@ new file mode 100644
 index 0000000..618b9c1
 --- /dev/null
 +++ b/chrome/browser/resources/sunshine/shell/geometry.ts
-@@ -0,0 +1,153 @@
+@@ -0,0 +1,188 @@
 +// Copyright 2026 The Sunshine OS contributors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1006,6 +1006,41 @@ index 0000000..618b9c1
 +export const PANEL_MIN = 280;
 +export const PANEL_MAX = 520;
 +export const PANEL_ROLES = 6;
++
++/**
++ * The panel roles: a stable identifier, and the label a person reads.
++ *
++ * These were one string doing two jobs, declared in `app.ts`. The identifier is
++ * written to `dataset['role']`, stored as `panelRole`, and validated on load by
++ * `ROLES.includes()` -- so a label that was also the identifier could not be
++ * translated without invalidating every stored panel state and silently
++ * resetting the panel of anyone who had chosen one.
++ *
++ * The labels are identical to the identifiers today, deliberately: this draws
++ * the seam and moves nothing on screen, so a later translation is a change to
++ * `ROLE_LABELS` alone and the persisted key space does not move with it.
++ *
++ * They live here rather than in `app.ts` because `app.ts` is extended by two
++ * later patches and `geometry.ts` is extended by none, so a line added here
++ * shifts no other patch's hunks. That is a property of the stack, not of the
++ * code, and it is written down because the first attempt put them in `app.ts`
++ * and broke 0012 and 0016.
++ */
++export const ROLES =
++    ['inspector', 'preview', 'console', 'docs', 'assistant', 'tasks'];
++
++export const ROLE_LABELS: Readonly<Record<string, string>> = {
++  inspector: 'inspector',
++  preview: 'preview',
++  console: 'console',
++  docs: 'docs',
++  assistant: 'assistant',
++  tasks: 'tasks',
++};
++
++export function roleLabel(role: string): string {
++  return ROLE_LABELS[role] ?? role;
++}
 +
 +// -- Splitters ----------------------------------------------------------------
 +// Drawn narrow, targeted wide. A 4px pointer target is a 4px pointer target
