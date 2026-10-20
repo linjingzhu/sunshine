@@ -125,9 +125,13 @@ have it.** The cropped drawing was rendered at the full 24 dip, which is the
 nominal size and is also what made it look wrong: every glyph beside it on the
 bar — Chromium's own icons and ordinary bookmarks' favicons — is drawn with
 padding inside its box, so the icon at nominal size was the one that read as
-oversized. The owner set it at **0.80** against the bar they were looking at;
-it is not derived from anything upstream and this document does not pretend
-otherwise. It lives next to `BASE_DIP` rather than in the patch because the two
+oversized. The owner set it at **0.80** against the bar they were looking at,
+and at **0.72** on 2026-10-20 after looking at it again — they asked for the
+icon at 90% of what it then was, so the constant is `0.80 * 0.90` rather than
+`0.90`; an absolute `0.90` would have made it larger, which is the opposite of
+what was asked. Neither value is derived from anything upstream and this
+document does not pretend otherwise. Both are recorded because the second one
+is evidence that the first was a judgement rather than a measurement. It lives next to `BASE_DIP` rather than in the patch because the two
 mean different things: `BASE_DIP` is the slot and moving it moves every button
 on the bar, while `COVERAGE` is the ink inside the slot and moves nothing
 else.
