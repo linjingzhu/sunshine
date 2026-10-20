@@ -15,6 +15,19 @@ import tempfile
 import unittest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+# A third party's error code that collides with a Sunshine invariant family.
+# Netflix's `E100` is shaped exactly like one of this repository's `E1`..`E8`
+# identifiers and cannot be parsed whole, because the parser's range stops short
+# of three digits -- so the survey reads it as a Sunshine identifier that went
+# missing. Widening the parser would be the wrong fix twice over: it would not
+# make `E100` ours, and it would start pulling foreign codes into tracing.
+#
+# The exemption is a (document, token) pair so it cannot spread. A Sunshine
+# identifier that fails to parse is still a failure, in this document and every
+# other, which `test_the_foreign_exemption_does_not_blunt_the_guard` asserts.
+FOREIGN_IDENTIFIERS = frozenset({("0024-drm-widevine.md", "E100")})
+
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
 import trace_invariants as tracer  # noqa: E402
@@ -222,6 +235,23 @@ class IdentifierSurveyTests(unittest.TestCase):
             with self.subTest(token=known):
                 self.assertIn(known, tokens)
 
+    def test_the_foreign_exemption_does_not_blunt_the_guard(self) -> None:
+        """A Sunshine identifier that cannot parse is still caught.
+
+        The exemption is a pair, document and token, so it cannot spread to
+        another document or to another token in the same one. Checked here
+        rather than trusted, because an exemption that quietly widened would
+        hide exactly the defect this class exists for.
+        """
+
+        for token in ("E100", "E999", "SEC100"):
+            with self.subTest(token=token):
+                self.assertEqual(set(), tracer._identifiers(token),
+                                 "the premise: three digits is outside the parser")
+        self.assertEqual(
+            {("0024-drm-widevine.md", "E100")}, FOREIGN_IDENTIFIERS)
+        self.assertNotIn(("0024-drm-widevine.md", "E999"), FOREIGN_IDENTIFIERS)
+
     def test_every_token_of_a_declared_family_parses_whole(self) -> None:
         """The guard against a third instance.
 
@@ -233,6 +263,8 @@ class IdentifierSurveyTests(unittest.TestCase):
         for document, token in self.survey():
             if tracer._family(token) not in tracer.FAMILIES:
                 continue  # the documented exclusion: not a family any contract uses
+            if (document, token) in FOREIGN_IDENTIFIERS:
+                continue
             if tracer._identifiers(token) != {token}:
                 parsed = tracer._identifiers(token) or "nothing"
                 lost.append(f"{document}: {token} parses as {parsed}")

@@ -63,11 +63,15 @@ BASE_DIP = 24
 # How much of that box the drawing is allowed to fill, as a fraction of the
 # long edge. The rest is transparent margin, centred.
 #
-# 0.80 is the owner's call, made against the bar they were looking at. It is
-# not derived from anything upstream, and it is a constant rather than a
-# literal so that the next adjustment is one number in one place and the
-# regenerated images follow from it.
-COVERAGE = 0.80
+# The owner's call, made against the bar they were looking at. It is not
+# derived from anything upstream, and it is a constant rather than a literal so
+# that the next adjustment is one number in one place and the regenerated
+# images follow from it.
+#
+# 0.80 first, then 0.72 on 2026-10-20: the owner asked for the icon at 90% of
+# what it then was, so this is 0.80 * 0.90 rather than 0.90. An absolute 0.90
+# would have enlarged it, which is the opposite of what was asked.
+COVERAGE = 0.72
 
 SCALES = (100, 200, 300)
 

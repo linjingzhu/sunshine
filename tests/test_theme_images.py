@@ -100,7 +100,7 @@ class RenderTests(unittest.TestCase):
         The source is 120 pixels of drawing adrift in a 200-pixel canvas, so
         it fills 60% of its own canvas. A renderer that skipped the crop and
         merely scaled the whole canvas would leave ink across 0.60 * COVERAGE
-        of the box -- 48% at COVERAGE 0.8 -- while one that crops first leaves
+        of the box -- 43% at COVERAGE 0.72 -- while one that crops first leaves
         exactly COVERAGE. Asserting the width therefore proves the crop
         happened as well as the inset, which a bounds-touch assertion did not.
         """
