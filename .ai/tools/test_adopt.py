@@ -373,6 +373,74 @@ class AdoptTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assert_none_of_the_sets_records()
 
+    # -- a subscriber's tree ships only what the set delivered ---------------
+    # A subscriber's own skills sit beside the delivered ones, and point at
+    # project files that adopting does not copy. Its tests adopt from that
+    # tree, so shipping its own skills made every such copy fail its check.
+    def subscriber_with_its_own_skill(self) -> Path:
+        subscriber = self.tmp / "subscriber"
+        code, out = adopt(subscriber, FACTS)
+        self.assertEqual(code, 0, out)
+        skill = subscriber / ".claude" / "skills" / "its-own" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text(
+            "---\nname: its-own\ndescription: Use for this project's blog. Reads `docs/blog/RULES.md`.\n---\n\n"
+            "Follow `docs/blog/RULES.md`.\n", encoding="utf-8")
+        (subscriber / "docs" / "blog").mkdir(parents=True)
+        (subscriber / "docs" / "blog" / "RULES.md").write_text("# Rules\n", encoding="utf-8")
+        return subscriber
+
+    def test_adopting_from_a_subscriber_leaves_its_own_skills_behind(self) -> None:
+        source = self.subscriber_with_its_own_skill()
+        facts = [a for k, v in FACTS.items() for a in ("--set", f"{k}={v}")]
+        code, out = self.run_from(source, "--into", str(self.target), *facts)
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.target / ".claude" / "skills" / "its-own").exists(),
+                         "a subscriber's own skill travelled as if the set had shipped it")
+        self.assertTrue((self.target / ".claude" / "agents" / "fast-explorer.md").exists(),
+                        "a capability the set delivered was not shipped on")
+        lock = (self.target / ".ai" / "set.lock").read_text(encoding="utf-8")
+        self.assertNotIn("its-own", lock)
+
+    def test_a_subscribers_own_skill_is_shipped_nowhere_on_upgrade_either(self) -> None:
+        adopt(self.target, FACTS)
+        code, out = self.run_from(self.subscriber_with_its_own_skill(), "--upgrade", "--into", str(self.target))
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.target / ".claude" / "skills" / "its-own").exists())
+
+    def test_adopting_from_a_subscriber_that_kept_its_own_agent_passes(self) -> None:
+        # The subscriber holds its own version of a capability the set ships,
+        # so the set's version is not in that tree to ship on. The copy must
+        # still pass: missing it is no worse than a repository that removed it.
+        subscriber = self.tmp / "subscriber"
+        own = subscriber / ".claude" / "agents" / "fast-explorer.md"
+        own.parent.mkdir(parents=True)
+        own.write_text("---\nname: fast-explorer\ndescription: Use for this project's own search.\n---\n\nOurs.\n",
+                       encoding="utf-8")
+        code, out = adopt(subscriber, FACTS)
+        self.assertEqual(code, 0, out)
+        self.assertIn("kept: .claude/agents/fast-explorer.md",
+                      (subscriber / ".ai" / "set.lock").read_text(encoding="utf-8"))
+        facts = [a for k, v in FACTS.items() for a in ("--set", f"{k}={v}")]
+        code, out = self.run_from(subscriber, "--into", str(self.target), *facts)
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.target / ".claude" / "agents" / "fast-explorer.md").exists())
+        code, out = run_checker_in(self.target)
+        self.assertEqual(code, 0, out)
+
+    def test_adopting_from_a_subscriber_that_deleted_a_delivered_agent_passes(self) -> None:
+        # Deleted after delivery and before any upgrade recorded the removal:
+        # the lock still lists it as delivered, and the tree no longer has it.
+        subscriber = self.tmp / "subscriber"
+        code, out = adopt(subscriber, FACTS)
+        self.assertEqual(code, 0, out)
+        (subscriber / ".claude" / "agents" / "fast-explorer.md").unlink()
+        facts = [a for k, v in FACTS.items() for a in ("--set", f"{k}={v}")]
+        code, out = self.run_from(subscriber, "--into", str(self.target), *facts)
+        self.assertEqual(code, 0, out)
+        code, out = run_checker_in(self.target)
+        self.assertEqual(code, 0, out)
+
     def test_running_the_tools_leaves_no_bytecode_behind(self) -> None:
         # `adopt.py` imports the checker, and Python caches what it imports.
         # A tool that travels into other people's repositories must not leave
@@ -884,7 +952,88 @@ class PropagateTests(unittest.TestCase):
         code, out = self.propagate("--push")
         self.assertEqual(code, 1, out)
         self.assertIn("[failed]   owner/acme", out)
+        # The base was broken before the release reached it, and the output
+        # says so rather than blaming the upgrade.
+        self.assertIn("already failed the set's check before the upgrade", out)
         self.assertEqual(self.git(remote, "branch", "--list", "claude/*").strip(), "")
+
+    def test_a_failure_the_upgrade_causes_is_not_blamed_on_the_base(self) -> None:
+        self.subscriber("acme")
+        self.registry("owner/acme  main")
+        # The release itself is broken: its own context template loses a fact.
+        template = self.source / ".ai" / "PROJECT_CONTEXT.template.md"
+        template.write_text(template.read_text(encoding="utf-8") + "\nSee `docs/NOWHERE.md`.\n", encoding="utf-8")
+        code, out = self.propagate()
+        self.assertEqual(code, 1, out)
+        self.assertIn("the set's check fails after the upgrade", out)
+        self.assertNotIn("already failed", out)
+
+    def test_a_failure_the_upgrade_adds_to_a_broken_base_is_named(self) -> None:
+        self.subscriber("acme")
+        clone = self.clones / "acme"
+        context = clone / ".ai" / "PROJECT_CONTEXT.md"
+        context.write_text(context.read_text(encoding="utf-8").replace("test_command:", "tests:"), encoding="utf-8")
+        self.git(clone, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "break")
+        self.git(clone, "push", "-q", "origin", "main")
+        self.registry("owner/acme  main")
+        template = self.source / ".ai" / "PROJECT_CONTEXT.template.md"
+        template.write_text(template.read_text(encoding="utf-8") + "\nSee `docs/NOWHERE.md`.\n", encoding="utf-8")
+        code, out = self.propagate()
+        self.assertEqual(code, 1, out)
+        self.assertIn("the upgrade adds failures of its own", out)
+        self.assertIn("docs/NOWHERE.md", out.split("adds failures of its own", 1)[1].split("\n\n", 1)[0])
+
+    def break_base_with_its_own_checker(self, checker: str) -> Path:
+        """A base that really fails the check, whose own older checker is
+        `checker` — the case where the two checkers disagree."""
+        self.subscriber("acme")
+        clone = self.clones / "acme"
+        context = clone / ".ai" / "PROJECT_CONTEXT.md"
+        context.write_text(context.read_text(encoding="utf-8").replace("test_command:", "tests:"), encoding="utf-8")
+        (clone / ".ai" / "tools" / "check_policy_set.py").write_text(checker, encoding="utf-8")
+        self.git(clone, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "break")
+        self.git(clone, "push", "-q", "origin", "main")
+        self.registry("owner/acme  main")
+        return clone
+
+    def test_a_base_whose_checker_crashes_without_lines_still_failed(self) -> None:
+        self.break_base_with_its_own_checker("raise SystemExit(3)\n")
+        code, out = self.propagate()
+        self.assertEqual(code, 1, out)
+        self.assertIn("already failed the set's check before the upgrade", out)
+        self.assertNotIn("adds failures of its own", out)
+
+    def test_a_base_checker_that_words_a_failure_differently_adds_nothing(self) -> None:
+        self.break_base_with_its_own_checker(
+            "print('[FAIL] context')\nprint('  - an older wording of the same failure')\nraise SystemExit(1)\n")
+        code, out = self.propagate()
+        self.assertEqual(code, 1, out)
+        self.assertIn("already failed the set's check before the upgrade", out)
+        self.assertNotIn("adds failures of its own", out)
+
+    def test_a_registry_base_that_is_not_the_default_branch_is_named(self) -> None:
+        remote = self.subscriber("acme")
+        self.git(remote, "branch", "old-base", "main")
+        self.registry("owner/acme  old-base")
+        code, out = self.propagate()
+        self.assertEqual(code, 0, out)
+        self.assertIn("the remote's default branch is `main`", out)
+
+    def test_a_deleted_registry_base_points_at_the_default_branch(self) -> None:
+        self.subscriber("acme")
+        self.registry("owner/acme  gone-branch")
+        code, out = self.propagate()
+        self.assertEqual(code, 1, out)
+        self.assertIn("git fetch", out)
+        self.assertIn("the remote's default branch is `main`", out)
+
+    def test_a_registry_base_that_is_the_default_branch_raises_nothing(self) -> None:
+        self.subscriber("acme")
+        self.registry("owner/acme  main")
+        code, out = self.propagate()
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("default branch", out)
+        self.assertNotIn("already failed", out)
 
     def test_a_malformed_registry_line_is_refused(self) -> None:
         self.registry("acme main")

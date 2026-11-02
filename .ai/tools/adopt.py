@@ -264,6 +264,37 @@ def copy_set(target: Path) -> list[str]:
     return copied
 
 
+def is_capability(name: str) -> bool:
+    return any(name == top or name.startswith(top + "/") for top in CAPABILITIES)
+
+
+def source_capabilities() -> frozenset[str]:
+    """Every capability this source's lock knows the set ships: delivered,
+    kept or removed. A subscriber's tree may not hold the set's version of
+    some of them — its own stands in their place, or it took them out."""
+    lock = SET_ROOT / LOCK
+    if not lock.is_file():
+        return frozenset()
+    _, entries, marks, _ = read_lock(lock.read_text(encoding="utf-8"))
+    return frozenset(n for n in (*entries, *marks) if is_capability(n))
+
+
+def shipped_capabilities() -> frozenset[str] | None:
+    """The capability files this source ships, or None when it ships all it holds.
+
+    At the set's home every capability file is the set's. A subscriber also
+    holds skills and agents of its own beside the ones it was delivered, and
+    its tests adopt the set from that tree. Delivering everything there hands
+    the copy a project's own skill without the project files it points at, and
+    the copy fails its check for a reason no real adoption has. The lock names
+    what the set delivered, so that is what a subscriber's tree ships."""
+    lock = SET_ROOT / LOCK
+    if not lock.is_file():
+        return None
+    _, entries, _, _ = read_lock(lock.read_text(encoding="utf-8"))
+    return frozenset(entries)
+
+
 def copy_capabilities(target: Path, removed: frozenset[str] = frozenset()) -> tuple[list[str], list[str]]:
     """Copy the Codex entry point and shipped capabilities without replacing
     an adopter's own entry point, agent definition, or skill directory.
@@ -275,6 +306,7 @@ def copy_capabilities(target: Path, removed: frozenset[str] = frozenset()) -> tu
     """
     written: list[str] = []
     kept: list[str] = []
+    shipped = shipped_capabilities()
     for name in CAPABILITIES:
         source = SET_ROOT / name
         if not source.exists():
@@ -296,6 +328,8 @@ def copy_capabilities(target: Path, removed: frozenset[str] = frozenset()) -> tu
                 and path.relative_to(source).parts[0] in existing_skills
             )
             if relative.as_posix() in removed:
+                continue
+            if shipped is not None and relative.as_posix() not in shipped:
                 continue
             if destination.exists() or skill_exists:
                 kept.append(relative.as_posix())
@@ -433,12 +467,15 @@ def subscribed_files(target: Path) -> list[str]:
                     or is_instance(name) or name in PRESERVED):
                 continue
             names.append(name)
+    shipped = shipped_capabilities()
     for top in CAPABILITIES:
         source = SET_ROOT / top
         if not source.exists():
             continue
         for path in ([source] if source.is_file() else sorted(source.rglob("*"))):
             name = path.relative_to(SET_ROOT).as_posix()
+            if shipped is not None and name not in shipped:
+                continue
             here = target / name
             if path.is_file() and here.is_file() and digest(here.read_bytes()) == digest(path.read_bytes()):
                 names.append(name)
@@ -453,12 +490,20 @@ def write_lock(target: Path, in_place: bool = False, removed: frozenset[str] = f
     gone = sorted(n for n in removed if not (target / n).exists() and (SET_ROOT / n).is_file())
     # Every other capability the set ships and this delivery did not leave
     # here as the set's: the repository holds its own in that place.
+    shipped = shipped_capabilities()
     kept = sorted(
         path.relative_to(SET_ROOT).as_posix()
         for top in CAPABILITIES if (SET_ROOT / top).exists()
         for path in ([SET_ROOT / top] if (SET_ROOT / top).is_file() else sorted((SET_ROOT / top).rglob("*")))
         if path.is_file() and path.relative_to(SET_ROOT).as_posix() not in set(names) | set(gone)
+        and (shipped is None or path.relative_to(SET_ROOT).as_posix() in shipped)
     )
+    # Delivered from a subscriber's tree, a capability that tree kept, removed
+    # or deleted is still one the set ships, and the set's documents may point at
+    # it. Record it as kept, so the pointer is excused here as it is there; a
+    # real upgrade from the set's home delivers it, since kept marks block
+    # nothing.
+    kept = sorted(set(kept) | {n for n in source_capabilities() if n not in names and n not in gone})
     lines = [
         "# Written by .ai/tools/adopt.py. The files below are this repository's",
         "# subscription to the policy set: they are replaced on every upgrade, so",
