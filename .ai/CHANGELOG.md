@@ -40,6 +40,35 @@ for wording, examples and ordering that change nothing about what is required.
 
 ---
 
+## 4.2.0 — 2026-11-02
+
+Roadmap items R11 and R12, from the 2026-11-02 retrospective, approved by the
+user the same day.
+
+- `adopt.py` run from a subscriber's tree delivers only the capabilities that
+  tree's `.ai/set.lock` records as the set's. A subscriber's own skills stay
+  behind. Its tests adopt the set from that tree, and in one subscriber they
+  handed every copy that subscriber's own skills without the project files
+  those skills point at: 24 failures. At the set's home, which has no lock,
+  nothing changes. A capability the set ships but that tree does not hold as
+  the set's — kept as the subscriber's own, removed, or deleted since
+  delivery — is recorded as kept in the copy, so the set's documents may
+  still point at it. Four tests cover adoption and upgrade from such a tree;
+- `propagate.py` runs a preflight on each subscriber, reporting without
+  changing anything:
+  - a registered base that is not the remote's default branch;
+  - a base that already fails its own check, which a failure the upgrade
+    causes is now told apart from. The exit status decides that the base
+    failed, so a checker that crashes without naming a problem still counts.
+    When the upgrade adds failures to a base that already failed, those are
+    listed as the upgrade's own. Both sides of that comparison come from the
+    check this release ships, so a failure the base's older checker words
+    differently is not mistaken for a new one.
+  Both were first met in one subscriber: a registered base that had been
+  deleted, found only by a failed fetch, and a base its own change had broken,
+  found only by a failed release.
+  Seven new tests cover them, and one existing test gains an assertion.
+
 ## 4.1.1 — 2026-10-17
 
 Both test suites pass in a subscriber again. Found after 4.1.0 reached all 41
@@ -123,7 +152,7 @@ straight after the upgrade, on a defect that was the set's and not theirs.
 
 - the reference check no longer reads run reports under `.ai/reports/`. A
   report records a moment, and a file it named may since be gone. In
-  `md-mcp` and `ai-prompt-generator`, a report preserving an old entry file
+  two subscribers, a report preserving an old entry file
   named documents those repositories later removed, and the only fix would
   rewrite the record;
 - they had passed until 3.4.2 by accident. The guess beside the referring file

@@ -32,6 +32,7 @@ sys.dont_write_bytecode = True
 SET_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = SET_ROOT / ".ai" / "SUBSCRIBERS.md"
 ADOPT = SET_ROOT / ".ai" / "tools" / "adopt.py"
+CHECK = SET_ROOT / ".ai" / "tools" / "check_policy_set.py"
 # `owner/repo  base-branch`, optionally followed by `hold: <why>`.
 ENTRY = re.compile(r"^([\w.-]+/[\w.-]+)\s+(\S+)(?:\s+hold:\s*(.+))?$")
 
@@ -64,6 +65,42 @@ def git(clone: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(clone), *args], capture_output=True, text=True)
 
 
+def default_branch(clone: Path) -> str | None:
+    """The branch the remote's HEAD names, or None when it cannot be read."""
+    out = git(clone, "ls-remote", "--symref", "origin", "HEAD").stdout
+    match = re.search(r"^ref: refs/heads/(\S+)\s+HEAD$", out, re.M)
+    return match.group(1) if match else None
+
+
+def problems(report: str) -> set[str]:
+    """The problem lines of a check report: one `- …` line per failure."""
+    return {line.strip() for line in report.splitlines() if line.lstrip().startswith("- ")}
+
+
+def run_check(tool: Path, tree: Path) -> tuple[bool, set[str]]:
+    """Whether `tool` fails on `tree`, and the problem lines it prints. The
+    exit status decides failure: a checker that crashes prints no lines."""
+    done = subprocess.run([sys.executable, "-B", str(tool), str(tree)], capture_output=True, text=True)
+    return bool(done.returncode), problems(done.stdout + done.stderr)
+
+
+def base_check(clone: Path) -> tuple[bool, set[str]]:
+    """Whether the tree as it stands fails its own copy of the set's check,
+    and what that failure looks like to the check this release ships.
+
+    The second half is what an upgrade's failures are compared against. The
+    tree's own checker is older and may word the same failure differently, so
+    its lines would make every reworded message look like one the upgrade
+    added."""
+    own = clone / ".ai" / "tools" / "check_policy_set.py"
+    if not own.is_file():
+        return False, set()
+    failed, _ = run_check(own, clone)
+    if not failed:
+        return False, set()
+    return True, run_check(CHECK, clone)[1]
+
+
 def upgrade_one(clone: Path, base: str, version: str, trailers: list[str], push: bool) -> tuple[str, str]:
     """Returns (outcome, detail). Outcome is upgraded, current or failed."""
     branch = f"claude/set-{version}"
@@ -72,19 +109,43 @@ def upgrade_one(clone: Path, base: str, version: str, trailers: list[str], push:
     dirty = git(clone, "status", "--porcelain").stdout.strip()
     if dirty:
         return "failed", f"the clone has uncommitted changes, which would ride into the upgrade:\n{dirty}"
+    # Preflight. A registered base that is no longer where the repository
+    # works sends the release to a branch nobody merges from; it was found
+    # only when a deleted base made the fetch fail.
+    notes: list[str] = []
+    default = default_branch(clone)
+    if default and default != base:
+        notes.append(f"the registry says base `{base}`, but the remote's default branch is "
+                     f"`{default}` — correct {REGISTRY.name} if the repository moved")
+    drift = "".join(f"{n}\n" for n in notes)
     for step in (("fetch", "-q", "origin", base), ("switch", "-q", "-C", branch, f"origin/{base}")):
         done = git(clone, *step)
         if done.returncode:
-            return "failed", f"git {step[0]}: {done.stderr.strip()}"
+            return "failed", f"{drift}git {step[0]}: {done.stderr.strip()}"
+    # A repository whose CI does not run the check can break it with its own
+    # change and nobody hears until the next release. Say so apart from a
+    # failure the upgrade causes: the fix is the repository's, not the set's.
+    base_failed, before_problems = base_check(clone)
+    if base_failed:
+        notes.append(f"`{base}` already failed its own check before this upgrade")
     before = release(clone) if (clone / ".ai" / "CHANGELOG.md").exists() else "none"
     run = subprocess.run([sys.executable, "-B", str(ADOPT), "--upgrade", "--into", str(clone)],
                          capture_output=True, text=True)
     report = run.stdout + run.stderr
     if run.returncode:
-        return "failed", "the set's check fails after the upgrade:\n" + report
+        added = sorted(problems(report) - before_problems)
+        if base_failed and not added:
+            cause = ("the base already failed the set's check before the upgrade, and still fails after it "
+                     "— look at the repository's own changes first:\n")
+        elif base_failed:
+            cause = ("the base already failed the set's check before the upgrade, and the upgrade adds "
+                     "failures of its own:\n" + "".join(f"  {a}\n" for a in added) + "\n")
+        else:
+            cause = "the set's check fails after the upgrade:\n"
+        return "failed", drift + cause + report
     git(clone, "add", "-A")
     if git(clone, "diff", "--cached", "--quiet").returncode == 0:
-        return "current", f"already at {before}"
+        return "current", f"already at {before}" + "".join(f"; {n}" for n in notes)
     message = (
         f"Upgrade the ai-dev-rule policy set from {before} to {version}\n\n"
         "Ran `adopt.py --upgrade` from the set's home. The set's files are a\n"
@@ -129,6 +190,7 @@ def upgrade_one(clone: Path, base: str, version: str, trailers: list[str], push:
         ]
     (clone.parent / f"{clone.name}.pr.md").write_text("\n".join(body) + "\n", encoding="utf-8")
     note = "; template copy never finished, so the subscription is not checked there" if unfinished else ""
+    note += "".join(f"; {n}" for n in notes)
     return "upgraded", f"{before} → {version}, {len(files)} files, {len(flags)} named{note}"
 
 

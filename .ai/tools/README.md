@@ -1,8 +1,8 @@
 ---
 doc_id: ai-tools
-version: 2.7.0
+version: 2.8.0
 canonical_path: .ai/tools/README.md
-updated: 2026-10-10
+updated: 2026-11-02
 ---
 
 # Tools
@@ -276,6 +276,16 @@ repository's:
   excused only when it names a capability recorded as removed or kept, or one
   delivered and since taken out.
 
+A subscriber's tree ships only what its lock names. Its tests adopt the set
+"from this tree", and a subscriber also holds skills and agents of its own
+beside the ones it was delivered. Shipping those would hand every such copy a
+skill without the project files it points at. So `adopt.py`, run from a tree
+that has a lock, delivers only the capabilities the lock records as the set's.
+A capability the lock knows but the tree does not hold as the set's — kept,
+removed, or deleted since delivery — is recorded as `kept:` in the copy, so
+the set's documents may still point at it. At the set's home, which has no
+lock, it delivers every capability it holds.
+
 A rule only one repository needs goes in its project context, under the
 heading `.ai/PROJECT_CONTEXT.template.md` § *Local rules* describes. A rule
 every repository would want belongs here, at the set's home.
@@ -290,6 +300,20 @@ cuts `claude/set-<version>` from its base branch, runs `adopt.py --upgrade`, and
 commits. It writes the pull request body beside the clone as `<repo>.pr.md`,
 with the upgrade's report and the check result, and prints one line per
 subscriber: `upgraded`, `current`, `hold`, `no clone` or `failed`.
+
+Before upgrading, it runs a preflight on each subscriber. It reports, without
+changing anything:
+
+- a registered base that is not the remote's default branch, since the
+  repository may have moved. A base that no longer exists fails the fetch, and
+  the line names the default branch to use instead;
+- a base that already fails its own copy of the check. When the upgrade then
+  fails as well, the line says the failure was there before the release, so
+  the place to look first is the repository's own changes. Any failure the
+  upgrade adds beyond those is listed separately as the upgrade's own. The
+  base's own checker decides, by its exit status, whether the base failed;
+  the lines compared are the ones this release's check prints for the base,
+  since an older checker may word the same failure differently.
 
 Nothing is pushed without `--push`, so a first run shows every upgrade before
 any of them leaves the machine. Opening the pull requests is left to whoever
