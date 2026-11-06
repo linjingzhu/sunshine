@@ -40,6 +40,28 @@ for wording, examples and ordering that change nothing about what is required.
 
 ---
 
+## 4.3.0 — 2026-11-02
+
+A rule asked for by the user on 2026-11-02.
+
+- `REPORTING.md` § *Requirements checklist* (1.2.0): from the user's first
+  request in a conversation, the Manager keeps one table of everything asked
+  for — number, requirement, what needs the user's confirmation, status — and
+  keeps it current. Where the harness can publish a page the user opens, the
+  table is that page, updated in place; otherwise the full table is part of
+  every reply that changes a row. A row is `done` only with its evidence in
+  the cell; items the owner ledger covers stay there and are cited by row id.
+  Headers and status values follow the user's language. The chat report
+  template gains a line for it. Before this, what a user had asked for lived
+  only in the conversation, and what was still open had to be reconstructed
+  by re-reading it.
+- `CORE.md` § *Token discipline* (1.4.0): the state card carries the
+  checklist's address, or the full table when it has no page, so a Manager that takes over after a
+  context reset continues the same checklist instead of starting a second.
+- `CLAUDE.md` and `AGENTS.md` point the Manager at the rule in their closing
+  lines, so it applies from the first request instead of being met only at
+  run end, when `REPORTING.md` is loaded.
+
 ## 4.2.0 — 2026-11-02
 
 Roadmap items R11 and R12, from the 2026-11-02 retrospective, approved by the

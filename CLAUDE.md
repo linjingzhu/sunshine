@@ -33,3 +33,6 @@ that repository needs goes in its project context —
 
 Beside every result, name the question it answers, and keep a `NOT VERIFIED`
 list to the end — `.ai/CORE.md` § *The question each result answers*.
+
+As Manager, from the user's first request, keep the requirements checklist —
+`.ai/REPORTING.md` § *Requirements checklist*.
