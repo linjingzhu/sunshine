@@ -1,8 +1,8 @@
 ---
 doc_id: ai-tools
-version: 2.8.0
+version: 2.10.0
 canonical_path: .ai/tools/README.md
-updated: 2026-11-02
+updated: 2026-11-06
 ---
 
 # Tools
@@ -19,8 +19,11 @@ python3 .ai/tools/propagate.py --clones <dir>       # at the set's home: send a 
 python3 .ai/tools/test_adopt.py              # prove an adopted repo starts green
 ```
 
-**All of them run in a repository that adopted the set, and pass there.** Run
-the two test suites in an adopter too: they are how that repository learns
+**The checks and the two test suites run in a repository that adopted the
+set, and pass there.** `propagate.py` and `adopt.py --into` / `--upgrade` run
+from the set's home toward other repositories — `--upgrade` and a bare
+`adopt.py` refuse the home itself — and `--from-template` runs in place, in a
+copy made with "Use this template". Run the two test suites in an adopter too: they are how that repository learns
 whether its own copy of the checks works. They are the only thing that ever
 did. The one defect they found there — a guard passing while broken in every
 adopter — could not appear at the set's home, where they had always been run.
@@ -51,16 +54,20 @@ prints `[SKIP]` and why, and does not count as passed.
 | front matter | Does every policy document carry the four fields, with a unique `doc_id` and a `canonical_path` matching where it lives? |
 | cross-references | Does every referenced file, and every pointer written as a backticked path followed by `§ *Section*`, resolve to something that exists? |
 | one owner per heading | Is any section heading claimed by two policy documents? |
-| portability | Does any declared project-specific term appear outside the files allowed to know what the project is? |
+| no empty section | Does any section heading in a policy document stand over no text at all, its own or its subsections'? |
+| portability | Does any declared project-specific term appear outside the files allowed to know what the project is? At the set's home, does any file that travels name a subscriber? |
 | changelog | Does every release entry carry a version, a date and at least one improvement, newest first and each version once? |
 | project context | Does the filled-in `.ai/PROJECT_CONTEXT.md` carry every fact the set reads by name, with no placeholder or template line left — and, where no instance exists, does the template still declare every key? |
 | document versions | Where the set lives: has every policy document whose text changed since the previous release been bumped, exactly once? |
-| subscribed copy | In an adopter with `.ai/set.lock`: does every file the lock names still hold what the set delivered? |
+| subscribed copy | In an adopter with `.ai/set.lock`: does every file the lock names still hold what the set delivered? A tree holding both the home marker and a lock fails: it is an unfinished template copy, not the set. |
 | capability definitions | Does every committed capability carry a `name` matching its file (agent) or folder (skill), and a non-empty `description`? Does each native Codex agent parse as TOML and include non-empty `developer_instructions`, with valid optional model and sandbox fields? |
 
 ## What they do not answer
 
 - **Whether a rule is right.** These read structure, not argument.
+- **Whether a section holds the text its heading promises.** The empty-section
+  check sees only that some text is there; a heading over the wrong paragraph
+  passes.
 - **Whether a version bump was the right size.** Policy impact is a judgement.
   The check sees that a document whose text changed since the previous release
   was bumped, and bumped once — `.ai/CHANGELOG.md` § *Document versioning*. It
@@ -85,6 +92,13 @@ prints `[SKIP]` and why, and does not count as passed.
   detected, and stays a convention enforced by review.
 - **Whether a project-specific fact leaked using no denylisted word.** The
   denylist is a list of proper nouns someone wrote down on purpose.
+- **At the set's home, a subscriber named in plain prose by its bare name.**
+  Each repository in `.ai/SUBSCRIBERS.md` is matched written `owner/repo`, and
+  as its bare name in backticks, in every text file that travels, the tools
+  included. The bare name in
+  plain prose is not matched, because some are common words, such as ui and
+  library. Files that stay at the home — the registry, the roadmap,
+  reports, `README.md` — may name subscribers.
 - **Whether a changelog entry is true, or its version level right.** The check
   sees that a version, a date and improvements are present and ordered. Whether
   the improvements listed are the ones that shipped is a judgement.
@@ -197,6 +211,11 @@ the set's own home, and the checks would start reading the adopter's `README.md`
 as if it were this one's. Adoption does not install GitHub Actions workflows
 or alter workflows already in the target repository. An existing instance file
 is kept, not overwritten, unless `--force` says otherwise.
+
+The reverse is refused too. Run without `--into` at the set's home — which is
+what `CLAUDE.md` tells a run with no project context to do — it writes nothing
+and exits 1, naming `--into` and `--from-template`. It used to write the
+instance files into the set itself.
 
 ## Upgrading a repository that already adopted the set
 
@@ -348,6 +367,13 @@ python3 .ai/tools/adopt.py --from-template --name "My Project" --set ...
 It refuses a tree that has no `LESSONS_FROM_PRACTICE.md` to remove, rather than
 guessing at something that looks close enough.
 
+A template copy that already subscribed — it has `.ai/set.lock` from an upgrade
+— keeps that lock: the mode delivers nothing, so the lock still records what the
+set's home sent, with its source and commit, and none of the repository's own
+`.ai/` files. Until the copy is finished, the *subscribed copy* check fails
+there and names this mode, instead of skipping as if the tree were the set; so
+`propagate.py` cannot upgrade such a copy until it is finished.
+
 ## Adopting this
 
 `.ai/tools/` travels with the set. Configure the denylist and run the tools
@@ -357,6 +383,6 @@ locally:
    set was separated from the project that produced it. Replace them with your
    own product and organisation names. An empty denylist makes that check
    vacuous, and the script says so rather than passing quietly.
-2. **Local verification.** Run the three check commands at the top of this
-   document before submitting changes. The set no longer ships a GitHub Actions
+2. **Local verification.** Run the check and the two test suites at the top
+   of this document before submitting changes. The set no longer ships a GitHub Actions
    workflow or the `--with-ci` adoption option.

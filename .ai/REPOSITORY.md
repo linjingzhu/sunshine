@@ -1,8 +1,8 @@
 ---
 doc_id: ai-repository
-version: 1.2.0
+version: 1.3.0
 canonical_path: .ai/REPOSITORY.md
-updated: 2026-09-26
+updated: 2026-11-06
 ---
 
 # Repository and Merge Policy
@@ -79,7 +79,12 @@ The Primary Manager:
   squash-merged; the two histories no longer share those commits, and the
   result is a pull request that shows work already merged.
 - A pull request opens as a **draft** with a Verification section, and is
-  marked ready when its gates are green.
+  marked ready when its gates are green. Its title and body follow the
+  repository's own conventions — its pull request template, contribution
+  guide, code owners and any check that lints titles — read from the remote
+  base, not from a local checkout that may be stale. What the diff cannot
+  show, such as a test result or a screenshot, is written as not run, never
+  invented.
 - A commit touches at most twenty files, generated artefacts excluded.
   Work-in-progress checkpoints are squashed before they are pushed.
 - Nothing produced by tooling — screenshots, uploads, scratch output — is
@@ -108,7 +113,9 @@ means something is true that the run does not yet know.
 
 A branch is deleted only when every one of these holds: its work is committed,
 the gates it needed have passed, it is merged into its parent, and that parent
-actually contains the commits.
+actually contains the commits — or, for a pull request merged by squash, whose
+commits the parent never contains, its remote branch still holds exactly this
+branch's commit, which is what `-d` then compares against.
 
 ```bash
 git branch -d <branch>
@@ -123,19 +130,44 @@ is to find out why, not to reach for the capital letter.
 Deleting a branch the run did not create is the user's decision, not a
 cleanup.
 
+### Cleaning up after a merge
+
+What a run created for a piece of work — its worktree, its local branch, its
+remote branch — is removed by that run once the work has merged, so the next
+run does not mistake it for work in progress (`.ai/EXECUTION.md` §
+*Resuming interrupted work*). Everything else it finds is listed in the report
+and left alone.
+
+Read before removing anything, and remove nothing the reading flags:
+
+- `git status` and the commits not on the remote, in every worktree to be
+  removed. Uncommitted changes or unpushed commits mean work that exists
+  nowhere else: stop and report them.
+- Whether the pull request merged, and whether anyone pushed to its branch
+  after the merged head. Deleting the remote branch of an open pull request
+  closes it.
+
+Never removed by a cleanup: the base branch, the main worktree, the worktree
+the run is standing in, a locked worktree, and anything the run did not
+create.
+
+- **Worktree** — `git worktree remove <path>` without `--force`. A refusal
+  means something in it is not committed; report it rather than force it.
+  Only an untracked build directory may be deleted first (`.ai/EXECUTION.md`
+  § *Worktrees and branches*); a directory holding a tracked file is source,
+  whatever its name.
+- **Local branch** — after its worktree and before its remote branch, by
+  § *Deleting a branch*. After a squash merge, `-d` accepts it only while the
+  remote branch still holds the same commit; once that is gone, `-d` refuses,
+  and the branch is kept and listed with its commit — never `-D`.
+- **Remote branch** — last, once its pull request has merged and nobody pushed
+  after the merged head.
+
+The report names each item removed with the commit it pointed to, which is
+how it comes back (`git branch <name> <commit>`, then push), and each item
+kept with the reason.
+
 ## Merge and deploy
-
-### Paid automation
-
-GitHub Actions or any hosted automation that can incur charges is prohibited
-by default. It may run only after the owner explicitly approves the exact
-workflow, repository scope, provider, expected maximum cost, and an expiry or
-review date. Record that approval in the repository's owner ledger before
-enabling it. A free-tier estimate is not proof that a run is cost-free; treat
-uncertain billing as paid. Do not use Actions minutes, hosted runners,
-artifacts, caches, Pages, packages, or third-party actions with metered usage
-without this approval. A workflow must fail closed when its budget or expiry
-cannot be verified.
 
 `.ai/PROJECT_CONTEXT.md` § *Facts the checks read* says whether merging to the
 base branch publishes (`merge_deploys: yes`). When it does:
@@ -150,6 +182,18 @@ base branch publishes (`merge_deploys: yes`). When it does:
 
 When it does not, merging is the ordinary integration step and deployment is a
 separate, named action.
+
+### Paid automation
+
+GitHub Actions or any hosted automation that can incur charges is prohibited
+by default. It may run only after the owner explicitly approves the exact
+workflow, repository scope, provider, expected maximum cost, and an expiry or
+review date. Record that approval in the repository's owner ledger before
+enabling it. A free-tier estimate is not proof that a run is cost-free; treat
+uncertain billing as paid. Do not use Actions minutes, hosted runners,
+artifacts, caches, Pages, packages, or third-party actions with metered usage
+without this approval. A workflow must fail closed when its budget or expiry
+cannot be verified.
 
 ## Dirty/uncertain state
 

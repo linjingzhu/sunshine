@@ -1,8 +1,8 @@
 ---
 doc_id: ai-harness
-version: 1.3.1
+version: 1.4.0
 canonical_path: .ai/HARNESS.md
-updated: 2026-10-09
+updated: 2026-11-06
 ---
 
 # Operating Harness
@@ -25,7 +25,12 @@ Before the first edit, these are known or the run says so:
   run here — `test_command`, `lint_command`, `build_command`, `runtime_gate`;
 - what network access exists, and what is blocked;
 - what the run may do without asking — the permission mode, and any allowlist;
-- where reports and the owner ledger are written.
+- where reports and the owner ledger are written;
+- for a build that writes much, the free space where it writes. A build that
+  runs out of disk midway fails with errors that read like source defects, and
+  each worktree builds into its own directory (`.ai/EXECUTION.md` §
+  *Worktrees and branches*). Space is reclaimed by § *Cleaning up after a
+  merge* in `.ai/REPOSITORY.md`, never by deleting what that section protects.
 
 A run that finds one of these missing **names it and stops on that point**. It
 does not substitute a weaker check and report the weaker one's result: that is
@@ -57,7 +62,9 @@ Sort them by **whose behaviour they change**:
 - **Personal preference** changes how a run talks to *one person* — the
   language it answers in, how terse the reporting is, which model that person
   pays for by default. It belongs in that person's own configuration. Committing
-  it makes one contributor's taste into everyone's rule.
+  it makes one contributor's taste into everyone's rule — unless the set's
+  owner makes it a rule of the set, as with `.ai/REPORTING.md` § *The clock
+  line*; then it is committed like any rule.
 - **Project capability** changes what *any* run on this repository can do — an
   agent a Mission Packet names, a workflow others are expected to follow, a
   permission, a hook, an external server. It belongs in the repository.
@@ -167,16 +174,9 @@ Format and availability references (checked 2026-09-25):
 
 ## Tools a Mission Packet may assume
 
-## Cost-bearing automation
-
-Hosted automation is an external capability with a billing surface. Before a
-run enables or invokes it, identify the provider, billing unit, expected upper
-bound, owner approval, and expiry in the owner ledger. If any is unknown, do
-not invoke it; use local verification or a read-only inspection instead.
-
-A Mission Packet names the tools its Worker needs, alongside the ownership and
-verification it already carries (`.ai/EXECUTION.md` § *Mission Packet
-template*).
+A Mission Packet names the tools its Worker needs in its `TOOLS` field,
+alongside the ownership and verification it already carries
+(`.ai/EXECUTION.md` § *Mission Packet template*).
 
 - A Worker that lacks a named tool stops and reports it. It does not reach for a
   weaker substitute — a grep stands in for a type checker only in the report of
@@ -184,6 +184,13 @@ template*).
 - A Worker given a read-only role has no write ownership, whatever it finds.
 - A subagent spawned to search owns nothing. Its output is a conclusion and the
   paths behind it, not the files it read.
+
+## Cost-bearing automation
+
+Hosted automation is an external capability with a billing surface. Before a
+run enables or invokes it, identify the provider, billing unit, expected upper
+bound, owner approval, and expiry in the owner ledger. If any is unknown, do
+not invoke it; use local verification or a read-only inspection instead.
 
 ## Reproducing a run
 

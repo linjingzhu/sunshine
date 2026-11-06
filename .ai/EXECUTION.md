@@ -1,8 +1,8 @@
 ---
 doc_id: ai-execution
-version: 1.3.0
+version: 1.4.0
 canonical_path: .ai/EXECUTION.md
-updated: 2026-09-26
+updated: 2026-11-06
 ---
 
 # Execution, Mission Packs, and Sessions
@@ -31,7 +31,7 @@ the plan was needed.
 | Size | What it is | What it gets |
 | --- | --- | --- |
 | **S** | one clear change in one place | the Manager does it directly. No plan, no Packet, no subagent — the cheapest verification that answers the question, and nothing else |
-| **M** | an ordinary feature across a few files | find the existing implementation first, split into Packets only where work is genuinely independent, build and test, independent review |
+| **M** | an ordinary feature across a few files | find the existing implementation first, split into Packets only where work is genuinely independent, build and test, review at its risk level |
 | **L** | several subsystems, or a change to a shared interface | explore, then plan, then implement; parallelise only independent Packs; strengthen regression cover; a Conflict Map before any of it |
 
 Getting this wrong is expensive in both directions. Planning an **S** burns a
@@ -39,6 +39,36 @@ run's budget producing structure nobody reads. Treating an **L** as **M**
 skips the Conflict Map, and the cost arrives later as a merge.
 
 When the size is not obvious, it is **M**.
+
+Size decides the shape of the work; risk decides its review. They are judged
+separately: an **M** that changes only copy is LOW, and a one-line **S** in a
+persistence path is HIGH (`.ai/REVIEW.md` § *Risk levels*).
+
+### A question reading cannot answer is a spike
+
+Some work cannot be sized or planned from reading: whether something performs
+at the scale it must, whether a library or platform feature behaves as its
+documentation says, whether an interaction feels right to the people who will
+use it. Planning around such a question builds on a guess. Split it off as a
+spike — a small throwaway experiment that answers it — and size the rest only
+once it has.
+
+A spike states, before it starts:
+
+```text
+HYPOTHESIS   one sentence the experiment can prove false
+METHOD       the smallest prototype or measurement, and on what data
+PASS / FAIL  the number or observation that decides it
+TIMEBOX      the most it may cost
+NEEDS        code, data, environment or people it requires
+IF FALSE     what the plan becomes when the hypothesis fails
+```
+
+Its result is evidence for the question it asked (`.ai/CORE.md` § *The
+question each result answers*), and its code is not the implementation: what
+it proves is rebuilt to the ordinary gates. A spike that outruns its timebox
+has answered too — the question is harder than thought, which is itself
+input to the size.
 
 ### The size was a hypothesis
 
@@ -64,6 +94,54 @@ taken a decision the Conflict Map exists to make
 
 The same applies to the Manager's own work: an **S** that has grown a second
 file and a third question is an **M** that skipped its plan.
+
+## The interview before new work
+
+*Single source for confirming intent with the user before new work starts.*
+
+New work of size **M** or **L** that changes the product — its code, its
+interface, its behaviour — starts with a short interview, because a plan built
+on a misread goal costs more than the questions that would have caught it.
+
+At the user's request it is an exception to `.ai/CORE.md` § *Autonomy*: it
+asks even where evidence would settle an item, such as a ticket named in the
+branch. Such an item is shown filled, for confirmation, not asked.
+
+It is skipped for an **S**; for a question, a review or an investigation that
+changes nothing; for work being resumed (§ *Resuming interrupted work*); for
+`auto-dev`, whose roadmap approval is its gate, at the proposal and for every
+item approved; and for a run nobody can answer, which writes the answers it
+assumed into its report instead.
+
+It settles, in this order:
+
+1. **Ticket** — the issue or ticket the work belongs to, or none.
+2. **Goal** — what the work achieves, and for whom.
+3. **Pain point** — what goes wrong for that person today.
+4. **Scenario** — who uses it, in what situation, and the steps they take.
+5. **References** — software that already does something similar, and the
+   part of it that matters here.
+6. **Done when** — what the user will see or measure when it is finished.
+   Each answer becomes an acceptance criterion.
+
+How it is asked:
+
+- Fill every item from what the conversation already says, show the filled
+  list, and ask only about what it leaves open. A user who has answered
+  everything is asked to confirm, not asked again.
+- One question at a time, with the run's own best reading offered as a choice
+  beside the alternatives: correcting a guess is faster than writing a
+  specification, which is what `.ai/MANAGER.md` duty 1 forbids demanding.
+- References the user names are researched, and at most two more the run
+  finds: official documentation and release notes first, one search per
+  product, each summarised as how it works, its interaction pattern, and what
+  it implies here, with its source.
+- The answers are the intent contract of duty 1. A decision still open gets a
+  row in the requirements checklist (`.ai/REPORTING.md` § *Requirements
+  checklist*).
+
+For the work it covers, the interview comes before proceeding on an inferred
+reading: duty 1's inference fills the list, and the user's answers settle it.
 
 ## Resuming interrupted work
 
@@ -183,6 +261,10 @@ READ-ONLY CONTEXT
 
 DO NOT MODIFY
 - explicit conflict boundaries when useful
+
+TOOLS
+- the tools this work needs (`.ai/HARNESS.md` § *Tools a Mission Packet may
+  assume*)
 
 TASKS
 1. ...

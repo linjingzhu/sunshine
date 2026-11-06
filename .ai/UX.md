@@ -1,8 +1,8 @@
 ---
 doc_id: ai-ux
-version: 1.1.0
+version: 1.2.0
 canonical_path: .ai/UX.md
-updated: 2026-09-03
+updated: 2026-11-06
 ---
 
 # UX and Runtime Verification
@@ -27,7 +27,12 @@ Before meaningful UI implementation, the Manager should define a compact UX Cont
 
 Consider:
 - discoverability,
-- terminology consistency,
+- terminology and placement consistent with the controls already there,
+- interaction cost — how many steps, inputs and mode switches the task takes,
+  and whether it can be undone,
+- every user-visible string through the project's translation mechanism, when
+  it has one, built from whole sentences with placeholders rather than
+  concatenated fragments,
 - tooltip for non-obvious controls,
 - contextual explanation,
 - first-use/empty-state briefing,

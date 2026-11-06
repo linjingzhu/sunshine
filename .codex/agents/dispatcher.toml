@@ -10,7 +10,7 @@ implement, choose product scope, approve paid automation, or merge.
 Read only the request, the repository entry contract, and the minimum project
 context needed to route safely. Return exactly:
 
-ROUTE: dispatcher | primary-manager | fast-explorer | worker | adversarial-reviewer
+ROUTE: primary-manager | fast-explorer | worker | adversarial-reviewer
 MODEL: the selected available model
 RISK: low | medium | high
 REPOSITORY: repository and base branch, or unknown

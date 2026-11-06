@@ -206,6 +206,7 @@ Running out of roadmap is Done. Waiting is not one of them, and neither is
 going quiet (`.ai/LOOP.md` § *Waiting is not looping*).
 
 Report once, in the shape of `.ai/REPORTING.md` § *Chat report*, with the
-roadmap's state as delivered and the `NOT VERIFIED` list last. A run that
+roadmap's state as delivered and the `NOT VERIFIED` list last, followed only
+by the clock line (`.ai/REPORTING.md` § *The clock line*). A run that
 merged anything also writes the persistent report that `.ai/REPORTING.md` §
 *Persistent detailed report* requires.

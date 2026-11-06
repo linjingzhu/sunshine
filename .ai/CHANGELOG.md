@@ -40,6 +40,85 @@ for wording, examples and ordering that change nothing about what is required.
 
 ---
 
+## 4.5.0 — 2026-11-06
+
+Eleven contradictions found while drawing the rules as a graph, fixed at the
+user's request; and what a skill package of the user's added that the set did
+not already say.
+
+- At the set's home, `CLAUDE.md` now says what `AGENTS.md` said: the instance
+  files are absent on purpose. A bare `adopt.py` there — what `CLAUDE.md`
+  tells a run without a project context to do — wrote them into the set; it
+  now refuses and writes nothing. A test covers it.
+- New check, *no empty section*: a heading with no text under it fails.
+  `HARNESS.md` § *Tools a Mission Packet may assume* was one, its text under
+  the next heading while two capabilities pointed at it; the check fails on
+  the 4.4.0 tree. Two tests cover it.
+- `REPOSITORY.md` § *Merge and deploy* holds its own rules again, ahead of
+  § *Paid automation*, which had swallowed them.
+- `EVOLUTION.md` says which sections of `.ai/PROJECT_CONTEXT.md` a run may
+  write (facts, architecture, the current slice, a standing directive the user
+  gave) and which stay Direction (mode, product constraints, excluded scope).
+  `CORE.md` and `MANAGER.md` told a run to write there; the table forbade it.
+- The Mission Packet carries a `TOOLS` field, which `HARNESS.md` said it did.
+- `REPORTING.md` maps the three stop conditions of `LOOP.md` onto its four
+  statuses.
+- Size decides the shape of the work, risk decides its review: an **M** is
+  reviewed at its risk level, not always independently, and `REVIEW.md` names
+  the risk signals that move a LOW change to MEDIUM, which it had left
+  undefined.
+- Claude's `adversarial-reviewer` gains the roadmap challenge `auto-dev` spawns
+  it for, and the `NOT VERIFIED` return the Codex reviewer already had.
+- A persistent report is due for any merge into the base branch, a local one in
+  personal mode included, as `auto-dev` already read it.
+- `tools/README.md` says which tools run where, rather than "all of them in an
+  adopter" and "the three check commands" over a block of seven.
+- The Codex Dispatcher can no longer route a request to itself.
+- From the skill package: `REPOSITORY.md` § *Cleaning up after a merge* (a run
+  removes the worktree and branches it created once their work merged, reads
+  first, never forces, and reports each removal with the commit that restores
+  it); a pull request follows the repository's own template and conventions
+  read from the remote base; `EXECUTION.md` splits a question reading cannot
+  answer into a spike with a stated hypothesis, pass mark, timebox and
+  fallback; `REVIEW.md` traces each part of the request and flags unrequested
+  features and dead code; `UX.md` adds interaction cost, placement and
+  translated strings; `HARNESS.md` asks for free disk space where a large build
+  writes. Not taken, because the set decides it differently: approval before
+  every commit, push and pull request.
+- Also from the skill package, at the user's request: new **M** and **L**
+  work starts with an interview (`EXECUTION.md` § *The interview before new
+  work*: ticket, goal, pain point, scenario, references researched, done
+  when), filled from the conversation first and asked one question at a time;
+  and every reply to the user ends with the local time, read from the clock and
+  named by zone (`REPORTING.md` § *The clock line*), after the `NOT VERIFIED`
+  list. `CORE.md` § *Autonomy*, read at every start, names both as exceptions
+  the user set, so neither depends on a document loaded later; the `auto-dev`
+  skill ends its report the same way; and `HARNESS.md` now lets the set's owner
+  commit a personal preference as a rule of the set, as the clock line is.
+
+## 4.4.0 — 2026-11-06
+
+Roadmap items R13 and R14, built at the user's request.
+
+- At the set's home, the portability check treats every repository in
+  `.ai/SUBSCRIBERS.md` as a denied term in the files that travel, matched
+  written `owner/repo` and as the bare name in backticks. In 4.2.0 the
+  changelog named three subscribers in entries delivered to all of them, and
+  the check passed. Every text file that travels is read, the tools included.
+  Plain prose, and the files that stay at the home, are not matched. Four
+  tests cover it.
+- A tree holding both the set's home marker and `.ai/set.lock` is an unfinished
+  template copy: the *subscribed copy* check now fails there and names
+  `adopt.py --from-template`, where it used to skip as if the tree were the set.
+  Four subscribers were such copies until 2026-11-02, each passing while the
+  check never ran. `propagate.py` drops its note for them: such a copy now
+  fails its upgrade until it is finished.
+- `adopt.py`, run in place in a tree that already has a lock, keeps it. Run
+  with `--from-template` on three subscribers, it had replaced each lock's
+  source and commit with `unknown` and, in one, recorded the repository's own
+  `.ai/` ledger as a file the set delivered. Two tests cover the check and the
+  tool; the propagation test for a template copy now expects the failure.
+
 ## 4.3.0 — 2026-11-02
 
 A rule asked for by the user on 2026-11-02.

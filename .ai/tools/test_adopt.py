@@ -80,7 +80,9 @@ NEEDS_THE_SETS_HOME = {
     "test_from_template_warns_that_the_readme_is_still_the_sets": TEMPLATE_ONLY,
     "test_from_template_without_a_name_warns_instead_of_silently_keeping_seeds": TEMPLATE_ONLY,
     "test_from_template_removes_only_the_marker": TEMPLATE_ONLY,
+    "test_from_template_keeps_an_existing_lock": TEMPLATE_ONLY,
     "test_an_unfinished_template_copy_is_named": TEMPLATE_ONLY,
+    "test_adopt_refuses_the_sets_home": "the home marker exists only at the set's home",
 }
 AT_SET_HOME = (ROOT / "LESSONS_FROM_PRACTICE.md").exists()
 
@@ -769,6 +771,21 @@ class AdoptTests(unittest.TestCase):
         self.assertEqual(code, 0, f"the finished tree must pass its own checks:\n{out}")
         self.assertIn("All structural checks passed.", out)
 
+    def test_adopt_refuses_the_sets_home(self) -> None:
+        # CLAUDE.md sends a run with no project context to adopt.py. At the
+        # set's home the context is absent on purpose; run there, the script
+        # used to write the instance files into the set itself.
+        tree = self.template_tree()
+        result = subprocess.run(
+            [sys.executable, str(tree / ".ai" / "tools" / "adopt.py")],
+            capture_output=True, text=True, check=False,
+        )
+        out = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, out)
+        self.assertIn("set's home", out)
+        self.assertFalse((tree / ".ai" / "PROJECT_CONTEXT.md").exists(), out)
+        self.assertFalse((tree / ".ai" / "set.lock").exists(), out)
+
     def test_from_template_removes_only_the_marker(self) -> None:
         tree = self.template_tree()
         code, out = self.from_template(tree, "--name", "Acme Web")
@@ -796,6 +813,24 @@ class AdoptTests(unittest.TestCase):
         tree = self.template_tree()
         _, out = self.from_template(tree, facts=FACTS)
         self.assertIn("still holds the set's names", out)
+
+    def test_from_template_keeps_an_existing_lock(self) -> None:
+        # Finishing three template copies that already subscribed rewrote each
+        # lock in place: source and commit became `unknown`, and a repository's
+        # own `.ai/` ledger was recorded as a file the set delivered.
+        adopt(self.target, FACTS)
+        tree = self.template_tree()
+        lock = (self.target / ".ai" / "set.lock").read_text(encoding="utf-8")
+        (tree / ".ai" / "set.lock").write_text(lock, encoding="utf-8")
+        (tree / ".ai" / "OWNER_LEDGER.md").write_text(
+            "---\ndoc_id: owner-ledger\nversion: 1.0.0\ncanonical_path: .ai/OWNER_LEDGER.md\n"
+            "updated: 2026-11-06\n---\n\n# Owner actions\n\nNone.\n", encoding="utf-8")
+        code, out = self.from_template(tree, "--name", "owner/acme")
+        self.assertEqual(code, 0, out)
+        self.assertIn("[keep] .ai/set.lock", out)
+        self.assertEqual((tree / ".ai" / "set.lock").read_text(encoding="utf-8"), lock)
+        self.assertIn("[PASS] subscribed copy", out)
+        self.assertNotIn("OWNER_LEDGER", (tree / ".ai" / "set.lock").read_text(encoding="utf-8"))
 
     def test_from_template_refuses_a_tree_that_is_not_one(self) -> None:
         # An ordinary adopted repository has no marker to remove; saying so beats
@@ -899,9 +934,11 @@ class PropagateTests(unittest.TestCase):
         self.git(clone, "push", "-q", "origin", "main")
         self.registry("owner/acme  main")
         code, out = self.propagate()
-        self.assertEqual(code, 0, out)
-        self.assertIn("template copy never finished", out)
-        self.assertIn("still looks like the set's own home", (self.clones / "acme.pr.md").read_text(encoding="utf-8"))
+        # The copy subscribed, so the check now refuses to take it for the set,
+        # and the upgrade cannot pass until it is finished.
+        self.assertEqual(code, 1, out)
+        self.assertIn("never finished", out)
+        self.assertIn("--from-template", out)
 
     def test_a_clone_with_uncommitted_work_is_not_upgraded(self) -> None:
         remote = self.subscriber("acme")

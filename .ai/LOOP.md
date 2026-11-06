@@ -1,8 +1,8 @@
 ---
 doc_id: ai-loop
-version: 1.0.0
+version: 1.0.1
 canonical_path: .ai/LOOP.md
-updated: 2026-09-03
+updated: 2026-11-06
 ---
 
 # The Working Loop
@@ -72,4 +72,5 @@ A run ends in exactly one of three states, and says which:
 3. **Budget spent** — the attempt budget above, with the ruled-out causes.
 
 Going quiet is not one of them. Neither is a summary that reports the work done
-without saying which of the three states it ended in.
+without saying which of the three states it ended in. The report's status
+follows from the state: `.ai/REPORTING.md` § *Status vocabulary*.
