@@ -1,8 +1,8 @@
 ---
 doc_id: ai-review
-version: 1.2.0
+version: 1.3.0
 canonical_path: .ai/REVIEW.md
-updated: 2026-09-19
+updated: 2026-11-06
 ---
 
 # Adversarial Review Policy
@@ -24,7 +24,10 @@ Challenge:
 ## Implementation review
 
 Inspect:
-- requirement coverage,
+- requirement coverage — the request split into its parts, each traced to the
+  diff,
+- features, options or abstractions nobody asked for,
+- dead, unreachable or unused code the change added or left behind,
 - wrong assumptions,
 - error/empty/invalid states,
 - lifecycle/stale state,
@@ -70,7 +73,15 @@ Examples: copy, tooltip text, isolated low-impact tests, tiny safe UI adjustment
 Default:
 - implementer self-review,
 - deterministic check,
-- no fresh cross-agent review unless signals indicate risk.
+- no fresh cross-agent review unless a risk signal appears.
+
+A risk signal moves a LOW change to MEDIUM. Any one of these is one:
+- the diff reaches an area the HIGH list below names;
+- it touches a hotspot `.ai/memory/PROJECT_LESSONS.md` records;
+- a test had to change for the change to pass;
+- the deterministic check could not run, or answered a weaker question than
+  the one the change raises;
+- the self-review found something it did not expect.
 
 ### MEDIUM
 Examples: normal feature spanning multiple files, typical UI + logic changes.

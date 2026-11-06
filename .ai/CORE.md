@@ -1,8 +1,8 @@
 ---
 doc_id: ai-core
-version: 1.4.0
+version: 1.5.0
 canonical_path: .ai/CORE.md
-updated: 2026-11-02
+updated: 2026-11-06
 ---
 
 # Core Development Constitution
@@ -20,6 +20,12 @@ cost · 8 Architectural elegance. Never lower the floor to improve a metric.
 Act without asking when convention, the existing implementation, evidence,
 or the smallest reversible choice settles it. Ask only for: product scope,
 irreversible external impact, secrets, external cost, legal or security risk.
+
+Two exceptions the user set: new **M** or **L** work that changes the product
+starts with an interview, which asks before `.ai/MANAGER.md` duty 1 proceeds
+on an inferred reading (`.ai/EXECUTION.md` § *The interview before new
+work*); and every reply to the user, mid-run ones included, ends with the
+clock line (`.ai/REPORTING.md` § *The clock line*).
 
 Say at once, in the same turn: an attachment that did not reach the working
 tree (ask for a path or upload; never act on what was not received); a
@@ -105,7 +111,8 @@ that question and nothing else. A compile answers "is this valid", not "does
 it work" or "is it reachable"; a guard answers "does this pattern appear",
 not "is the rule kept"; a green build answers "did every step exit zero", not
 "the feature works". Keep a `NOT VERIFIED` list through the run and end the
-report with it. A question nobody asked is not a question that passed.
+report with it; only the clock line (`.ai/REPORTING.md` § *The clock line*)
+follows it. A question nobody asked is not a question that passed.
 
 ## Versioning
 

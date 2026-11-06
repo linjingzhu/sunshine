@@ -161,10 +161,6 @@ def upgrade_one(clone: Path, base: str, version: str, trailers: list[str], push:
         done = git(clone, "push", "-q", "-u", "origin", branch)
         if done.returncode:
             return "failed", f"git push: {done.stderr.strip()}"
-    # A tree made with "Use this template" and never finished still carries
-    # the file that marks the set's home, so its checks believe they are here
-    # and the subscription is never asked about.
-    unfinished = (clone / "LESSONS_FROM_PRACTICE.md").exists()
     files = git(clone, "diff", "--name-status", "HEAD~1", "HEAD").stdout.strip().splitlines()
     flags = [line for line in report.splitlines() if line.startswith(("[local]", "[stale]"))]
     results = [line for line in report.splitlines() if line.startswith(("[PASS]", "[FAIL]", "[SKIP]"))]
@@ -181,16 +177,8 @@ def upgrade_one(clone: Path, base: str, version: str, trailers: list[str], push:
         f"## Changed files ({len(files)})", "", "```text", *files, "```", "",
         f"What changed in the set: `.ai/CHANGELOG.md`, the entries above {before}.",
     ]
-    if unfinished:
-        body[2:2] = [
-            "**This repository still looks like the set's own home.** It holds "
-            "`LESSONS_FROM_PRACTICE.md`, so it was made with \"Use this template\" and "
-            "`adopt.py --from-template` was never run. Its checks therefore skip the "
-            "subscription. Finishing it needs the project's facts, which only its owner has.", "",
-        ]
     (clone.parent / f"{clone.name}.pr.md").write_text("\n".join(body) + "\n", encoding="utf-8")
-    note = "; template copy never finished, so the subscription is not checked there" if unfinished else ""
-    note += "".join(f"; {n}" for n in notes)
+    note = "".join(f"; {n}" for n in notes)
     return "upgraded", f"{before} → {version}, {len(files)} files, {len(flags)} named{note}"
 
 

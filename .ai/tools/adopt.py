@@ -705,6 +705,17 @@ def main(argv: list[str] | None = None) -> int:
             print(note)
         print()
 
+    if target == SET_ROOT and (target / SET_HOME_MARKER).exists():
+        # The entry files tell a run whose project context is missing to run
+        # this script. At the set's home that context is absent on purpose, and
+        # writing it would make the home claim to be an adopter of itself.
+        raise SystemExit(
+            f"This is the set's home ({SET_HOME_MARKER} is here): its project instance "
+            "files are absent on purpose, and nothing was written. Adopt the set "
+            "elsewhere with --into <repo>; finish a copy made with \"Use this template\" "
+            "with --from-template."
+        )
+
     if target != SET_ROOT:
         print(f"[copy] {', '.join(copy_set(target))} → {target}")
         written, kept = copy_capabilities(target)
@@ -716,7 +727,14 @@ def main(argv: list[str] | None = None) -> int:
     written = write_instances(target, facts, args.name, args.force)
     for path in written:
         print(f"[write] {path}")
-    if not (target / SET_HOME_MARKER).exists():
+    if (target / SET_HOME_MARKER).exists():
+        pass
+    elif target == SET_ROOT and (target / LOCK).is_file():
+        # Run in place, nothing was delivered: the lock already records what the
+        # set's home sent, with its source and commit. Rewriting it here would
+        # lose both and record this repository's own `.ai/` files as the set's.
+        print(f"[keep] {LOCK} already records this repository's subscription; left as it was")
+    else:
         write_lock(target, in_place=target == SET_ROOT)
         print(f"[lock] {LOCK} records what was delivered; those files are a subscribed copy")
 

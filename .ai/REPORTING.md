@@ -1,8 +1,8 @@
 ---
 doc_id: ai-reporting
-version: 1.2.0
+version: 1.3.0
 canonical_path: .ai/REPORTING.md
-updated: 2026-11-02
+updated: 2026-11-06
 ---
 
 # Formal Development Reporting
@@ -15,6 +15,16 @@ The Manager reports once per meaningful run. Worker logs are internal unless req
 - `COMPLETED_WITH_NOTES`
 - `ACTION_REQUIRED`
 - `FAILED`
+
+Each follows from the state the run stopped in (`.ai/LOOP.md` §
+*Stop conditions*):
+
+| Stop condition | Status |
+| --- | --- |
+| Done, nothing left open | `COMPLETED` |
+| Done, with a `NOT VERIFIED` item or a remaining risk | `COMPLETED_WITH_NOTES` |
+| Blocked | `ACTION_REQUIRED`, naming what is needed and from whom |
+| Budget spent | `FAILED`, with the causes ruled out |
 
 ## Chat report
 
@@ -125,10 +135,33 @@ reply that changes a row links to it. With no such page, the full table is
 part of every reply that adds or changes a row, the chat report included.
 Either way it is updated before that reply is sent.
 
+## The clock line
+
+Every reply to the user ends with the local time it was written, as its last
+line:
+
+```text
+🕒 2026-11-06 23:20 KST
+```
+
+- Read from the clock (`date`) when the reply is written, never estimated or
+  carried over from an earlier reply.
+- In the user's time zone: the one the user has stated, or the one their
+  project context records under *Local rules*. A remote container's clock is
+  rarely in it. With neither, print the system's zone. The zone is always
+  named.
+- It follows the `NOT VERIFIED` list, as a footer: it dates the reply and says
+  nothing about the work.
+
+A reply read later — from a notification, a phone, the next morning — is
+placed in time by it, and two replies about the same state can be told apart.
+
 ## Persistent detailed report
 
-Write one for any run that merges a pull request, changes a row in the owner
-ledger, or ends `FAILED`; other runs may have one. It goes under:
+Write one for any run that merges into the base branch — a pull request, or a
+local merge where § *personal* in `.ai/REPOSITORY.md` allows one — changes a
+row in the owner ledger, or ends `FAILED`; other runs may have one. It goes
+under:
 
 ```text
 .ai/reports/YYYY-MM-DD-<short-run-name>.md

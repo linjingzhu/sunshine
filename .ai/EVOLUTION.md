@@ -1,8 +1,8 @@
 ---
 doc_id: ai-evolution
-version: 1.1.0
+version: 1.2.0
 canonical_path: .ai/EVOLUTION.md
-updated: 2026-09-26
+updated: 2026-11-06
 ---
 
 # How the Set Improves Itself
@@ -81,6 +81,15 @@ equally editable. Three levels, decided by what a change lets *later* runs do:
 | **Record** | `.ai/memory/PROJECT_LESSONS.md`, `.ai/memory/MANAGER_PLAYBOOK.md`, `.ai/ROADMAP.md`, anything under `.ai/reports/` | a run, on its own, when this file obliges it — with the reason written beside the entry |
 | **Rule** | the policy documents and the checks in `.ai/tools/` | the user asks for it, or approves it. A run may propose, and says what the change would let later runs do that they cannot now |
 | **Direction** | what the product is and is **not** (`.ai/PROJECT_CONTEXT.md`), and the list of things `.ai/CORE.md` § *Autonomy* says to ask about — including this table | never a run, whatever evidence it has |
+
+`.ai/PROJECT_CONTEXT.md` spans two levels, by section. *repository_mode*,
+*Authoritative product constraints* and *Permanently excluded scope* are
+**Direction**. The rest is **Record**: a run writes evidence-backed facts
+into *Facts the checks read*, *Current architecture* and *Current
+development slice*, and writes a standing directive the user gave into
+*Local rules*, as `.ai/CORE.md` § *Autonomy* requires — the user's words,
+dated, not the run's own conclusion. A directive that would change a
+Direction section is asked about, not written.
 
 The distinction is not how large the edit is. Adding one sentence to
 `.ai/REVIEW.md` that turns a MEDIUM into a LOW is a **Rule** change, and

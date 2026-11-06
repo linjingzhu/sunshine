@@ -404,6 +404,77 @@ def check_heading_ownership(report: Report) -> None:
 
 
 # --------------------------------------------------------------------------
+# Check 3b — no empty section
+#
+# Question: does any section heading in a policy document stand over no text
+# at all, its own or its subsections'?
+#
+# A heading other documents point at is a promise that the rule is there. In
+# 4.4.0 `.ai/HARNESS.md` § *Tools a Mission Packet may assume* had no body —
+# its text sat under the next heading — while two capabilities pointed at it,
+# and the reference check passed because the heading resolved.
+#
+# NOT VERIFIED: whether the text under a heading is the text it promises. A
+# section holding the wrong paragraph passes.
+# --------------------------------------------------------------------------
+SECTION_HEADING = re.compile(r"^(#{2,6})\s+(.+?)\s*$")
+
+
+def empty_sections(text: str) -> list[str]:
+    """Headings, level 2 and below, with no non-blank line before the next
+    heading of the same or a higher level. Fenced lines count as text, and a
+    heading inside a fence is not a heading."""
+    lines: list[tuple[str, int | None, str]] = []  # (kind, level, text)
+    fence = None
+    for line in text.splitlines():
+        marker = line.lstrip()[:3]
+        if fence is None and marker in ("```", "~~~"):
+            fence = marker
+            lines.append(("text", None, line))
+            continue
+        if fence is not None:
+            if marker == fence:
+                fence = None
+            lines.append(("text", None, line))
+            continue
+        m = SECTION_HEADING.match(line)
+        if m:
+            lines.append(("heading", len(m.group(1)), m.group(2)))
+        elif line.strip():
+            lines.append(("text", None, line))
+    empty: list[str] = []
+    for i, (kind, level, title) in enumerate(lines):
+        if kind != "heading":
+            continue
+        has_text = False
+        for kind2, level2, _ in lines[i + 1:]:
+            if kind2 == "heading" and level2 <= level:
+                break
+            if kind2 == "text":
+                has_text = True
+                break
+        if not has_text:
+            empty.append(title)
+    return empty
+
+
+def check_empty_sections(report: Report) -> None:
+    failures: list[str] = []
+    for pattern in (".ai/**/*.md", ".claude/**/*.md", ".agents/skills/**/*.md"):
+        for path in repo_files(pattern):
+            name = rel(path)
+            if is_instance(name):
+                continue
+            for title in empty_sections(path.read_text(encoding="utf-8")):
+                failures.append(f"{name}: § *{title}* has no text under it")
+    report.add(
+        "no empty section",
+        "does any section heading in a policy document stand over no text at all?",
+        failures,
+    )
+
+
+# --------------------------------------------------------------------------
 # Check 4 — portability denylist
 #
 # Question: does any term the repository has declared project-specific appear
@@ -413,9 +484,55 @@ def check_heading_ownership(report: Report) -> None:
 # limited to proper nouns a human listed on purpose — the "refuse a second
 # spelling" check of LESSONS_FROM_PRACTICE.md entry 6 — and not to rules.
 #
-# NOT VERIFIED: project-specific facts that use no denylisted word. An empty
-# denylist makes this check vacuous, and it says so rather than passing quietly.
+# At the set's home the repositories that subscribe to it are project names
+# too: a file that travels to all of them must not name one. Each is matched
+# written `owner/repo`, and as the bare name in backticks. The bare name in
+# plain prose is not matched, because some are common words, such as ui and library.
+# Every text file that travels is read, the tools included; the registry,
+# roadmap and reports stay at the home and may name subscribers.
+#
+# NOT VERIFIED: project-specific facts that use no denylisted word, and a
+# subscriber named in plain prose by its bare name. An empty denylist makes
+# this check vacuous, and it says so rather than passing quietly.
 # --------------------------------------------------------------------------
+SUBSCRIBERS = ".ai/SUBSCRIBERS.md"
+
+
+def subscriber_names() -> list[str]:
+    """At the set's home, the `owner/repo` of every subscriber the registry
+    lists; elsewhere, none."""
+    registry = ROOT / SUBSCRIBERS
+    if not at_set_home() or not registry.is_file():
+        return []
+    names: list[str] = []
+    fenced = False
+    for line in registry.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced and line.strip() and not line.lstrip().startswith("#"):
+            first = line.split()[0]
+            if first.count("/") == 1:
+                names.append(first)
+    return names
+
+
+TEXT_SUFFIXES = (".md", ".py", ".txt", ".toml", ".yaml", ".yml", ".json")
+
+
+def traveling_text_files() -> list[Path]:
+    """Every text file a subscriber receives: the entry files, everything under
+    `.ai/` and the capability folders. Wider than `policy_docs()`, which holds
+    only the documents whose structure the other checks read."""
+    files = set(policy_docs())
+    for pattern in (".ai/**/*", ".claude/**/*", ".codex/**/*", ".agents/**/*"):
+        files.update(
+            p for p in repo_files(pattern)
+            if p.is_file() and p.suffix in TEXT_SUFFIXES and "__pycache__" not in p.parts
+        )
+    return sorted(files)
+
+
 def check_portability(report: Report) -> None:
     denylist_path = AI / "tools" / "portability-denylist.txt"
     failures: list[str] = []
@@ -437,6 +554,12 @@ def check_portability(report: Report) -> None:
         print("[note] portability denylist is empty; that check proves nothing.")
 
     patterns = [(t, re.compile(rf"\b{re.escape(t)}\b", re.I)) for t in terms]
+    subscribers = subscriber_names()
+    subscriber_patterns = []
+    for full in subscribers:
+        bare = full.split("/", 1)[1]
+        subscriber_patterns.append((full, re.compile(rf"(?<![\w.-]){re.escape(full)}(?![\w-])", re.I)))
+        subscriber_patterns.append((bare, re.compile(rf"`{re.escape(bare)}`", re.I)))
     for path in policy_docs():
         name = rel(path)
         if is_instance(name) or name == rel(denylist_path):
@@ -446,10 +569,20 @@ def check_portability(report: Report) -> None:
             hits = len(pattern.findall(text))
             if hits:
                 failures.append(f"{name}: {hits}x `{term}`")
+    for path in traveling_text_files() if subscriber_patterns else []:
+        name = rel(path)
+        if is_instance(name) or name == rel(denylist_path) or name in SET_HOME_FILES:
+            continue  # stays at the home; it may name the repositories it serves
+        text = path.read_text(encoding="utf-8")
+        for term, pattern in subscriber_patterns:
+            hits = len(pattern.findall(text))
+            if hits:
+                failures.append(f"{name}: {hits}x subscriber `{term}`, in a file every subscriber receives")
 
+    also = f" or any of the {len(subscribers)} subscribers" if subscribers else ""
     report.add(
         "portability",
-        f"does any of the {len(terms)} declared project-specific terms appear "
+        f"does any of the {len(terms)} declared project-specific terms{also} appear "
         "outside the files allowed to know what the project is?",
         failures,
     )
@@ -1071,6 +1204,18 @@ def removable(name: str) -> bool:
 
 
 def check_subscription(report: Report) -> None:
+    if at_set_home() and (ROOT / LOCK).is_file():
+        # The home has no lock: nothing subscribes it to itself. A tree with both
+        # is a copy made with "Use this template" that still claims to be the
+        # set, so every check that asks about a subscriber was being skipped.
+        report.add(
+            "subscribed copy", SUBSCRIPTION_QUESTION,
+            [f"LESSONS_FROM_PRACTICE.md and `{LOCK}` are both here: this is a copy "
+             "made with \"Use this template\" and never finished, not the set. Run "
+             "`python3 .ai/tools/adopt.py --from-template --name <owner/repo>` here, "
+             "then write .ai/PROJECT_CONTEXT.md"],
+        )
+        return
     if at_set_home():
         report.skip(
             "subscribed copy", SUBSCRIPTION_QUESTION,
@@ -1138,6 +1283,7 @@ def main(argv: list[str] | None = None) -> int:
     check_front_matter(report)
     check_references(report)
     check_heading_ownership(report)
+    check_empty_sections(report)
     check_portability(report)
     check_changelog(report)
     check_capability_definitions(report)

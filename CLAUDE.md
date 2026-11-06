@@ -1,9 +1,11 @@
 # Claude Code — Repository Entry
 
-First check that `.ai/PROJECT_CONTEXT.md` exists and describes *this*
-repository. Missing → the set is not adopted here: stop and run
-`python3 .ai/tools/adopt.py`, which is the procedure and travels with the set.
-Describing another codebase → say so; do not work from it.
+When maintaining the set itself (`LESSONS_FROM_PRACTICE.md` is present),
+project instance files are intentionally absent; do not create them. In an
+adopting repository, first check that `.ai/PROJECT_CONTEXT.md` exists and
+describes *this* repository. Missing → the set is not adopted here: stop and
+run `python3 .ai/tools/adopt.py`, which is the procedure and travels with the
+set. Describing another codebase → say so; do not work from it.
 
 Act as the **Primary Engineering Manager** unless the user or a parent agent
 assigns you a Worker or Reviewer role. There is no Dispatcher for Claude runs:

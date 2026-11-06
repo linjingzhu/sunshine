@@ -69,6 +69,14 @@ NEEDS_THE_SETS_HOME = {
         "the set must ship AGENTS.md; an adopter need not",
     "test_missing_codex_capabilities_are_reported_at_set_home":
         "the set must ship its Codex capabilities; an adopter may remove them",
+    "test_a_subscriber_named_in_a_file_that_travels":
+        "the registry of subscribers exists only at the set's home",
+    "test_a_subscriber_named_in_a_tool_that_travels":
+        "the registry of subscribers exists only at the set's home",
+    "test_a_subscriber_in_backticks_is_named_too":
+        "the registry of subscribers exists only at the set's home",
+    "test_a_template_copy_with_a_lock_is_not_the_set":
+        "the home marker exists only at the set's home",
     "test_codex_entry_references_are_checked":
         "KNOWN BLIND SPOT, only in a repository adopted before 4.0.0 — without "
         "`.ai/set.lock` a reference into a capability folder is not checked, "
@@ -127,7 +135,11 @@ class GuardTests(unittest.TestCase):
         self.assert_fails_with("canonical_path is")
 
     def test_version_not_semver(self) -> None:
-        self.edit(".ai/UX.md", lambda t: t.replace("version: 1.1.0", "version: 1.0", 1))
+        # Any current version, so the test survives the document's next bump.
+        self.edit(
+            ".ai/UX.md",
+            lambda t: re.sub(r"^version: \d+\.\d+\.\d+$", "version: 1.0", t, count=1, flags=re.M),
+        )
         self.assert_fails_with("is not MAJOR.MINOR.PATCH")
 
     # -- check 2: cross-references ----------------------------------------
@@ -172,11 +184,77 @@ class GuardTests(unittest.TestCase):
         )
         self.assert_fails_with("is claimed by")
 
+    # -- check 3b: no empty section ------------------------------------------
+    def test_a_heading_with_no_text_under_it(self) -> None:
+        # 4.4.0 shipped HARNESS § *Tools a Mission Packet may assume* with its
+        # text under the next heading, and two capabilities pointed at it.
+        self.edit(
+            ".ai/UX.md",
+            lambda t: t + "\n## Promised rule\n\n## Next section\n\nIts own text.\n",
+        )
+        self.assert_fails_with("§ *Promised rule* has no text under it")
+
+    def test_a_fenced_heading_is_text_not_a_section(self) -> None:
+        self.edit(
+            ".ai/UX.md",
+            # Two fenced headings in a row: read as headings, the first would be
+            # an empty section, so this fails if the fence is not honoured.
+            lambda t: t + "\n## Example\n\n```text\n## a\n## b\n```\n",
+        )
+        code, out = run_checker(self.copy)
+        self.assertNotIn("has no text under it", out)
+
     # -- check 4: portability ---------------------------------------------
     def test_denylisted_name_in_a_portable_file(self) -> None:
         term = first_denylisted_term(self.copy)
         self.edit(".ai/CORE.md", lambda t: t + f"\nBuilt for {term} by default.\n")
         self.assert_fails_with(f"`{term}`")
+
+    def first_subscriber(self) -> str:
+        registry = (self.copy / ".ai" / "SUBSCRIBERS.md").read_text(encoding="utf-8")
+        block = registry.split("```text", 1)[1].split("```", 1)[0]
+        return next(line.split()[0] for line in block.splitlines() if "/" in line)
+
+    def test_a_subscriber_named_in_a_file_that_travels(self) -> None:
+        # The 4.2.0 defect: the changelog named three subscribers in entries
+        # delivered to all of them, and the check passed.
+        full = self.first_subscriber()
+        self.edit(".ai/CHANGELOG.md", lambda t: t + f"\nFirst met in `{full}`.\n")
+        self.assert_fails_with(f"subscriber `{full}`")
+
+    def test_a_subscriber_in_backticks_is_named_too(self) -> None:
+        bare = self.first_subscriber().split("/", 1)[1]
+        self.edit(".ai/CORE.md", lambda t: t + f"\nFirst met in `{bare}`.\n")
+        self.assert_fails_with(f"subscriber `{bare}`")
+
+    def test_a_subscriber_named_in_a_tool_that_travels(self) -> None:
+        # Review of 4.4.0: the tools travel too, and the first draft of this
+        # check read only the Markdown documents.
+        full = self.first_subscriber()
+        self.edit(".ai/tools/adopt.py", lambda t: t + f"\n# built for {full}\n")
+        self.assert_fails_with(f"subscriber `{full}`")
+
+    def test_a_subscriber_name_is_allowed_where_it_does_not_travel(self) -> None:
+        # Plain prose may use a bare name that is also a common word, and the
+        # files that stay at the home may name the repositories they serve.
+        registry = self.copy / ".ai" / "SUBSCRIBERS.md"
+        if not registry.exists():
+            self.skipTest("the registry exists only at the set's home")
+        full = self.first_subscriber()
+        bare = full.split("/", 1)[1]
+        self.edit(".ai/CORE.md", lambda t: t + f"\nA {bare} is fine in prose.\n")
+        self.edit(".ai/ROADMAP.md", lambda t: t + f"\nFound in `{full}`.\n")
+        self.edit("README.md", lambda t: t + f"\nUsed by `{full}`.\n")
+        code, out = run_checker(self.copy)
+        self.assertEqual(code, 0, f"none of these travels as a named subscriber:\n{out}")
+
+    # -- the subscribed copy: an unfinished template copy -------------------
+    def test_a_template_copy_with_a_lock_is_not_the_set(self) -> None:
+        # Four subscribers held both the home marker and a lock: their checks
+        # took them for the set and skipped the subscribed-copy check.
+        (self.copy / ".ai" / "set.lock").write_text(
+            "source: owner/set\nversion: 4.3.0\ncommit: abc\n", encoding="utf-8")
+        self.assert_fails_with("never finished")
 
     def test_denylisted_name_is_allowed_in_the_instance_files(self) -> None:
         term = first_denylisted_term(self.copy)
