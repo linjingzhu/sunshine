@@ -1,8 +1,8 @@
 ---
 doc_id: ai-core
-version: 1.3.0
+version: 1.4.0
 canonical_path: .ai/CORE.md
-updated: 2026-09-19
+updated: 2026-11-02
 ---
 
 # Core Development Constitution
@@ -59,7 +59,8 @@ Useful development per token, not session count.
   carries the fact; no result the harness already had to truncate.
 - Wait on events, not sleeps: one lookup after the completion signal.
 - Before a context reset, write a state card (branch, open pull requests,
-  unfinished items, verification commands); read it first afterwards.
+  unfinished items, verification commands, the requirements checklist's
+  address, or the full table when it has no page); read it first afterwards.
 - Stable prefix: same read order every run, volatile content last. Load a
   document when its trigger fires, never in case.
 - Breadth-first search goes to a subagent; keep the conclusion, not the files.
