@@ -1002,7 +1002,7 @@ index bb135bb..d5e64f8 100644
 +    const panelEmpty = element('panelEmpty');
 +    panelEmpty.hidden = mounted && this.stored.panelOpen;
 +    panelEmpty.textContent = `Nothing is mounted in the ${
-         this.stored.panelRole} role. One container, ${
+         geometry.roleLabel(this.stored.panelRole)} role. One container, ${
          geometry.PANEL_ROLES} roles; the shell switches between them and the ` +
          'module fills them.';
 +  }
